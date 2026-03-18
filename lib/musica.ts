@@ -68,7 +68,7 @@ const STREAMS_RADIO_AR: Record<string, string[]> = {
   ],
 };
 
-// Nombres para buscar en radio-browser.info (fallback adicional)
+// Términos de búsqueda para Radio Garden y radio-browser.info
 const NOMBRES_RADIO_AR: Record<string, string> = {
   cadena3:     'Cadena 3',
   mitre:       'Radio Mitre',
@@ -76,7 +76,7 @@ const NOMBRES_RADIO_AR: Record<string, string> = {
   rivadavia:   'Radio Rivadavia',
   nacional:    'Radio Nacional',
   lared:       'La Red',
-  metro:       'Radio Metro 95.1',
+  metro:       'Radio Metro',
 };
 
 const HEADERS = {
@@ -134,17 +134,45 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
   return null;
 }
 
+/** Busca una estación en Radio Garden por nombre y devuelve su stream URL */
+async function buscarEnRadioGarden(nombre: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(
+      `https://radio.garden/api/search?q=${encodeURIComponent(nombre)}`,
+      6000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const hits = data?.hits?.hits ?? [];
+    const canal = hits.find((h: any) => h._source?.type === 'channel');
+    if (!canal) return null;
+    const id = canal._source.id?.replace('/api/ara/content/channel/', '').replace('/channel/', '');
+    if (!id) return null;
+    // La URL de stream de Radio Garden redirige al stream real (siempre HTTPS)
+    return `https://radio.garden/api/ara/content/channel/${id}/stream`;
+  } catch {
+    return null;
+  }
+}
+
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
 
   // ── Radios argentinas ─────────────────────────────────────────────────────
   if (STREAMS_RADIO_AR[key]) {
-    // 1. Probar streams curados hardcodeados
+    const nombre = NOMBRES_RADIO_AR[key];
+
+    // 1. Radio Garden — streams proxeados, siempre HTTPS y confiables
+    if (nombre) {
+      const urlGarden = await buscarEnRadioGarden(nombre);
+      if (urlGarden) return urlGarden;
+    }
+
+    // 2. Streams curados hardcodeados
     const urlCurada = await primeraQueAndé(STREAMS_RADIO_AR[key]);
     if (urlCurada) return urlCurada;
 
-    // 2. Buscar en radio-browser.info (solo HTTPS)
-    const nombre = NOMBRES_RADIO_AR[key];
+    // 3. radio-browser.info (solo HTTPS)
     if (nombre) {
       const urlAPI = await buscarEnAPI(nombre, 'AR') ?? await buscarEnAPI(nombre);
       if (urlAPI) return urlAPI;
