@@ -885,22 +885,26 @@ export function useRosita() {
 
   // ── Bostezo por inactividad ──────────────────────────────────────────────────
   const ultimoBostezRef = useRef<number>(0);
+  const CINCO_MIN       = 5 * 60 * 1000;
+
+  function bostezar() {
+    if (estadoRef.current !== 'esperando') return;
+    setExpresion('bostezando');
+    setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
+  }
+
   useEffect(() => {
-    const CINCO_MIN = 5 * 60 * 1000;
-    const ENTRE_BOSTEZOS = 10 * 60 * 1000; // no bosteza de nuevo por 10 min
     const id = setInterval(() => {
       if (estadoRef.current !== 'esperando') return;
       if (modoNocheRef.current !== 'despierta') return;
       if (noMolestarRef.current) return;
       if (musicaActivaRef.current) return;
       if ((Date.now() - ultimaActividadRef.current) < CINCO_MIN) return;
-      if ((Date.now() - ultimoBostezRef.current) < ENTRE_BOSTEZOS) return;
-
       ultimoBostezRef.current = Date.now();
-      setExpresion('bostezando');
-      setTimeout(() => {
-        if (estadoRef.current === 'esperando') setExpresion('neutral');
-      }, 2800);
+      // 3 bostezos seguidos con 5s entre cada uno
+      bostezar();
+      setTimeout(bostezar, 5000);
+      setTimeout(bostezar, 10000);
     }, 60 * 1000);
     return () => clearInterval(id);
   }, []);
