@@ -109,16 +109,20 @@ export function useRosita() {
     return () => clearInterval(id);
   }, []);
 
-  // ── OTA update: descarga en background, aplica al próximo arranque ───────────
+  // ── OTA update: descarga y aplica si el estado es esperando ─────────────────
   useEffect(() => {
     if (__DEV__) return;
     const id = setTimeout(async () => {
       try {
         const check = await Updates.checkForUpdateAsync();
-        if (check.isAvailable) await Updates.fetchUpdateAsync();
-        // Sin reloadAsync — el update se aplica al próximo arranque manual
+        if (!check.isAvailable) return;
+        await Updates.fetchUpdateAsync();
+        // Recargar solo si no está en medio de una conversación
+        if (estadoRef.current === 'esperando' && !procesandoRef.current) {
+          await Updates.reloadAsync();
+        }
       } catch {}
-    }, 2000); // 2s para maximizar tiempo de descarga antes de cualquier crash
+    }, 5000); // 5s para que el perfil cargue antes del posible reload
     return () => clearTimeout(id);
   }, []);
 
