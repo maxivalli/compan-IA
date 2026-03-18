@@ -257,7 +257,7 @@ export default function Index() {
       )}
 
       <Text style={styles.updateId}>
-        {Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}
+        {Updates.isEmbeddedLaunch ? `emb:${Updates.updateId?.slice(0, 6) ?? '?'}` : `ota:${Updates.updateId?.slice(0, 6) ?? '?'}`}
       </Text>
 
       <Animated.View
