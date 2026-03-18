@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CLAVE_PERFIL       = 'rosa_perfil';
-const CLAVE_HISTORIAL    = 'rosa_historial';
-const CLAVE_INSTALL_ID   = 'compania_install_id';
-const CLAVE_FAMILIA_ID   = 'compania_familia_id';
+const CLAVE_PERFIL         = 'rosa_perfil';
+const CLAVE_HISTORIAL      = 'rosa_historial';
+const CLAVE_INSTALL_ID     = 'compania_install_id';
+const CLAVE_FAMILIA_ID     = 'compania_familia_id';
+const CLAVE_BIENVENIDA     = 'compania_bienvenida_dada';
 
 // ── Identidad del dispositivo ─────────────────────────────────────────────────
 
@@ -36,6 +37,18 @@ export async function obtenerFamiliaId(): Promise<string | null> {
 
 export async function guardarFamiliaId(id: string): Promise<void> {
   await AsyncStorage.setItem(CLAVE_FAMILIA_ID, id);
+}
+
+export async function bienvenidaYaDada(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(CLAVE_BIENVENIDA)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function marcarBienvenidaDada(): Promise<void> {
+  await AsyncStorage.setItem(CLAVE_BIENVENIDA, '1');
 }
 
 export type TelegramContacto = { id: string; nombre: string };

@@ -10,7 +10,7 @@ import * as Speech from 'expo-speech';
 import {
   cargarPerfil, cargarHistorial, guardarHistorial,
   Perfil, guardarEntradaAnimo, agregarRecuerdo,
-  guardarRecordatorio,
+  guardarRecordatorio, bienvenidaYaDada, marcarBienvenidaDada,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { buscarRadio } from '../lib/musica';
@@ -294,9 +294,13 @@ export function useRosita() {
     perfilRef.current = perfil;
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     setCargando(false);
-    const asistente = perfil.nombreAsistente ?? 'Rosita';
-    const rol = perfil.vozGenero === 'masculina' ? 'tu nuevo compañero' : 'tu nueva compañera';
-    await hablar(`¡Hola ${perfil.nombreAbuela}! Soy ${asistente}, ${rol}. Podés hablarme cuando quieras, acá estoy.`);
+    const yaDada = await bienvenidaYaDada();
+    if (!yaDada) {
+      const asistente = perfil.nombreAsistente ?? 'Rosita';
+      const rol = perfil.vozGenero === 'masculina' ? 'tu nuevo compañero' : 'tu nueva compañera';
+      await marcarBienvenidaDada();
+      await hablar(`¡Hola ${perfil.nombreAbuela}! Soy ${asistente}, ${rol}. Podés hablarme cuando quieras, acá estoy.`);
+    }
   }
 
   // ── Recargar perfil al volver de configuración ──────────────────────────────

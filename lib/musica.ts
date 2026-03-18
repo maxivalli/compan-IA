@@ -36,38 +36,6 @@ const STREAMS_GENERO: Record<string, string[]> = {
   ],
 };
 
-// Streams HTTPS curados para radios argentinas conocidas
-const STREAMS_RADIO_AR: Record<string, string[]> = {
-  cadena3:     [
-    'https://streaming.cadena3.com.ar/cadena3',
-    'https://edge2.streamguys.com/cadena3',
-  ],
-  mitre:       [
-    'https://cdn.triton.digital/mp3/stream/mitre_baires',
-    'https://d14uos6stvmxrn.cloudfront.net/Mitre/smil:mitre.smil/playlist.m3u8',
-  ],
-  continental: [
-    'https://cdn.triton.digital/mp3/stream/continental_baires',
-    'https://d14uos6stvmxrn.cloudfront.net/Continental/smil:continental.smil/playlist.m3u8',
-  ],
-  rivadavia:   [
-    'https://cdn.triton.digital/mp3/stream/rivadavia_am630',
-    'https://d14uos6stvmxrn.cloudfront.net/Rivadavia/smil:rivadavia.smil/playlist.m3u8',
-  ],
-  nacional:    [
-    'https://icecast.servicios.rna.gob.ar/nacional-am870.mp3',
-    'https://stream.rna.gob.ar/nacional',
-  ],
-  lared:       [
-    'https://cdn.triton.digital/mp3/stream/lared_baires',
-    'https://d14uos6stvmxrn.cloudfront.net/LaRed/smil:lared.smil/playlist.m3u8',
-  ],
-  metro:       [
-    'https://cdn.triton.digital/mp3/stream/metro_baires',
-    'https://d14uos6stvmxrn.cloudfront.net/Metro/smil:metro.smil/playlist.m3u8',
-  ],
-};
-
 // Términos de búsqueda para Radio Garden y radio-browser.info
 const NOMBRES_RADIO_AR: Record<string, string> = {
   cadena3:     'Cadena 3',
@@ -159,24 +127,15 @@ export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
 
   // ── Radios argentinas ─────────────────────────────────────────────────────
-  if (STREAMS_RADIO_AR[key]) {
-    const nombre = NOMBRES_RADIO_AR[key];
-
+  const nombre = NOMBRES_RADIO_AR[key];
+  if (nombre) {
     // 1. Radio Garden — streams proxeados, siempre HTTPS y confiables
-    if (nombre) {
-      const urlGarden = await buscarEnRadioGarden(nombre);
-      if (urlGarden) return urlGarden;
-    }
+    const urlGarden = await buscarEnRadioGarden(nombre);
+    if (urlGarden) return urlGarden;
 
-    // 2. Streams curados hardcodeados
-    const urlCurada = await primeraQueAndé(STREAMS_RADIO_AR[key]);
-    if (urlCurada) return urlCurada;
-
-    // 3. radio-browser.info (solo HTTPS)
-    if (nombre) {
-      const urlAPI = await buscarEnAPI(nombre, 'AR') ?? await buscarEnAPI(nombre);
-      if (urlAPI) return urlAPI;
-    }
+    // 2. radio-browser.info (solo HTTPS)
+    const urlAPI = await buscarEnAPI(nombre, 'AR') ?? await buscarEnAPI(nombre);
+    if (urlAPI) return urlAPI;
 
     return null;
   }
