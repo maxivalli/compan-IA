@@ -625,18 +625,35 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
   // ── Timer de silbido ────────────────────────────────────────────────────────
   useEffect(() => {
-    const QUINCE_MIN = 15 * 60 * 1000;
-    const id = setInterval(() => {
-      const esperando = estadoRef.current === 'esperando';
-      const despierta = modoNoche === 'despierta';
-      const sinCharla = (Date.now() - ultimaCharlaRef.current) >= QUINCE_MIN;
-      const sinMusica = !musicaActivaRef.current;
-      if (esperando && despierta && sinCharla && sinMusica && !noMolestarRef.current) {
+    const DIEZ_MIN        = 10 * 60 * 1000;
+    const ultimoSilbidoRef = { current: 0 };
+
+    function puedeSilbar() {
+      return estadoRef.current === 'esperando'
+        && modoNoche === 'despierta'
+        && !musicaActivaRef.current
+        && !noMolestarRef.current
+        && (Date.now() - ultimaCharlaRef.current) >= DIEZ_MIN;
+    }
+
+    async function seriedeSilbidos() {
+      for (let i = 0; i < 3; i++) {
+        if (!puedeSilbar()) break;
         iniciarSilbido();
-      } else {
+        // Esperar a que termine el silbido (~4s) + pausa de 5s
+        await new Promise(r => setTimeout(r, 9000));
         detenerSilbido();
+        if (i < 2) await new Promise(r => setTimeout(r, 5000));
       }
-    }, 15000);
+      ultimoSilbidoRef.current = Date.now();
+    }
+
+    const id = setInterval(() => {
+      if (!puedeSilbar()) return;
+      if ((Date.now() - ultimoSilbidoRef.current) < DIEZ_MIN) return;
+      seriedeSilbidos();
+    }, 30000); // chequea cada 30s
+
     return () => { clearInterval(id); detenerSilbido(); };
   }, [modoNoche]);
 
