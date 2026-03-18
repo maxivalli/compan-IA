@@ -260,6 +260,14 @@ export default function Index() {
         {Updates.isEmbeddedLaunch ? `emb:${Updates.updateId?.slice(0, 6) ?? '?'}` : `ota:${Updates.updateId?.slice(0, 6) ?? '?'}`}
       </Text>
 
+      {/* Botón debug temporal — tocar para probar silbido */}
+      <TouchableOpacity
+        onPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
+        style={{ position: 'absolute', bottom: 6, left: 10, padding: 4 }}
+      >
+        <Text style={{ fontSize: 10, color: '#ffffff66' }}>{silbando ? '🔇' : '🎵'}</Text>
+      </TouchableOpacity>
+
       <Animated.View
         pointerEvents="none"
         style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF', opacity: flashAnim }]}
