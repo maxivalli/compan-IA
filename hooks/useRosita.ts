@@ -748,7 +748,12 @@ export function useRosita() {
             setEstado('esperando');
             estadoRef.current = 'esperando';
             iniciarSpeechRecognition();
-            setTimeout(() => { if (!playerMusica.playing) setMusicaActiva(false); }, 5000);
+            setTimeout(async () => {
+              if (!playerMusica.playing) {
+                setMusicaActiva(false);
+                await hablar('Ay, no pude conectar con la radio. Intentá de nuevo en un ratito.');
+              }
+            }, 5000);
             if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
             expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 5000);
           } catch {

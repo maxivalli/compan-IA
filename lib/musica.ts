@@ -102,7 +102,7 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
   return null;
 }
 
-/** Busca una estación en Radio Garden por nombre y devuelve su stream URL */
+/** Busca una estación en Radio Garden y devuelve la URL final del stream (resuelve el redirect) */
 async function buscarEnRadioGarden(nombre: string): Promise<string | null> {
   try {
     const res = await fetchConTimeout(
@@ -116,8 +116,15 @@ async function buscarEnRadioGarden(nombre: string): Promise<string | null> {
     if (!canal) return null;
     const id = canal._source.id?.replace('/api/ara/content/channel/', '').replace('/channel/', '');
     if (!id) return null;
-    // La URL de stream de Radio Garden redirige al stream real (siempre HTTPS)
-    return `https://radio.garden/api/ara/content/channel/${id}/stream`;
+    // Resolver el redirect para obtener la URL directa del stream
+    const streamRes = await fetchConTimeout(
+      `https://radio.garden/api/ara/content/channel/${id}/stream`,
+      6000,
+      { redirect: 'follow' },
+    );
+    if (!streamRes.ok && streamRes.status !== 302) return null;
+    // La URL final tras el redirect es la del stream real
+    return streamRes.url ?? null;
   } catch {
     return null;
   }
