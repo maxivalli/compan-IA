@@ -31,7 +31,9 @@ export async function llamarClaude(options: {
       system: options.system,
       messages: options.messages,
     }),
+    signal: AbortSignal.timeout(20000),
   });
+  if (!res.ok) throw new Error(`Claude ${res.status}`);
   const data = await res.json();
   return data.content?.[0]?.text ?? '';
 }
@@ -46,7 +48,9 @@ export async function transcribirAudio(uri: string): Promise<string> {
     method: 'POST',
     headers: await formHeaders(),
     body: formData,
+    signal: AbortSignal.timeout(25000),
   });
+  if (!res.ok) throw new Error(`Whisper ${res.status}`);
   const data = await res.json();
   return data.text?.trim() ?? '';
 }
@@ -54,11 +58,15 @@ export async function transcribirAudio(uri: string): Promise<string> {
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
 /** Devuelve el audio sintetizado como string base64, o null si falla. */
-export async function sintetizarVoz(texto: string): Promise<string | null> {
+export const VOICE_ID_FEMENINA = 'r3lotmx3BZETVvcKm6R6';
+export const VOICE_ID_MASCULINA = 'QK4xDwo9ESPHA4JNUpX3';
+
+export async function sintetizarVoz(texto: string, voiceId?: string): Promise<string | null> {
   const res = await fetch(`${BACKEND_URL}/ai/tts`, {
     method: 'POST',
     headers: await jsonHeaders(),
-    body: JSON.stringify({ text: texto }),
+    body: JSON.stringify({ text: texto, voiceId }),
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) return null;
   const data = await res.json();

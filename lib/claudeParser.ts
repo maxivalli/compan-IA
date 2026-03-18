@@ -34,19 +34,36 @@ export function hashTexto(texto: string): string {
 }
 
 export function detectarGenero(tag: string): string {
+  const t = tag.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Radios argentinas conocidas
+  const mapaEstaciones: [string, string[]][] = [
+    ['cadena3',     ['cadena3', 'cadena 3']],
+    ['mitre',       ['mitre']],
+    ['continental', ['continental']],
+    ['rivadavia',   ['rivadavia']],
+    ['nacional',    ['nacional']],
+    ['lared',       ['la red', 'lared']],
+    ['metro',       ['metro']],
+  ];
+  for (const [estacion, palabras] of mapaEstaciones) {
+    if (palabras.some(p => t.includes(p))) return estacion;
+  }
+
+  // Géneros musicales
   const mapa: [string, string[]][] = [
     ['tango',     ['tango', 'milonga', 'piazzolla']],
-    ['bolero',    ['bolero', 'besame', 'bésame', 'trio', 'trío']],
-    ['folklore',  ['folklore', 'folclore', 'folklo', 'chacarera', 'zamba', 'chamamé']],
-    ['romantica', ['romantica', 'romántica', 'balada', 'romantico', 'romántico', 'amor']],
-    ['clasica',   ['clasica', 'clásica', 'classical', 'clasico', 'clásico', 'beethoven', 'mozart', 'opera', 'ópera']],
+    ['bolero',    ['bolero', 'besame', 'trio']],
+    ['folklore',  ['folklore', 'folclore', 'folklo', 'chacarera', 'zamba', 'chamame']],
+    ['romantica', ['romantica', 'balada', 'romantico', 'amor']],
+    ['clasica',   ['clasica', 'classical', 'clasico', 'beethoven', 'mozart', 'opera']],
     ['jazz',      ['jazz', 'swing', 'blues']],
     ['pop',       ['pop', 'rock', 'moderna', 'moderno', 'nueva', 'nuevo', 'actual', 'hoy', 'contemporanea', 'contemporaneo']],
   ];
   for (const [genero, palabras] of mapa) {
-    if (palabras.some(p => tag.includes(p))) return genero;
+    if (palabras.some(p => t.includes(p))) return genero;
   }
-  return tag;
+  return t;
 }
 
 export function respuestaOffline(
@@ -57,6 +74,7 @@ export function respuestaOffline(
   onPararMusica: () => void,
   chatIds: string[],
   enviarAlerta: (ids: string[], msg: string, asistente: string) => void,
+  vozGenero: 'femenina' | 'masculina' = 'femenina',
 ): string | null {
   const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (/\b(hola|buen[oa]s|como estas|como te va|que tal)\b/.test(t))
@@ -90,19 +108,71 @@ export function respuestaOffline(
   if (/\b(adios|chau|hasta luego|nos vemos)\b/.test(t))
     return `¡Hasta luego, ${nombreAbuela}! Cuando quieras, acá estoy.`;
   if (/\b(nombre|como te llamas|quien sos)\b/.test(t))
-    return `Soy ${nombreAsistente}, tu compañera. Ahora mismo no tengo señal, pero no me voy a ningún lado.`;
+    return `Soy ${nombreAsistente}, tu ${vozGenero === 'masculina' ? 'compañero' : 'compañera'}. Ahora mismo no tengo señal, pero no me voy a ningún lado.`;
   if (/\b(broma|reir|gracioso)\b/.test(t))
     return `Ahora no se me ocurre ninguna, ${nombreAbuela}. ¡Cuando vuelva la señal te cuento algo divertido!`;
   // Fallback general — siempre responde algo cálido
   const frasesFallback = [
     `Ahora mismo no tengo conexión, ${nombreAbuela}, pero acá estoy con vos. Volvé a hablarme en un ratito.`,
-    `No me llega bien la señal, ${nombreAbuela}. Dame unos minutos y vuelvo a estar completa.`,
+    `No me llega bien la señal, ${nombreAbuela}. Dame unos minutos y vuelvo a estar ${vozGenero === 'masculina' ? 'completo' : 'completa'}.`,
     `Estoy sin internet por ahora, ${nombreAbuela}, pero no te preocupes que en cuanto vuelva la señal seguimos charlando.`,
   ];
   return frasesFallback[Math.floor(Math.random() * frasesFallback.length)];
 }
 
-function tonoSegunEdad(edad?: number): string {
+// ── Detección de fechas próximas ──────────────────────────────────────────────
+
+const MESES_MAP: Record<string, number> = {
+  enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+  julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11,
+};
+
+export function detectarFechasProximas(fechas: string[], diasAnticipacion = 3): string[] {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const limite = new Date(hoy);
+  limite.setDate(hoy.getDate() + diasAnticipacion);
+
+  return fechas.filter(f => {
+    const texto = f.toLowerCase();
+
+    const matchISO = texto.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (matchISO) {
+      const fecha = new Date(parseInt(matchISO[1]), parseInt(matchISO[2]) - 1, parseInt(matchISO[3]));
+      return fecha >= hoy && fecha <= limite;
+    }
+
+    const matchDiaMes = texto.match(/(\d{1,2})\s+de\s+([a-záéíóú]+)/);
+    if (matchDiaMes) {
+      const dia = parseInt(matchDiaMes[1]);
+      const mes = MESES_MAP[matchDiaMes[2]];
+      if (mes !== undefined) {
+        const anio =
+          hoy.getMonth() > mes || (hoy.getMonth() === mes && hoy.getDate() > dia)
+            ? hoy.getFullYear() + 1
+            : hoy.getFullYear();
+        const fecha = new Date(anio, mes, dia);
+        return fecha >= hoy && fecha <= limite;
+      }
+    }
+
+    const matchSlash = texto.match(/(\d{1,2})\/(\d{1,2})/);
+    if (matchSlash) {
+      const dia = parseInt(matchSlash[1]);
+      const mes = parseInt(matchSlash[2]) - 1;
+      const anio =
+        hoy.getMonth() > mes || (hoy.getMonth() === mes && hoy.getDate() > dia)
+          ? hoy.getFullYear() + 1
+          : hoy.getFullYear();
+      const fecha = new Date(anio, mes, dia);
+      return fecha >= hoy && fecha <= limite;
+    }
+
+    return false;
+  });
+}
+
+export function tonoSegunEdad(edad?: number): string {
   if (!edad) return `Hablás en español rioplatense, con cariño y sin apuro. Usás frases cortas y claras. Nunca sos condescendiente.`;
   if (edad < 18) return `Hablás en español rioplatense, con energía y entusiasmo. Usás un lenguaje juvenil y natural, dinámico y directo. Podés usar expresiones modernas pero sin exagerar.`;
   if (edad < 41) return `Hablás en español rioplatense, de manera directa y natural, como con un par. Sin simplificaciones ni paternalismos. Podés ser más conciso.`;
@@ -122,7 +192,8 @@ export function construirSystemPrompt(p: Perfil, climaTexto: string, incluirJueg
   const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   const asistente = p.nombreAsistente ?? 'Rosita';
   const edadTexto = p.edad ? ` de ${p.edad} años` : '';
-  return `Sos ${asistente}, una compañera virtual para ${p.nombreAbuela || 'la persona'}${edadTexto}.
+  const rol = p.vozGenero === 'masculina' ? 'un compañero virtual' : 'una compañera virtual';
+  return `Sos ${asistente}, ${rol} para ${p.nombreAbuela || 'la persona'}${edadTexto}.
 ${tonoSegunEdad(p.edad)}
 Nunca usás palabras como "amor", "mi amor", "querida" — usás siempre el nombre de la persona.
 Hacés preguntas abiertas para que la persona se sienta escuchada.
@@ -136,7 +207,10 @@ Empatía según el estado emocional de la persona:
 - Nunca cambies de tema abruptamente cuando la persona está hablando de algo importante para ella.
 Al inicio de cada respuesta incluí UNA etiqueta. Las opciones son:
 - Emoción: [FELIZ], [TRISTE], [SORPRENDIDA], [PENSATIVA] o [NEUTRAL]
-- Si piden música: [MUSICA: genero] — reproducís radios en vivo, no canciones específicas. Avisale a la persona que vas a poner una radio del género pedido. El genero debe ser EXACTAMENTE una de estas palabras: tango, bolero, folklore, romantica, clasica, jazz, pop. NUNCA pongas nombre de canción ni artista. Ejemplo correcto: [MUSICA: bolero]. Incorrecto: [MUSICA: Bésame Mucho].
+- Si piden música: [MUSICA: clave] — reproducís radios en vivo, no canciones específicas. Avisale a la persona qué vas a poner. La clave debe ser EXACTAMENTE una de las siguientes:
+  · Géneros musicales: tango, bolero, folklore, romantica, clasica, jazz, pop
+  · Radios argentinas: cadena3, mitre, continental, rivadavia, nacional, lared, metro
+  NUNCA pongas nombre de canción ni artista. Ejemplo correcto: [MUSICA: cadena3] o [MUSICA: tango]. Incorrecto: [MUSICA: Bésame Mucho].
 - Si piden parar la música: [PARAR_MUSICA] (en vez de emoción)
 - Si contás un cuento corto: [CUENTO] en lugar de emoción. Podés extenderte un poco más.
 - Si iniciás una adivinanza, trivia o juego de memoria: [JUEGO] en lugar de emoción. Continuá el juego en turnos siguientes con la emoción que corresponda.

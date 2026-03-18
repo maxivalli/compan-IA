@@ -15,6 +15,17 @@ const STREAMS_FALLBACK: Record<string, string> = {
   pop:       'https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3',
 };
 
+// Radios argentinas conocidas — nombre para búsqueda en radio-browser.info
+const RADIOS_ARGENTINA: Record<string, string> = {
+  cadena3:     'Cadena 3',
+  mitre:       'Radio Mitre',
+  continental: 'Radio Continental',
+  rivadavia:   'Radio Rivadavia',
+  nacional:    'Radio Nacional',
+  lared:       'La Red',
+  metro:       'Radio Metro 95.1',
+};
+
 const HEADERS = {
   'User-Agent': 'CompañIA/1.0 (Radio Player)',
   'Accept': 'application/json',
@@ -26,13 +37,14 @@ function fetchConTimeout(url: string, ms: number, options?: RequestInit): Promis
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-async function buscarEnAPI(genero: string): Promise<string | null> {
-  const terminos = [genero, `${genero} radio`, `radio ${genero}`];
+async function buscarEnAPI(termino: string, pais?: string): Promise<string | null> {
+  const terminos = [termino, `${termino} radio`, `radio ${termino}`];
+  const paisParam = pais ? `&countrycode=${pais}` : '&language=spanish';
 
   for (const servidor of SERVIDORES) {
-    for (const termino of terminos) {
+    for (const t of terminos) {
       try {
-        const url = `${servidor}/json/stations/search?name=${encodeURIComponent(termino)}&language=spanish&hidebroken=true&order=votes&reverse=true&limit=10`;
+        const url = `${servidor}/json/stations/search?name=${encodeURIComponent(t)}${paisParam}&hidebroken=true&order=votes&reverse=true&limit=10`;
         const res = await fetchConTimeout(url, 8000, { headers: HEADERS });
         if (!res.ok) continue;
         const stations = await res.json();
@@ -49,8 +61,18 @@ async function buscarEnAPI(genero: string): Promise<string | null> {
 }
 
 export async function buscarRadio(genero: string): Promise<string | null> {
-  const key = genero.toLowerCase();
+  const key = genero.toLowerCase().trim();
 
+  // Primero verificar si es una radio argentina conocida
+  const radioArgentina = RADIOS_ARGENTINA[key];
+  if (radioArgentina) {
+    // Intentar con nombre exacto + country=AR, luego sin filtro de país
+    const urlEstacion = await buscarEnAPI(radioArgentina, 'AR') ?? await buscarEnAPI(radioArgentina);
+    if (urlEstacion) return urlEstacion;
+    return null;
+  }
+
+  // Género musical genérico
   const urlAPI = await buscarEnAPI(key);
   if (urlAPI) return urlAPI;
 

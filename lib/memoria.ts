@@ -43,6 +43,7 @@ export type TelegramContacto = { id: string; nombre: string };
 export type Perfil = {
   nombreAbuela: string;
   nombreAsistente: string;
+  vozGenero: 'femenina' | 'masculina';
   edad?: number;
   familiares: string[];
   gustos: string[];
@@ -56,6 +57,7 @@ export type Perfil = {
 export const perfilInicial: Perfil = {
   nombreAbuela: '',
   nombreAsistente: 'Rosita',
+  vozGenero: 'femenina',
   edad: undefined,
   familiares: [],
   gustos: [],
@@ -242,6 +244,25 @@ export async function guardarPIN(pin: string): Promise<void> {
 
 export async function eliminarPIN(): Promise<void> {
   await AsyncStorage.removeItem(CLAVE_PIN);
+}
+
+// ── Resumen diario ───────────────────────────────────────────────────────────
+
+const CLAVE_RESUMEN = 'rosa_resumen_enviado';
+
+export async function yaEnvioResumen(): Promise<boolean> {
+  try {
+    const hoy = new Date().toISOString().slice(0, 10);
+    const data = await AsyncStorage.getItem(CLAVE_RESUMEN);
+    return data === hoy;
+  } catch { return false; }
+}
+
+export async function marcarResumenEnviado(): Promise<void> {
+  try {
+    const hoy = new Date().toISOString().slice(0, 10);
+    await AsyncStorage.setItem(CLAVE_RESUMEN, hoy);
+  } catch {}
 }
 
 export async function borrarRecordatoriosViejos(): Promise<void> {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, AppState, BackHandler, Platform } from 'react-native';
+import * as Updates from 'expo-updates';
 import { Accelerometer } from 'expo-sensors';
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -19,7 +20,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPrompt, parsearRespuesta,
 } from '../lib/claudeParser';
-import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido } from '../lib/ai';
+import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -34,6 +35,7 @@ export function useRosita() {
   // ── Estado visible ──────────────────────────────────────────────────────────
   const [estado,            setEstado]            = useState<'esperando' | 'escuchando' | 'pensando' | 'hablando'>('esperando');
   const [expresion,         setExpresion]         = useState<Expresion>('neutral');
+  const [cargando,          setCargando]          = useState(true);
   const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
   const [musicaActiva,      setMusicaActiva]      = useState(false);
   const [silbando,          setSilbando]          = useState(false);
@@ -104,7 +106,20 @@ export function useRosita() {
     return () => clearInterval(id);
   }, []);
 
-  // ── Monitor de conectividad ──────────────────────────────────────────────────
+  // ── OTA update: descarga en background, aplica al próximo arranque ───────────
+  useEffect(() => {
+    if (__DEV__) return;
+    const id = setTimeout(async () => {
+      try {
+        const check = await Updates.checkForUpdateAsync();
+        if (check.isAvailable) await Updates.fetchUpdateAsync();
+        // Sin reloadAsync — el update se aplica al próximo arranque manual
+      } catch {}
+    }, 8000);
+    return () => clearTimeout(id);
+  }, []);
+
+  // ── Monitor de conectividad (cada 3 min) ────────────────────────────────────
   useEffect(() => {
     const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
     if (!BACKEND_URL) return;
@@ -115,7 +130,7 @@ export function useRosita() {
         const habia = sinConexionRef.current;
         sinConexionRef.current = !res.ok;
         if (habia && res.ok && estadoRef.current === 'esperando' && !noMolestarRef.current) {
-          await hablar(`${perfilRef.current?.nombreAbuela ?? ''}, ya volví a estar conectada.`);
+          await hablar(`${perfilRef.current?.nombreAbuela ?? ''}, ya volví a estar ${perfilRef.current?.vozGenero === 'masculina' ? 'conectado' : 'conectada'}.`);
         }
       } catch {
         const habia = sinConexionRef.current;
@@ -129,7 +144,7 @@ export function useRosita() {
       }
     }
 
-    const id = setInterval(chequearConexion, 30000);
+    const id = setInterval(chequearConexion, 3 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -251,11 +266,11 @@ export function useRosita() {
   useEffect(() => {
     inicializar();
     const watchdog = setInterval(() => {
-      if (enFlujoVozRef.current) return; // no interferir durante flujo de voz
+      if (enFlujoVozRef.current) return;
       if (estadoRef.current === 'esperando' && !srActivoRef.current && !procesandoRef.current) {
         iniciarSpeechRecognition();
       }
-    }, 2000);
+    }, 5000);
     return () => { ExpoSpeechRecognitionModule.stop(); clearInterval(watchdog); };
   }, []);
 
@@ -270,16 +285,17 @@ export function useRosita() {
       `Hola ${nombre}, soy ${asistente}. ¿Cómo estás hoy?`,
       // Offline
       `${nombre}, por ahora no tengo señal. Seguí hablándome y te respondo con lo que pueda.`,
-      `${nombre}, ya volví a estar conectada.`,
+      `${nombre}, ya volví a estar ${perfil.vozGenero === 'masculina' ? 'conectado' : 'conectada'}.`,
       `Ahora mismo no tengo conexión, ${nombre}, pero acá estoy con vos. Volvé a hablarme en un ratito.`,
-      `No me llega bien la señal, ${nombre}. Dame unos minutos y vuelvo a estar completa.`,
+      `No me llega bien la señal, ${nombre}. Dame unos minutos y vuelvo a estar ${perfil.vozGenero === 'masculina' ? 'completo' : 'completa'}.`,
     ];
     for (const frase of frases) {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(frase) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       if (info.exists) continue;
       try {
-        const base64 = await sintetizarVoz(frase);
+        const voiceId = perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA;
+        const base64 = await sintetizarVoz(frase, voiceId);
         if (!base64) continue;
         await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
       } catch {}
@@ -324,13 +340,13 @@ export function useRosita() {
     historialRef.current = historialGuardado as Mensaje[];
     if (clima) { climaRef.current = climaATexto(clima); setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion }); }
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
-    precalentarCache(perfilGuardado).catch(() => {});
-    const asistente = perfilGuardado.nombreAsistente ?? 'Rosita';
+    // precalentarCache desactivado — generaba 8+ llamadas API al arrancar
     if (!perfilGuardado.nombreAbuela) {
+      // Mantener cargando=true para no mostrar la pantalla principal antes de navegar al onboarding
       setMostrarOnboarding(true);
-      await hablar(`¡Hola! Soy ${asistente}, tu compañera virtual. Estoy acá para charlar con vos, recordarte los medicamentos, ponerte música y avisarle a tu familia si lo necesitás. Antes de empezar, pedile a un familiar que me configure con tu nombre y tus datos.`);
     } else {
-      await hablar(`Hola ${perfilGuardado.nombreAbuela}, soy ${asistente}. ¿Cómo estás hoy?`);
+      setCargando(false);
+      iniciarSpeechRecognition();
     }
   }
 
@@ -388,8 +404,9 @@ export function useRosita() {
       player.replace({ uri: cacheUri });
       player.play();
       await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, 15000);
         setTimeout(() => {
-          const interval = setInterval(() => { if (!player.playing) { clearInterval(interval); resolve(); } }, 300);
+          const interval = setInterval(() => { if (!player.playing) { clearInterval(interval); clearTimeout(timeout); resolve(); } }, 300);
         }, 400);
       });
       if (silbidoActivoRef.current && estadoRef.current === 'esperando') {
@@ -467,7 +484,8 @@ export function useRosita() {
       let uri: string | null = info.exists ? cacheUri : null;
 
       if (!uri) {
-        const base64 = await sintetizarVoz(texto);
+        const voiceId = perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA;
+        const base64 = await sintetizarVoz(texto, voiceId);
         if (base64) {
           await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
           uri = cacheUri;
@@ -478,9 +496,11 @@ export function useRosita() {
         player.replace({ uri });
         player.play();
         await new Promise<void>(resolve => {
+          const MAX_ESPERA = 30000;
+          const timeout = setTimeout(resolve, MAX_ESPERA); // timeout máximo de seguridad
           setTimeout(() => {
             const interval = setInterval(() => {
-              if (!player.playing) { clearInterval(interval); resolve(); }
+              if (!player.playing) { clearInterval(interval); clearTimeout(timeout); resolve(); }
             }, 300);
           }, 400);
         });
@@ -555,6 +575,28 @@ export function useRosita() {
     }
   }
 
+  // ── Noticias en tiempo real ─────────────────────────────────────────────────
+  async function buscarNoticias(query: string): Promise<string | null> {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 6000);
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=es-419&gl=AR&ceid=AR:es-419`;
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(id);
+      if (!res.ok) return null;
+      const xml = await res.text();
+      // Extraer títulos del RSS — Google News usa CDATA, algunos feeds no
+      const cdataMatches = [...xml.matchAll(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/gi)];
+      const plainMatches = cdataMatches.length ? [] : [...xml.matchAll(/<title>([^<]+)<\/title>/gi)];
+      const allMatches = cdataMatches.length ? cdataMatches : plainMatches;
+      const titulos = allMatches.slice(1, 6).map(m => m[1].trim()).filter(Boolean); // slice(1) para saltear el título del canal
+      if (!titulos.length) return null;
+      return titulos.join('\n');
+    } catch {
+      return null;
+    }
+  }
+
   // ── Responder con Claude ────────────────────────────────────────────────────
   async function responderConClaude(textoUsuario: string) {
     const p = perfilRef.current;
@@ -568,8 +610,18 @@ export function useRosita() {
       const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const pideJuego = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina)\b/.test(textoNorm);
 
+      // Buscar noticias si la pregunta es sobre eventos actuales o deportes
+      let contextoNoticias = '';
+      const pideNoticias = /\b(como salio|salio|resultado|gano|gano|perdio|partido|noticias|que paso|que hay|actualidad|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|economia|dolar|inflacion)\b/.test(textoNorm);
+      if (pideNoticias) {
+        const titulos = await buscarNoticias(textoUsuario);
+        if (titulos) {
+          contextoNoticias = `\n\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${titulos}\nUsá esta información si es relevante para responder.`;
+        }
+      }
+
       const respuestaRaw = await llamarClaude({
-        system: getSystemPrompt(p, climaRef.current, pideJuego),
+        system: getSystemPrompt(p, climaRef.current, pideJuego) + contextoNoticias,
         messages: nuevoHistorial.slice(-10),
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
 
@@ -718,6 +770,7 @@ export function useRosita() {
         pararMusica,
         chatIds,
         enviarAlertaTelegram,
+        p.vozGenero ?? 'femenina',
       );
       await hablar(respLocal ?? 'No pude conectarme ahora. ¿Podés intentar de nuevo en un momento?');
     }
@@ -775,7 +828,7 @@ export function useRosita() {
     let conteo = 0;
     let timerReset: ReturnType<typeof setTimeout> | null = null;
 
-    Accelerometer.setUpdateInterval(100);
+    Accelerometer.setUpdateInterval(1000);
     const sub = Accelerometer.addListener(({ x, y, z }) => {
       const magnitud = Math.sqrt(x * x + y * y + z * z);
       if (magnitud > UMBRAL) {
@@ -796,7 +849,7 @@ export function useRosita() {
   // ── Interfaz pública del hook ───────────────────────────────────────────────
   return {
     // Estado UI
-    estado, expresion, mostrarOnboarding, setMostrarOnboarding,
+    estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
     modoNoche, horaActual, climaObj, flashAnim,
     // Acciones

@@ -29,11 +29,15 @@ const M3 = {
 
 export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   const [abierto, setAbierto] = useState(false);
-  const [nombreAsistente, setNombre] = useState('Rosita');
+  const [nombreAsistente, setNombre]   = useState('Rosita');
+  const [vozGenero, setVozGenero]      = useState<'femenina' | 'masculina'>('femenina');
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    cargarPerfil().then(p => setNombre(p.nombreAsistente ?? 'Rosita'));
+    cargarPerfil().then(p => {
+      setNombre(p.nombreAsistente ?? 'Rosita');
+      setVozGenero(p.vozGenero ?? 'femenina');
+    });
   }, []);
 
   const slide   = useRef(new Animated.Value(0)).current;
@@ -85,7 +89,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
                   <Ionicons name="heart" size={26} color={M3.primary} />
                 </View>
               </View>
-              <Text style={s.headerEyebrow}>tu compañera</Text>
+              <Text style={s.headerEyebrow}>{vozGenero === 'masculina' ? 'tu compañero' : 'tu compañera'}</Text>
               <Text style={s.headerTitulo}>{nombreAsistente}</Text>
               <Text style={s.headerFecha}>
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}

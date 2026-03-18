@@ -15,6 +15,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
+import PinOverlay from '../components/PinOverlay';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
@@ -94,7 +95,7 @@ const sur = StyleSheet.create({
   },
 });
 
-// ── Input con label flotante estilo M3 ───────────────────────────────────────
+// ── Input estilo onboarding ───────────────────────────────────────────────────
 function M3Input({
   label, hint, value, onChangeText, multiline, placeholder,
 }: {
@@ -102,57 +103,35 @@ function M3Input({
   onChangeText: (t: string) => void; multiline?: boolean; placeholder?: string;
 }) {
   const [isFocused, setIsFocused] = useState(false);
-  const labelRaised = isFocused || value.length > 0;
-  const anim = useRef(new Animated.Value(labelRaised ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.timing(anim, {
-      toValue: labelRaised ? 1 : 0,
-      duration: 150,
-      useNativeDriver: false,
-    }).start();
-  }, [labelRaised]);
-
-  const labelTop  = anim.interpolate({ inputRange: [0, 1], outputRange: [18, 5] });
-  const labelSize = anim.interpolate({ inputRange: [0, 1], outputRange: [15, 11] });
-  const labelColor = isFocused ? M.primary : M.onSurfaceVariant;
-  const indicatorColor  = isFocused ? M.primary : M.outlineVariant;
-  const indicatorHeight = isFocused ? 2 : 1;
 
   return (
     <View style={inp.wrap}>
-      <View style={inp.box}>
-        <Animated.Text style={[inp.label, { top: labelTop, fontSize: labelSize, color: labelColor }]}>
-          {label}
-        </Animated.Text>
-        <TextInput
-          style={[inp.input, multiline && inp.inputMulti]}
-          value={value}
-          onChangeText={onChangeText}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          multiline={multiline}
-          placeholder={isFocused ? placeholder : ''}
-          placeholderTextColor={M.outlineVariant}
-          underlineColorAndroid="transparent"
-          selectionColor={M.primaryContainer}
-          cursorColor={M.primary}
-        />
-        <View style={[inp.indicator, { backgroundColor: indicatorColor, height: indicatorHeight }]} />
-      </View>
+      <Text style={inp.label}>{label}</Text>
+      <TextInput
+        style={[inp.input, multiline && inp.inputMulti, isFocused && inp.inputFocused]}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        multiline={multiline}
+        placeholder={placeholder}
+        placeholderTextColor={M.outlineVariant}
+        underlineColorAndroid="transparent"
+        selectionColor={M.primaryContainer}
+        cursorColor={M.primary}
+      />
       {hint && <Text style={inp.hint}>{hint}</Text>}
     </View>
   );
 }
 
 const inp = StyleSheet.create({
-  wrap:       { marginHorizontal: 16, marginBottom: 12 },
-  box:        { borderTopLeftRadius: 4, borderTopRightRadius: 4, backgroundColor: M.surfaceVariant, paddingHorizontal: 16, paddingTop: 24, paddingBottom: 10 },
-  label:      { position: 'absolute', left: 16, fontWeight: '400' },
-  input:      { fontSize: 15, color: M.onSurface, padding: 0, marginTop: 18 },
-  inputMulti: { minHeight: 60, textAlignVertical: 'top' },
-  hint:       { fontSize: 12, color: M.onSurfaceVariant, marginTop: 4, marginLeft: 16 },
-  indicator:  { position: 'absolute', bottom: 0, left: 0, right: 0 },
+  wrap:         { marginHorizontal: 16, marginBottom: 12 },
+  label:        { fontSize: 12, fontWeight: '600', color: M.onSurfaceVariant, marginBottom: 6, letterSpacing: 0.3 },
+  input:        { backgroundColor: '#f4f6f7', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 14, fontSize: 15, color: M.onSurface, borderWidth: 1.5, borderColor: '#e0e6e8' },
+  inputFocused: { borderColor: M.primary, backgroundColor: '#ffffff' },
+  inputMulti:   { minHeight: 72, textAlignVertical: 'top', paddingTop: 14 },
+  hint:         { fontSize: 12, color: M.onSurfaceVariant, marginTop: 4, marginLeft: 4 },
 });
 
 // ── Chip de sección ──────────────────────────────────────────────────────────
@@ -240,123 +219,6 @@ const rr = StyleSheet.create({
   del:   { padding: 4 },
 });
 
-// ── PIN Overlay ───────────────────────────────────────────────────────────────
-function PinOverlay({ modo, onSuccess, onCancel }: {
-  modo: 'verificar' | 'crear' | 'cambiar';
-  onSuccess: (pin: string) => void;
-  onCancel?: () => void;
-}) {
-  const [digitos, setDigitos]   = useState('');
-  const [confirma, setConfirma] = useState('');
-  const [fase, setFase]         = useState<'entrada' | 'confirmar'>('entrada');
-  const [error, setError]       = useState('');
-  const shake = useRef(new Animated.Value(0)).current;
-
-  function sacudir() {
-    Animated.sequence([
-      Animated.timing(shake, { toValue: 10,  duration: 50, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: -10, duration: 50, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: 6,   duration: 40, useNativeDriver: true }),
-      Animated.timing(shake, { toValue: 0,   duration: 40, useNativeDriver: true }),
-    ]).start();
-  }
-
-  function presionar(d: string) {
-    const actual = fase === 'confirmar' ? confirma : digitos;
-    if (actual.length >= 4) return;
-    const nuevo = actual + d;
-    fase === 'confirmar' ? setConfirma(nuevo) : setDigitos(nuevo);
-
-    if (nuevo.length === 4) {
-      setTimeout(() => evaluar(nuevo), 120);
-    }
-  }
-
-  function borrar() {
-    if (fase === 'confirmar') setConfirma(c => c.slice(0, -1));
-    else setDigitos(d => d.slice(0, -1));
-    setError('');
-  }
-
-  async function evaluar(valor: string) {
-    if (modo === 'verificar') {
-      const pin = await obtenerPIN();
-      if (valor === pin) { onSuccess(valor); }
-      else { setError('PIN incorrecto'); setDigitos(''); sacudir(); }
-      return;
-    }
-    // crear / cambiar: primera fase → pedir confirmación
-    if (fase === 'entrada') {
-      setFase('confirmar');
-      return;
-    }
-    // segunda fase: confirmar
-    if (valor === digitos) {
-      onSuccess(digitos);
-    } else {
-      setError('Los PINs no coinciden');
-      setDigitos(''); setConfirma(''); setFase('entrada');
-      sacudir();
-    }
-  }
-
-  const actual = fase === 'confirmar' ? confirma : digitos;
-  const titulo = modo === 'verificar'
-    ? 'Ingresá tu PIN'
-    : fase === 'confirmar'
-      ? 'Confirmá el PIN'
-      : 'Creá un PIN de 4 dígitos';
-
-  return (
-    <View style={pin.overlay}>
-      <View style={pin.card}>
-        <Ionicons name="lock-closed-outline" size={32} color={M.primary} style={{ marginBottom: 12 }} />
-        <Text style={pin.titulo}>{titulo}</Text>
-        {error !== '' && <Text style={pin.error}>{error}</Text>}
-
-        <Animated.View style={[pin.dots, { transform: [{ translateX: shake }] }]}>
-          {[0,1,2,3].map(i => (
-            <View key={i} style={[pin.dot, i < actual.length && pin.dotActivo]} />
-          ))}
-        </Animated.View>
-
-        <View style={pin.teclado}>
-          {['1','2','3','4','5','6','7','8','9','','0','⌫'].map((t, i) => (
-            <TouchableOpacity
-              key={i}
-              style={[pin.tecla, t === '' && pin.teclaVacia]}
-              onPress={() => t === '⌫' ? borrar() : t !== '' ? presionar(t) : null}
-              activeOpacity={t === '' ? 1 : 0.6}
-              disabled={t === ''}
-            >
-              <Text style={pin.teclaTexto}>{t}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {onCancel && (
-          <TouchableOpacity onPress={onCancel} style={{ marginTop: 8 }}>
-            <Text style={{ color: M.onSurfaceVariant, fontSize: 14 }}>Cancelar</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
-
-const pin = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000aa', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  card:    { backgroundColor: '#fff', borderRadius: 24, padding: 28, alignItems: 'center', width: 300, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12 },
-  titulo:  { fontSize: 16, fontWeight: '500', color: M.onSurface, marginBottom: 20 },
-  error:   { fontSize: 13, color: M.error, marginBottom: 12, marginTop: -8 },
-  dots:    { flexDirection: 'row', gap: 16, marginBottom: 28 },
-  dot:     { width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: M.outline },
-  dotActivo: { backgroundColor: M.primary, borderColor: M.primary },
-  teclado: { flexDirection: 'row', flexWrap: 'wrap', width: 216, gap: 12 },
-  tecla:   { width: 60, height: 60, borderRadius: 30, backgroundColor: M.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
-  teclaVacia: { backgroundColor: 'transparent' },
-  teclaTexto: { fontSize: 22, fontWeight: '400', color: M.onSurface },
-});
 
 // ── Pantalla principal ───────────────────────────────────────────────────────
 export default function Configuracion() {
@@ -365,6 +227,7 @@ export default function Configuracion() {
   const [nombre, setNombre]               = useState('');
   const [edad, setEdad]                   = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('');
+  const [vozGenero, setVozGenero]         = useState<'femenina' | 'masculina'>('femenina');
   const [familiares, setFamiliares]       = useState('');
   const [gustos, setGustos]               = useState('');
   const [medicamentos, setMedicamentos]   = useState('');
@@ -390,6 +253,7 @@ export default function Configuracion() {
       setNombre(p.nombreAbuela);
       setEdad(p.edad ? String(p.edad) : '');
       setNombreAsistente(p.nombreAsistente ?? 'Rosita');
+      setVozGenero(p.vozGenero ?? 'femenina');
       setFamiliares(p.familiares.join(', '));
       setGustos(p.gustos.join(', '));
       setMedicamentos(p.medicamentos.join(', '));
@@ -463,6 +327,7 @@ export default function Configuracion() {
       nombreAbuela:      nombreTrimmed,
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente:   nombreAsistente.trim() || 'Rosita',
+      vozGenero,
       familiares:        familiares.split(',').map(s => s.trim()).filter(Boolean),
       gustos:            gustos.split(',').map(s => s.trim()).filter(Boolean),
       medicamentos:      medicamentos.split(',').map(s => s.trim()).filter(Boolean),
@@ -513,6 +378,24 @@ export default function Configuracion() {
         <M3Input label="Nombre" value={nombre} onChangeText={setNombre} placeholder="María" />
         <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
         <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
+
+        <Surface style={{ marginTop: 4 }}>
+          <View style={s.vozRow}>
+            {(['femenina', 'masculina'] as const).map(g => (
+              <TouchableOpacity
+                key={g}
+                style={[s.vozChip, vozGenero === g && s.vozChipActivo]}
+                onPress={() => setVozGenero(g)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name={g === 'femenina' ? 'woman' : 'man'} size={16} color={vozGenero === g ? M.onPrimary : M.onSurfaceVariant} />
+                <Text style={[s.vozChipTxt, vozGenero === g && s.vozChipTxtActivo]}>
+                  {g === 'femenina' ? 'Voz femenina' : 'Voz masculina'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Surface>
 
         {/* ── Entorno ── */}
         <SectionLabel icon="people-outline" label="Entorno" />
@@ -673,7 +556,7 @@ export default function Configuracion() {
               setPinOverlay('oculto');
             }
           }}
-          onCancel={pinOverlay !== 'verificar' ? () => setPinOverlay('oculto') : undefined}
+          onCancel={pinOverlay === 'verificar' ? () => router.back() : () => setPinOverlay('oculto')}
         />
       )}
 
@@ -720,6 +603,12 @@ const s = StyleSheet.create({
   buscarText: { fontSize: 14, fontWeight: '500', color: M.primary },
 
   divisorThin: { height: 1, backgroundColor: M.outlineVariant, opacity: 0.4, marginHorizontal: 16 },
+
+  vozRow:          { flexDirection: 'row', gap: 10, padding: 12 },
+  vozChip:         { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: M.surfaceVariant },
+  vozChipActivo:   { backgroundColor: M.primary },
+  vozChipTxt:      { fontSize: 14, fontWeight: '500', color: M.onSurfaceVariant },
+  vozChipTxtActivo:{ color: M.onPrimary },
   botBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: M.primary, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, borderRadius: 12 },
   botBtnText:  { fontSize: 14, fontWeight: '500', color: M.onPrimary },
 });

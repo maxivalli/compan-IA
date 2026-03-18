@@ -17,6 +17,7 @@ import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, obtenerUrlArchivo, MensajeVoz } from '../lib/telegram';
 
 import { llamarClaude, transcribirAudio } from '../lib/ai';
+import { tonoSegunEdad } from '../lib/claudeParser';
 
 // ── Tipos de los refs que el hook necesita ────────────────────────────────────
 
@@ -166,6 +167,15 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     nombreAbuela: string,
   ): Promise<boolean> {
     enFlujoVozRef.current = true;
+    // Safety: liberar el flag en 60s si algo falla sin limpiarlo
+    const safetyTimer = setTimeout(() => {
+      if (enFlujoVozRef.current) {
+        enFlujoVozRef.current = false;
+        setEstado('esperando');
+        estadoRef.current = 'esperando';
+        iniciarSpeechRecognition();
+      }
+    }, 60000);
     ExpoSpeechRecognitionModule.stop();
 
     // Pausar música si está activa
@@ -181,7 +191,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     const respuestaPresencia = await escucharRespuesta();
 
     if (!respuestaPresencia || esNegativo(respuestaPresencia)) {
-      // No respondió — no retomar música (quedó pausada intencionalmente)
+      clearTimeout(safetyTimer);
       enFlujoVozRef.current = false;
       return false;
     }
@@ -193,12 +203,13 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     // 3. Reproducir el audio
     try {
       player.replace({ uri: urlAudio });
-      await new Promise(resolve => setTimeout(resolve, 1500)); // esperar que cargue
+      await new Promise(resolve => setTimeout(resolve, 1500));
       player.play();
-      await new Promise(resolve => setTimeout(resolve, 1000)); // esperar que arranque
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, 30000); // máximo 30s
         const interval = setInterval(() => {
-          if (!player.playing) { clearInterval(interval); resolve(); }
+          if (!player.playing) { clearInterval(interval); clearTimeout(timeout); resolve(); }
         }, 300);
       });
     } catch {}
@@ -211,6 +222,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     await new Promise(resolve => setTimeout(resolve, 500));
     const respuestaContestar = await escucharRespuesta();
 
+    clearTimeout(safetyTimer);
     if (esAfirmativo(respuestaContestar)) {
       await grabarYMandarRespuesta(chatId, nombre, nombreAbuela);
     } else {
@@ -230,7 +242,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     try {
       const raw = await AsyncStorage.getItem('vozPendiente');
       if (!raw) return;
-      const todos: { fileId: string; chatId: string; fromName: string; timestamp: number }[] = JSON.parse(raw);
+      let todos: { fileId: string; chatId: string; fromName: string; timestamp: number }[] = [];
+      try { todos = JSON.parse(raw); } catch { await AsyncStorage.removeItem('vozPendiente'); return; }
       const hace20h = Date.now() - 20 * 60 * 60 * 1000;
       const vigentes = todos.filter(m => m.timestamp > hace20h);
       if (!vigentes.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
@@ -322,7 +335,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         try {
           const frase = await llamarClaude({
             maxTokens: 80,
-            system: `Sos ${p.nombreAsistente ?? 'Rosita'}, una compañera virtual cálida para una señora mayor. Generás UNA sola frase corta y cálida recordando una fecha especial. Hablás en español rioplatense. Respondé SOLO con la frase, sin etiquetas.`,
+            system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Generás UNA sola frase corta y cálida recordando una fecha especial. Respondé SOLO con la frase, sin etiquetas.`,
             messages: [{ role: 'user', content: `Hoy es: ${fecha}. Generá un recordatorio cálido para ${p.nombreAbuela}.` }],
           });
           if (frase && estadoRef.current === 'esperando') await hablar(frase);
@@ -354,7 +367,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         const frase = await llamarClaude({
           maxTokens: 100,
-          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, una compañera virtual cálida para una señora mayor. Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Hablás en español rioplatense. Respondé SOLO con la frase, sin etiquetas.`,
+          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Respondé SOLO con la frase, sin etiquetas.`,
           messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días.` }],
         });
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
@@ -433,9 +446,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
         await new Promise<void>(resolve => {
+          const timeout = setTimeout(resolve, 15000); // máximo 15s de espera
           const check = setInterval(() => {
-            const e = estadoRef.current as string;
-            if (e === 'esperando') { clearInterval(check); resolve(); }
+            if (estadoRef.current === 'esperando') { clearInterval(check); clearTimeout(timeout); resolve(); }
           }, 500);
         });
       }
@@ -463,7 +476,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         if (!procesado) {
           // Guardar en cola pendiente para reintentar
           const rawP = await AsyncStorage.getItem('vozPendiente');
-          const pendientes = JSON.parse(rawP ?? '[]');
+          let pendientes: any[] = [];
+          try { pendientes = JSON.parse(rawP ?? '[]'); } catch { pendientes = []; }
           // Evitar duplicados
           const yaEsta = pendientes.some((m: any) => m.fileId === msg.fileId);
           if (!yaEsta) {
@@ -497,7 +511,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         const raw = await AsyncStorage.getItem('vozPendiente');
         if (!raw) return;
-        const todos: { fileId: string; chatId: string; fromName: string; timestamp: number }[] = JSON.parse(raw);
+        let todos: { fileId: string; chatId: string; fromName: string; timestamp: number }[] = [];
+        try { todos = JSON.parse(raw); } catch { await AsyncStorage.removeItem('vozPendiente'); return; }
         const hace20h = Date.now() - 20 * 60 * 60 * 1000;
         const vigentes = todos.filter(m => m.timestamp > hace20h);
         if (!vigentes.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
@@ -519,15 +534,16 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         // Si no respondió, volver a poner en la cola
         if (!respondio) {
           const rawActual = await AsyncStorage.getItem('vozPendiente');
-          const actuales = JSON.parse(rawActual ?? '[]');
+          let actuales: any[] = [];
+          try { actuales = JSON.parse(rawActual ?? '[]'); } catch { actuales = []; }
           actuales.unshift(primero);
           await AsyncStorage.setItem('vozPendiente', JSON.stringify(actuales));
         }
       } catch {}
     }
 
-    // Polling cada 30s para mensajes nuevos
-    const idPolling = setInterval(chequearMensajesVoz, 30000);
+    // Polling cada 3 min para mensajes nuevos
+    const idPolling = setInterval(chequearMensajesVoz, 3 * 60 * 1000);
     // Reintento de pendientes cada 15 minutos
     const idReintento = setInterval(reintentar, INTERVALO_REINTENTO);
 

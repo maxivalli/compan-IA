@@ -7,14 +7,17 @@ export function AnimacionMusica() {
   const alturas = useRef([0.4, 0.8, 0.5, 1.0, 0.6, 0.3, 0.7].map(v => new Animated.Value(v))).current;
 
   useEffect(() => {
-    alturas.forEach((bar, i) => {
-      Animated.loop(
+    const anims = alturas.map((bar, i) => {
+      const anim = Animated.loop(
         Animated.sequence([
           Animated.timing(bar, { toValue: 0.15, duration: 250 + i * 60, useNativeDriver: true }),
           Animated.timing(bar, { toValue: 1,    duration: 250 + i * 60, useNativeDriver: true }),
         ])
-      ).start();
+      );
+      anim.start();
+      return anim;
     });
+    return () => anims.forEach(a => a.stop());
   }, []);
 
   return (
@@ -39,7 +42,7 @@ export function ZZZ() {
   }))).current;
 
   useEffect(() => {
-    zetas.forEach((z, i) => {
+    const loops = zetas.map((z, i) => {
       const loop = Animated.loop(
         Animated.sequence([
           Animated.delay(i * 900),
@@ -55,7 +58,9 @@ export function ZZZ() {
         ])
       );
       loop.start();
+      return loop;
     });
+    return () => loops.forEach(l => l.stop());
   }, []);
 
   return (

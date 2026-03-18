@@ -1,60 +1,69 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Dimensions, ScrollView, StyleSheet,
-  Text, TextInput, TouchableOpacity, View,
+  Animated,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { guardarPerfil, cargarPerfil } from '../lib/memoria';
+import RosaOjos from '../components/RosaOjos';
 
-const { width: W } = Dimensions.get('window');
+const { height: H, width: W } = Dimensions.get('window');
 
-const M = {
-  primary:          '#0097b2',
-  primaryDark:      '#007a91',
-  onPrimary:        '#ffffff',
-  primaryContainer: '#cef5ff',
-  onPrimaryContainer: '#001f26',
-  surface:          '#f9fafb',
-  onSurface:        '#171d1e',
-  onSurfaceVariant: '#3f484a',
-  outline:          '#6f797a',
-};
+const PEEK     = 28;          // cuánto se ve de la card vecina
+const CARD_GAP = 12;
+const CARD_W   = W - PEEK * 2 - CARD_GAP * 2;
+const CARD_H   = 110;
+const SIDE_PAD = PEEK + CARD_GAP;
 
-type Paso = {
-  icono:    string;
-  titulo:   string;
-  subtitulo: string;
-  color:    string;
-};
-
-const PASOS: Paso[] = [
-  { icono: 'heart',              titulo: 'Bienvenida',             subtitulo: 'Tu compañera de todos los días',        color: '#0097b2' },
-  { icono: 'person-outline',     titulo: '¿Cómo se llama?',        subtitulo: 'El nombre de quien va a usar la app',   color: '#7C5200' },
-  { icono: 'calendar-outline',   titulo: '¿Cuántos años tiene?',   subtitulo: 'Para que la asistente adapte su trato', color: '#B04000' },
-  { icono: 'chatbubble-outline', titulo: 'Nombre de la asistente', subtitulo: 'Con qué nombre la va a llamar',         color: '#1B5E28' },
-  { icono: 'people-outline',     titulo: 'La familia',             subtitulo: 'Quiénes son sus familiares cercanos',   color: '#5B0073' },
-  { icono: 'checkmark-circle',   titulo: '¡Todo listo!',           subtitulo: 'Ya podés empezar a usarla',             color: '#0097b2' },
+const STEP_COLORS = [
+  '#0097b2', // bienvenida
+  '#7C9EFF', // nombre
+  '#FF8FAB', // edad
+  '#57CC99', // asistente
+  '#C77DFF', // familia
+  '#0097b2', // listo
 ];
 
-export default function Onboarding() {
-  const router = useRouter();
-  const scroll = useRef<ScrollView>(null);
-  const progreso = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+const TOTAL = 6;
 
-  const [paso, setPaso]                       = useState(0);
-  const [nombreAbuela, setNombreAbuela]       = useState('');
-  const [edad, setEdad]                       = useState('');
+export default function Onboarding() {
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
+
+  const [paso,            setPaso]            = useState(0);
+  const [nombreAbuela,    setNombreAbuela]    = useState('');
+  const [edad,            setEdad]            = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
-  const [familiares, setFamiliares]           = useState('');
+  const [vozGenero,       setVozGenero]       = useState<'femenina' | 'masculina'>('femenina');
+  const [familiares,      setFamiliares]      = useState('');
+
+  const fadeAnim  = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
+  if (!fontsLoaded) return null;
 
   function irAPaso(n: number) {
-    Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => {
-      scroll.current?.scrollTo({ x: n * W, animated: false });
-      Animated.timing(progreso, { toValue: n / (PASOS.length - 1), duration: 300, useNativeDriver: false }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim,  { toValue: 0,   duration: 130, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: -24, duration: 130, useNativeDriver: true }),
+    ]).start(() => {
       setPaso(n);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      slideAnim.setValue(28);
+      Animated.parallel([
+        Animated.timing(fadeAnim,  { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 160, friction: 10 }),
+      ]).start();
     });
   }
 
@@ -65,244 +74,336 @@ export default function Onboarding() {
       nombreAbuela:    nombreAbuela.trim() || 'Abuela',
       edad:            edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente: nombreAsistente.trim() || 'Rosita',
+      vozGenero,
       familiares:      familiares.split(',').map(s => s.trim()).filter(Boolean),
     });
     router.replace('/');
   }
 
-  const barraAncho = progreso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const color    = STEP_COLORS[paso];
+  const esUltimo = paso === TOTAL - 1;
 
   return (
-    <View style={s.contenedor}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <View style={{ flex: 1 }}>
 
-      {/* Barra de progreso */}
-      <View style={s.barraFondo}>
-        <Animated.View style={[s.barraRelleno, { width: barraAncho }]} />
-      </View>
-
-      <Animated.ScrollView
-        ref={scroll}
-        horizontal
-        pagingEnabled
-        scrollEnabled={false}
-        showsHorizontalScrollIndicator={false}
-        style={{ flex: 1, opacity: fadeAnim }}
-      >
-        {/* ── Paso 0: Bienvenida ── */}
-        <View style={[s.pagina, { width: W }]}>
-          <View style={[s.iconoCirculo, { backgroundColor: '#0097b2' }]}>
-            <Ionicons name="heart" size={48} color="#fff" />
-          </View>
-          <Text style={s.titulo}>CompañIA</Text>
-          <Text style={s.subtitulo}>La compañera de voz para adultos mayores</Text>
-          <View style={s.features}>
-            {[
-              { i: 'musical-notes', t: 'Música y radio',        c: '#7C5200', bg: '#FFE0A0' },
-              { i: 'medkit',        t: 'Recordatorios de meds',  c: '#004785', bg: '#D3E4FF' },
-              { i: 'partly-sunny',  t: 'Clima en tiempo real',   c: '#1B5E28', bg: '#C8EFCE' },
-              { i: 'people',        t: 'Alertas a la familia',   c: '#5B0073', bg: '#EDD9FF' },
-              { i: 'chatbubble',    t: 'Charla y compañía',      c: '#004785', bg: '#cef5ff' },
-              { i: 'alert-circle',  t: 'Botón de emergencia',    c: '#CC2222', bg: '#FFD5D5' },
-            ].map(({ i, t, c, bg }) => (
-              <View key={t} style={[s.chip, { backgroundColor: bg }]}>
-                <Ionicons name={i as any} size={16} color={c} />
-                <Text style={[s.chipText, { color: c }]}>{t}</Text>
-              </View>
+        {/* ── Top: fondo de color ── */}
+        <Animated.View style={[s.topArea, { backgroundColor: color, opacity: fadeAnim }]}>
+          <View style={[s.puntos, { marginTop: insets.top + 16 }]}>
+            {Array.from({ length: TOTAL }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  s.punto,
+                  i === paso ? s.puntoActivo : null,
+                  i < paso   ? s.puntoPasado : null,
+                ]}
+              />
             ))}
           </View>
-          <TouchableOpacity style={s.btnPrimario} onPress={() => irAPaso(1)}>
-            <Text style={s.btnPrimarioTexto}>Empezar configuración</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </TouchableOpacity>
-        </View>
 
-        {/* ── Paso 1: Nombre de la abuela ── */}
-        <View style={[s.pagina, { width: W }]}>
-          <View style={[s.iconoCirculo, { backgroundColor: '#7C5200' }]}>
-            <Ionicons name="person-outline" size={40} color="#fff" />
-          </View>
-          <Text style={s.titulo}>¿Cómo se llama?</Text>
-          <Text style={s.subtitulo}>El nombre de quien va a usar la app</Text>
-          <TextInput
-            style={s.input}
-            value={nombreAbuela}
-            onChangeText={setNombreAbuela}
-            placeholder="Ej: Negrita, María, Abuela"
-            placeholderTextColor={M.outline}
-            autoFocus
-          />
-          <Text style={s.hint}>Así la va a llamar la asistente</Text>
-          <TouchableOpacity
-            style={[s.btnPrimario, !nombreAbuela.trim() && s.btnDeshabilitado]}
-            onPress={() => nombreAbuela.trim() && irAPaso(2)}
-            disabled={!nombreAbuela.trim()}
-          >
-            <Text style={s.btnPrimarioTexto}>Continuar</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => irAPaso(0)} style={s.btnVolver}>
-            <Ionicons name="arrow-back" size={16} color={M.onSurfaceVariant} />
-            <Text style={s.btnVolverTexto}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Paso 2: Edad ── */}
-        <View style={[s.pagina, { width: W }]}>
-          <View style={[s.iconoCirculo, { backgroundColor: '#B04000' }]}>
-            <Ionicons name="calendar-outline" size={40} color="#fff" />
-          </View>
-          <Text style={s.titulo}>¿Cuántos años tiene?</Text>
-          <Text style={s.subtitulo}>La asistente adapta su forma de hablar según la edad</Text>
-          <TextInput
-            style={s.input}
-            value={edad}
-            onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))}
-            placeholder="Ej: 75"
-            placeholderTextColor={M.outline}
-            keyboardType="numeric"
-            maxLength={3}
-          />
-          <Text style={s.hint}>Opcional. Podés saltear este paso.</Text>
-          <TouchableOpacity style={s.btnPrimario} onPress={() => irAPaso(3)}>
-            <Text style={s.btnPrimarioTexto}>Continuar</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => irAPaso(1)} style={s.btnVolver}>
-            <Ionicons name="arrow-back" size={16} color={M.onSurfaceVariant} />
-            <Text style={s.btnVolverTexto}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Paso 3: Nombre de la asistente ── */}
-        <View style={[s.pagina, { width: W }]}>
-          <View style={[s.iconoCirculo, { backgroundColor: '#1B5E28' }]}>
-            <Ionicons name="chatbubble-outline" size={40} color="#fff" />
-          </View>
-          <Text style={s.titulo}>¿Cómo la va a llamar?</Text>
-          <Text style={s.subtitulo}>El nombre con el que {nombreAbuela || 'ella'} va a llamar a la asistente</Text>
-          <TextInput
-            style={s.input}
-            value={nombreAsistente}
-            onChangeText={setNombreAsistente}
-            placeholder="Rosita"
-            placeholderTextColor={M.outline}
-          />
-          <Text style={s.hint}>Por defecto: Rosita. Podés cambiarlo después.</Text>
-          <TouchableOpacity style={s.btnPrimario} onPress={() => irAPaso(4)}>
-            <Text style={s.btnPrimarioTexto}>Continuar</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => irAPaso(2)} style={s.btnVolver}>
-            <Ionicons name="arrow-back" size={16} color={M.onSurfaceVariant} />
-            <Text style={s.btnVolverTexto}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Paso 4: Familiares ── */}
-        <View style={[s.pagina, { width: W }]}>
-          <View style={[s.iconoCirculo, { backgroundColor: '#5B0073' }]}>
-            <Ionicons name="people-outline" size={40} color="#fff" />
-          </View>
-          <Text style={s.titulo}>La familia</Text>
-          <Text style={s.subtitulo}>¿Quiénes son sus familiares cercanos?</Text>
-          <TextInput
-            style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
-            value={familiares}
-            onChangeText={setFamiliares}
-            placeholder="hijo Juan, nieta Sofía, hija María"
-            placeholderTextColor={M.outline}
-            multiline
-          />
-          <Text style={s.hint}>Separados por coma. Podés saltear esto y completarlo después.</Text>
-          <TouchableOpacity style={s.btnPrimario} onPress={() => irAPaso(5)}>
-            <Text style={s.btnPrimarioTexto}>Continuar</Text>
-            <Ionicons name="arrow-forward" size={18} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => irAPaso(3)} style={s.btnVolver}>
-            <Ionicons name="arrow-back" size={16} color={M.onSurfaceVariant} />
-            <Text style={s.btnVolverTexto}>Volver</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Paso 5: Listo ── */}
-        <View style={[s.pagina, { width: W }]}>
-          <View style={[s.iconoCirculo, { backgroundColor: '#0097b2' }]}>
-            <Ionicons name="checkmark-circle" size={48} color="#fff" />
-          </View>
-          <Text style={s.titulo}>¡Todo listo, {nombreAbuela || 'bienvenida'}!</Text>
-          <Text style={s.subtitulo}>
-            {nombreAsistente || 'Rosita'} ya sabe quién sos y está lista para acompañarte.
-          </Text>
-          <View style={s.resumen}>
-            <View style={s.resumenFila}>
-              <Ionicons name="person" size={16} color={M.primary} />
-              <Text style={s.resumenTexto}>{nombreAbuela || '—'}</Text>
-            </View>
-            {edad.trim() !== '' && (
-              <View style={s.resumenFila}>
-                <Ionicons name="calendar" size={16} color={M.primary} />
-                <Text style={s.resumenTexto}>{edad} años</Text>
+          <Animated.View style={[s.iconoWrap, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            {paso === 0 ? (
+              <View style={s.rosaWrap}>
+                <RosaOjos estado="esperando" expresion="neutral" />
+              </View>
+            ) : (
+              <View style={s.iconoCirculo}>
+                <View style={s.iconoInner}>
+                  <Ionicons
+                    name={(['person','calendar','chatbubble','people','checkmark-circle'] as const)[paso - 1]}
+                    size={78}
+                    color="#fff"
+                  />
+                </View>
               </View>
             )}
-            <View style={s.resumenFila}>
-              <Ionicons name="chatbubble" size={16} color={M.primary} />
-              <Text style={s.resumenTexto}>Tu asistente: {nombreAsistente || 'Rosita'}</Text>
-            </View>
-            {familiares.trim() !== '' && (
-              <View style={s.resumenFila}>
-                <Ionicons name="people" size={16} color={M.primary} />
-                <Text style={s.resumenTexto}>{familiares}</Text>
-              </View>
+          </Animated.View>
+        </Animated.View>
+
+        {/* ── Bottom: card blanca ── */}
+        <View style={s.card}>
+          <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+            <StepContent
+              paso={paso}
+              nombreAbuela={nombreAbuela}    setNombreAbuela={setNombreAbuela}
+              edad={edad}                    setEdad={setEdad}
+              nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
+              vozGenero={vozGenero}          setVozGenero={setVozGenero}
+              familiares={familiares}        setFamiliares={setFamiliares}
+            />
+          </Animated.View>
+
+          <View style={[s.nav, { paddingBottom: insets.bottom + 16 }]}>
+            {paso === 0 ? (
+              <View style={{ flex: 1 }} />
+            ) : (
+              <TouchableOpacity onPress={() => irAPaso(paso - 1)} style={s.skipBtn} activeOpacity={0.6}>
+                <Text style={s.skipTxt}>Volver</Text>
+              </TouchableOpacity>
             )}
+            <TouchableOpacity
+              style={[s.fabBtn, { backgroundColor: color }]}
+              onPress={() => {
+                if (esUltimo) { finalizar(); return; }
+                if (paso === 1 && !nombreAbuela.trim()) return;
+                irAPaso(paso + 1);
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name={esUltimo ? 'heart' : 'arrow-forward'} size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
-          <Text style={s.hint}>Podés agregar medicamentos, Telegram y más desde Configuración.</Text>
-          <TouchableOpacity style={s.btnPrimario} onPress={finalizar}>
-            <Text style={s.btnPrimarioTexto}>¡Empezar!</Text>
-            <Ionicons name="heart" size={18} color="#fff" />
-          </TouchableOpacity>
         </View>
+
+      </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+const FEATURES = [
+  { icono: 'chatbubble',    label: 'Charla y\ncompañía',     color: '#0097b2' },
+  { icono: 'musical-notes', label: 'Música\ny radio',         color: '#7C9EFF' },
+  { icono: 'medkit',        label: 'Recordatorios\nde meds',  color: '#FF8FAB' },
+  { icono: 'partly-sunny',  label: 'Clima en\ntiempo real',   color: '#57CC99' },
+  { icono: 'people',        label: 'Alertas a\nla familia',   color: '#C77DFF' },
+  { icono: 'alert-circle',  label: 'Botón de\nemergencia',    color: '#FF7F7F' },
+];
+
+function FeatureCarousel() {
+  const scrollRef = useRef<any>(null);
+  const scrollX   = useRef(new Animated.Value(0)).current;
+  const idxRef    = useRef(0);
+  const [dotIdx, setDotIdx] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const next = (idxRef.current + 1) % FEATURES.length;
+      if (next === 0) {
+        scrollRef.current?.scrollTo({ x: 0, animated: false });
+        scrollX.setValue(0);
+      } else {
+        scrollRef.current?.scrollTo({ x: next * (CARD_W + CARD_GAP), animated: true });
+      }
+      idxRef.current = next;
+      setDotIdx(next);
+    }, 2500);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <View style={fc.root}>
+      <Animated.ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={CARD_W + CARD_GAP}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingHorizontal: SIDE_PAD }}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
+        {FEATURES.map(({ icono, label, color }, i) => {
+          const inputRange = [
+            (i - 1) * (CARD_W + CARD_GAP),
+            i       * (CARD_W + CARD_GAP),
+            (i + 1) * (CARD_W + CARD_GAP),
+          ];
+          const scale   = scrollX.interpolate({ inputRange, outputRange: [0.93, 1, 0.93], extrapolate: 'clamp' });
+          const opacity = scrollX.interpolate({ inputRange, outputRange: [0.72, 1, 0.72], extrapolate: 'clamp' });
+
+          return (
+            <Animated.View
+              key={label}
+              style={[fc.card, { backgroundColor: color, width: CARD_W, height: CARD_H, marginRight: CARD_GAP, transform: [{ scale }], opacity }]}
+            >
+              {/* Círculos decorativos */}
+              <View style={fc.circle1} />
+              <View style={fc.circle2} />
+
+              {/* Ícono */}
+              <View style={fc.iconWrap}>
+                <Ionicons name={icono as any} size={34} color="#fff" />
+              </View>
+
+              {/* Label */}
+              <Text style={fc.label}>{label}</Text>
+            </Animated.View>
+          );
+        })}
       </Animated.ScrollView>
 
-      {/* Indicadores de paso */}
-      <View style={s.indicadores}>
-        {PASOS.map((_, i) => (
-          <View key={i} style={[s.punto, i === paso && s.puntoActivo]} />
+      {/* Dots */}
+      <View style={fc.dots}>
+        {FEATURES.map((_, i) => (
+          <View key={i} style={[fc.dot, i === dotIdx && fc.dotActive]} />
         ))}
       </View>
-
     </View>
   );
 }
 
+const fc = StyleSheet.create({
+  root: { marginTop: 8 },
+  card: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  circle1: { position: 'absolute', width: 130, height: 130, borderRadius: 65, backgroundColor: '#ffffff18', top: -35, right: -25 },
+  circle2: { position: 'absolute', width: 70,  height: 70,  borderRadius: 35, backgroundColor: '#ffffff12', bottom: -20, right: 70 },
+  iconWrap: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#ffffff28', alignItems: 'center', justifyContent: 'center' },
+  label:    { fontFamily: 'Poppins_700Bold', fontSize: 15, color: '#fff', flex: 1, lineHeight: 22 },
+  dots:     { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 14 },
+  dot:      { width: 6,  height: 6, borderRadius: 3, backgroundColor: '#dde3e5' },
+  dotActive:{ width: 20, height: 6, borderRadius: 3, backgroundColor: '#0097b2' },
+});
+
+// ── Contenido por paso ────────────────────────────────────────────────────────
+function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombreAsistente, setNombreAsistente, vozGenero, setVozGenero, familiares, setFamiliares }: any) {
+  const info = [
+    { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozGenero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
+    { titulo: '¿Cómo se llama?',             sub: 'El nombre de quien va a usar la app. Así la va a llamar la asistente.' },
+    { titulo: '¿Cuántos años tiene?',        sub: 'La asistente adapta su forma de hablar según la edad. Podés saltear este paso.' },
+    { titulo: '¿Cómo la van a llamar?',      sub: `El nombre con el que ${nombreAbuela || 'ella'} llamará a la asistente.` },
+    { titulo: 'La familia',                  sub: '¿Quiénes son sus familiares cercanos? Podés completarlo después.' },
+    { titulo: `¡Todo listo${nombreAbuela ? ', ' + nombreAbuela : ''}!`, sub: `${nombreAsistente || 'Rosita'} ya sabe quién sos y está ${vozGenero === 'masculina' ? 'listo' : 'lista'} para acompañarte.` },
+  ];
+  const { titulo, sub } = info[paso];
+
+  if (paso === 0) {
+    return (
+      <View style={{ flex: 1, paddingTop: 28 }}>
+        <Text style={[ct.titulo, { paddingHorizontal: 28 }]}>{titulo}</Text>
+        <Text style={[ct.sub,   { paddingHorizontal: 28 }]}>{sub}</Text>
+        <FeatureCarousel />
+      </View>
+    );
+  }
+
+  return (
+    <View style={ct.wrap}>
+      <Text style={ct.titulo}>{titulo}</Text>
+      <Text style={ct.sub}>{sub}</Text>
+
+      {paso === 1 && (
+        <TextInput style={ct.input} value={nombreAbuela} onChangeText={setNombreAbuela}
+          placeholder="Ej: Negrita, María, Abuela" placeholderTextColor="#b0b8ba" />
+      )}
+      {paso === 2 && (
+        <TextInput style={ct.input} value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))}
+          placeholder="Ej: 75" placeholderTextColor="#b0b8ba" keyboardType="numeric" maxLength={3} />
+      )}
+      {paso === 3 && (
+        <>
+          <TextInput style={ct.input} value={nombreAsistente} onChangeText={setNombreAsistente}
+            placeholder="Rosita" placeholderTextColor="#b0b8ba" />
+          <Text style={ct.vozLabel}>Tipo de voz</Text>
+          <View style={ct.vozRow}>
+            {(['femenina', 'masculina'] as const).map(g => (
+              <TouchableOpacity
+                key={g}
+                style={[ct.vozChip, vozGenero === g && ct.vozChipActivo]}
+                onPress={() => setVozGenero(g)}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={g === 'femenina' ? 'woman' : 'man'}
+                  size={18}
+                  color={vozGenero === g ? '#fff' : '#5a6468'}
+                />
+                <Text style={[ct.vozChipTxt, vozGenero === g && ct.vozChipTxtActivo]}>
+                  {g === 'femenina' ? 'Femenina' : 'Masculina'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
+      {paso === 4 && (
+        <TextInput style={[ct.input, ct.inputMulti]} value={familiares} onChangeText={setFamiliares}
+          placeholder="hijo Juan, nieta Sofía, hija María" placeholderTextColor="#b0b8ba"
+          multiline textAlignVertical="top" />
+      )}
+      {paso === 5 && (
+        <View style={ct.resumen}>
+          {[
+            { i: 'person',     t: nombreAbuela || '—' },
+            ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }]                    : []),
+            { i: 'chatbubble', t: `Asistente: ${nombreAsistente || 'Rosita'}` },
+            ...(familiares ? [{ i: 'people',    t: familiares }]                         : []),
+          ].map(({ i, t }) => (
+            <View key={t} style={ct.resumenFila}>
+              <Ionicons name={i as any} size={15} color="#0097b2" />
+              <Text style={ct.resumenTxt}>{t}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Estilos ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  contenedor:   { flex: 1, backgroundColor: M.surface, paddingTop: 52 },
-  barraFondo:   { height: 3, backgroundColor: '#e0e0e0', marginHorizontal: 0 },
-  barraRelleno: { height: 3, backgroundColor: M.primary },
+  topArea:  { height: H * 0.46, alignItems: 'center', justifyContent: 'flex-start' },
+  puntos:   { flexDirection: 'row', gap: 7, alignSelf: 'center' },
+  punto:    { width: 7,  height: 7, borderRadius: 3.5, backgroundColor: '#ffffff55' },
+  puntoActivo: { width: 22, height: 7, borderRadius: 3.5, backgroundColor: '#fff' },
+  puntoPasado: { backgroundColor: '#ffffffaa' },
+  iconoWrap:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  pagina: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingBottom: 40 },
+  rosaWrap: { width: 220, height: 220, alignItems: 'center', justifyContent: 'center' },
 
-  iconoCirculo: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  titulo:    { fontSize: 28, fontWeight: '600', color: M.onSurface, textAlign: 'center', marginBottom: 8 },
-  subtitulo: { fontSize: 15, color: M.onSurfaceVariant, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  iconoCirculo: {
+    width: 180, height: 180, borderRadius: 90,
+    backgroundColor: '#ffffff33',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  iconoInner: {
+    width: 140, height: 140, borderRadius: 70,
+    backgroundColor: '#ffffff22',
+    alignItems: 'center', justifyContent: 'center',
+  },
 
-  features:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginBottom: 32 },
-  chip:      { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 100 },
-  chipText:  { fontSize: 13, fontWeight: '600' },
+  card: {
+    flex: 1, backgroundColor: '#fff',
+    borderTopLeftRadius: 36, borderTopRightRadius: 36,
+    marginTop: -36,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06, shadowRadius: 12, elevation: 8,
+  },
+  nav:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28, paddingTop: 8 },
+  skipBtn: { paddingVertical: 8, paddingRight: 16 },
+  skipTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 15, color: '#8a9699' },
+  fabBtn:  { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
+});
 
-  input:     { width: '100%', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#dde3e5', paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: M.onSurface, marginBottom: 8 },
-  hint:      { fontSize: 12, color: M.onSurfaceVariant, textAlign: 'center', marginBottom: 24, lineHeight: 18 },
+const ct = StyleSheet.create({
+  wrap:       { flex: 1, paddingHorizontal: 28, paddingTop: 28 },
+  titulo:     { fontFamily: 'Poppins_700Bold',      fontSize: 26, color: '#171d1e', marginBottom: 10, lineHeight: 36, textAlign: 'center' },
+  sub:        { fontFamily: 'Poppins_400Regular',   fontSize: 14, color: '#5a6468', lineHeight: 22, marginBottom: 20, textAlign: 'center' },
+  input:      { fontFamily: 'Poppins_400Regular',   backgroundColor: '#f4f6f7', borderRadius: 14, paddingHorizontal: 18, paddingVertical: 15, fontSize: 16, color: '#171d1e', borderWidth: 1.5, borderColor: '#e0e6e8', marginTop: 4 },
+  inputMulti: { minHeight: 80, textAlignVertical: 'top', paddingTop: 14 },
+  resumen:    { backgroundColor: '#f0fbfd', borderRadius: 14, padding: 16, gap: 10, borderWidth: 1, borderColor: '#c8eef5', marginTop: 4 },
+  resumenFila:{ flexDirection: 'row', alignItems: 'center', gap: 10 },
+  resumenTxt: { fontFamily: 'Poppins_400Regular',   fontSize: 14, color: '#1a3a40', flex: 1, lineHeight: 20 },
 
-  btnPrimario:      { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: M.primary, paddingHorizontal: 32, paddingVertical: 16, borderRadius: 100, marginBottom: 12 },
-  btnPrimarioTexto: { fontSize: 16, fontWeight: '600', color: '#fff' },
-  btnDeshabilitado: { opacity: 0.4 },
-  btnVolver:        { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  btnVolverTexto:   { fontSize: 14, color: M.onSurfaceVariant },
-
-  resumen:     { backgroundColor: M.primaryContainer, borderRadius: 16, padding: 16, width: '100%', marginBottom: 16, gap: 10 },
-  resumenFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  resumenTexto:{ fontSize: 14, color: M.onPrimaryContainer, flex: 1 },
-
-  indicadores: { flexDirection: 'row', justifyContent: 'center', gap: 8, paddingVertical: 16 },
-  punto:       { width: 8, height: 8, borderRadius: 4, backgroundColor: '#dde3e5' },
-  puntoActivo: { width: 20, backgroundColor: M.primary },
+  vozLabel:   { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#8a9699', textTransform: 'uppercase', letterSpacing: 1, marginTop: 20, marginBottom: 10 },
+  vozRow:     { flexDirection: 'row', gap: 12 },
+  vozChip:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: '#f4f6f7', borderWidth: 1.5, borderColor: '#e0e6e8' },
+  vozChipActivo:   { backgroundColor: '#0097b2', borderColor: '#0097b2' },
+  vozChipTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#5a6468' },
+  vozChipTxtActivo:{ color: '#fff' },
 });

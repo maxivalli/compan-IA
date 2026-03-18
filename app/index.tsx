@@ -18,7 +18,7 @@ const HORA_DESPERTAR = 7;
 export default function Index() {
   const router = useRouter();
   const {
-    estado, expresion, mostrarOnboarding, setMostrarOnboarding,
+    estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
@@ -79,6 +79,7 @@ export default function Index() {
 
   // ── Nombre del asistente para el onboarding ─────────────────────────────────
   const nombreAsistente = refs.perfilRef.current?.nombreAsistente ?? 'Rosita';
+  const vozGenero       = refs.perfilRef.current?.vozGenero ?? 'femenina';
 
   // ── Auto-navegar al onboarding en primer uso ─────────────────────────────────
   useEffect(() => {
@@ -87,6 +88,8 @@ export default function Index() {
       router.replace('/onboarding' as any);
     }
   }, [mostrarOnboarding]);
+
+  if (cargando) return <View style={{ flex: 1, backgroundColor: '#1B6B4E' }} />;
 
   return (
     <View style={[styles.contenedor, { backgroundColor: bgActual }]}>
@@ -202,7 +205,7 @@ export default function Index() {
                 </View>
               </View>
               <View style={styles.onboardingHeaderTexts}>
-                <Text style={styles.onboardingEyebrow}>Tu nueva compañera</Text>
+                <Text style={styles.onboardingEyebrow}>{vozGenero === 'masculina' ? 'Tu nuevo compañero' : 'Tu nueva compañera'}</Text>
                 <Text style={styles.onboardingTitulo}>{nombreAsistente}</Text>
               </View>
             </View>

@@ -26,6 +26,10 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "package": "com.maxivalli.compania"
@@ -55,11 +59,11 @@
           }
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      "expo-font"
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "router": {},
@@ -67,6 +71,12 @@
         "projectId": "ccb41f0f-0897-4cdb-b1b3-e3680134c405"
       }
     },
-    "owner": "maxivalli"
+    "owner": "maxivalli",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ccb41f0f-0897-4cdb-b1b3-e3680134c405"
+    }
   }
 }

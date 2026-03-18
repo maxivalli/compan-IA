@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -9,7 +11,9 @@ import {
   limpiarHistorialAnimo,
   EntradaAnimo,
   ExpresionAnimo,
+  obtenerPIN,
 } from '../lib/memoria';
+import PinOverlay from '../components/PinOverlay';
 
 const M3 = {
   primary:          '#0097b2',
@@ -64,6 +68,8 @@ export default function Animo() {
   const [grupos,          setGrupos]          = useState<GrupoDia[]>([]);
   const [nombre,          setNombre]          = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('la asistente');
+  const [pinOverlay,      setPinOverlay]      = useState(false);
+  const [desbloqueado,    setDesbloqueado]    = useState(false);
 
   function cargar() {
     Promise.all([cargarEntradasAnimo(), cargarPerfil()]).then(([entradas, perfil]) => {
@@ -73,7 +79,22 @@ export default function Animo() {
     });
   }
 
-  useEffect(() => { cargar(); }, []);
+  // Verificar PIN cada vez que la pantalla obtiene el foco
+  useFocusEffect(useCallback(() => {
+    obtenerPIN().then(pin => {
+      if (pin) {
+        setDesbloqueado(false);
+        setPinOverlay(true);
+      } else {
+        setDesbloqueado(true);
+        cargar();
+      }
+    });
+  }, []));
+
+  useEffect(() => {
+    if (desbloqueado) cargar();
+  }, [desbloqueado]);
 
   function confirmarLimpiar() {
     Alert.alert(
@@ -87,6 +108,14 @@ export default function Animo() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
+    {pinOverlay && (
+      <PinOverlay
+        modo="verificar"
+        onSuccess={() => { setPinOverlay(false); setDesbloqueado(true); }}
+        onCancel={() => { setPinOverlay(false); router.back(); }}
+      />
+    )}
     <ScrollView style={s.fondo} contentContainerStyle={{ paddingBottom: 48 }}>
 
       {/* ── Hero top bar ── */}
@@ -174,6 +203,7 @@ export default function Animo() {
       })}
 
     </ScrollView>
+    </View>
   );
 }
 
