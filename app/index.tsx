@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Alert, Animated, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as Updates from 'expo-updates';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -256,17 +255,11 @@ export default function Index() {
         </TouchableOpacity>
       )}
 
-      <Text style={styles.updateId}>
-        {Updates.isEmbeddedLaunch ? `emb:${Updates.updateId?.slice(0, 6) ?? '?'}` : `ota:${Updates.updateId?.slice(0, 6) ?? '?'}`}
-      </Text>
-
-      {/* Botón debug temporal — tocar para probar silbido */}
+      {/* Easter egg: toque largo en esquina inferior izquierda → silbido */}
       <TouchableOpacity
-        onPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
-        style={{ position: 'absolute', bottom: 6, left: 10, padding: 4 }}
-      >
-        <Text style={{ fontSize: 10, color: '#ffffff66' }}>{silbando ? '🔇' : '🎵'}</Text>
-      </TouchableOpacity>
+        onLongPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
+        style={{ position: 'absolute', bottom: 0, left: 0, width: 40, height: 40 }}
+      />
 
       <Animated.View
         pointerEvents="none"
