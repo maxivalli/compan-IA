@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Alert, Animated, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Updates from 'expo-updates';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -255,6 +256,10 @@ export default function Index() {
         </TouchableOpacity>
       )}
 
+      <Text style={styles.updateId}>
+        {Updates.updateId ? Updates.updateId.slice(0, 8) : 'embedded'}
+      </Text>
+
       <Animated.View
         pointerEvents="none"
         style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF', opacity: flashAnim }]}
@@ -265,6 +270,7 @@ export default function Index() {
 
 const styles = StyleSheet.create({
   contenedor:         { flex: 1, alignItems: 'center', justifyContent: 'space-evenly' },
+  updateId:           { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffff66' },
   ojoContenedor:      { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
   ecualizadorWrap:    { height: 60, alignItems: 'center', justifyContent: 'center' },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
