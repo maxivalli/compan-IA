@@ -310,29 +310,36 @@ export function parsearRespuesta(
   contactos: TelegramContacto[],
   familiares: string[],
 ): RespuestaParsed {
+  // Normalizar: algunos modelos (GPT) agregan texto antes del tag principal
+  // Ej: "¡Claro! [MUSICA: tango]..." → "[MUSICA: tango]..."
+  const firstBracket = respuestaRaw.indexOf('[');
+  const raw = firstBracket > 0 && firstBracket < 80
+    ? respuestaRaw.slice(firstBracket)
+    : respuestaRaw;
+
   // ── PARAR_MUSICA ──
-  if (/^\[PARAR_MUSICA\]/i.test(respuestaRaw)) {
-    const respuesta = limpiarTagsFinales(respuestaRaw.replace(/^\[PARAR_MUSICA\]\s*/, ''));
+  if (/^\[PARAR_MUSICA\]/i.test(raw)) {
+    const respuesta = limpiarTagsFinales(raw.replace(/^\[PARAR_MUSICA\]\s*/, ''));
     return { tagPrincipal: 'PARAR_MUSICA', respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
   }
 
   // ── MUSICA ──
-  const matchMusica = respuestaRaw.match(/^\[MUSICA:\s*(.+?)\]/i);
+  const matchMusica = raw.match(/^\[MUSICA:\s*(.+?)\]/i);
   if (matchMusica) {
     const generoMusica = detectarGenero(matchMusica[1].trim().toLowerCase());
-    const respuesta = limpiarTagsFinales(respuestaRaw.replace(/^\[MUSICA:[^\]]+\]\s*/, ''));
+    const respuesta = limpiarTagsFinales(raw.replace(/^\[MUSICA:[^\]]+\]\s*/, ''));
     return { tagPrincipal: 'MUSICA', generoMusica, respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
   }
 
   // ── MENSAJE_FAMILIAR ──
-  const mensajeMatch = respuestaRaw.match(/\[MENSAJE_FAMILIAR:\s*(.+?)\s*\|\s*(.+?)\]/i);
+  const mensajeMatch = raw.match(/\[MENSAJE_FAMILIAR:\s*(.+?)\s*\|\s*(.+?)\]/i);
 
   // ── TIMER ──
-  const timerMatch = respuestaRaw.match(/\[TIMER:\s*(\d+)\]/i);
+  const timerMatch = raw.match(/\[TIMER:\s*(\d+)\]/i);
   const timerSegundos = timerMatch ? parseInt(timerMatch[1], 10) : undefined;
 
   // ── RECORDATORIO ──
-  const recordatorioMatch = respuestaRaw.match(/\[RECORDATORIO:\s*(.+?)\s*\|\s*(.+?)\]/i);
+  const recordatorioMatch = raw.match(/\[RECORDATORIO:\s*(.+?)\s*\|\s*(.+?)\]/i);
   const recordatorio: Recordatorio | undefined = recordatorioMatch ? {
     id: Date.now().toString(),
     texto: recordatorioMatch[2].trim(),
@@ -341,7 +348,7 @@ export function parsearRespuesta(
   } : undefined;
 
   // ── Tag de emoción principal ──
-  const matchTag = respuestaRaw.match(/^\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]\s*/i);
+  const matchTag = raw.match(/^\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]\s*/i);
   const tagRaw = matchTag?.[1]?.toUpperCase() as TagPrincipal ?? 'NEUTRAL';
   const expresion: Expresion =
     tagRaw === 'CUENTO' ? 'feliz' :
@@ -349,7 +356,7 @@ export function parsearRespuesta(
     tagRaw.toLowerCase() as Expresion;
 
   // ── Limpiar texto para hablar ──
-  let respuesta = respuestaRaw.replace(/^\[.*?\]\s*/, '');
+  let respuesta = raw.replace(/^\[.*?\]\s*/, '');
 
   // ── TIMER ──
   respuesta = respuesta.replace(/\[TIMER:\s*\d+\]\s*/gi, '').trim();
@@ -380,7 +387,7 @@ export function parsearRespuesta(
     const nombreDestino = mensajeMatch[1].trim();
     const textoMensaje  = mensajeMatch[2].trim();
     const contacto = resolverContacto(nombreDestino, contactos, familiares);
-    respuesta = limpiarTagsFinales(respuestaRaw.replace(/^\[.*?\]\s*/, ''));
+    respuesta = limpiarTagsFinales(raw.replace(/^\[.*?\]\s*/, ''));
     mensajeFamiliar = { nombreDestino: contacto?.nombre ?? nombreDestino, texto: textoMensaje };
   }
 
