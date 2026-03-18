@@ -31,13 +31,15 @@ const M3 = {
   elevation1:       '#edf6f8',
 } as const;
 
-const EMOJIS: Record<ExpresionAnimo, { emoji: string; label: string; color: string; bg: string }> = {
-  feliz:       { emoji: '😊', label: 'Contenta',    color: '#7C5200', bg: '#FFE0A0' },
-  triste:      { emoji: '😢', label: 'Triste',      color: '#004785', bg: '#D3E4FF' },
-  sorprendida: { emoji: '😮', label: 'Sorprendida', color: '#5B0073', bg: '#EDD9FF' },
-  pensativa:   { emoji: '🤔', label: 'Pensativa',   color: '#7D2D00', bg: '#FFDCC8' },
-  neutral:     { emoji: '😐', label: 'Tranquila',   color: '#1B5E28', bg: '#C8EFCE' },
-};
+function getEmojis(masc: boolean): Record<ExpresionAnimo, { emoji: string; label: string; color: string; bg: string }> {
+  return {
+    feliz:       { emoji: '😊', label: masc ? 'Contento'    : 'Contenta',    color: '#7C5200', bg: '#FFE0A0' },
+    triste:      { emoji: '😢', label: 'Triste',                              color: '#004785', bg: '#D3E4FF' },
+    sorprendida: { emoji: '😮', label: masc ? 'Sorprendido' : 'Sorprendida', color: '#5B0073', bg: '#EDD9FF' },
+    pensativa:   { emoji: '🤔', label: masc ? 'Pensativo'   : 'Pensativa',   color: '#7D2D00', bg: '#FFDCC8' },
+    neutral:     { emoji: '😐', label: masc ? 'Tranquilo'   : 'Tranquila',   color: '#1B5E28', bg: '#C8EFCE' },
+  };
+}
 
 type GrupoDia = { fechaLabel: string; entradas: EntradaAnimo[] };
 
@@ -54,12 +56,13 @@ function agruparPorDia(entradas: EntradaAnimo[]): GrupoDia[] {
 }
 
 // Calcula la emoción predominante de un grupo
-function emocionPredominante(entradas: EntradaAnimo[]): typeof EMOJIS[ExpresionAnimo] {
+type EmojiEntry = { emoji: string; label: string; color: string; bg: string };
+function emocionPredominante(entradas: EntradaAnimo[], masc: boolean): EmojiEntry {
   const conteo: Partial<Record<ExpresionAnimo, number>> = {};
   for (const e of entradas) conteo[e.expresion] = (conteo[e.expresion] ?? 0) + 1;
   const top = (Object.entries(conteo) as [ExpresionAnimo, number][])
     .sort((a, b) => b[1] - a[1])[0][0];
-  return EMOJIS[top];
+  return getEmojis(masc)[top];
 }
 
 export default function Animo() {
@@ -70,12 +73,14 @@ export default function Animo() {
   const [nombreAsistente, setNombreAsistente] = useState('la asistente');
   const [pinOverlay,      setPinOverlay]      = useState(false);
   const [desbloqueado,    setDesbloqueado]    = useState(false);
+  const [masculino,       setMasculino]       = useState(false);
 
   function cargar() {
     Promise.all([cargarEntradasAnimo(), cargarPerfil()]).then(([entradas, perfil]) => {
       setGrupos(agruparPorDia(entradas));
       setNombre(perfil.nombreAbuela);
       setNombreAsistente(perfil.nombreAsistente ?? 'la asistente');
+      setMasculino(perfil.vozGenero === 'masculina');
     });
   }
 
@@ -165,7 +170,7 @@ export default function Animo() {
 
       {/* ── Day groups ── */}
       {grupos.map((g) => {
-        const predominante = emocionPredominante(g.entradas);
+        const predominante = emocionPredominante(g.entradas, masculino);
         return (
           <View key={g.fechaLabel} style={s.grupo}>
 
@@ -180,6 +185,7 @@ export default function Animo() {
 
             <View style={s.card}>
               {g.entradas.map((e, i) => {
+                const EMOJIS = getEmojis(masculino);
                 const { emoji, label, color, bg } = EMOJIS[e.expresion] ?? EMOJIS.neutral;
                 const hora = new Date(e.timestamp).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
                 return (

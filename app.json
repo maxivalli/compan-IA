@@ -26,10 +26,6 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS",
-        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
       "package": "com.maxivalli.compania"
@@ -68,15 +64,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ccb41f0f-0897-4cdb-b1b3-e3680134c405"
+        "projectId": "558b21d7-a424-4335-8adc-918f02cb582e"
       }
     },
-    "owner": "maxivalli",
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
       "url": "https://u.expo.dev/ccb41f0f-0897-4cdb-b1b3-e3680134c405"
-    }
+    },
+    "owner": "compan-ia"
   }
 }

@@ -186,10 +186,8 @@ function maxTokensSegunEdad(edad?: number): string {
   return 'Respondé en 2-3 oraciones.';
 }
 
-export function construirSystemPrompt(p: Perfil, climaTexto: string, incluirJuego = false): string {
-  const ahora = new Date();
-  const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+/** Bloque estable: instrucciones, tono, tags. Cambia solo cuando cambia el perfil base. */
+export function construirSystemPromptEstable(p: Perfil): string {
   const asistente = p.nombreAsistente ?? 'Rosita';
   const edadTexto = p.edad ? ` de ${p.edad} años` : '';
   const rol = p.vozGenero === 'masculina' ? 'un compañero virtual' : 'una compañera virtual';
@@ -233,14 +231,25 @@ Al inicio de cada respuesta incluí UNA etiqueta. Las opciones son:
 - Si la persona pide que le recuerdes algo para un día específico (ej: "recordame que el viernes tengo que pagar la luz", "avisame el 15 que tengo turno médico"): usá [RECORDATORIO: fechaISO | texto] al FINAL. fechaISO debe ser la fecha en formato YYYY-MM-DD. Para días de la semana, calculá la próxima ocurrencia desde hoy. Confirmá a la persona que lo vas a recordar sin mencionar la fecha técnica.
 - Si la persona pide un timer o alarma en minutos/segundos (ej: "avisame en 10 minutos", "poneme un timer de 5 minutos", "acordame en media hora"): usá [TIMER: segundos] al FINAL con los segundos exactos. Ejemplos: "avisame en 10 minutos" → [TIMER: 600], "en media hora" → [TIMER: 1800], "en 30 segundos" → [TIMER: 30]. Confirmale a la persona el tiempo en palabras (ej: "Listo, te aviso en 10 minutos.").
 - Si la persona pide explícitamente mandar un mensaje a un familiar (ej: "mandále un mensaje a Maxi", "avisale a Juan"): usá [MENSAJE_FAMILIAR: nombre | texto del mensaje] al FINAL de tu respuesta. El texto debe ser breve y neutro, sin palabras cariñosas ni "mi amor", como un aviso simple. Ejemplo: "Hola Maxi, tu abuela quiere que vengas a visitarla." NO digas en tu respuesta que ya mandaste el mensaje — Rosita lo confirmará una vez que se envíe realmente.
-- Si la persona menciona síntomas físicos graves o urgentes (dolor en el pecho, no puede respirar, se cayó, se siente muy mal, necesita ayuda urgente): agregá [EMERGENCIA: síntoma] y en tu respuesta decile con calma que ya estás avisando a su familia.
+- Si la persona menciona síntomas físicos graves o urgentes (dolor en el pecho, no puede respirar, se cayó, se siente muy mal, necesita ayuda urgente): agregá [EMERGENCIA: síntoma] y en tu respuesta decile con calma que ya estás avisando a su familia.`;
+}
 
-Fecha y hora actual: ${fecha}, ${hora}.
+/** Bloque dinámico: fecha/hora, clima, contexto de perfil y recuerdos. Se envía sin cache. */
+export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = ''): string {
+  const ahora = new Date();
+  const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  return `Fecha y hora actual: ${fecha}, ${hora}.
 ${climaTexto}
 
 Lo que sabés de la persona:
 ${construirContexto(p)}
-${incluirJuego ? '\n' + formatearJuegoParaClaude(obtenerJuego()) : ''}`;
+${incluirJuego ? '\n' + formatearJuegoParaClaude(obtenerJuego()) : ''}${extra}`;
+}
+
+/** @deprecated Usar construirSystemPromptEstable + construirContextoDinamico */
+export function construirSystemPrompt(p: Perfil, climaTexto: string, incluirJuego = false): string {
+  return construirSystemPromptEstable(p) + '\n\n' + construirContextoDinamico(p, climaTexto, incluirJuego);
 }
 
 // ── Parser principal ──────────────────────────────────────────────────────────
@@ -341,6 +350,9 @@ export function parsearRespuesta(
 
   // ── Limpiar texto para hablar ──
   let respuesta = respuestaRaw.replace(/^\[.*?\]\s*/, '');
+
+  // ── TIMER ──
+  respuesta = respuesta.replace(/\[TIMER:\s*\d+\]\s*/gi, '').trim();
 
   // ── RECUERDOS ──
   const recuerdoMatches = [...respuesta.matchAll(/\[RECUERDO:\s*(.+?)\]/gi)];

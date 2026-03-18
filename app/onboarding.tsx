@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  KeyboardAvoidingView,
-  Platform,
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import { guardarPerfil, cargarPerfil } from '../lib/memoria';
+import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId } from '../lib/memoria';
 import RosaOjos from '../components/RosaOjos';
 
 const { height: H, width: W } = Dimensions.get('window');
@@ -51,6 +50,13 @@ export default function Onboarding() {
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', e => setKeyboardHeight(e.endCoordinates.height));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+
   if (!fontsLoaded) return null;
 
   function irAPaso(n: number) {
@@ -69,26 +75,46 @@ export default function Onboarding() {
 
   async function finalizar() {
     const perfilActual = await cargarPerfil();
+    const nombre = nombreAbuela.trim() || 'Abuela';
+    const asistente = nombreAsistente.trim() || 'Rosita';
     await guardarPerfil({
       ...perfilActual,
-      nombreAbuela:    nombreAbuela.trim() || 'Abuela',
+      nombreAbuela:    nombre,
       edad:            edad.trim() ? parseInt(edad.trim(), 10) : undefined,
-      nombreAsistente: nombreAsistente.trim() || 'Rosita',
+      nombreAsistente: asistente,
       vozGenero,
       familiares:      familiares.split(',').map(s => s.trim()).filter(Boolean),
     });
+
+    // Registrar dispositivo en el backend para habilitar las llamadas a la IA
+    try {
+      const installId = await obtenerInstallId();
+      const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+      const apiKey = process.env.EXPO_PUBLIC_APP_API_KEY;
+      const res = await fetch(`${backendUrl}/familia/registrar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey! },
+        body: JSON.stringify({ nombreAbuela: nombre, nombreAsistente: asistente, installId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.familiaId) await guardarFamiliaId(data.familiaId);
+      }
+    } catch {}
+
     router.replace('/');
   }
 
   const color    = STEP_COLORS[paso];
   const esUltimo = paso === TOTAL - 1;
 
+  const tecladoVisible = keyboardHeight > 0;
+
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingBottom: keyboardHeight }}>
 
         {/* ── Top: fondo de color ── */}
-        <Animated.View style={[s.topArea, { backgroundColor: color, opacity: fadeAnim }]}>
+        <Animated.View style={[s.topArea, { backgroundColor: color, opacity: fadeAnim, height: tecladoVisible ? 0 : H * 0.46, overflow: 'hidden' }]}>
           <View style={[s.puntos, { marginTop: insets.top + 16 }]}>
             {Array.from({ length: TOTAL }).map((_, i) => (
               <View
@@ -122,7 +148,7 @@ export default function Onboarding() {
         </Animated.View>
 
         {/* ── Bottom: card blanca ── */}
-        <View style={s.card}>
+        <View style={[s.card, tecladoVisible && { borderTopLeftRadius: 0, borderTopRightRadius: 0, marginTop: 0 }]}>
           <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
             <StepContent
               paso={paso}
@@ -156,8 +182,7 @@ export default function Onboarding() {
           </View>
         </View>
 
-      </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

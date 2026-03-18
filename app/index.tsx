@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { Alert, Animated, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
@@ -22,12 +23,19 @@ export default function Index() {
     musicaActiva, silbando, noMolestar, setNoMolestar,
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
-    onOjoPicado, onRelampago, iniciarSilbido, detenerSilbido,
+    onOjoPicado, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     refs, player,
   } = useRosita();
 
+  // Al volver del onboarding con perfil ya guardado, arrancar normalmente
+  useFocusEffect(useCallback(() => {
+    if (cargando) reactivar();
+    else recargarPerfil();
+  }, [cargando]));
+
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
   const { chequearPendientesAlActivar } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido }, player);
+
 
   // ── Cálculo del fondo ───────────────────────────────────────────────────────
   const hora           = horaActual;
@@ -89,7 +97,7 @@ export default function Index() {
     }
   }, [mostrarOnboarding]);
 
-  if (cargando) return <View style={{ flex: 1, backgroundColor: '#1B6B4E' }} />;
+  if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
   return (
     <View style={[styles.contenedor, { backgroundColor: bgActual }]}>

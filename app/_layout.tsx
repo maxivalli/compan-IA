@@ -5,6 +5,7 @@ import * as Updates from 'expo-updates';
 async function chequearActualizacion() {
   try {
     if (!Updates.isEnabled) return;
+    if (__DEV__) return;
     const update = await Updates.checkForUpdateAsync();
     if (update.isAvailable) {
       await Updates.fetchUpdateAsync();

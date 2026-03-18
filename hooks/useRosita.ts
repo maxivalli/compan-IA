@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, AppState, BackHandler, Platform } from 'react-native';
+import { Alert, Animated, BackHandler, Platform } from 'react-native';
 import * as Updates from 'expo-updates';
 import { Accelerometer } from 'expo-sensors';
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { useKeepAwake } from 'expo-keep-awake';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Speech from 'expo-speech';
 import {
   cargarPerfil, cargarHistorial, guardarHistorial,
@@ -18,7 +18,7 @@ import { obtenerClima, climaATexto } from '../lib/clima';
 import { enviarAlertaTelegram } from '../lib/telegram';
 import {
   hashTexto, respuestaOffline,
-  construirSystemPrompt, parsearRespuesta,
+  construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta,
 } from '../lib/claudeParser';
 import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 
@@ -30,7 +30,10 @@ const HORA_FIN           = 21;
 type Mensaje = { role: 'user' | 'assistant'; content: string };
 
 export function useRosita() {
-  useKeepAwake();
+  useEffect(() => {
+    activateKeepAwakeAsync();
+    return () => { deactivateKeepAwake(); };
+  }, []);
 
   // ── Estado visible ──────────────────────────────────────────────────────────
   const [estado,            setEstado]            = useState<'esperando' | 'escuchando' | 'pensando' | 'hablando'>('esperando');
@@ -75,17 +78,17 @@ export function useRosita() {
   // ── Flag para bloquear SR durante flujo de mensajes de voz ──────────────────
   const enFlujoVozRef    = useRef(false);
 
-  // ── Memoización del system prompt (válido 1 minuto por clima/perfil) ─────────
-  const systemPromptCacheRef = useRef<{ key: string; prompt: string } | null>(null);
-  function getSystemPrompt(p: Perfil, climaTexto: string, incluirJuego: boolean): string {
-    const ahora = new Date();
-    const minKey = `${ahora.getFullYear()}-${ahora.getMonth()}-${ahora.getDate()}-${ahora.getHours()}-${ahora.getMinutes()}`;
-    const perfKey = `${p.nombreAbuela}|${p.nombreAsistente}|${(p.recuerdos ?? []).length}|${(p.familiares ?? []).join(',')}`;
-    const key = `${minKey}|${climaTexto}|${perfKey}|${incluirJuego}`;
-    if (systemPromptCacheRef.current?.key === key) return systemPromptCacheRef.current.prompt;
-    const prompt = construirSystemPrompt(p, climaTexto, incluirJuego);
-    systemPromptCacheRef.current = { key, prompt };
-    return prompt;
+  // ── System prompt en dos bloques: estable (cacheable) + dinámico ─────────────
+  const systemEstableRef = useRef<{ key: string; text: string } | null>(null);
+  function getSystemBlocks(p: Perfil, climaTexto: string, incluirJuego: boolean, extra = '') {
+    const perfKey = `${p.nombreAbuela}|${p.nombreAsistente}|${p.edad}|${p.vozGenero}`;
+    if (!systemEstableRef.current || systemEstableRef.current.key !== perfKey) {
+      systemEstableRef.current = { key: perfKey, text: construirSystemPromptEstable(p) };
+    }
+    return [
+      { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
+      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra) },
+    ];
   }
   const sinConexionRef   = useRef(false);
   const ultimoSosRef     = useRef<number>(0);
@@ -115,7 +118,7 @@ export function useRosita() {
         if (check.isAvailable) await Updates.fetchUpdateAsync();
         // Sin reloadAsync — el update se aplica al próximo arranque manual
       } catch {}
-    }, 8000);
+    }, 2000); // 2s para maximizar tiempo de descarga antes de cualquier crash
     return () => clearTimeout(id);
   }, []);
 
@@ -126,7 +129,9 @@ export function useRosita() {
 
     async function chequearConexion() {
       try {
-        const res = await fetch(`${BACKEND_URL}/health`, { signal: AbortSignal.timeout(4000) });
+        const ctrl = new AbortController();
+        const ctrlId = setTimeout(() => ctrl.abort(), 4000);
+        const res = await fetch(`${BACKEND_URL}/health`, { signal: ctrl.signal }).finally(() => clearTimeout(ctrlId));
         const habia = sinConexionRef.current;
         sinConexionRef.current = !res.ok;
         if (habia && res.ok && estadoRef.current === 'esperando' && !noMolestarRef.current) {
@@ -166,28 +171,8 @@ export function useRosita() {
   }, []);
 
   // ── Ciclo de vida: volver del background ────────────────────────────────────
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        // Reiniciar SR si debería estar activo
-        if (estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current) {
-          setTimeout(() => {
-            if (estadoRef.current === 'esperando' && !procesandoRef.current) {
-              iniciarSpeechRecognition();
-            }
-          }, 800);
-        }
-        // Actualizar clima al volver
-        obtenerClima().then(clima => {
-          if (clima) {
-            climaRef.current = climaATexto(clima);
-            setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
-          }
-        }).catch(() => {});
-      }
-    });
-    return () => sub.remove();
-  }, []);
+  // AppState handler deshabilitado — causa crash en Android 15 / bridgeless.
+  // El watchdog (5s) ya se encarga de reiniciar SR al volver del background.
 
   // ── Modo noche ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -207,12 +192,12 @@ export function useRosita() {
 
   // ── Speech recognition ──────────────────────────────────────────────────────
   useSpeechRecognitionEvent('result', async (event) => {
+    const texto = event.results?.[0]?.transcript?.trim();
+    console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', estadoRef.current, '| asistente:', nombreAsistenteRef.current);
     if (procesandoRef.current) return;
     if (noMolestarRef.current) return;
-    if (enFlujoVozRef.current) return; // bloqueado durante flujo de voz
+    if (enFlujoVozRef.current) return;
     if (estadoRef.current === 'pensando' || estadoRef.current === 'hablando') return;
-
-    const texto = event.results?.[0]?.transcript?.trim();
     if (!texto || texto.length < 2) return;
 
     if (musicaActivaRef.current) duckMusica();
@@ -221,9 +206,11 @@ export function useRosita() {
     const textoNorm   = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const nombreRegex = new RegExp('(^|\\s)' + nombreNorm.slice(0, 5), 'i');
     const mencionaNombre = nombreRegex.test(textoNorm);
-    const enConversacion = musicaActivaRef.current ? false : (Date.now() - ultimaCharlaRef.current) < 2 * 60 * 1000;
+    const enConversacion = musicaActivaRef.current ? false : (Date.now() - ultimaCharlaRef.current) < 10 * 60 * 1000;
+    const esPreguntaDirecta = /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
+    console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
-    if (!mencionaNombre && !enConversacion) { unduckMusica(); return; }
+    if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
 
     procesandoRef.current = true;
     ExpoSpeechRecognitionModule.stop();
@@ -240,18 +227,21 @@ export function useRosita() {
   useSpeechRecognitionEvent('end', () => {
     srActivoRef.current = false;
     if (enFlujoVozRef.current) return; // no reactivar durante flujo de voz
+    if (!perfilRef.current?.nombreAbuela) return; // sin perfil = en onboarding
     if (estadoRef.current === 'esperando' && !procesandoRef.current) {
       setTimeout(() => {
         if (estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current) {
           if (!verificarCharlaProactiva()) iniciarSpeechRecognition();
         }
-      }, 500);
+      }, 1500);
     }
   });
 
   useSpeechRecognitionEvent('error', (event) => {
+    console.log('[SR] error:', event.error);
     srActivoRef.current = false;
     if (enFlujoVozRef.current) return; // no reactivar durante flujo de voz
+    if (!perfilRef.current?.nombreAbuela) return; // sin perfil = en onboarding
     if (estadoRef.current === 'esperando' && !procesandoRef.current) {
       const delay = event.error === 'network' ? 3000 : 1000;
       setTimeout(() => {
@@ -264,54 +254,19 @@ export function useRosita() {
 
   // ── Inicialización y watchdog ───────────────────────────────────────────────
   useEffect(() => {
-    inicializar();
+    inicializar().catch(() => { setCargando(false); iniciarSpeechRecognition(); });
     const watchdog = setInterval(() => {
       if (enFlujoVozRef.current) return;
-      if (estadoRef.current === 'esperando' && !srActivoRef.current && !procesandoRef.current) {
+      if (!perfilRef.current?.nombreAbuela) return;
+      if (estadoRef.current !== 'esperando' || procesandoRef.current) return;
+      const srZombie = srActivoRef.current && (Date.now() - ultimaActivacionSrRef.current) > 20000;
+      if (!srActivoRef.current || srZombie) {
+        if (srZombie) srActivoRef.current = false;
         iniciarSpeechRecognition();
       }
     }, 5000);
     return () => { ExpoSpeechRecognitionModule.stop(); clearInterval(watchdog); };
   }, []);
-
-  // ── Cache TTS ───────────────────────────────────────────────────────────────
-  async function precalentarCache(perfil: Perfil) {
-    const nombre    = perfil.nombreAbuela;
-    const asistente = perfil.nombreAsistente ?? 'Rosita';
-    const frases = [
-      'No te escuché bien, ¿podés repetir?',
-      'No pude conectar con la radio, perdoname.',
-      'No encontré música para poner, perdoname.',
-      `Hola ${nombre}, soy ${asistente}. ¿Cómo estás hoy?`,
-      // Offline
-      `${nombre}, por ahora no tengo señal. Seguí hablándome y te respondo con lo que pueda.`,
-      `${nombre}, ya volví a estar ${perfil.vozGenero === 'masculina' ? 'conectado' : 'conectada'}.`,
-      `Ahora mismo no tengo conexión, ${nombre}, pero acá estoy con vos. Volvé a hablarme en un ratito.`,
-      `No me llega bien la señal, ${nombre}. Dame unos minutos y vuelvo a estar ${perfil.vozGenero === 'masculina' ? 'completo' : 'completa'}.`,
-    ];
-    for (const frase of frases) {
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(frase) + '.mp3';
-      const info = await FileSystem.getInfoAsync(cacheUri);
-      if (info.exists) continue;
-      try {
-        const voiceId = perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA;
-        const base64 = await sintetizarVoz(frase, voiceId);
-        if (!base64) continue;
-        await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-      } catch {}
-    }
-
-    const silbidoUri  = FileSystem.cacheDirectory + 'silbido.mp3';
-    const silbidoInfo = await FileSystem.getInfoAsync(silbidoUri);
-    if (!silbidoInfo.exists) {
-      try {
-        const base64 = await generarSonido(
-          'gentle cheerful whistling melody, soft and warm, like someone happily humming at home, loopable',
-        );
-        if (base64) await FileSystem.writeAsStringAsync(silbidoUri, base64, { encoding: 'base64' });
-      } catch {}
-    }
-  }
 
   async function limpiarCacheViejo() {
     try {
@@ -328,34 +283,73 @@ export function useRosita() {
     } catch {}
   }
 
+  // ── Activar post-onboarding (cuando se vuelve de /onboarding con perfil ya guardado) ──
+  async function reactivar() {
+    const perfil = await cargarPerfil();
+    if (!perfil.nombreAbuela) return;
+    perfilRef.current = perfil;
+    nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
+    setCargando(false);
+    iniciarSpeechRecognition();
+  }
+
+  // ── Recargar perfil al volver de configuración ──────────────────────────────
+  async function recargarPerfil() {
+    const perfil = await cargarPerfil();
+    if (!perfil.nombreAbuela) return;
+    perfilRef.current = perfil;
+    nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
+  }
+
   // ── Inicializar ─────────────────────────────────────────────────────────────
   async function inicializar() {
-    await AudioModule.requestRecordingPermissionsAsync();
-    await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    try { await AudioModule.requestRecordingPermissionsAsync(); } catch {}
+    try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
     limpiarCacheViejo().catch(() => {});
-    const [perfilGuardado, historialGuardado, clima] = await Promise.all([
-      cargarPerfil(), cargarHistorial(), obtenerClima(),
+
+    // Cargar perfil e historial (rápido, AsyncStorage local)
+    const [perfilGuardado, historialGuardado] = await Promise.all([
+      cargarPerfil(), cargarHistorial(),
     ]);
     perfilRef.current    = perfilGuardado;
     historialRef.current = historialGuardado as Mensaje[];
-    if (clima) { climaRef.current = climaATexto(clima); setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion }); }
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
-    // precalentarCache desactivado — generaba 8+ llamadas API al arrancar
+
     if (!perfilGuardado.nombreAbuela) {
-      // Mantener cargando=true para no mostrar la pantalla principal antes de navegar al onboarding
       setMostrarOnboarding(true);
     } else {
       setCargando(false);
       iniciarSpeechRecognition();
     }
+
+    // Ping al backend para despertar Railway antes de que el usuario hable
+    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
+    if (backendUrl) {
+      const pingCtrl = new AbortController();
+      setTimeout(() => pingCtrl.abort(), 30000);
+      fetch(`${backendUrl}/health`, { signal: pingCtrl.signal }).catch(() => {});
+    }
+
+    // Clima en background — no bloquea el arranque
+    obtenerClima().then(clima => {
+      if (clima) {
+        climaRef.current = climaATexto(clima);
+        setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
+      }
+    }).catch(() => {});
   }
 
   // ── SR helpers ──────────────────────────────────────────────────────────────
+  const ultimaActivacionSrRef = useRef<number>(0);
+
   function iniciarSpeechRecognition() {
-    if (enFlujoVozRef.current) return; // no iniciar durante flujo de voz
+    if (enFlujoVozRef.current) return;
+    const ahora = Date.now();
+    if (ahora - ultimaActivacionSrRef.current < 1500) return; // máx 1 restart cada 1.5s
     try {
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
+      ultimaActivacionSrRef.current = ahora;
     } catch {
       srActivoRef.current = false;
     }
@@ -381,7 +375,7 @@ export function useRosita() {
     try {
       const frase = await llamarClaude({
         maxTokens: 120,
-        system: getSystemPrompt(p, climaRef.current, false) + `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida para charlar. Respondé SOLO con la frase, sin etiquetas.`,
+        system: getSystemBlocks(p, climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida para charlar. Respondé SOLO con la frase, sin etiquetas.`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });
       if (frase) { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
@@ -400,7 +394,11 @@ export function useRosita() {
     try {
       const cacheUri = FileSystem.cacheDirectory + 'silbido.mp3';
       const cached = await FileSystem.getInfoAsync(cacheUri);
-      if (!cached.exists) return;
+      if (!cached.exists) {
+        const base64 = await generarSonido('a gentle cheerful whistle melody, friendly and warm', 4, 0.3);
+        if (!base64) return;
+        await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+      }
       player.replace({ uri: cacheUri });
       player.play();
       await new Promise<void>(resolve => {
@@ -467,12 +465,14 @@ export function useRosita() {
 
   // ── TTS ─────────────────────────────────────────────────────────────────────
   async function hablar(texto: string) {
+    console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
-    setEstado('hablando');
+    // Actualizamos el ref inmediatamente para suprimir el watchdog,
+    // pero el setState visual lo hacemos justo antes de reproducir
     estadoRef.current = 'hablando';
 
-    const MAX_CHARS = 200;
+    const MAX_CHARS = 450;
     if (texto.length > MAX_CHARS) {
       const corte = texto.lastIndexOf('.', MAX_CHARS);
       texto = corte > 40 ? texto.slice(0, corte + 1) : texto.slice(0, MAX_CHARS).trimEnd();
@@ -482,10 +482,12 @@ export function useRosita() {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       let uri: string | null = info.exists ? cacheUri : null;
+      console.log('[TTS] cache:', info.exists ? 'HIT' : 'MISS');
 
       if (!uri) {
         const voiceId = perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA;
         const base64 = await sintetizarVoz(texto, voiceId);
+        console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
         if (base64) {
           await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
           uri = cacheUri;
@@ -494,24 +496,83 @@ export function useRosita() {
 
       if (uri) {
         player.replace({ uri });
+        setEstado('hablando');
+        estadoRef.current = 'hablando';
         player.play();
+        console.log('[TTS] play() llamado');
         await new Promise<void>(resolve => {
-          const MAX_ESPERA = 30000;
-          const timeout = setTimeout(resolve, MAX_ESPERA); // timeout máximo de seguridad
-          setTimeout(() => {
-            const interval = setInterval(() => {
-              if (!player.playing) { clearInterval(interval); clearTimeout(timeout); resolve(); }
-            }, 300);
-          }, 400);
+          let resolved = false;
+          const done = (motivo: string) => {
+            if (resolved) return;
+            resolved = true;
+            clearInterval(pollInterval);
+            if (durationTimer !== undefined) clearTimeout(durationTimer);
+            clearTimeout(safetyTimeout);
+            clearTimeout(noStartTimer);
+            console.log('[TTS] fin de reproducción, motivo:', motivo);
+            resolve();
+          };
+
+          const safetyTimeout = setTimeout(() => done('safety-timeout'), 45000);
+          let started = false;
+          let silenceCount = 0;
+          let durationTimer: ReturnType<typeof setTimeout> | undefined;
+          let lastPos = -1;
+
+          // Si no arranca en 4s, asumimos fallo de carga
+          const noStartTimer = setTimeout(() => { if (!started) done('no-start-4s'); }, 4000);
+
+          const pollInterval = setInterval(() => {
+            const playing = player.playing;
+            const dur = (player as any).duration as number;
+            const pos = (player as any).currentTime as number;
+            if (!started) {
+              if (playing) {
+                started = true;
+                lastPos = pos;
+                clearTimeout(noStartTimer);
+                console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
+                if (!isNaN(dur) && dur > 0) {
+                  durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
+                }
+              }
+            } else {
+              if (!playing) {
+                const nearEnd = !isNaN(dur) && dur > 0 && pos >= dur - 0.3;
+                if (nearEnd) {
+                  done('near-end');
+                } else if (pos === lastPos && !isNaN(dur) && dur > 0 && pos < dur - 0.3) {
+                  // Audio interrumpido por Android (audio focus) — intentar resumir
+                  console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
+                  player.play();
+                  silenceCount = 0;
+                } else {
+                  silenceCount++;
+                  console.log('[TTS] poll silencio', silenceCount, '| pos:', pos?.toFixed(2), '| dur:', dur?.toFixed(2));
+                  if (silenceCount >= 15) done('silence-15-polls');
+                }
+              } else {
+                silenceCount = 0;
+              }
+              lastPos = pos;
+            }
+          }, 150);
         });
       } else {
         // Fallback al TTS del sistema si ElevenLabs no responde
+        console.log('[TTS] fallback a Speech.speak (ElevenLabs falló)');
+        setEstado('hablando');
+        estadoRef.current = 'hablando';
         await new Promise<void>((resolve) => {
           Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
         });
       }
-    } catch {
+    } catch (e: any) {
+      console.log('[TTS] CATCH en hablar:', e?.message ?? e);
       try {
+        console.log('[TTS] fallback a Speech.speak (catch)');
+        setEstado('hablando');
+        estadoRef.current = 'hablando';
         await new Promise<void>((resolve) => {
           Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
         });
@@ -531,16 +592,19 @@ export function useRosita() {
   async function iniciarEscucha() {
     if (estadoRef.current !== 'esperando') return;
     detenerSilbido();
+    enFlujoVozRef.current = true; // bloquear SR durante todo el flujo del botón
     try {
       if (musicaActivaRef.current) { playerMusica.pause(); setMusicaActiva(false); }
       ExpoSpeechRecognitionModule.stop();
+      await new Promise(r => setTimeout(r, 400)); // esperar que SR libere el micrófono
       setEstado('escuchando');
       estadoRef.current = 'escuchando';
       await recorderConv.prepareToRecordAsync();
       recorderConv.record();
       yaDetuvRef.current = false;
-      setTimeout(() => { if (!yaDetuvRef.current) detenerEscucha(); }, 12000);
+      setTimeout(() => { if (!yaDetuvRef.current) detenerEscucha(); }, 8000);
     } catch {
+      enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
     }
@@ -553,11 +617,9 @@ export function useRosita() {
       await recorderConv.stop();
       const uri = recorderConv.uri;
       if (uri) { await enviarAudio(uri); }
-      else { setEstado('esperando'); estadoRef.current = 'esperando'; iniciarSpeechRecognition(); }
+      else { enFlujoVozRef.current = false; setEstado('esperando'); estadoRef.current = 'esperando'; iniciarSpeechRecognition(); }
     } catch {
-      setEstado('esperando');
-      estadoRef.current = 'esperando';
-      iniciarSpeechRecognition();
+      enFlujoVozRef.current = false; setEstado('esperando'); estadoRef.current = 'esperando'; iniciarSpeechRecognition();
     }
   }
 
@@ -565,13 +627,20 @@ export function useRosita() {
     setEstado('pensando');
     estadoRef.current = 'pensando';
     try {
+      const info = await FileSystem.getInfoAsync(uri);
+      console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as any).size ?? '?');
       const texto = await transcribirAudio(uri);
+      console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
       if (!texto.trim()) { await hablar('No te escuché bien, ¿podés repetir?'); return; }
       await responderConClaude(texto);
-    } catch {
+    } catch (e: any) {
+      console.log('[AUDIO] CATCH:', e?.message ?? e);
       setEstado('esperando');
       estadoRef.current = 'esperando';
-      iniciarSpeechRecognition();
+    } finally {
+      // Siempre liberar el flag y reiniciar SR al terminar el flujo del botón
+      enFlujoVozRef.current = false;
+      if (estadoRef.current === 'esperando') iniciarSpeechRecognition();
     }
   }
 
@@ -580,7 +649,8 @@ export function useRosita() {
     try {
       const controller = new AbortController();
       const id = setTimeout(() => controller.abort(), 6000);
-      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=es-419&gl=AR&ceid=AR:es-419`;
+      const hace5dias = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query + ' after:' + hace5dias)}&hl=es-419&gl=AR&ceid=AR:es-419`;
       const res = await fetch(url, { signal: controller.signal });
       clearTimeout(id);
       if (!res.ok) return null;
@@ -599,8 +669,9 @@ export function useRosita() {
 
   // ── Responder con Claude ────────────────────────────────────────────────────
   async function responderConClaude(textoUsuario: string) {
+    console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = perfilRef.current;
-    if (!p) return;
+    if (!p) { console.log('[RC] sin perfil, saliendo'); return; }
     detenerSilbido();
     setEstado('pensando');
     estadoRef.current = 'pensando';
@@ -612,7 +683,7 @@ export function useRosita() {
 
       // Buscar noticias si la pregunta es sobre eventos actuales o deportes
       let contextoNoticias = '';
-      const pideNoticias = /\b(como salio|salio|resultado|gano|gano|perdio|partido|noticias|que paso|que hay|actualidad|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|economia|dolar|inflacion)\b/.test(textoNorm);
+      const pideNoticias = /\b(como salio|salio|resultado|gano|perdio|partido|noticias|que paso|que hay|actualidad|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|economia|dolar|inflacion|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
       if (pideNoticias) {
         const titulos = await buscarNoticias(textoUsuario);
         if (titulos) {
@@ -620,8 +691,9 @@ export function useRosita() {
         }
       }
 
+      console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
-        system: getSystemPrompt(p, climaRef.current, pideJuego) + contextoNoticias,
+        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias),
         messages: nuevoHistorial.slice(-10),
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
 
@@ -760,7 +832,8 @@ export function useRosita() {
         if (estadoRef.current === 'esperando') setExpresion('neutral');
       }, 8000);
 
-    } catch {
+    } catch (e: any) {
+      console.log('[RC] CATCH error:', e?.message ?? e);
       const chatIds  = (perfilRef.current?.telegramContactos ?? []).map(c => c.id);
       const respLocal = respuestaOffline(
         textoUsuario,
@@ -858,7 +931,7 @@ export function useRosita() {
       setExpresion('bostezando');
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
     },
-    onOjoPicado, onRelampago, iniciarSilbido, detenerSilbido,
+    onOjoPicado, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     // Refs que useNotificaciones necesita
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,

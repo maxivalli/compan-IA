@@ -4,6 +4,7 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
 
 type Mensaje = { role: 'user' | 'assistant'; content: string };
+type SystemBlock = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
 
 async function jsonHeaders(): Promise<Record<string, string>> {
   const installId = await obtenerInstallId();
@@ -17,12 +18,18 @@ async function formHeaders(): Promise<Record<string, string>> {
 
 // ── Claude ────────────────────────────────────────────────────────────────────
 
+function fetchConTimeout(url: string, options: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 export async function llamarClaude(options: {
-  system: string;
+  system: string | SystemBlock[];
   messages: Mensaje[];
   maxTokens?: number;
 }): Promise<string> {
-  const res = await fetch(`${BACKEND_URL}/ai/chat`, {
+  const res = await fetchConTimeout(`${BACKEND_URL}/ai/chat`, {
     method: 'POST',
     headers: await jsonHeaders(),
     body: JSON.stringify({
@@ -31,8 +38,7 @@ export async function llamarClaude(options: {
       system: options.system,
       messages: options.messages,
     }),
-    signal: AbortSignal.timeout(20000),
-  });
+  }, 20000);
   if (!res.ok) throw new Error(`Claude ${res.status}`);
   const data = await res.json();
   return data.content?.[0]?.text ?? '';
@@ -44,14 +50,19 @@ export async function transcribirAudio(uri: string): Promise<string> {
   const formData = new FormData();
   formData.append('file', { uri, type: 'audio/m4a', name: 'audio.m4a' } as any);
   formData.append('language', 'es');
-  const res = await fetch(`${BACKEND_URL}/ai/transcribe`, {
+  const res = await fetchConTimeout(`${BACKEND_URL}/ai/transcribe`, {
     method: 'POST',
     headers: await formHeaders(),
     body: formData,
-    signal: AbortSignal.timeout(25000),
-  });
-  if (!res.ok) throw new Error(`Whisper ${res.status}`);
+  }, 25000);
+  console.log('[AI] transcribe status:', res.status);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.log('[AI] transcribe error body:', body);
+    throw new Error(`Whisper ${res.status}`);
+  }
   const data = await res.json();
+  console.log('[AI] transcribe data:', JSON.stringify(data));
   return data.text?.trim() ?? '';
 }
 
@@ -62,12 +73,11 @@ export const VOICE_ID_FEMENINA = 'r3lotmx3BZETVvcKm6R6';
 export const VOICE_ID_MASCULINA = 'QK4xDwo9ESPHA4JNUpX3';
 
 export async function sintetizarVoz(texto: string, voiceId?: string): Promise<string | null> {
-  const res = await fetch(`${BACKEND_URL}/ai/tts`, {
+  const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
     method: 'POST',
     headers: await jsonHeaders(),
     body: JSON.stringify({ text: texto, voiceId }),
-    signal: AbortSignal.timeout(12000),
-  });
+  }, 12000);
   if (!res.ok) return null;
   const data = await res.json();
   return data.audio ?? null;

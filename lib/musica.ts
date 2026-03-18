@@ -66,7 +66,6 @@ export async function buscarRadio(genero: string): Promise<string | null> {
   // Primero verificar si es una radio argentina conocida
   const radioArgentina = RADIOS_ARGENTINA[key];
   if (radioArgentina) {
-    // Intentar con nombre exacto + country=AR, luego sin filtro de país
     const urlEstacion = await buscarEnAPI(radioArgentina, 'AR') ?? await buscarEnAPI(radioArgentina);
     if (urlEstacion) return urlEstacion;
     return null;
