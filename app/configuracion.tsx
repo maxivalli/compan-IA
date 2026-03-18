@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
@@ -242,11 +242,14 @@ export default function Configuracion() {
   const [pinConfigurado, setPinConfigurado] = useState(false);
   const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     obtenerPIN().then(p => {
-      if (p) { setPinConfigurado(true); setPinOverlay('verificar'); }
-      else    { setPinDesbloqueado(true); }
+      if (p) { setPinConfigurado(true); setPinDesbloqueado(false); setPinOverlay('verificar'); }
+      else    { setPinConfigurado(false); setPinDesbloqueado(true); }
     });
+  }, []));
+
+  useEffect(() => {
     cargarRecordatorios().then(setRecordatorios);
     cargarPerfil().then(p => {
       setPerfil(p);

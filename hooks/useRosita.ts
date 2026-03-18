@@ -290,7 +290,9 @@ export function useRosita() {
     perfilRef.current = perfil;
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     setCargando(false);
-    iniciarSpeechRecognition();
+    const asistente = perfil.nombreAsistente ?? 'Rosita';
+    const rol = perfil.vozGenero === 'masculina' ? 'tu nuevo compañero' : 'tu nueva compañera';
+    await hablar(`¡Hola ${perfil.nombreAbuela}! Soy ${asistente}, ${rol}. Podés hablarme cuando quieras, acá estoy.`);
   }
 
   // ── Recargar perfil al volver de configuración ──────────────────────────────
