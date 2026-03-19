@@ -32,10 +32,13 @@ export default function Index() {
     onPanResponderRelease: (_, g) => { if (Math.abs(g.dx) > 40) onCaricia(); },
   })).current;
 
-  // Al volver del onboarding con perfil ya guardado, arrancar normalmente
+  // Al volver del onboarding con perfil ya guardado, arrancar normalmente.
+  // Al salir (onboarding, configuración, etc.) detener SR para que no escuche
+  // en segundo plano mientras el tab sigue montado.
   useFocusEffect(useCallback(() => {
     if (cargando) reactivar();
     else recargarPerfil();
+    return () => { ExpoSpeechRecognitionModule.stop(); };
   }, [cargando]));
 
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
