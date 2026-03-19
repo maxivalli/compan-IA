@@ -162,11 +162,11 @@ const SECCIONES: Seccion[] = [
   },
   {
     icono: 'gift-outline',
-    titulo: 'Saludo de cumpleaños',
-    descripcion: 'El día de tu cumpleaños, Rosita te saluda con un mensaje especial a las 9 de la mañana. La pantalla se llena de globos todo el día.',
+    titulo: 'Saludos especiales',
+    descripcion: 'El día de tu cumpleaños, Rosita te saluda con un mensaje especial a las 9 de la mañana y la pantalla se llena de globos. También tiene saludos únicos para Navidad y Año Nuevo.',
     color: '#6A0D91',
     bg: '#F0DEFF',
-    nota: 'La fecha de cumpleaños se configura en tu perfil. El saludo es único, generado especialmente para vos.',
+    nota: 'La fecha de cumpleaños se configura en tu perfil. Los saludos de Navidad (25/12) y Año Nuevo (1/1) son automáticos.',
   },
   {
     icono: 'happy-outline',
