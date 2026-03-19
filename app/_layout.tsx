@@ -24,6 +24,7 @@ export default function Layout() {
       <Tabs.Screen name="animo" />
       <Tabs.Screen name="privacidad" />
       <Tabs.Screen name="onboarding" />
+      <Tabs.Screen name="guia" />
     </Tabs>
   );
 }

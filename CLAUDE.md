@@ -270,6 +270,53 @@ Crítico: **no mezclar** `useNativeDriver: true` con `useNativeDriver: false` en
 
 ---
 
+## Convenciones técnicas
+
+### Fetch con timeout
+
+Todos los `fetch` a servicios externos (backend, APIs de terceros) usan `AbortController` con timeout para evitar que cuelguen indefinidamente:
+
+```typescript
+// Frontend (app/) — patrón inline:
+const ctrl = new AbortController();
+const id = setTimeout(() => ctrl.abort(), 10000);
+const res = await fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+
+// configuracion.tsx usa fetchTimeout() helper definido en el mismo archivo
+// onboarding.tsx usa AbortController inline en finalizar()
+```
+
+```typescript
+// Backend (AbuApp_Backend/src/routes/ai.ts) — helper reutilizable:
+function fetchConTimeout(url, ms, options?): Promise<globalThis.Response>
+// Timeouts: Claude 30s, ElevenLabs TTS/Sound 20s, Whisper 30s
+// Nota: return type es globalThis.Response para no colisionar con Express Response
+```
+
+### Bostezo (useRosita.ts)
+
+El intervalo de bostezo corre cada 60s pero tiene **dos guardas de tiempo**:
+1. `ultimaActividadRef` — no bosteza si la última charla fue hace menos de 5 min
+2. `ultimoBostezRef` — no repite si ya bostezó hace menos de 10 min (según spec)
+
+### Animated.loop — siempre guardar referencia
+
+```typescript
+// MAL — memory leak
+Animated.loop(Animated.timing(...)).start();
+
+// BIEN
+const loop = Animated.loop(Animated.timing(...));
+loop.start();
+return () => loop.stop();
+```
+
+### `guardarRecordatorio` (memoria.ts)
+
+Todas las funciones de AsyncStorage tienen try/catch. `guardarRecordatorio` también lo tiene desde la revisión de 2026-03.
+
+---
+
 ## Builds
 
 ```bash

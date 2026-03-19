@@ -51,7 +51,9 @@ export async function obtenerClima(): Promise<DatosClima | null> {
 
     // Pedimos clima actual + pronóstico de 7 días en una sola llamada
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=7`;
-    const res = await fetch(url);
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timeoutId));
     if (!res.ok) return null;
 
     const data = await res.json();

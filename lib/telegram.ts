@@ -10,11 +10,13 @@ async function h(): Promise<Record<string, string>> {
 
 export async function enviarAlertaTelegram(chatIds: string[], mensaje: string, nombreAsistente = 'Rosita'): Promise<void> {
   if (!chatIds.length) return;
-  await fetch(`${BACKEND_URL}/telegram/alerta`, {
-    method: 'POST',
-    headers: await h(),
-    body: JSON.stringify({ chatIds, texto: mensaje, nombreAsistente }),
-  });
+  try {
+    await fetch(`${BACKEND_URL}/telegram/alerta`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ chatIds, texto: mensaje, nombreAsistente }),
+    });
+  } catch {}
 }
 
 export type MensajeVoz = {
@@ -51,9 +53,11 @@ export async function obtenerUrlArchivo(fileId: string): Promise<string | null> 
 
 export async function enviarMensajeTelegram(chatIds: string[], texto: string): Promise<void> {
   if (!chatIds.length) return;
-  await fetch(`${BACKEND_URL}/telegram/mensaje`, {
-    method: 'POST',
-    headers: await h(),
-    body: JSON.stringify({ chatIds, texto }),
-  });
+  try {
+    await fetch(`${BACKEND_URL}/telegram/mensaje`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ chatIds, texto }),
+    });
+  } catch {}
 }

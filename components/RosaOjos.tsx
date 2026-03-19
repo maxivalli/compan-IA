@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 
-export type Expresion = 'neutral' | 'feliz' | 'triste' | 'sorprendida' | 'pensativa' | 'chiste' | 'enojada' | 'avergonzada' | 'cansada' | 'bostezando';
+export type Expresion = 'neutral' | 'feliz' | 'triste' | 'sorprendida' | 'pensativa' | 'chiste' | 'enojada' | 'avergonzada' | 'cansada' | 'bostezando' | 'mimada';
 type Estado = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 
 export const BG = '#0D0D14';
@@ -23,6 +23,7 @@ const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: num
   avergonzada: { pxL: 3,   pxR: -3,  py: 14,  upper: EYE_H * 0.38, lower: 0,            ceno: EYE_H * 0.08, gapOffset: 0  },
   cansada:     { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.42, lower: EYE_H * 0.06, ceno: 0,            gapOffset: 0  },
   bostezando:  { pxL: 0,   pxR: 0,   py: 10,  upper: EYE_H * 0.56, lower: EYE_H * 0.12, ceno: 0,            gapOffset: 0  },
+  mimada:      { pxL: 0,   pxR: 0,   py: -4,  upper: EYE_H * 0.38, lower: EYE_H * 0.24, ceno: 0,            gapOffset: 0  },
 };
 
 // ── Boca ─────────────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     } else {
       const reposoHeight =
         expresion === 'sorprendida' ? 20 :
-        expresion === 'feliz' || expresion === 'chiste' ? 10 :
+        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 10 :
         expresion === 'enojada' ? 3 :
         expresion === 'cansada' ? 8 :
         expresion === 'neutral' ? 14 : 5; 
@@ -97,7 +98,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       // Hacemos el neutral más ancho (86), feliz un poco ancho (76), el resto normal (64)
       const reposoWidth = 
         expresion === 'neutral' ? 86 : 
-        expresion === 'feliz' || expresion === 'chiste' ? 76 : 64;
+        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 76 : 64;
 
       Animated.parallel([
         Animated.timing(height, { toValue: reposoHeight, duration: 350, useNativeDriver: false }),
@@ -112,7 +113,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
   const forma = silbando
     ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
     :
-    expresion === 'feliz' || expresion === 'chiste'
+    expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada'
       ? { borderTopLeftRadius: 3,  borderTopRightRadius: 3,  borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }
       : expresion === 'triste' || expresion === 'enojada'
       ? { borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: 3,  borderBottomRightRadius: 3  }
@@ -171,16 +172,17 @@ function Cremallera() {
       Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
     // Tirador oscila
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(tiraY, { toValue: 3,  duration: 1200, useNativeDriver: true }),
         Animated.timing(tiraY, { toValue: -1, duration: 1200, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    loop.start();
+    return () => loop.stop();
   }, []);
 
   const dienteW  = CR_W / N_DIENTES; // ocupa todo el ancho
-  const mitadCR  = CR_H / 2;
 
   return (
     <Animated.View style={[sc.wrap, { opacity, transform: [{ scaleX }] }]}>
@@ -593,7 +595,7 @@ export default function RosaOjos({
     };
   }, [estado, modoNoche]);
 
-  function picarOjo(lado: 'L' | 'R') {
+  function picarOjo(_lado: 'L' | 'R') {
     // Parpadeo rápido del ojo tocado — usa blinkLid compartido
     const lid = blinkLid;
     Animated.sequence([
@@ -610,10 +612,10 @@ export default function RosaOjos({
     <View style={s.wrap}>
       <View style={s.contenedor}>
         <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
-          <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} />
+          <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor}/>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1}>
-          <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor} />
+          <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor}/>
         </TouchableOpacity>
       </View>
       {noMolestar && estado === 'esperando' ? <Cremallera /> : <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />}

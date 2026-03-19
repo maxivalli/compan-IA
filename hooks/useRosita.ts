@@ -11,6 +11,7 @@ import {
   cargarPerfil, cargarHistorial, guardarHistorial,
   Perfil, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, bienvenidaYaDada, marcarBienvenidaDada,
+  registrarMusicaHoy,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { buscarRadio } from '../lib/musica';
@@ -80,14 +81,14 @@ export function useRosita() {
 
   // ── System prompt en dos bloques: estable (cacheable) + dinámico ─────────────
   const systemEstableRef = useRef<{ key: string; text: string } | null>(null);
-  function getSystemBlocks(p: Perfil, climaTexto: string, incluirJuego: boolean, extra = '') {
+  function getSystemBlocks(p: Perfil, climaTexto: string, incluirJuego: boolean, extra = '', incluirChiste = false) {
     const perfKey = `${p.nombreAbuela}|${p.nombreAsistente}|${p.edad}|${p.vozGenero}`;
     if (!systemEstableRef.current || systemEstableRef.current.key !== perfKey) {
       systemEstableRef.current = { key: perfKey, text: construirSystemPromptEstable(p) };
     }
     return [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra) },
+      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste) },
     ];
   }
   const sinConexionRef   = useRef(false);
@@ -100,7 +101,16 @@ export function useRosita() {
 
   // ── Sincronizar refs con estado ─────────────────────────────────────────────
   useEffect(() => { estadoRef.current      = estado;      }, [estado]);
-  useEffect(() => { musicaActivaRef.current = musicaActiva; }, [musicaActiva]);
+  useEffect(() => {
+    musicaActivaRef.current = musicaActiva;
+    // Con música activa el SR se apaga para evitar colisiones con letras en español.
+    // Se reactiva automáticamente cuando la música se detiene.
+    if (musicaActiva) {
+      ExpoSpeechRecognitionModule.stop();
+    } else if (!enFlujoVozRef.current) {
+      iniciarSpeechRecognition();
+    }
+  }, [musicaActiva]);
   useEffect(() => { noMolestarRef.current  = noMolestar;  }, [noMolestar]);
 
   // ── Hora actual (para fondo) ────────────────────────────────────────────────
@@ -279,7 +289,7 @@ export function useRosita() {
     try {
       const dir = FileSystem.cacheDirectory!;
       const archivos = await FileSystem.readDirectoryAsync(dir);
-      const hace7dias = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const hace7dias = Date.now() - 30 * 24 * 60 * 60 * 1000;
       for (const archivo of archivos) {
         if (!archivo.startsWith('tts_') || !archivo.endsWith('.mp3')) continue;
         const info = await FileSystem.getInfoAsync(dir + archivo);
@@ -362,9 +372,10 @@ export function useRosita() {
     try {
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
-      ultimaActivacionSrRef.current = ahora;
     } catch {
       srActivoRef.current = false;
+    } finally {
+      ultimaActivacionSrRef.current = ahora; // throttle aplica siempre, incluso si falló
     }
   }
 
@@ -400,10 +411,11 @@ export function useRosita() {
   }
 
   // ── Silbido ─────────────────────────────────────────────────────────────────
-  async function reproducirSilbido(repeticion = 1) {
+  // Reproduce el silbido UNA vez y espera que termine (~4s).
+  // Las repeticiones las controla seriedeSilbidos() en useNotificaciones.
+  async function reproducirSilbido() {
     if (!silbidoActivoRef.current) return;
     if (estadoRef.current !== 'esperando') return;
-    if (repeticion > 2) { silbidoActivoRef.current = false; setSilbando(false); ultimaCharlaRef.current = Date.now(); return; }
     try {
       const cacheUri = FileSystem.cacheDirectory + 'silbido.mp3';
       const cached = await FileSystem.getInfoAsync(cacheUri);
@@ -414,15 +426,9 @@ export function useRosita() {
       }
       player.replace({ uri: cacheUri });
       player.play();
-      await new Promise<void>(resolve => {
-        const timeout = setTimeout(resolve, 15000);
-        setTimeout(() => {
-          const interval = setInterval(() => { if (!player.playing) { clearInterval(interval); clearTimeout(timeout); resolve(); } }, 300);
-        }, 400);
-      });
-      if (silbidoActivoRef.current && estadoRef.current === 'esperando') {
-        silbidoTimerRef.current = setTimeout(() => reproducirSilbido(repeticion + 1), 2000);
-      }
+      // Timer fijo: 4s de audio + 500ms de margen.
+      // No usamos player.playing porque es poco confiable en Android.
+      await new Promise<void>(resolve => setTimeout(resolve, 4500));
     } catch {}
   }
 
@@ -430,7 +436,7 @@ export function useRosita() {
     if (silbidoActivoRef.current) return;
     silbidoActivoRef.current = true;
     setSilbando(true);
-    reproducirSilbido(1);
+    reproducirSilbido();
   }
 
   function detenerSilbido() {
@@ -462,6 +468,12 @@ export function useRosita() {
     ojoPicadoTimer.current = setTimeout(() => setExpresion('neutral'), 3000);
   }
 
+  function onCaricia() {
+    if (ojoPicadoTimer.current) clearTimeout(ojoPicadoTimer.current);
+    setExpresion('mimada');
+    ojoPicadoTimer.current = setTimeout(() => setExpresion('neutral'), 3500);
+  }
+
   function onRelampago() {
     flashAnim.setValue(0);
     Animated.sequence([
@@ -490,6 +502,20 @@ export function useRosita() {
       const corte = texto.lastIndexOf('.', MAX_CHARS);
       texto = corte > 40 ? texto.slice(0, corte + 1) : texto.slice(0, MAX_CHARS).trimEnd();
     }
+
+    // Limpiar símbolos que ElevenLabs no pronuncia bien (frecuentes en respuestas de GPT)
+    texto = texto
+      .replace(/(\d+)\s*°\s*[Cc]/g,  '$1 grados')
+      .replace(/(\d+)\s*°\s*[Ff]/g,  '$1 grados Fahrenheit')
+      .replace(/°/g,                  ' grados')
+      .replace(/(\d+)\s*%/g,          '$1 por ciento')
+      .replace(/(\d+)\s*km\/h/gi,     '$1 kilómetros por hora')
+      .replace(/(\d+)\s*m\/s/gi,      '$1 metros por segundo')
+      .replace(/\bkm\b/gi,            'kilómetros')
+      .replace(/\*\*(.+?)\*\*/g,      '$1')   // negrita markdown
+      .replace(/\*(.+?)\*/g,          '$1')   // cursiva markdown
+      .replace(/#+\s/g,               '')     // títulos markdown
+      .replace(/[_~`]/g,              '');    // otros símbolos markdown
 
     try {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
@@ -558,6 +584,10 @@ export function useRosita() {
                   // Audio interrumpido por Android (audio focus) — intentar resumir
                   console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
                   player.play();
+                  silenceCount = 0;
+                } else if (pos !== lastPos) {
+                  // La posición avanza → el audio sigue reproduciéndose aunque player.playing=false
+                  // (oscilación de audio focus en Android). No contar como silencio.
                   silenceCount = 0;
                 } else {
                   silenceCount++;
@@ -692,11 +722,12 @@ export function useRosita() {
 
     try {
       const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const pideJuego = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina)\b/.test(textoNorm);
+      const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
+      const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm);
 
       // Buscar noticias si la pregunta es sobre eventos actuales o deportes
       let contextoNoticias = '';
-      const pideNoticias = /\b(como salio|salio|resultado|gano|perdio|partido|noticias|que paso|que hay|actualidad|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|economia|dolar|inflacion|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
+      const pideNoticias = /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
       if (pideNoticias) {
         const titulos = await buscarNoticias(textoUsuario);
         if (titulos) {
@@ -706,7 +737,7 @@ export function useRosita() {
 
       console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
-        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias),
+        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias, pideChiste),
         messages: nuevoHistorial.slice(-10),
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
 
@@ -745,15 +776,10 @@ export function useRosita() {
             playerMusica.replace({ uri: urlStream });
             playerMusica.play();
             setMusicaActiva(true);
+            registrarMusicaHoy().catch(() => {});
             setEstado('esperando');
             estadoRef.current = 'esperando';
             iniciarSpeechRecognition();
-            setTimeout(async () => {
-              if (!playerMusica.playing) {
-                setMusicaActiva(false);
-                await hablar('Ay, no pude conectar con la radio. Intentá de nuevo en un ratito.');
-              }
-            }, 5000);
             if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
             expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 5000);
           } catch {
@@ -813,9 +839,8 @@ export function useRosita() {
 
       // ── RECUERDOS ──
       if (parsed.recuerdos.length > 0) {
-        Promise.all(parsed.recuerdos.map(r => agregarRecuerdo(r))).then(() => {
-          cargarPerfil().then(pf => { perfilRef.current = pf; });
-        });
+        await Promise.all(parsed.recuerdos.map(r => agregarRecuerdo(r)));
+        perfilRef.current = await cargarPerfil();
       }
 
       // ── LLAMAR_FAMILIA ──
@@ -905,6 +930,7 @@ export function useRosita() {
       if (noMolestarRef.current) return;
       if (musicaActivaRef.current) return;
       if ((Date.now() - ultimaActividadRef.current) < CINCO_MIN) return;
+      if ((Date.now() - ultimoBostezRef.current) < 10 * 60 * 1000) return;
       ultimoBostezRef.current = Date.now();
       // 3 bostezos seguidos con 5s entre cada uno
       bostezar();
@@ -953,7 +979,7 @@ export function useRosita() {
       setExpresion('bostezando');
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
     },
-    onOjoPicado, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
+    onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     // Refs que useNotificaciones necesita
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,

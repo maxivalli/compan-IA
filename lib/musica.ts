@@ -36,17 +36,6 @@ const STREAMS_GENERO: Record<string, string[]> = {
   ],
 };
 
-// Términos de búsqueda para Radio Garden y radio-browser.info
-const NOMBRES_RADIO_AR: Record<string, string> = {
-  cadena3:     'Cadena 3',
-  mitre:       'Radio Mitre',
-  continental: 'Radio Continental',
-  rivadavia:   'Radio Rivadavia',
-  nacional:    'Radio Nacional',
-  lared:       'La Red',
-  metro:       'Radio Metro',
-};
-
 const HEADERS = {
   'User-Agent': 'CompañIA/1.0 (Radio Player)',
   'Accept': 'application/json',
@@ -58,24 +47,9 @@ function fetchConTimeout(url: string, ms: number, options?: RequestInit): Promis
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-/** Verifica si un stream responde correctamente (HEAD request, 3s timeout) */
-async function verificarStream(url: string): Promise<boolean> {
-  try {
-    const ctrl = new AbortController();
-    const id = setTimeout(() => ctrl.abort(), 3000);
-    const res = await fetch(url, { method: 'HEAD', signal: ctrl.signal }).finally(() => clearTimeout(id));
-    return res.ok || res.status === 200 || res.status === 206;
-  } catch {
-    return false;
-  }
-}
-
-/** Prueba una lista de URLs y devuelve la primera que responda */
-async function primeraQueAndé(urls: string[]): Promise<string | null> {
-  for (const url of urls) {
-    if (await verificarStream(url)) return url;
-  }
-  return null;
+/** Devuelve la primera URL de la lista (los servidores de streaming no responden a HEAD) */
+function primeraQueAndé(urls: string[]): string | null {
+  return urls[0] ?? null;
 }
 
 async function buscarEnAPI(termino: string, pais?: string): Promise<string | null> {
@@ -91,7 +65,7 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
         const stations = await res.json();
         // Solo HTTPS — Android bloquea HTTP en apps modernas
         const station = stations?.find(
-          (s: any) => s.url_resolved?.startsWith('https://') && (s.bitrate ?? 0) >= 64,
+          (s: any) => s.url_resolved?.startsWith('https://'),
         );
         if (station) return station.url_resolved as string;
       } catch {
@@ -102,60 +76,15 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
   return null;
 }
 
-/** Busca una estación en Radio Garden y devuelve la URL final del stream (resuelve el redirect) */
-async function buscarEnRadioGarden(nombre: string): Promise<string | null> {
-  try {
-    const res = await fetchConTimeout(
-      `https://radio.garden/api/search?q=${encodeURIComponent(nombre)}`,
-      6000,
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const hits = data?.hits?.hits ?? [];
-    const canal = hits.find((h: any) => h._source?.type === 'channel');
-    if (!canal) return null;
-    const id = canal._source.id?.replace('/api/ara/content/channel/', '').replace('/channel/', '');
-    if (!id) return null;
-    // Resolver el redirect para obtener la URL directa del stream
-    const streamRes = await fetchConTimeout(
-      `https://radio.garden/api/ara/content/channel/${id}/stream`,
-      6000,
-      { redirect: 'follow' },
-    );
-    if (!streamRes.ok && streamRes.status !== 302) return null;
-    // La URL final tras el redirect es la del stream real
-    return streamRes.url ?? null;
-  } catch {
-    return null;
-  }
-}
 
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
 
-  // ── Radios argentinas ─────────────────────────────────────────────────────
-  const nombre = NOMBRES_RADIO_AR[key];
-  if (nombre) {
-    // 1. Radio Garden — streams proxeados, siempre HTTPS y confiables
-    const urlGarden = await buscarEnRadioGarden(nombre);
-    if (urlGarden) return urlGarden;
-
-    // 2. radio-browser.info (solo HTTPS)
-    const urlAPI = await buscarEnAPI(nombre, 'AR') ?? await buscarEnAPI(nombre);
-    if (urlAPI) return urlAPI;
-
-    return null;
-  }
-
-  // ── Géneros musicales ─────────────────────────────────────────────────────
-
-  // 1. Buscar en radio-browser.info (solo HTTPS)
   const urlAPI = await buscarEnAPI(key);
   if (urlAPI) return urlAPI;
 
-  // 2. Fallback a streams curados
   const fallbacks = STREAMS_GENERO[key];
-  if (fallbacks) return await primeraQueAndé(fallbacks) ?? fallbacks[0];
+  if (fallbacks) return primeraQueAndé(fallbacks) ?? fallbacks[0];
 
   return null;
 }

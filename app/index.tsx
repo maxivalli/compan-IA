@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { Alert, Animated, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -23,9 +23,14 @@ export default function Index() {
     musicaActiva, silbando, noMolestar, setNoMolestar,
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
-    onOjoPicado, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
+    onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     refs, player,
   } = useRosita();
+
+  const panCaricia = useRef(PanResponder.create({
+    onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dy) < 40,
+    onPanResponderRelease: (_, g) => { if (Math.abs(g.dx) > 40) onCaricia(); },
+  })).current;
 
   // Al volver del onboarding con perfil ya guardado, arrancar normalmente
   useFocusEffect(useCallback(() => {
@@ -47,6 +52,60 @@ export default function Index() {
   const desc        = climaObj?.descripcion?.toLowerCase() ?? '';
   const cieloTapado = /\bnublado\b/.test(desc) && !/parcial|algunas nubes/.test(desc)
     || /nuboso|cubierto|lluvia|lloviendo|llovizna|tormenta|nevada|nieve|granizo|niebla/.test(desc);
+
+  // ── Hints rotativos en modo espera ──────────────────────────────────────────
+  const HINTS = [
+    '¿Cómo estás hoy?',
+    '¿De qué te gustaría charlar?',
+    '¿Querés escuchar música?',
+    '¿Qué pasó hoy en las noticias?',
+    '¿Jugamos a algo?',
+    'Acá estoy para lo que necesités',
+  ];
+  const [hintIdx, setHintIdx] = useState(0);
+  const hintOpacity           = useRef(new Animated.Value(0)).current;
+  const hintTranslate         = useRef(new Animated.Value(30)).current;
+  const hintActiveRef         = useRef(false);
+
+  useEffect(() => {
+    if (estado !== 'esperando' || musicaActiva) {
+      hintActiveRef.current = false;
+      Animated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      return;
+    }
+    hintActiveRef.current = true;
+    hintTranslate.setValue(30);
+    Animated.parallel([
+      Animated.timing(hintOpacity,   { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(hintTranslate, { toValue: 0, duration: 700, useNativeDriver: true }),
+    ]).start();
+    const id = setInterval(() => {
+      if (!hintActiveRef.current) return;
+      Animated.parallel([
+        Animated.timing(hintOpacity,   { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(hintTranslate, { toValue: -30, duration: 400, useNativeDriver: true }),
+      ]).start(({ finished }) => {
+        if (!finished || !hintActiveRef.current) return;
+        setHintIdx(prev => (prev + 1) % HINTS.length);
+        hintTranslate.setValue(30);
+        Animated.parallel([
+          Animated.timing(hintOpacity,   { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(hintTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
+        ]).start();
+      });
+    }, 4500);
+    return () => { hintActiveRef.current = false; clearInterval(id); };
+  }, [estado, musicaActiva]);
+
+  // ── Modal hint SOS ──────────────────────────────────────────────────────────
+  const [hintSOS, setHintSOS] = useState(false);
+  const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function mostrarHintSOS() {
+    setHintSOS(true);
+    if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+    hintTimerRef.current = setTimeout(() => setHintSOS(false), 3500);
+  }
 
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const sosAnim = useRef(new Animated.Value(0)).current;
@@ -106,7 +165,7 @@ export default function Index() {
       {esFondoNoche && !(hora >= 6 && hora < 10) && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {modoNoche === 'durmiendo' && <ZZZ />}
 
-      <View style={styles.ojoContenedor}>
+      <View style={styles.ojoContenedor} {...panCaricia.panHandlers}>
         <ExpresionOverlay
           capa="fondo"
           expresion={expresion}
@@ -137,8 +196,17 @@ export default function Index() {
       </View>
 
       <View style={styles.ecualizadorWrap}>
-        {musicaActiva && <AnimacionMusica />}
+        {musicaActiva
+          ? <AnimacionMusica />
+          : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
+              <Text style={styles.hintText}>{HINTS[hintIdx]}</Text>
+            </Animated.View>
+        }
       </View>
+
+      {musicaActiva && (
+        <TouchableOpacity style={styles.musicaOverlay} onPress={pararMusica} activeOpacity={1} />
+      )}
 
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
@@ -160,10 +228,7 @@ export default function Index() {
       <Animated.View style={{ transform: [{ scale: sosScale }], opacity: sosOpacity }}>
         <TouchableOpacity
           style={styles.botonSOS}
-          onPress={() => {
-            const msg = 'Mantené presionado 2 segundos para avisar a tu familia.';
-            if (Platform.OS === 'web') { window.alert(msg); } else { Alert.alert('Botón SOS', msg); }
-          }}
+          onPress={mostrarHintSOS}
           onPressIn={sosPresionado}
           onPressOut={sosSoltado}
           onLongPress={dispararSOS}
@@ -175,7 +240,7 @@ export default function Index() {
         </TouchableOpacity>
       </Animated.View>
 
-<TouchableOpacity
+      <TouchableOpacity
         style={[styles.botonNoMolestar, noMolestar && styles.botonNoMolestarActivo]}
         onPress={() => {
           const nuevo = !noMolestar;
@@ -193,10 +258,6 @@ export default function Index() {
         <Ionicons name={noMolestar ? 'notifications-off' : 'notifications-outline'} size={18} color={noMolestar ? '#fff' : '#ffffffaa'} />
         <Text style={[styles.botonNoMolestarTexto, noMolestar && { color: '#fff' }]}>No molestar</Text>
       </TouchableOpacity>
-
-      {musicaActiva && (
-        <TouchableOpacity style={styles.musicaOverlay} onPress={pararMusica} activeOpacity={1} />
-      )}
 
       {mostrarOnboarding && (
         <TouchableOpacity
@@ -265,6 +326,18 @@ export default function Index() {
         pointerEvents="none"
         style={[StyleSheet.absoluteFill, { backgroundColor: '#FFFFFF', opacity: flashAnim }]}
       />
+
+      <Modal visible={hintSOS} transparent animationType="fade" onRequestClose={() => setHintSOS(false)}>
+        <TouchableOpacity style={styles.sosModalOverlay} activeOpacity={1} onPress={() => setHintSOS(false)}>
+          <View style={styles.sosModalCard}>
+            <Ionicons name="alert-circle" size={64} color="#fff" />
+            <Text style={styles.sosModalTitulo}>Botón SOS</Text>
+            <Text style={styles.sosModalTexto}>
+              Mantené presionado{'\n'}2 segundos para avisar{'\n'}a tu familia
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -273,7 +346,7 @@ const styles = StyleSheet.create({
   contenedor:         { flex: 1, alignItems: 'center', justifyContent: 'space-evenly' },
   updateId:           { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
   ojoContenedor:      { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
-  ecualizadorWrap:    { height: 60, alignItems: 'center', justifyContent: 'center' },
+  ecualizadorWrap:    { minHeight: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
   botonAnillo:        { position: 'absolute', width: 212, height: 76, borderRadius: 38, borderWidth: 2.5, borderColor: '#E85D24', opacity: 0.5 },
@@ -284,9 +357,14 @@ const styles = StyleSheet.create({
   botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
   botonSOSTexto:        { fontSize: fs(18), fontWeight: '600', color: '#fff' },
   botonSOSHint:         { fontSize: fs(11), color: '#ffffff99' },
+  sosModalOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
+  sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 28, paddingVertical: 40, paddingHorizontal: 44, alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20 },
+  sosModalTitulo:       { fontSize: fs(32), fontWeight: '800', color: '#fff' },
+  sosModalTexto:        { fontSize: fs(22), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(32) },
   botonNoMolestar:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ffffff33', marginTop: 8 },
   botonNoMolestarActivo: { backgroundColor: '#E85D24', borderColor: '#E85D24' },
   botonNoMolestarTexto:  { fontSize: fs(13), color: '#ffffffaa', fontWeight: '500' },
+  hintText:           { fontSize: fs(27), fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontStyle: 'italic', color: '#ffffffdd', textAlign: 'center', paddingHorizontal: 32, lineHeight: fs(35) },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
   onboardingOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 28 },
   onboardingCard:       { backgroundColor: '#f9fafb', borderRadius: 28, width: '100%', maxWidth: 340, overflow: 'hidden', elevation: 6, shadowColor: '#0097b2', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 20 },

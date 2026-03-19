@@ -333,13 +333,15 @@ export function Sol() {
   const nucleoSc = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.loop(Animated.timing(rotacion, { toValue: 1, duration: 18000, useNativeDriver: true })).start();
-    Animated.loop(
+    const a1 = Animated.loop(Animated.timing(rotacion, { toValue: 1, duration: 18000, useNativeDriver: true }));
+    const a2 = Animated.loop(
       Animated.sequence([
         Animated.timing(nucleoSc, { toValue: 1.06, duration: 1800, useNativeDriver: true }),
         Animated.timing(nucleoSc, { toValue: 0.96, duration: 1800, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    a1.start(); a2.start();
+    return () => { a1.stop(); a2.stop(); };
   }, []);
 
   const rotate = rotacion.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
@@ -369,11 +371,12 @@ export function Relampagos({ onRelampago }: { onRelampago?: () => void }) {
   const rayoOp   = useRef(new Animated.Value(0)).current;
   const rayoSc   = useRef(new Animated.Value(0.8)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animRef  = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     function disparar() {
       onRelampago?.();
-      Animated.sequence([
+      animRef.current = Animated.sequence([
         Animated.parallel([
           Animated.timing(rayoOp, { toValue: 1,   duration: 60,  useNativeDriver: true }),
           Animated.timing(rayoSc, { toValue: 1,   duration: 60,  useNativeDriver: true }),
@@ -384,12 +387,16 @@ export function Relampagos({ onRelampago }: { onRelampago?: () => void }) {
           Animated.timing(rayoOp, { toValue: 0,   duration: 200, useNativeDriver: true }),
           Animated.timing(rayoSc, { toValue: 0.8, duration: 200, useNativeDriver: true }),
         ]),
-      ]).start(() => {
+      ]);
+      animRef.current.start(() => {
         timerRef.current = setTimeout(disparar, 8000 + Math.random() * 12000);
       });
     }
     timerRef.current = setTimeout(disparar, 2000 + Math.random() * 4000);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      animRef.current?.stop();
+    };
   }, []);
 
   return (

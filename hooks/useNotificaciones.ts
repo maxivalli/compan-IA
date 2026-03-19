@@ -12,11 +12,12 @@ import {
   borrarRecordatoriosViejos,
   cargarEntradasAnimo,
   cargarHistorial,
+  musicaEscuchadaHoy,
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, obtenerUrlArchivo, MensajeVoz } from '../lib/telegram';
 
-import { llamarClaude, transcribirAudio } from '../lib/ai';
+import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
 import { tonoSegunEdad } from '../lib/claudeParser';
 
 // ── Tipos de los refs que el hook necesita ────────────────────────────────────
@@ -167,72 +168,81 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     nombreAbuela: string,
   ): Promise<boolean> {
     enFlujoVozRef.current = true;
-    // Safety: liberar el flag en 60s si algo falla sin limpiarlo
-    const safetyTimer = setTimeout(() => {
-      if (enFlujoVozRef.current) {
-        enFlujoVozRef.current = false;
-        setEstado('esperando');
-        estadoRef.current = 'esperando';
-        iniciarSpeechRecognition();
-      }
-    }, 60000);
     ExpoSpeechRecognitionModule.stop();
 
     // Pausar música si está activa
     const habiaMusica = musicaActivaRef.current;
     if (habiaMusica) pararMusica();
 
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // 1. Verificar presencia
-    await hablar(`¿Estás por ahí, ${nombreAbuela}?`);
-    // Pausa extra para asegurarse que el TTS terminó completamente
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const respuestaPresencia = await escucharRespuesta();
-
-    if (!respuestaPresencia || esNegativo(respuestaPresencia)) {
-      clearTimeout(safetyTimer);
-      enFlujoVozRef.current = false;
-      return false;
-    }
-
-    // 2. Anunciar el mensaje — pausa larga antes de reproducir para que el TTS no se pise
-    await hablar(`Te llegó un mensaje de voz de ${nombre}.`);
-    await new Promise(resolve => setTimeout(resolve, 800));
-
-    // 3. Reproducir el audio
+    let resultado = false;
     try {
-      player.replace({ uri: urlAudio });
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      player.play();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      await new Promise<void>(resolve => {
-        const timeout = setTimeout(resolve, 30000); // máximo 30s
-        const interval = setInterval(() => {
-          if (!player.playing) { clearInterval(interval); clearTimeout(timeout); resolve(); }
-        }, 300);
-      });
-    } catch {}
+      await new Promise(resolve => setTimeout(resolve, 500));
 
-    // 4. Pausa antes de ofrecer contestar
-    await new Promise(resolve => setTimeout(resolve, 500));
+      // 1. Verificar presencia
+      await hablar(`¿Estás por ahí, ${nombreAbuela}?`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const respuestaPresencia = await escucharRespuesta();
 
-    // 5. Ofrecer contestar
-    await hablar(`¿Querés contestarle a ${nombre}?`);
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const respuestaContestar = await escucharRespuesta();
+      if (!respuestaPresencia || esNegativo(respuestaPresencia)) {
+        return false;
+      }
 
-    clearTimeout(safetyTimer);
-    if (esAfirmativo(respuestaContestar)) {
-      await grabarYMandarRespuesta(chatId, nombre, nombreAbuela);
-    } else {
-      await hablar('Bueno, cuando quieras contestarle me avisás.');
+      // 2. Anunciar el mensaje
+      await hablar(`Te llegó un mensaje de voz de ${nombre}.`);
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // 3. Reproducir el audio
+      try {
+        player.replace({ uri: urlAudio });
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        player.play();
+
+        await new Promise<void>(resolve => {
+          const timeout = setTimeout(resolve, 45000);
+          let lastPos = -1;
+          let stallCount = 0;
+          const interval = setInterval(() => {
+            const pos = player.currentTime ?? 0;
+            const dur = player.duration ?? 0;
+            if (dur > 0.5 && pos >= dur - 0.5) {
+              clearInterval(interval); clearTimeout(timeout); resolve();
+              return;
+            }
+            if (pos === lastPos) {
+              stallCount++;
+              if (stallCount >= 10 && pos > 0.5) {
+                clearInterval(interval); clearTimeout(timeout); resolve();
+              }
+            } else {
+              stallCount = 0;
+            }
+            lastPos = pos;
+          }, 300);
+        });
+      } catch {}
+
+      // 4. Ofrecer contestar
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await hablar(`¿Querés contestarle a ${nombre}?`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const respuestaContestar = await escucharRespuesta();
+
+      if (esAfirmativo(respuestaContestar)) {
+        await grabarYMandarRespuesta(chatId, nombre, nombreAbuela);
+      } else {
+        await hablar('Bueno, cuando quieras contestarle me avisás.');
+      }
+      resultado = true;
+    } catch {
+      // Error inesperado — el finally se encarga de liberar el flag
+    } finally {
+      // Garantiza que el flag siempre se libera, sin importar qué pasó
       enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
       iniciarSpeechRecognition();
     }
-    return true;
+    return resultado;
   }
 
   // ── Chequear pendientes al desactivar no molestar ───────────────────────────
@@ -268,6 +278,81 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const nombre   = contacto?.nombre ?? primero.fromName;
       await manejarMensajeVoz(urlAudio, nombre, primero.chatId, p.nombreAbuela);
     } catch {}
+  }
+
+  // ── Generar cuerpo del resumen diario ────────────────────────────────────
+  async function generarMensajeResumen(p: Perfil): Promise<string> {
+    const entradas = await cargarEntradasAnimo();
+    function fechaLocal(ts: number): string {
+      const d = new Date(ts);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    const hoy = fechaLocal(Date.now());
+    const entradasHoy = entradas.filter((e: EntradaAnimo) => fechaLocal(e.timestamp) === hoy);
+    const EMOJIS: Record<string, string> = {
+      feliz: '😊 Contenta', triste: '😢 Triste', sorprendida: '😮 Sorprendida',
+      pensativa: '🤔 Pensativa', neutral: '😐 Tranquila',
+    };
+    let animoLineas = 'sin registros';
+    if (entradasHoy.length > 0) {
+      const conteo: Record<string, number> = {};
+      for (const e of entradasHoy) {
+        const label = EMOJIS[e.expresion];
+        if (!label) continue;
+        conteo[e.expresion] = (conteo[e.expresion] ?? 0) + 1;
+      }
+      animoLineas = Object.entries(conteo)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `  ${EMOJIS[k]}: ${v > 10 ? '+10' : v}`)
+        .join('\n');
+    }
+
+    const historial = await cargarHistorial();
+    const mensajesUsuario = historial.filter(m => m.role === 'user').map(m => m.content).slice(-10);
+    let temasTexto = 'sin conversaciones hoy';
+    if (mensajesUsuario.length > 0) {
+      try {
+        temasTexto = await llamarClaude({
+          maxTokens: 80,
+          system: 'Resumí en una sola línea corta los temas principales de estos mensajes de una señora mayor. Sin puntuación al final. Solo los temas, sin nombres propios. Máximo 15 palabras.',
+          messages: [{ role: 'user', content: mensajesUsuario.join(' | ') }],
+        }) || 'conversación general';
+      } catch {
+        temasTexto = `${mensajesUsuario.length} mensajes`;
+      }
+    }
+
+    const minActiva = Math.round((Date.now() - inicioSesionRef.current) / 1000 / 60);
+    const horasActiva = minActiva >= 60
+      ? `${Math.floor(minActiva / 60)}h ${minActiva % 60}min`
+      : `${minActiva} minutos`;
+
+    const escuchodMusica = await musicaEscuchadaHoy();
+
+    const alertasHoy = historial
+      .filter(m => m.role === 'assistant' && /avisé a tu familia|avisando a tu familia/i.test(m.content))
+      .length;
+
+    const todosRec = await cargarRecordatorios();
+    const recPendientes = todosRec.filter(r => r.fechaISO >= hoy).length;
+
+    const enNoMolestar = noMolestarRef.current;
+
+    const asistente = p.nombreAsistente ?? 'Rosita';
+    const ahora = new Date();
+    const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    return (
+      `📋 <b>Resumen del día de ${p.nombreAbuela}</b>\n` +
+      `<i>${fecha}</i>\n\n` +
+      `😊 <b>Estado de ánimo:</b>\n${animoLineas}\n\n` +
+      `💬 <b>Temas del día:</b> ${temasTexto}\n\n` +
+      `🎵 <b>Música:</b> ${escuchodMusica ? 'Sí escuchó música' : 'No escuchó música'}\n\n` +
+      `⏱ <b>Tiempo con ${asistente}:</b> ${horasActiva}` +
+      (alertasHoy > 0 ? `\n\n🚨 <b>Alertas enviadas:</b> ${alertasHoy}` : '') +
+      (recPendientes > 0 ? `\n\n⏰ <b>Recordatorios pendientes:</b> ${recPendientes}` : '') +
+      (enNoMolestar ? `\n\n🔇 <b>Modo no molestar:</b> activo al cierre del día` : '')
+    );
   }
 
   // ── Recordatorio de medicamentos ────────────────────────────────────────────
@@ -542,8 +627,29 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       } catch {}
     }
 
-    // Polling cada 3 min para mensajes nuevos
-    const idPolling = setInterval(chequearMensajesVoz, 3 * 60 * 1000);
+    async function chequearComandos() {
+      const p = perfilRef.current;
+      if (!p) return;
+      const familiaId = await AsyncStorage.getItem('compania_familia_id');
+      if (!familiaId) return;
+      const comandos = await obtenerComandosPendientes(familiaId);
+      for (const cmd of comandos) {
+        if (cmd === 'informe') {
+          const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+          if (!chatIds.length) continue;
+          try {
+            const mensaje = await generarMensajeResumen(p);
+            await enviarMensajeTelegram(chatIds, mensaje);
+          } catch {}
+        }
+      }
+    }
+
+    // Polling cada 3 min para mensajes nuevos y comandos pendientes
+    const idPolling = setInterval(() => {
+      chequearMensajesVoz();
+      chequearComandos();
+    }, 3 * 60 * 1000);
     // Reintento de pendientes cada 15 minutos
     const idReintento = setInterval(reintentar, INTERVALO_REINTENTO);
 
@@ -553,7 +659,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     };
   }, []);
 
-  // ── Resumen diario a las 21hs ───────────────────────────────────────────────
+  // ── Resumen diario a las 22hs ───────────────────────────────────────────────
   useEffect(() => {
     async function enviarResumenDiario() {
       const p = perfilRef.current;
@@ -561,61 +667,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const chatIds = (p.telegramContactos ?? []).map(c => c.id);
       if (!chatIds.length) return;
       const ahora = new Date();
-      if (ahora.getHours() !== 21 || ahora.getMinutes() > 5) return;
+      if (ahora.getHours() !== 22 || ahora.getMinutes() > 5) return;
       const clave = `resumen_${ahora.toISOString().slice(0, 10)}`;
       const ya = await yaRecordo(clave);
       if (ya) return;
       await marcarRecordado(clave);
-
-      const entradas = await cargarEntradasAnimo();
-      const hoy = ahora.toISOString().slice(0, 10);
-      const entradasHoy = entradas.filter((e: EntradaAnimo) =>
-        new Date(e.timestamp).toISOString().slice(0, 10) === hoy
-      );
-      const EMOJIS: Record<string, string> = {
-        feliz: '😊 contenta', triste: '😢 triste', sorprendida: '😮 sorprendida',
-        pensativa: '🤔 pensativa', neutral: '😐 tranquila',
-      };
-      let animoTexto = 'sin registros';
-      if (entradasHoy.length > 0) {
-        const conteo: Record<string, number> = {};
-        for (const e of entradasHoy) conteo[e.expresion] = (conteo[e.expresion] ?? 0) + 1;
-        const predominante = Object.entries(conteo).sort((a, b) => b[1] - a[1])[0][0];
-        animoTexto = EMOJIS[predominante] ?? predominante;
-        if (entradasHoy.length > 1) {
-          animoTexto += ` (${Object.entries(conteo).map(([k, v]) => `${EMOJIS[k] ?? k} ×${v}`).join(', ')})`;
-        }
-      }
-
-      const historial = await cargarHistorial();
-      const mensajesUsuario = historial.filter(m => m.role === 'user').map(m => m.content).slice(-10);
-      let temasTexto = 'sin conversaciones hoy';
-      if (mensajesUsuario.length > 0) {
-        try {
-          temasTexto = await llamarClaude({
-            maxTokens: 80,
-            system: 'Resumí en una sola línea corta los temas principales de estos mensajes de una señora mayor. Sin puntuación al final. Solo los temas, sin nombres propios. Máximo 15 palabras.',
-            messages: [{ role: 'user', content: mensajesUsuario.join(' | ') }],
-          }) || 'conversación general';
-        } catch {
-          temasTexto = `${mensajesUsuario.length} mensajes`;
-        }
-      }
-
-      const minActiva = Math.round((Date.now() - inicioSesionRef.current) / 1000 / 60);
-      const horasActiva = minActiva >= 60
-        ? `${Math.floor(minActiva / 60)}h ${minActiva % 60}min`
-        : `${minActiva} minutos`;
-
-      const asistente = p.nombreAsistente ?? 'Rosita';
-      const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-      const mensaje =
-        `📋 *Resumen del día de ${p.nombreAbuela}*\n` +
-        `_${fecha}_\n\n` +
-        `😊 *Estado de ánimo:* ${animoTexto}\n` +
-        `💬 *Temas:* ${temasTexto}\n` +
-        `⏱ *Tiempo con ${asistente}:* ${horasActiva}`;
-
+      const mensaje = await generarMensajeResumen(p);
       await enviarMensajeTelegram(chatIds, mensaje);
     }
 
@@ -640,10 +697,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       for (let i = 0; i < 3; i++) {
         if (!puedeSilbar()) break;
         iniciarSilbido();
-        // Esperar a que termine el silbido (~4s) + pausa de 5s
-        await new Promise(r => setTimeout(r, 9000));
+        // Esperar que termine el audio (~4.5s en reproducirSilbido) + 500ms extra
+        await new Promise(r => setTimeout(r, 5000));
         detenerSilbido();
-        if (i < 2) await new Promise(r => setTimeout(r, 5000));
+        // Pausa entre silbidos
+        if (i < 2) await new Promise(r => setTimeout(r, 3000));
       }
       ultimoSilbidoRef.current = Date.now();
     }

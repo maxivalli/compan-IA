@@ -14,11 +14,17 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
+import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
+
+function fetchTimeout(url: string, ms: number, options?: RequestInit): Promise<Response> {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
 
 // ── Paleta Material You basada en #0097b2 ────────────────────────────────────
 const M = {
@@ -228,7 +234,10 @@ export default function Configuracion() {
   const [edad, setEdad]                   = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('');
   const [vozGenero, setVozGenero]         = useState<'femenina' | 'masculina'>('femenina');
-  const [familiares, setFamiliares]       = useState('');
+  const [hijos,      setHijos]            = useState('');
+  const [nietos,     setNietos]           = useState('');
+  const [hermanos,   setHermanos]         = useState('');
+  const [mascotas,   setMascotas]         = useState('');
   const [gustos, setGustos]               = useState('');
   const [medicamentos, setMedicamentos]   = useState('');
   const [fechas, setFechas]               = useState('');
@@ -238,6 +247,7 @@ export default function Configuracion() {
   const [errorBusqueda, setErrorBusqueda] = useState('');
   const [guardado, setGuardado]           = useState(false);
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([]);
+  const [codigoRegistro, setCodigoRegistro] = useState<string | null>(null);
   const [pinOverlay, setPinOverlay]       = useState<'oculto' | 'verificar' | 'crear' | 'cambiar'>('oculto');
   const [pinConfigurado, setPinConfigurado] = useState(false);
   const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
@@ -247,17 +257,26 @@ export default function Configuracion() {
       if (p) { setPinConfigurado(true); setPinDesbloqueado(false); setPinOverlay('verificar'); }
       else    { setPinConfigurado(false); setPinDesbloqueado(true); }
     });
+    cargarRecordatorios().then(setRecordatorios);
   }, []));
 
   useEffect(() => {
     cargarRecordatorios().then(setRecordatorios);
+    obtenerCodigoRegistro().then(setCodigoRegistro);
     cargarPerfil().then(p => {
       setPerfil(p);
       setNombre(p.nombreAbuela);
       setEdad(p.edad ? String(p.edad) : '');
       setNombreAsistente(p.nombreAsistente ?? 'Rosita');
       setVozGenero(p.vozGenero ?? 'femenina');
-      setFamiliares(p.familiares.join(', '));
+      const findCat = (cat: string) => {
+        const e = p.familiares.find(f => f.toLowerCase().startsWith(cat + ':'));
+        return e ? e.slice(cat.length + 1).trim() : '';
+      };
+      setHijos(findCat('hijos'));
+      setNietos(findCat('nietos'));
+      setHermanos(findCat('hermanos'));
+      setMascotas(findCat('mascotas'));
       setGustos(p.gustos.join(', '));
       setMedicamentos(p.medicamentos.join(', '));
       setFechas(p.fechasImportantes.join(', '));
@@ -273,7 +292,7 @@ export default function Configuracion() {
     try {
       const familiaId   = await obtenerFamiliaId() ?? 'default';
       const installId   = await obtenerInstallId();
-      const res  = await fetch(`${BACKEND_URL}/telegram/contactos?familiaId=${familiaId}`, {
+      const res  = await fetchTimeout(`${BACKEND_URL}/telegram/contactos?familiaId=${familiaId}`, 10000, {
         headers: { 'x-api-key': API_KEY, 'x-install-id': installId },
       });
       const data = await res.json();
@@ -311,7 +330,7 @@ export default function Configuracion() {
       if (!familiaIdExistente) {
         try {
           const installId = await obtenerInstallId();
-          const res = await fetch(`${BACKEND_URL}/familia/registrar`, {
+          const res = await fetchTimeout(`${BACKEND_URL}/familia/registrar`, 10000, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
             body: JSON.stringify({
@@ -322,6 +341,7 @@ export default function Configuracion() {
           });
           const data = await res.json();
           if (data.familiaId) await guardarFamiliaId(data.familiaId);
+          if (data.codigo) { await guardarCodigoRegistro(data.codigo); setCodigoRegistro(data.codigo); }
         } catch {}
       }
     }
@@ -331,7 +351,12 @@ export default function Configuracion() {
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente:   nombreAsistente.trim() || 'Rosita',
       vozGenero,
-      familiares:        familiares.split(',').map(s => s.trim()).filter(Boolean),
+      familiares: [
+        hijos.trim()    && `hijos: ${hijos.trim()}`,
+        nietos.trim()   && `nietos: ${nietos.trim()}`,
+        hermanos.trim() && `hermanos: ${hermanos.trim()}`,
+        mascotas.trim() && `mascotas: ${mascotas.trim()}`,
+      ].filter(Boolean) as string[],
       gustos:            gustos.split(',').map(s => s.trim()).filter(Boolean),
       medicamentos:      medicamentos.split(',').map(s => s.trim()).filter(Boolean),
       fechasImportantes: fechas.split(',').map(s => s.trim()).filter(Boolean),
@@ -402,7 +427,10 @@ export default function Configuracion() {
 
         {/* ── Entorno ── */}
         <SectionLabel icon="people-outline" label="Entorno" />
-        <M3Input label="Familiares cercanos" hint="Separados por coma — hijo Juan, nieta Sofía" value={familiares} onChangeText={setFamiliares} multiline placeholder="hijo Juan, nieta Sofía" />
+        <M3Input label="Hijos"    hint="Separados por coma" value={hijos}    onChangeText={setHijos}    placeholder="Juan, María" />
+        <M3Input label="Nietos"   hint="Separados por coma" value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
+        <M3Input label="Hermanos" hint="Separados por coma" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
+        <M3Input label="Mascotas" hint="Separados por coma" value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
         <M3Input label="Gustos y temas favoritos" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
 
         {/* ── Salud ── */}
@@ -413,12 +441,23 @@ export default function Configuracion() {
         {/* ── Telegram ── */}
         <SectionLabel icon="paper-plane-outline" label="Alertas Telegram" />
 
+        {/* Código de registro */}
+        {codigoRegistro && (
+          <Surface style={{ marginBottom: 8 }}>
+            <View style={s.codigoWrap}>
+              <Text style={s.codigoLabel}>Código para familiares</Text>
+              <Text style={s.codigoCodigo}>{codigoRegistro}</Text>
+              <Text style={s.codigoHint}>El familiar abre @compan_IA_bot en Telegram y manda este código</Text>
+            </View>
+          </Surface>
+        )}
+
         {/* Guía paso a paso cuando no hay contactos */}
         {contactos.length === 0 && (
           <Surface style={{ marginBottom: 8 }}>
             {[
-              { n: '1', texto: 'Cada familiar abre Telegram en su celular' },
-              { n: '2', texto: 'Busca el bot "@compan_IA_bot" y le manda "hola"' },
+              { n: '1', texto: 'Cada familiar abre Telegram y busca @compan_IA_bot' },
+              { n: '2', texto: `Le manda el código de 6 letras que aparece arriba${codigoRegistro ? ` (${codigoRegistro})` : ''}` },
               { n: '3', texto: 'Volvé acá y tocá "Buscar familiares" — aparecen automáticamente' },
               { n: '4', texto: 'Activá los que querés incluir y guardá' },
             ].map(({ n, texto }, i, arr) => (
@@ -590,6 +629,11 @@ const s = StyleSheet.create({
   heroIcon:  { width: 60, height: 60, borderRadius: 30, backgroundColor: '#ffffff55', alignItems: 'center', justifyContent: 'center' },
   heroTitle: { fontSize: 20, fontWeight: '500', color: M.onPrimaryContainer },
   heroSub:   { fontSize: 13, color: M.onPrimaryContainer, opacity: 0.7, marginTop: 2 },
+
+  codigoWrap:   { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16, gap: 8 },
+  codigoLabel:  { fontSize: 11, fontWeight: '600', color: M.onSurfaceVariant, textTransform: 'uppercase', letterSpacing: 1 },
+  codigoCodigo: { fontSize: 36, fontWeight: '700', color: M.primary, letterSpacing: 8 },
+  codigoHint:   { fontSize: 12, color: M.onSurfaceVariant, textAlign: 'center', lineHeight: 18 },
 
   telegramInfo:     { flexDirection: 'row', gap: 10, padding: 16, alignItems: 'flex-start' },
   telegramInfoText: { flex: 1, fontSize: 13, color: M.onSurfaceVariant, lineHeight: 18 },

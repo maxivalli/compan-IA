@@ -4,6 +4,7 @@ const CLAVE_PERFIL         = 'rosa_perfil';
 const CLAVE_HISTORIAL      = 'rosa_historial';
 const CLAVE_INSTALL_ID     = 'compania_install_id';
 const CLAVE_FAMILIA_ID     = 'compania_familia_id';
+const CLAVE_CODIGO_REG     = 'compania_codigo_registro';
 const CLAVE_BIENVENIDA     = 'compania_bienvenida_dada';
 
 // ── Identidad del dispositivo ─────────────────────────────────────────────────
@@ -37,6 +38,18 @@ export async function obtenerFamiliaId(): Promise<string | null> {
 
 export async function guardarFamiliaId(id: string): Promise<void> {
   await AsyncStorage.setItem(CLAVE_FAMILIA_ID, id);
+}
+
+export async function obtenerCodigoRegistro(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(CLAVE_CODIGO_REG);
+  } catch {
+    return null;
+  }
+}
+
+export async function guardarCodigoRegistro(codigo: string): Promise<void> {
+  await AsyncStorage.setItem(CLAVE_CODIGO_REG, codigo);
 }
 
 export async function bienvenidaYaDada(): Promise<boolean> {
@@ -182,9 +195,13 @@ const CLAVE_RECORDATORIOS = 'rosa_recordatorios';
 
 type RegistroRecordatorio = { clave: string; timestamp: number };
 
+function fechaLocal(ts = Date.now()): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function claveHoy(nombre: string): string {
-  const hoy = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  return `${hoy}_${nombre}`;
+  return `${fechaLocal()}_${nombre}`;
 }
 
 export async function yaRecordo(nombre: string): Promise<boolean> {
@@ -219,10 +236,12 @@ export type Recordatorio = {
 const CLAVE_RECORDATORIOS_PERSONAL = 'rosa_recordatorios_personal';
 
 export async function guardarRecordatorio(r: Recordatorio): Promise<void> {
-  const data = await AsyncStorage.getItem(CLAVE_RECORDATORIOS_PERSONAL);
-  const lista: Recordatorio[] = data ? JSON.parse(data) : [];
-  lista.push(r);
-  await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(lista));
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_RECORDATORIOS_PERSONAL);
+    const lista: Recordatorio[] = data ? JSON.parse(data) : [];
+    lista.push(r);
+    await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(lista));
+  } catch {}
 }
 
 export async function cargarRecordatorios(): Promise<Recordatorio[]> {
@@ -241,6 +260,31 @@ export async function borrarRecordatorio(id: string): Promise<void> {
     const nueva = lista.filter(r => r.id !== id);
     await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(nueva));
   } catch {}
+}
+
+// ── Música escuchada hoy ─────────────────────────────────────────────────────
+
+const CLAVE_MUSICA_HOY = 'rosa_musica_hoy';
+
+export async function registrarMusicaHoy(): Promise<void> {
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_MUSICA_HOY);
+    const stored = data ? JSON.parse(data) : { fecha: '', count: 0 };
+    const hoy = fechaLocal();
+    const count = stored.fecha === hoy ? stored.count + 1 : 1;
+    await AsyncStorage.setItem(CLAVE_MUSICA_HOY, JSON.stringify({ fecha: hoy, count }));
+  } catch {}
+}
+
+export async function musicaEscuchadaHoy(): Promise<boolean> {
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_MUSICA_HOY);
+    if (!data) return false;
+    const stored = JSON.parse(data);
+    return stored.fecha === fechaLocal() && stored.count > 0;
+  } catch {
+    return false;
+  }
 }
 
 // ── PIN de configuración ──────────────────────────────────────────────────────
@@ -265,7 +309,7 @@ const CLAVE_RESUMEN = 'rosa_resumen_enviado';
 
 export async function yaEnvioResumen(): Promise<boolean> {
   try {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaLocal();
     const data = await AsyncStorage.getItem(CLAVE_RESUMEN);
     return data === hoy;
   } catch { return false; }
@@ -273,14 +317,13 @@ export async function yaEnvioResumen(): Promise<boolean> {
 
 export async function marcarResumenEnviado(): Promise<void> {
   try {
-    const hoy = new Date().toISOString().slice(0, 10);
-    await AsyncStorage.setItem(CLAVE_RESUMEN, hoy);
+    await AsyncStorage.setItem(CLAVE_RESUMEN, fechaLocal());
   } catch {}
 }
 
 export async function borrarRecordatoriosViejos(): Promise<void> {
   try {
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaLocal();
     const data = await AsyncStorage.getItem(CLAVE_RECORDATORIOS_PERSONAL);
     const lista: Recordatorio[] = data ? JSON.parse(data) : [];
     const nueva = lista.filter(r => r.fechaISO >= hoy);

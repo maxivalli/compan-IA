@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import type { Expresion, ModoNoche } from './RosaOjos';
 import {
-  Lagrimas, Corazones, SignosPregunta, Exclamaciones,
+  Lagrimas, Corazones, Mejillas, SignosPregunta, Exclamaciones,
   SudorFrio, Carcajada, NotasMusica, CenoEnojado, Grawlixes,
 } from './EfectosExpresion';
 import {
@@ -62,6 +62,8 @@ export default function ExpresionOverlay({
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade }]}>
         {expresion === 'triste'      && <Lagrimas />}
         {expresion === 'feliz'       && <Corazones />}
+        {expresion === 'mimada'      && <Corazones />}
+        {expresion === 'mimada'      && <Mejillas />}
         {expresion === 'sorprendida' && <Exclamaciones />}
         {expresion === 'sorprendida' && <SudorFrio />}
         {expresion === 'pensativa'   && <SignosPregunta />}

@@ -9,6 +9,7 @@ const ITEMS = [
   { ruta: '/',              label: 'ASISTENTE',       sub: 'Pantalla principal',    icono: 'heart',            color: '#7C5200', bg: '#FFE0A0' },
   { ruta: '/animo',         label: 'Estado de ánimo', sub: 'Registro del día',      icono: 'happy-outline',    color: '#004785', bg: '#D3E4FF' },
   { ruta: '/configuracion', label: 'Configuración',   sub: 'Perfil y preferencias', icono: 'settings-outline', color: '#1B5E28', bg: '#C8EFCE' },
+  { ruta: '/guia',          label: 'Guía de uso',     sub: 'Funciones y comandos',  icono: 'book-outline',     color: '#6A0D91', bg: '#F0DEFF' },
 ] as const;
 
 const M3 = {

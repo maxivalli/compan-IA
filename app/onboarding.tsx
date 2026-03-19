@@ -3,6 +3,7 @@ import {
   Animated,
   Dimensions,
   Keyboard,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId } from '../lib/memoria';
+import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId, guardarCodigoRegistro } from '../lib/memoria';
 import RosaOjos from '../components/RosaOjos';
 
 const { height: H, width: W } = Dimensions.get('window');
@@ -44,10 +45,14 @@ export default function Onboarding() {
   const [edad,            setEdad]            = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
   const [vozGenero,       setVozGenero]       = useState<'femenina' | 'masculina'>('femenina');
-  const [familiares,      setFamiliares]      = useState('');
+  const [hijos,           setHijos]           = useState('');
+  const [nietos,          setNietos]          = useState('');
+  const [hermanos,        setHermanos]        = useState('');
+  const [mascotas,        setMascotas]        = useState('');
 
-  const fadeAnim  = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim      = useRef(new Animated.Value(1)).current;
+  const slideAnim     = useRef(new Animated.Value(0)).current;
+  const finalizandoRef = useRef(false);
 
   const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -74,6 +79,8 @@ export default function Onboarding() {
   }
 
   async function finalizar() {
+    if (finalizandoRef.current) return;
+    finalizandoRef.current = true;
     const perfilActual = await cargarPerfil();
     const nombre = nombreAbuela.trim() || 'Abuela';
     const asistente = nombreAsistente.trim() || 'Rosita';
@@ -83,7 +90,12 @@ export default function Onboarding() {
       edad:            edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente: asistente,
       vozGenero,
-      familiares:      familiares.split(',').map(s => s.trim()).filter(Boolean),
+      familiares: [
+        hijos.trim()    && `hijos: ${hijos.trim()}`,
+        nietos.trim()   && `nietos: ${nietos.trim()}`,
+        hermanos.trim() && `hermanos: ${hermanos.trim()}`,
+        mascotas.trim() && `mascotas: ${mascotas.trim()}`,
+      ].filter(Boolean) as string[],
     });
 
     // Registrar dispositivo en el backend para habilitar las llamadas a la IA
@@ -91,14 +103,18 @@ export default function Onboarding() {
       const installId = await obtenerInstallId();
       const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
       const apiKey = process.env.EXPO_PUBLIC_APP_API_KEY;
+      const ctrl = new AbortController();
+      const ctrlId = setTimeout(() => ctrl.abort(), 10000);
       const res = await fetch(`${backendUrl}/familia/registrar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey! },
         body: JSON.stringify({ nombreAbuela: nombre, nombreAsistente: asistente, installId }),
-      });
+        signal: ctrl.signal,
+      }).finally(() => clearTimeout(ctrlId));
       if (res.ok) {
         const data = await res.json();
         if (data.familiaId) await guardarFamiliaId(data.familiaId);
+        if (data.codigo) await guardarCodigoRegistro(data.codigo);
       }
     } catch {}
 
@@ -152,11 +168,14 @@ export default function Onboarding() {
           <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
             <StepContent
               paso={paso}
-              nombreAbuela={nombreAbuela}    setNombreAbuela={setNombreAbuela}
-              edad={edad}                    setEdad={setEdad}
+              nombreAbuela={nombreAbuela}       setNombreAbuela={setNombreAbuela}
+              edad={edad}                       setEdad={setEdad}
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
-              vozGenero={vozGenero}          setVozGenero={setVozGenero}
-              familiares={familiares}        setFamiliares={setFamiliares}
+              vozGenero={vozGenero}             setVozGenero={setVozGenero}
+              hijos={hijos}                     setHijos={setHijos}
+              nietos={nietos}                   setNietos={setNietos}
+              hermanos={hermanos}               setHermanos={setHermanos}
+              mascotas={mascotas}               setMascotas={setMascotas}
             />
           </Animated.View>
 
@@ -295,8 +314,37 @@ const fc = StyleSheet.create({
   dotActive:{ width: 20, height: 6, borderRadius: 3, backgroundColor: '#0097b2' },
 });
 
+// ── Input con etiqueta para familiares ───────────────────────────────────────
+function FamiliarInput({ label, icon, value, onChangeText, placeholder }: {
+  label: string; icon: string; value: string;
+  onChangeText: (t: string) => void; placeholder: string;
+}) {
+  return (
+    <View style={fi.wrap}>
+      <View style={fi.labelRow}>
+        <Ionicons name={icon as any} size={14} color="#0097b2" />
+        <Text style={fi.label}>{label}</Text>
+      </View>
+      <TextInput
+        style={fi.input}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#b0b8ba"
+      />
+    </View>
+  );
+}
+
+const fi = StyleSheet.create({
+  wrap:     { gap: 4 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  label:    { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#0097b2', letterSpacing: 0.3 },
+  input:    { fontFamily: 'Poppins_400Regular', backgroundColor: '#f4f6f7', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11, fontSize: 14, color: '#171d1e', borderWidth: 1.5, borderColor: '#e0e6e8' },
+});
+
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombreAsistente, setNombreAsistente, vozGenero, setVozGenero, familiares, setFamiliares }: any) {
+function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombreAsistente, setNombreAsistente, vozGenero, setVozGenero, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozGenero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
     { titulo: '¿Cómo se llama?',             sub: 'El nombre de quien va a usar la app. Así la va a llamar la asistente.' },
@@ -314,6 +362,21 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
         <Text style={[ct.sub,   { paddingHorizontal: 28 }]}>{sub}</Text>
         <FeatureCarousel />
       </View>
+    );
+  }
+
+  if (paso === 4) {
+    return (
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrap} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <Text style={ct.titulo}>{titulo}</Text>
+        <Text style={ct.sub}>{sub}</Text>
+        <View style={{ gap: 12, marginTop: 4 }}>
+          <FamiliarInput label="Hijos"    icon="people"     value={hijos}    onChangeText={setHijos}    placeholder="Juan, María" />
+          <FamiliarInput label="Nietos"   icon="happy"      value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
+          <FamiliarInput label="Hermanos" icon="person-add" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
+          <FamiliarInput label="Mascotas" icon="paw"        value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
+        </View>
+      </ScrollView>
     );
   }
 
@@ -356,18 +419,16 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
           </View>
         </>
       )}
-      {paso === 4 && (
-        <TextInput style={[ct.input, ct.inputMulti]} value={familiares} onChangeText={setFamiliares}
-          placeholder="hijo Juan, nieta Sofía, hija María" placeholderTextColor="#b0b8ba"
-          multiline textAlignVertical="top" />
-      )}
       {paso === 5 && (
         <View style={ct.resumen}>
           {[
             { i: 'person',     t: nombreAbuela || '—' },
-            ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }]                    : []),
+            ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }] : []),
             { i: 'chatbubble', t: `Asistente: ${nombreAsistente || 'Rosita'}` },
-            ...(familiares ? [{ i: 'people',    t: familiares }]                         : []),
+            ...(hijos    ? [{ i: 'people',    t: `Hijos: ${hijos}` }]    : []),
+            ...(nietos   ? [{ i: 'happy',     t: `Nietos: ${nietos}` }]  : []),
+            ...(hermanos ? [{ i: 'person-add',t: `Hermanos: ${hermanos}` }] : []),
+            ...(mascotas ? [{ i: 'paw',       t: `Mascotas: ${mascotas}` }] : []),
           ].map(({ i, t }) => (
             <View key={t} style={ct.resumenFila}>
               <Ionicons name={i as any} size={15} color="#0097b2" />

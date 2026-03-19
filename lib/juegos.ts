@@ -2,7 +2,7 @@
 // Claude usa este contenido cuando el usuario pide jugar, en vez de improvisar.
 
 export type Juego = {
-  tipo: 'adivinanza' | 'trivia' | 'refranes' | 'memoria';
+  tipo: 'adivinanza' | 'trivia' | 'refranes' | 'memoria' | 'calculo' | 'trabalenguas';
   pregunta: string;
   respuesta: string;
   pista?: string;
@@ -55,11 +55,33 @@ const MEMORIA: Juego[] = [
   { tipo: 'memoria', pregunta: 'Te voy a decir tres palabras y después te las voy a preguntar. ¿Lista? Las palabras son: MANZANA, SILLA, LUNA. Ahora contame, ¿qué desayunaste hoy?', respuesta: 'MANZANA, SILLA, LUNA', pista: 'Una fruta, un mueble y algo del cielo' },
   { tipo: 'memoria', pregunta: 'Memorizá estas cuatro palabras: PERRO, CASA, LIBRO, VERDE. Ahora contame un poco, ¿cómo está el tiempo hoy?', respuesta: 'PERRO, CASA, LIBRO, VERDE', pista: 'Un animal, un lugar, un objeto y un color' },
   { tipo: 'memoria', pregunta: 'Escuchá bien: ROSA, CINCO, VENTANA, ALEGRÍA. Ahora, ¿cuál es tu canción favorita?', respuesta: 'ROSA, CINCO, VENTANA, ALEGRÍA', pista: 'Una flor, un número, parte de la casa y un sentimiento' },
+  { tipo: 'memoria', pregunta: 'Guardá estas tres palabras: TREN, NARANJA, ZAPATO. Ahora, ¿me contás qué hiciste ayer?', respuesta: 'TREN, NARANJA, ZAPATO', pista: 'Un medio de transporte, una fruta y algo que se usa en el pie' },
+  { tipo: 'memoria', pregunta: 'Prestá atención: DOMINGO, PUENTE, GATO, GUITARRA. Mientras las recordás, ¿quién fue la última persona que te llamó por teléfono?', respuesta: 'DOMINGO, PUENTE, GATO, GUITARRA', pista: 'Un día, una construcción, un animal y un instrumento' },
+  { tipo: 'memoria', pregunta: 'Voy a decirte una dirección inventada: Calle Las Flores 247, piso 3. Ahora contame, ¿tenés algún plan para esta semana?', respuesta: 'Calle Las Flores 247, piso 3', pista: 'Una calle con flores, número 247, tercer piso' },
+];
+
+const CALCULOS: Juego[] = [
+  { tipo: 'calculo', pregunta: '¿Cuánto es 25 más 37?', respuesta: '62', pista: '25 + 37 = 60 + 2' },
+  { tipo: 'calculo', pregunta: '¿Cuánto es 100 menos 43?', respuesta: '57', pista: 'De 100 quitás 43: primero quitás 40, después 3' },
+  { tipo: 'calculo', pregunta: '¿Cuánto es 8 por 7?', respuesta: '56', pista: '8 × 7 es lo mismo que 8 × 5 más 8 × 2' },
+  { tipo: 'calculo', pregunta: 'Si un kilo de tomates cuesta 500 pesos y comprás kilo y medio, ¿cuánto pagás?', respuesta: '750 pesos', pista: '500 por 1 kilo más 250 por el medio kilo' },
+  { tipo: 'calculo', pregunta: 'Tenés 200 pesos. Comprás pan por 80 pesos y leche por 65 pesos. ¿Cuánto te queda?', respuesta: '55 pesos', pista: '80 + 65 = 145; 200 − 145 = 55' },
+  { tipo: 'calculo', pregunta: 'Hoy es lunes. ¿Qué día será dentro de 10 días?', respuesta: 'Jueves', pista: 'Contá de lunes: martes, miércoles... siete días es el próximo lunes, más tres días más' },
+  { tipo: 'calculo', pregunta: '¿Cuánto es 15 por 4?', respuesta: '60', pista: '15 × 4: primero 10 × 4 = 40, después 5 × 4 = 20; total 60' },
+  { tipo: 'calculo', pregunta: 'Si una receta dice que tarda 45 minutos y la metiste al horno a las 3 de la tarde, ¿a qué hora estará lista?', respuesta: 'A las 3 y 45, o sea a las 3:45', pista: '3:00 más 45 minutos' },
+];
+
+const TRABALENGUAS: Juego[] = [
+  { tipo: 'trabalenguas', pregunta: 'A ver si podés repetir esto tres veces seguidas, rápido: "Tres tristes tigres tragaban trigo en un trigal."', respuesta: 'Tres tristes tigres tragaban trigo en un trigal.', pista: 'Arrancá despacio y luego acelerá' },
+  { tipo: 'trabalenguas', pregunta: '¿Podés decir esto sin trabarte? "El cielo está enladrillado, ¿quién lo desenladrillará? El desenladrillador que lo desenladrille, buen desenladrillador será."', respuesta: 'El cielo está enladrillado...', pista: 'Hacé una pausa antes de "desenladrillador"' },
+  { tipo: 'trabalenguas', pregunta: 'Repetí esto dos veces sin parar: "Poquito a poquito Paquito empaca poquitas copitas en pocos paquetes."', respuesta: 'Poquito a poquito Paquito empaca poquitas copitas en pocos paquetes.', pista: 'Cuidado con las "p" y las "qu"' },
+  { tipo: 'trabalenguas', pregunta: 'Este es cortito pero engañoso, decilo tres veces rápido: "Pepe Pecas pica papas con un pico. Con un pico pica papas Pepe Pecas."', respuesta: 'Pepe Pecas pica papas con un pico...', pista: 'Las "p" se te pueden cruzar con las "c"' },
+  { tipo: 'trabalenguas', pregunta: '¿Te animás a decir esto? "Compadre, cómprame coco. Compadre, coco no compro, porque el que poco coco come, poco coco compra."', respuesta: 'Compadre, cómprame coco...', pista: 'Separá bien el "co" de cada palabra' },
 ];
 
 // ── Selección aleatoria ────────────────────────────────────────────────────────
 
-const TODOS = [...ADIVINANZAS, ...TRIVIA, ...REFRANES, ...MEMORIA];
+const TODOS = [...ADIVINANZAS, ...TRIVIA, ...REFRANES, ...MEMORIA, ...CALCULOS, ...TRABALENGUAS];
 
 const jugadosRecientes = new Set<string>();
 
@@ -85,4 +107,48 @@ Pregunta: ${juego.pregunta}
 Respuesta correcta (no la digas todavía): ${juego.respuesta}
 ${juego.pista ? `Pista disponible si la pide: ${juego.pista}` : ''}
 Presentá la pregunta de forma cálida, esperá la respuesta y luego confirmá si es correcta.`;
+}
+
+// ── Chistes curados ───────────────────────────────────────────────────────────
+// Humor rioplatense limpio, con punchline claro. Apropiado para adultos mayores.
+
+type Chiste = { setup: string; remate: string };
+
+const CHISTES: Chiste[] = [
+  { setup: '— ¿Qué le dijo el mar al barco?', remate: '— ¡Nada!' },
+  { setup: '— ¿Cuál es el colmo de un electricista?', remate: '— Que su mujer lo deje y se lleve la corriente.' },
+  { setup: '— ¿Por qué los pájaros vuelan hacia el norte en verano?', remate: '— Porque caminando tardarían mucho.' },
+  { setup: '— ¿Qué hace una abeja en el gimnasio?', remate: '— ¡Zum-ba!' },
+  { setup: '— ¿Qué le dijo un semáforo a otro?', remate: '— No me mires que me estoy cambiando.' },
+  { setup: '— ¿Por qué el libro de matemáticas fue al psicólogo?', remate: '— Porque tenía demasiados problemas.' },
+  { setup: '— ¿Cuál es el animal más antiguo del mundo?', remate: '— El lagarto. Tiene muchos "años" encima.' },
+  { setup: 'Un señor entra a una librería y dice: "¡Un alfajor con dulce de leche, por favor!". El librero, bajito: "Señor, esto es una librería." El señor, también bajito:', remate: '"Perdón... ¿tiene un alfajor con dulce de leche, por favor?"' },
+  { setup: '— ¿Por qué los esqueletos no se pelean?', remate: '— Porque no tienen agallas.' },
+  { setup: '— ¿Qué le dice un jardinero a otro?', remate: '— ¡Seamos compinches!' },
+  { setup: '— Doctor, me duele todo el cuerpo. Donde me toco, me duele. — ¿Me muestra? Tóquese aquí... — ¡Ay! — Ahora aquí... — ¡Ay! — Y aquí... — ¡Ay!', remate: '— Ya sé lo que tiene: el dedo roto.' },
+  { setup: '— ¿Cómo se llama el campeón mundial de natación?', remate: '— Marco... Polo.' },
+  { setup: '— ¿Qué hace un perro con un taladro?', remate: '— ¡Taladrando!' },
+  { setup: '— ¿Por qué Batman no va al médico?', remate: '— Porque no quiere que lo vea Robin.' },
+  { setup: '— Mi abuelo tiene 95 años y no necesita anteojos para nada.', remate: '— Toma el vino directo de la botella.' },
+];
+
+const chistesContados = new Set<string>();
+
+export function obtenerChiste(): Chiste {
+  const disponibles = CHISTES.filter(c => !chistesContados.has(c.setup));
+  const pool = disponibles.length > 0 ? disponibles : CHISTES;
+  const chiste = pool[Math.floor(Math.random() * pool.length)];
+  chistesContados.add(chiste.setup);
+  if (chistesContados.size > 10) {
+    const primero = chistesContados.values().next().value;
+    if (primero) chistesContados.delete(primero);
+  }
+  return chiste;
+}
+
+export function formatearChisteParaClaude(chiste: Chiste): string {
+  return `[CHISTE CURADO — contá exactamente este chiste, con tu estilo cálido y natural]
+Setup: ${chiste.setup}
+Remate: ${chiste.remate}
+Hacé una pausa natural entre el setup y el remate. Podés agregar una reacción breve después.`;
 }

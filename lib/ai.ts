@@ -55,14 +55,8 @@ export async function transcribirAudio(uri: string): Promise<string> {
     headers: await formHeaders(),
     body: formData,
   }, 25000);
-  console.log('[AI] transcribe status:', res.status);
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    console.log('[AI] transcribe error body:', body);
-    throw new Error(`Whisper ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`Whisper ${res.status}`);
   const data = await res.json();
-  console.log('[AI] transcribe data:', JSON.stringify(data));
   return data.text?.trim() ?? '';
 }
 
@@ -70,7 +64,7 @@ export async function transcribirAudio(uri: string): Promise<string> {
 
 /** Devuelve el audio sintetizado como string base64, o null si falla. */
 export const VOICE_ID_FEMENINA = 'r3lotmx3BZETVvcKm6R6';
-export const VOICE_ID_MASCULINA = 'QK4xDwo9ESPHA4JNUpX3';
+export const VOICE_ID_MASCULINA = 'vgekQLm3GYiKMHUnPVvY';
 
 export async function sintetizarVoz(texto: string, voiceId?: string): Promise<string | null> {
   const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
@@ -83,17 +77,31 @@ export async function sintetizarVoz(texto: string, voiceId?: string): Promise<st
   return data.audio ?? null;
 }
 
+/** Devuelve los comandos pendientes para esta familia (los consume — no se repiten). */
+export async function obtenerComandosPendientes(familiaId: string): Promise<string[]> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/telegram/comandos?familiaId=${familiaId}`, {
+      headers: await jsonHeaders(),
+    }, 8000);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.comandos ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /** Genera un efecto de sonido y devuelve base64, o null si falla. */
 export async function generarSonido(
   texto: string,
   duracion = 8,
   influencia = 0.3,
 ): Promise<string | null> {
-  const res = await fetch(`${BACKEND_URL}/ai/tts/sound`, {
+  const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts/sound`, {
     method: 'POST',
     headers: await jsonHeaders(),
     body: JSON.stringify({ text: texto, duration_seconds: duracion, prompt_influence: influencia }),
-  });
+  }, 30000);
   if (!res.ok) return null;
   const data = await res.json();
   return data.audio ?? null;

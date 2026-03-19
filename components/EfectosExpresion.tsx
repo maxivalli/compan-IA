@@ -409,6 +409,24 @@ export function Grawlixes() {
   return <>{GRAWLIXES.map((g, i) => <UnGrawlix key={i} {...g} />)}</>;
 }
 
+// ── Mejillas ──────────────────────────────────────────────────────────────────
+
+export function Mejillas() {
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+    return () => opacity.setValue(0);
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity }} pointerEvents="none">
+      <View style={{ position: 'absolute', left: -21,            top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
+      <View style={{ position: 'absolute', left: 247,            top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
+    </Animated.View>
+  );
+}
+
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({

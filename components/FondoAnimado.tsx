@@ -102,12 +102,14 @@ const ESTRELLAS_NOCHE = [
 function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }) {
   const opacity = useRef(new Animated.Value(0.3 + (i % 3) * 0.2)).current;
   useEffect(() => {
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 1,   duration: 700 + i * 220, useNativeDriver: true }),
         Animated.timing(opacity, { toValue: 0.2, duration: 900 + i * 180, useNativeDriver: true }),
       ])
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, []);
   return (
     <Animated.View style={{
@@ -122,7 +124,7 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
   const floatY = useRef(new Animated.Value(0)).current;
   const lunaOp = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
-    Animated.loop(
+    const anim = Animated.loop(
       Animated.sequence([
         Animated.parallel([
           Animated.timing(floatY, { toValue: -8,  duration: 2600, useNativeDriver: true }),
@@ -133,7 +135,9 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
           Animated.timing(lunaOp, { toValue: 0.75, duration: 2600, useNativeDriver: true }),
         ]),
       ])
-    ).start();
+    );
+    anim.start();
+    return () => anim.stop();
   }, []);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
