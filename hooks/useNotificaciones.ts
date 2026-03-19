@@ -484,7 +484,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         const frase = await llamarClaude({
           maxTokens: 120,
-          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Hoy es el cumpleaños de ${p.nombreAbuela}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. Sin etiquetas, solo la frase.`,
+          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Hoy es el cumpleaños de ${p.nombreAbuela}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. No menciones la edad que cumple. Sin etiquetas, solo la frase.`,
           messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${p.nombreAbuela} con mucho cariño.` }],
         });
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
@@ -811,7 +811,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const nombre = p?.nombreAbuela ?? 'vos';
       const frase = await llamarClaude({
         maxTokens: 120,
-        system: `Sos ${p?.nombreAsistente ?? 'Rosita'}, ${p?.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${nombre}${p?.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p?.edad)} Hoy es el cumpleaños de ${nombre}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. Sin etiquetas, solo la frase.`,
+        system: `Sos ${p?.nombreAsistente ?? 'Rosita'}, ${p?.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${nombre}${p?.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p?.edad)} Hoy es el cumpleaños de ${nombre}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. No menciones la edad que cumple. Sin etiquetas, solo la frase.`,
         messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${nombre} con mucho cariño.` }],
       });
       if (frase && estadoRef.current === 'esperando') await hablar(frase);
