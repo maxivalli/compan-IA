@@ -16,7 +16,7 @@ import {
 import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { buscarRadio } from '../lib/musica';
 import { obtenerClima, climaATexto } from '../lib/clima';
-import { enviarAlertaTelegram } from '../lib/telegram';
+import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
 import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta,
@@ -43,6 +43,7 @@ export function useRosita() {
   const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
   const [musicaActiva,      setMusicaActiva]      = useState(false);
   const [silbando,          setSilbando]          = useState(false);
+  const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [noMolestar,        setNoMolestar]        = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
@@ -75,6 +76,7 @@ export function useRosita() {
   const telegramOffsetRef   = useRef<number>(0);
   const inicioSesionRef     = useRef<number>(Date.now());
   const flashAnim           = useRef(new Animated.Value(0)).current;
+  const fotoResolverRef     = useRef<((base64: string | null) => void) | null>(null);
 
   // ── Flag para bloquear SR durante flujo de mensajes de voz ──────────────────
   const enFlujoVozRef    = useRef(false);
@@ -235,9 +237,14 @@ export function useRosita() {
     if (musicaActivaRef.current) { playerMusica.pause(); setMusicaActiva(false); }
 
     try {
-      await responderConClaude(texto);
+      if (/\bfoto\b/i.test(textoNorm)) {
+        await flujoFoto();
+      } else {
+        await responderConClaude(texto);
+      }
     } finally {
       procesandoRef.current = false;
+      iniciarSpeechRecognition();
     }
   });
 
@@ -710,6 +717,47 @@ export function useRosita() {
     }
   }
 
+  // ── Foto para la familia ─────────────────────────────────────────────────────
+  async function flujoFoto() {
+    const p = perfilRef.current;
+    const chatIds = (p?.telegramContactos ?? []).map(c => c.id);
+    if (!chatIds.length) {
+      await hablar('No tenés familiares configurados para mandar la foto.');
+      return;
+    }
+    await hablar('Dale, mirá la pantalla, te saco una foto en tres segundos.');
+    // Abrir cámara y esperar que el componente capture o cancele
+    const base64 = await new Promise<string | null>(resolve => {
+      fotoResolverRef.current = resolve;
+      setMostrarCamara(true);
+    });
+    setMostrarCamara(false);
+    if (!base64) {
+      await hablar('Bueno, cuando quieras sacamos la foto.');
+      return;
+    }
+    await hablar('Mandando la foto a tu familia, un momento.');
+    try {
+      const ahora = new Date();
+      const hora = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+      const caption = `📸 Foto de ${p?.nombreAbuela ?? 'tu familiar'} — ${hora}`;
+      await enviarFotoTelegram(chatIds, base64, caption);
+      await hablar('Listo, la foto ya está con tu familia.');
+    } catch {
+      await hablar('No pude mandar la foto, perdoname.');
+    }
+  }
+
+  function onFotoCapturada(base64: string) {
+    fotoResolverRef.current?.(base64);
+    fotoResolverRef.current = null;
+  }
+
+  function onFotoCancelada() {
+    fotoResolverRef.current?.(null);
+    fotoResolverRef.current = null;
+  }
+
   // ── Responder con Claude ────────────────────────────────────────────────────
   async function responderConClaude(textoUsuario: string) {
     console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
@@ -980,6 +1028,7 @@ export function useRosita() {
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
     },
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
+    mostrarCamara, onFotoCapturada, onFotoCancelada, flujoFoto,
     // Refs que useNotificaciones necesita
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,

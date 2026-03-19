@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+
+const { width: SW, height: SH } = Dimensions.get('window');
 
 export const EYE_W = 108;
 export const EYE_H = 126;
@@ -424,6 +426,71 @@ export function Mejillas() {
       <View style={{ position: 'absolute', left: -21,            top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
       <View style={{ position: 'absolute', left: 247,            top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
     </Animated.View>
+  );
+}
+
+// ── Globos de cumpleaños ──────────────────────────────────────────────────────
+
+const GLOBOS_DATA = [
+  { x: SW * 0.05, delay: 0,    color: '#FF6B6B', size: 34, dur: 7000 },
+  { x: SW * 0.18, delay: 900,  color: '#FFD93D', size: 28, dur: 8200 },
+  { x: SW * 0.33, delay: 1800, color: '#6BCB77', size: 36, dur: 7400 },
+  { x: SW * 0.50, delay: 400,  color: '#4D96FF', size: 30, dur: 6800 },
+  { x: SW * 0.65, delay: 1300, color: '#FF6BFF', size: 32, dur: 7900 },
+  { x: SW * 0.80, delay: 700,  color: '#FF9F45', size: 28, dur: 8500 },
+  { x: SW * 0.12, delay: 2200, color: '#C77DFF', size: 34, dur: 7200 },
+  { x: SW * 0.72, delay: 1600, color: '#80FFDB', size: 30, dur: 7600 },
+  { x: SW * 0.44, delay: 2800, color: '#FF6B6B', size: 26, dur: 8000 },
+  { x: SW * 0.90, delay: 500,  color: '#FFD93D', size: 32, dur: 7300 },
+];
+
+function UnGlobo({ x, delay, color, size, dur }: typeof GLOBOS_DATA[0]) {
+  const y  = useRef(new Animated.Value(SH + size + 20)).current;
+  const dx = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.timing(y, { toValue: -(size + 30), duration: dur, useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(dx, { toValue: 14,  duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue: -14, duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue: 10,  duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue: 0,   duration: dur * 0.25, useNativeDriver: true }),
+          ]),
+        ]),
+        Animated.parallel([
+          Animated.timing(y,  { toValue: SH + size + 20, duration: 0, useNativeDriver: true }),
+          Animated.timing(dx, { toValue: 0,              duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <Animated.View
+      style={{ position: 'absolute', left: x, transform: [{ translateY: y }, { translateX: dx }] }}
+      pointerEvents="none"
+    >
+      {/* Cuerpo */}
+      <View style={{ width: size, height: size * 1.15, borderRadius: size / 2, backgroundColor: color, opacity: 0.88 }} />
+      {/* Nudo */}
+      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, alignSelf: 'center', marginTop: -1, opacity: 0.7 }} />
+      {/* Hilo */}
+      <View style={{ width: 1.5, height: 22, backgroundColor: color + '99', alignSelf: 'center' }} />
+    </Animated.View>
+  );
+}
+
+export function Globos() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {GLOBOS_DATA.map((g, i) => <UnGlobo key={i} {...g} />)}
+    </View>
   );
 }
 

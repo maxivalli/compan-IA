@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAudioPlayer } from 'expo-audio';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
@@ -434,6 +434,67 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     return () => clearInterval(id);
   }, []);
 
+  // ── Cumpleaños ───────────────────────────────────────────────────────────────
+  const [esCumpleaños, setEsCumpleaños] = useState(false);
+  const playerCumple = useAudioPlayer(require('../assets/audio/0319.mp3'));
+
+  // Detecta si hoy es el cumpleaños al montar (para mostrar globos todo el día)
+  useEffect(() => {
+    (async () => {
+      const p = perfilRef.current;
+      if (!p?.fechaNacimiento) return;
+      const ahora = new Date();
+      const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
+      if (ahora.getMonth() + 1 === mm && ahora.getDate() === dd) {
+        setEsCumpleaños(true);
+      }
+    })();
+  }, []);
+
+  // Saludo especial de cumpleaños a las 9am (reemplaza al saludo matutino)
+  useEffect(() => {
+    async function cumpleañosMatutino() {
+      const p = perfilRef.current;
+      if (!p?.fechaNacimiento) return;
+      if (noMolestarRef.current) return;
+      if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
+      const ahora = new Date();
+      if (ahora.getHours() !== 9 || ahora.getMinutes() > 8) return;
+      const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
+      if (ahora.getMonth() + 1 !== mm || ahora.getDate() !== dd) return;
+      const clave = `cumple_${ahora.toISOString().slice(0, 10)}`;
+      const ya = await yaRecordo(clave);
+      if (ya) return;
+      await marcarRecordado(clave);
+      setEsCumpleaños(true);
+      // Reproduce audio de cumpleaños
+      try {
+        playerCumple.seekTo(0);
+        playerCumple.play();
+        // Espera que termine (max 90s) o que deje de reproducir
+        await new Promise<void>(resolve => {
+          let ticks = 0;
+          const check = setInterval(() => {
+            ticks++;
+            if (!playerCumple.playing || ticks > 180) { clearInterval(check); resolve(); }
+          }, 500);
+        });
+      } catch {}
+      // Saludo de cumpleaños con Claude
+      try {
+        const frase = await llamarClaude({
+          maxTokens: 120,
+          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Hoy es el cumpleaños de ${p.nombreAbuela}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. Sin etiquetas, solo la frase.`,
+          messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${p.nombreAbuela} con mucho cariño.` }],
+        });
+        if (frase && estadoRef.current === 'esperando') await hablar(frase);
+      } catch {}
+    }
+
+    const id = setInterval(cumpleañosMatutino, 60000);
+    return () => clearInterval(id);
+  }, []);
+
   // ── Saludo matutino con fecha y clima ───────────────────────────────────────
   useEffect(() => {
     async function saludoMatutino() {
@@ -732,5 +793,32 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     return () => { clearInterval(id); detenerSilbido(); };
   }, [modoNoche]);
 
-  return { chequearPendientesAlActivar };
+  async function triggerCumpleaños() {
+    const p = perfilRef.current;
+    setEsCumpleaños(true);
+    try {
+      playerCumple.seekTo(0);
+      playerCumple.play();
+      await new Promise<void>(resolve => {
+        let ticks = 0;
+        const check = setInterval(() => {
+          ticks++;
+          if (!playerCumple.playing || ticks > 180) { clearInterval(check); resolve(); }
+        }, 500);
+      });
+    } catch {}
+    try {
+      const nombre = p?.nombreAbuela ?? 'vos';
+      const frase = await llamarClaude({
+        maxTokens: 120,
+        system: `Sos ${p?.nombreAsistente ?? 'Rosita'}, ${p?.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${nombre}${p?.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p?.edad)} Hoy es el cumpleaños de ${nombre}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. Sin etiquetas, solo la frase.`,
+        messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${nombre} con mucho cariño.` }],
+      });
+      if (frase && estadoRef.current === 'esperando') await hablar(frase);
+    } catch {}
+    // En el test, apagar los globos al terminar para poder retestearlo
+    setEsCumpleaños(false);
+  }
+
+  return { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños };
 }

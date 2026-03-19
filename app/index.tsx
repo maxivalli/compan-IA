@@ -13,6 +13,8 @@ import RosaOjos, { BG } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
 import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
+import { Globos } from '../components/EfectosExpresion';
+import CameraAutoCaptura from '../components/CameraAutoCaptura';
 
 const HORA_DESPERTAR = 7;
 
@@ -24,6 +26,7 @@ export default function Index() {
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
+    mostrarCamara, onFotoCapturada, onFotoCancelada,
     refs, player,
   } = useRosita();
 
@@ -42,7 +45,7 @@ export default function Index() {
   }, [cargando]));
 
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
-  const { chequearPendientesAlActivar } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido }, player);
+  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido }, player);
 
 
   // ── Cálculo del fondo ───────────────────────────────────────────────────────
@@ -167,6 +170,8 @@ export default function Index() {
 
       {esFondoNoche && !(hora >= 6 && hora < 10) && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {modoNoche === 'durmiendo' && <ZZZ />}
+      {esCumpleaños && <Globos />}
+      <CameraAutoCaptura visible={mostrarCamara} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
       <View style={styles.ojoContenedor} {...panCaricia.panHandlers}>
         <ExpresionOverlay
@@ -227,6 +232,12 @@ export default function Index() {
           </TouchableOpacity>
         </View>
       </View>
+
+{/* Easter egg: toque largo en esquina inferior derecha → cumpleaños */}
+      <TouchableOpacity
+        onLongPress={triggerCumpleaños}
+        style={{ position: 'absolute', bottom: 0, right: 0, width: 40, height: 40 }}
+      />
 
       <Animated.View style={{ transform: [{ scale: sosScale }], opacity: sosOpacity }}>
         <TouchableOpacity

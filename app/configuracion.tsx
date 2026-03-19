@@ -240,6 +240,7 @@ export default function Configuracion() {
   const [mascotas,   setMascotas]         = useState('');
   const [gustos, setGustos]               = useState('');
   const [medicamentos, setMedicamentos]   = useState('');
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [fechas, setFechas]               = useState('');
   const [idsActivos, setIdsActivos]       = useState<string[]>([]);
   const [contactos, setContactos]         = useState<TelegramContacto[]>([]);
@@ -280,6 +281,10 @@ export default function Configuracion() {
       setGustos(p.gustos.join(', '));
       setMedicamentos(p.medicamentos.join(', '));
       setFechas(p.fechasImportantes.join(', '));
+      if (p.fechaNacimiento) {
+        const [mm, dd] = p.fechaNacimiento.split('-');
+        setFechaNacimiento(`${dd}/${mm}`);
+      }
       setIdsActivos((p.telegramContactos || []).map(c => c.id));
       setContactos(p.telegramContactos || []);
     });
@@ -361,6 +366,15 @@ export default function Configuracion() {
       medicamentos:      medicamentos.split(',').map(s => s.trim()).filter(Boolean),
       fechasImportantes: fechas.split(',').map(s => s.trim()).filter(Boolean),
       recuerdos:         perfil?.recuerdos || [],
+      fechaNacimiento:   (() => {
+        const parts = fechaNacimiento.trim().replace(/\s/g, '').split('/');
+        if (parts.length === 2) {
+          const [dd, mm] = parts.map(Number);
+          if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12)
+            return `${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
+        }
+        return perfil?.fechaNacimiento;
+      })(),
       telegramChatIds:   idsActivos,
       telegramContactos: contactosActivos,
     });
@@ -405,6 +419,7 @@ export default function Configuracion() {
         <SectionLabel icon="person-outline" label="Identidad" />
         <M3Input label="Nombre" value={nombre} onChangeText={setNombre} placeholder="María" />
         <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
+        <M3Input label="Fecha de nacimiento" hint="DD/MM — para el saludo de cumpleaños" value={fechaNacimiento} onChangeText={t => setFechaNacimiento(t.replace(/[^0-9/]/g, '').slice(0, 5))} placeholder="19/03" />
         <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
 
         <Surface style={{ marginTop: 4 }}>

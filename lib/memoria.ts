@@ -71,6 +71,7 @@ export type Perfil = {
   medicamentos: string[];
   fechasImportantes: string[];
   recuerdos: string[];
+  fechaNacimiento?: string;         // "MM-DD" ej: "03-19" — para cumpleaños propio
   telegramChatIds: string[];        // legacy — se migra automáticamente
   telegramContactos: TelegramContacto[];
 };

@@ -229,9 +229,14 @@ export function construirContextoDinamico(p: Perfil, climaTexto: string, incluir
   const ahora = new Date();
   const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  const esCumple = (() => {
+    if (!p.fechaNacimiento) return false;
+    const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
+    return ahora.getMonth() + 1 === mm && ahora.getDate() === dd;
+  })();
   return `Fecha y hora actual: ${fecha}, ${hora}.
 ${climaTexto}
-
+${esCumple ? `\n¡HOY ES EL CUMPLEAÑOS DE ${p.nombreAbuela.toUpperCase()}! Mencionar el cumpleaños con mucho cariño en la primera respuesta de la conversación.\n` : ''}
 Lo que sabés de la persona:
 ${construirContexto(p)}
 ${incluirJuego ? '\n' + formatearJuegoParaClaude(obtenerJuego()) : ''}${incluirChiste ? '\n' + formatearChisteParaClaude(obtenerChiste()) : ''}${extra}`;

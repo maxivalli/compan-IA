@@ -51,6 +51,17 @@ export async function obtenerUrlArchivo(fileId: string): Promise<string | null> 
   }
 }
 
+export async function enviarFotoTelegram(chatIds: string[], fotoBase64: string, caption?: string): Promise<void> {
+  if (!chatIds.length) return;
+  try {
+    await fetch(`${BACKEND_URL}/telegram/foto`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ chatIds, foto: fotoBase64, caption }),
+    });
+  } catch {}
+}
+
 export async function enviarMensajeTelegram(chatIds: string[], texto: string): Promise<void> {
   if (!chatIds.length) return;
   try {
