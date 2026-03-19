@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   cargarEntradasAnimo,
   cargarPerfil,
-  limpiarHistorialAnimo,
   EntradaAnimo,
   ExpresionAnimo,
   obtenerPIN,
@@ -101,17 +100,6 @@ export default function Animo() {
     if (desbloqueado) cargar();
   }, [desbloqueado]);
 
-  function confirmarLimpiar() {
-    Alert.alert(
-      'Borrar historial',
-      '¿Querés borrar todos los registros de estado de ánimo?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Borrar', style: 'destructive', onPress: () => limpiarHistorialAnimo().then(cargar) },
-      ]
-    );
-  }
-
   return (
     <View style={{ flex: 1 }}>
     {pinOverlay && (
@@ -146,15 +134,6 @@ export default function Animo() {
           </View>
         </View>
 
-        {grupos.length > 0 && (
-          <Pressable
-            onPress={confirmarLimpiar}
-            style={({ pressed }) => [s.btnIcono, pressed && { backgroundColor: '#ffdad655' }]}
-            android_ripple={{ color: '#ffdad6', radius: 20, borderless: true }}
-          >
-            <Ionicons name="trash-outline" size={22} color="#ffdad6" />
-          </Pressable>
-        )}
       </View>
 
       {/* ── Empty state ── */}

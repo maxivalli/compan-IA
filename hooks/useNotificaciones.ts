@@ -13,6 +13,7 @@ import {
   cargarEntradasAnimo,
   cargarHistorial,
   musicaEscuchadaHoy,
+  limpiarHistorialAnimo,
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, obtenerUrlArchivo, MensajeVoz } from '../lib/telegram';
@@ -677,6 +678,22 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     const id = setInterval(enviarResumenDiario, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ── Reseteo nocturno del historial de ánimo a las 23hs ──────────────────────
+  useEffect(() => {
+    async function resetearAnimo() {
+      const ahora = new Date();
+      if (ahora.getHours() !== 23 || ahora.getMinutes() > 5) return;
+      const clave = `reset_animo_${ahora.toISOString().slice(0, 10)}`;
+      const ya = await yaRecordo(clave);
+      if (ya) return;
+      await marcarRecordado(clave);
+      await limpiarHistorialAnimo();
+    }
+
+    const id = setInterval(resetearAnimo, 60000);
     return () => clearInterval(id);
   }, []);
 
