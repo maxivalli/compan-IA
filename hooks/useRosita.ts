@@ -77,6 +77,8 @@ export function useRosita() {
   const inicioSesionRef     = useRef<number>(Date.now());
   const flashAnim           = useRef(new Animated.Value(0)).current;
   const fotoResolverRef     = useRef<((base64: string | null) => void) | null>(null);
+  const ultimoAudioUriRef   = useRef<string | null>(null);
+  const ultimoTextoHabladoRef = useRef<string | null>(null);
 
   // ── Flag para bloquear SR durante flujo de mensajes de voz ──────────────────
   const enFlujoVozRef    = useRef(false);
@@ -237,7 +239,13 @@ export function useRosita() {
     if (musicaActivaRef.current) { playerMusica.pause(); setMusicaActiva(false); }
 
     try {
-      if (/\bfoto\b/i.test(textoNorm)) {
+      const esRepeticion = enConversacion
+        && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
+        && ultimoAudioUriRef.current !== null;
+
+      if (esRepeticion) {
+        await hablar(ultimoTextoHabladoRef.current!);
+      } else if (/\bfoto\b/i.test(textoNorm)) {
         await flujoFoto();
       } else {
         await responderConClaude(texto);
@@ -497,6 +505,7 @@ export function useRosita() {
 
   // ── TTS ─────────────────────────────────────────────────────────────────────
   async function hablar(texto: string) {
+    ultimoTextoHabladoRef.current = texto;
     console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
@@ -541,6 +550,7 @@ export function useRosita() {
       }
 
       if (uri) {
+        ultimoAudioUriRef.current = uri;
         player.replace({ uri });
         setEstado('hablando');
         estadoRef.current = 'hablando';
