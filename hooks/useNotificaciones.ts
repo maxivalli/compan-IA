@@ -511,12 +511,30 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
       const dia   = diasSemana[ahora.getDay()];
       const fecha = `${ahora.getDate()} de ${meses[ahora.getMonth()]}`;
+      const esNavidad  = ahora.getMonth() === 11 && ahora.getDate() === 25;
+      const esAñoNuevo = ahora.getMonth() === 0  && ahora.getDate() === 1;
+      const systemBase = `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)}`;
       try {
-        const frase = await llamarClaude({
-          maxTokens: 100,
-          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Respondé SOLO con la frase, sin etiquetas.`,
-          messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días.` }],
-        });
+        let frase: string | null;
+        if (esNavidad) {
+          frase = await llamarClaude({
+            maxTokens: 120,
+            system: `${systemBase} Generá UN saludo de Navidad breve, muy cálido y emotivo para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`,
+            messages: [{ role: 'user', content: `Deseale Feliz Navidad a ${p.nombreAbuela} con mucho cariño.` }],
+          });
+        } else if (esAñoNuevo) {
+          frase = await llamarClaude({
+            maxTokens: 120,
+            system: `${systemBase} Generá UN saludo de Año Nuevo breve, muy cálido y esperanzador para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`,
+            messages: [{ role: 'user', content: `Deseale Feliz Año Nuevo a ${p.nombreAbuela} con mucho cariño.` }],
+          });
+        } else {
+          frase = await llamarClaude({
+            maxTokens: 100,
+            system: `${systemBase} Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Respondé SOLO con la frase, sin etiquetas.`,
+            messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días.` }],
+          });
+        }
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
       } catch {}
     }
