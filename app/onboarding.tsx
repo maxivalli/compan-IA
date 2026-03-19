@@ -367,7 +367,7 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
 
   if (paso === 4) {
     return (
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrap} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrapScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <Text style={ct.titulo}>{titulo}</Text>
         <Text style={ct.sub}>{sub}</Text>
         <View style={{ gap: 12, marginTop: 4 }}>
@@ -492,4 +492,5 @@ const ct = StyleSheet.create({
   vozChipActivo:   { backgroundColor: '#0097b2', borderColor: '#0097b2' },
   vozChipTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#5a6468' },
   vozChipTxtActivo:{ color: '#fff' },
+  wrapScroll: { paddingHorizontal: 28, paddingTop: 28, paddingBottom: 16 },
 });
