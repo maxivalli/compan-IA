@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId, guardarCodigoRegistro } from '../lib/memoria';
-import { sintetizarVoz } from '../lib/ai';
+import { sintetizarVozMuestra } from '../lib/ai';
 
 const VOCES = [
   { id: 'r3lotmx3BZETVvcKm6R6', label: 'Tucumana y enérgica',    genero: 'femenina'  as const, icono: 'woman' as const },
@@ -370,10 +370,7 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
     setCargando(id);
     try {
       const nombre = nombreAsistente.trim() || 'Rosita';
-      const base64 = await sintetizarVoz(
-        `Hola, soy ${nombre}, voy a estar acá para acompañarte.`,
-        id,
-      );
+      const base64 = await sintetizarVozMuestra(id, nombre);
       if (!base64) return;
       const uri = FileSystem.cacheDirectory + 'voz_preview.mp3';
       await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' });

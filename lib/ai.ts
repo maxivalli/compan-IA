@@ -68,6 +68,22 @@ export const VOICE_ID_FEMENINA2 = 'smHMxLX7gVgXrrfD70xq'; // Cálida y formal
 export const VOICE_ID_MASCULINA  = 'vgekQLm3GYiKMHUnPVvY'; // Santafesino y divertido
 export const VOICE_ID_MASCULINA2 = 'L7pBVwjueW3IPcQt4Ej9'; // Tranquilo y formal
 
+/** TTS para onboarding — no requiere dispositivo registrado. */
+export async function sintetizarVozMuestra(voiceId: string, nombre: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts/sample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({ voiceId, nombre }),
+    }, 12000);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.audio ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function sintetizarVoz(texto: string, voiceId?: string): Promise<string | null> {
   const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
     method: 'POST',
