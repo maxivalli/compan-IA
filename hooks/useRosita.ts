@@ -524,7 +524,7 @@ export function useRosita() {
       console.log('[TTS] cache:', info.exists ? 'HIT' : 'MISS');
 
       if (!uri) {
-        const voiceId = perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA;
+        const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
         const base64 = await sintetizarVoz(texto, voiceId);
         console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
         if (base64) {

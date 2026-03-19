@@ -37,26 +37,25 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     loopRef.current?.stop();
     loopRef.current = null;
 
-    // Silbido: círculo que pulsa suavemente (achica y agranda a velocidad media)
-    if (silbando) {
+    // Silbido: círculo que pulsa suavemente — solo si no está hablando
+    if (silbando && !hablando) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(height, { toValue: 14, duration: 500, useNativeDriver: false }),
+            Animated.timing(width,  { toValue: 14, duration: 500, useNativeDriver: false }),
+          ]),
+          Animated.parallel([
+            Animated.timing(height, { toValue: 26, duration: 500, useNativeDriver: false }),
+            Animated.timing(width,  { toValue: 26, duration: 500, useNativeDriver: false }),
+          ]),
+        ])
+      );
+      loopRef.current = loop;
       Animated.parallel([
         Animated.timing(height, { toValue: 22, duration: 300, useNativeDriver: false }),
         Animated.timing(width,  { toValue: 22, duration: 300, useNativeDriver: false }),
-      ]).start(() => {
-        loopRef.current = Animated.loop(
-          Animated.sequence([
-            Animated.parallel([
-              Animated.timing(height, { toValue: 14, duration: 500, useNativeDriver: false }),
-              Animated.timing(width,  { toValue: 14, duration: 500, useNativeDriver: false }),
-            ]),
-            Animated.parallel([
-              Animated.timing(height, { toValue: 26, duration: 500, useNativeDriver: false }),
-              Animated.timing(width,  { toValue: 26, duration: 500, useNativeDriver: false }),
-            ]),
-          ])
-        );
-        loopRef.current.start();
-      });
+      ]).start(() => loop.start());
       return;
     }
 
@@ -110,7 +109,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
 
   const esCurvaNeutral = expresion === 'neutral' && !hablando && !silbando;
 
-  const forma = silbando
+  const forma = (silbando && !hablando)
     ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
     :
     expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada'

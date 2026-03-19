@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Keyboard,
@@ -10,11 +11,21 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import { useAudioPlayer } from 'expo-audio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId, guardarCodigoRegistro } from '../lib/memoria';
+import { sintetizarVoz } from '../lib/ai';
+
+const VOCES = [
+  { id: 'r3lotmx3BZETVvcKm6R6', label: 'Tucumana y enérgica',    genero: 'femenina'  as const, icono: 'woman' as const },
+  { id: 'smHMxLX7gVgXrrfD70xq', label: 'Cálida y formal',        genero: 'femenina'  as const, icono: 'woman' as const },
+  { id: 'vgekQLm3GYiKMHUnPVvY', label: 'Santafesino y divertido', genero: 'masculina' as const, icono: 'man'   as const },
+  { id: 'L7pBVwjueW3IPcQt4Ej9', label: 'Tranquilo y formal',     genero: 'masculina' as const, icono: 'man'   as const },
+];
 import RosaOjos from '../components/RosaOjos';
 
 const { height: H, width: W } = Dimensions.get('window');
@@ -44,7 +55,7 @@ export default function Onboarding() {
   const [nombreAbuela,    setNombreAbuela]    = useState('');
   const [edad,            setEdad]            = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
-  const [vozGenero,       setVozGenero]       = useState<'femenina' | 'masculina'>('femenina');
+  const [vozId,           setVozId]           = useState(VOCES[0].id);
   const [hijos,           setHijos]           = useState('');
   const [nietos,          setNietos]          = useState('');
   const [hermanos,        setHermanos]        = useState('');
@@ -84,12 +95,14 @@ export default function Onboarding() {
     const perfilActual = await cargarPerfil();
     const nombre = nombreAbuela.trim() || 'Abuela';
     const asistente = nombreAsistente.trim() || 'Rosita';
+    const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
     await guardarPerfil({
       ...perfilActual,
       nombreAbuela:    nombre,
       edad:            edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente: asistente,
-      vozGenero,
+      vozGenero:       vozSeleccionada.genero,
+      vozId,
       familiares: [
         hijos.trim()    && `hijos: ${hijos.trim()}`,
         nietos.trim()   && `nietos: ${nietos.trim()}`,
@@ -171,7 +184,7 @@ export default function Onboarding() {
               nombreAbuela={nombreAbuela}       setNombreAbuela={setNombreAbuela}
               edad={edad}                       setEdad={setEdad}
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
-              vozGenero={vozGenero}             setVozGenero={setVozGenero}
+              vozId={vozId}                     setVozId={setVozId}
               hijos={hijos}                     setHijos={setHijos}
               nietos={nietos}                   setNietos={setNietos}
               hermanos={hermanos}               setHermanos={setHermanos}
@@ -343,15 +356,110 @@ const fi = StyleSheet.create({
   input:    { fontFamily: 'Poppins_400Regular', backgroundColor: '#f4f6f7', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 11, fontSize: 14, color: '#171d1e', borderWidth: 1.5, borderColor: '#e0e6e8' },
 });
 
+// ── Selector de voces con muestra de audio ───────────────────────────────────
+function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
+  vozId: string;
+  setVozId: (id: string) => void;
+  nombreAsistente: string;
+}) {
+  const [cargando, setCargando] = useState<string | null>(null);
+  const player = useAudioPlayer(null);
+
+  async function reproducir(id: string) {
+    if (cargando) return;
+    setCargando(id);
+    try {
+      const nombre = nombreAsistente.trim() || 'Rosita';
+      const base64 = await sintetizarVoz(
+        `Hola, soy ${nombre}, voy a estar acá para acompañarte.`,
+        id,
+      );
+      if (!base64) return;
+      const uri = FileSystem.cacheDirectory + 'voz_preview.mp3';
+      await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' });
+      player.replace({ uri });
+      player.play();
+    } catch {}
+    finally { setCargando(null); }
+  }
+
+  return (
+    <View style={sv.grid}>
+      {VOCES.map(voz => {
+        const activa   = vozId === voz.id;
+        const cargandoEsta = cargando === voz.id;
+        const color    = voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
+        const colorBg  = voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
+        return (
+          <TouchableOpacity
+            key={voz.id}
+            style={[sv.card, activa && { borderColor: color, borderWidth: 2, backgroundColor: colorBg }]}
+            onPress={() => setVozId(voz.id)}
+            activeOpacity={0.8}
+          >
+            {/* Indicador selección */}
+            <View style={[sv.radio, activa && { backgroundColor: color, borderColor: color }]}>
+              {activa && <View style={sv.radioDot} />}
+            </View>
+
+            {/* Ícono género + label */}
+            <View style={sv.info}>
+              <View style={[sv.genderChip, { backgroundColor: color + '22' }]}>
+                <Ionicons name={voz.icono} size={12} color={color} />
+                <Text style={[sv.genderTxt, { color }]}>
+                  {voz.genero === 'femenina' ? 'Fem' : 'Masc'}
+                </Text>
+              </View>
+              <Text style={[sv.label, activa && { color: '#171d1e', fontFamily: 'Poppins_600SemiBold' }]}>
+                {voz.label}
+              </Text>
+            </View>
+
+            {/* Botón play */}
+            <TouchableOpacity
+              style={[sv.playBtn, { backgroundColor: color }]}
+              onPress={() => reproducir(voz.id)}
+              activeOpacity={0.75}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {cargandoEsta
+                ? <ActivityIndicator size={14} color="#fff" />
+                : <Ionicons name="play" size={14} color="#fff" />}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+const sv = StyleSheet.create({
+  grid:      { gap: 10, marginTop: 4 },
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: '#f4f6f7', borderRadius: 16,
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderWidth: 1.5, borderColor: '#e0e6e8',
+  },
+  radio:     { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#ccd3d5', alignItems: 'center', justifyContent: 'center' },
+  radioDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  info:      { flex: 1, gap: 4 },
+  genderChip:{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 100 },
+  genderTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, letterSpacing: 0.3 },
+  label:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#3a4548', lineHeight: 18 },
+  playBtn:   { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+});
+
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombreAsistente, setNombreAsistente, vozGenero, setVozGenero, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+  const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
-    { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozGenero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
+    { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
     { titulo: '¿Cómo se llama?',             sub: 'El nombre de quien va a usar la app. Así la va a llamar la asistente.' },
     { titulo: '¿Cuántos años tiene?',        sub: 'La asistente adapta su forma de hablar según la edad. Podés saltear este paso.' },
     { titulo: '¿Cómo la van a llamar?',      sub: `El nombre con el que ${nombreAbuela || 'ella'} llamará a la asistente.` },
     { titulo: 'La familia',                  sub: '¿Quiénes son sus familiares cercanos? Podés completarlo después.' },
-    { titulo: `¡Todo listo${nombreAbuela ? ', ' + nombreAbuela : ''}!`, sub: `${nombreAsistente || 'Rosita'} ya sabe quién sos y está ${vozGenero === 'masculina' ? 'listo' : 'lista'} para acompañarte.` },
+    { titulo: `¡Todo listo${nombreAbuela ? ', ' + nombreAbuela : ''}!`, sub: `${nombreAsistente || 'Rosita'} ya sabe quién sos y está ${vozSeleccionada.genero === 'masculina' ? 'listo' : 'lista'} para acompañarte.` },
   ];
   const { titulo, sub } = info[paso];
 
@@ -362,6 +470,19 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
         <Text style={[ct.sub,   { paddingHorizontal: 28 }]}>{sub}</Text>
         <FeatureCarousel />
       </View>
+    );
+  }
+
+  if (paso === 3) {
+    return (
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrapScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
+        <Text style={ct.titulo}>{titulo}</Text>
+        <Text style={ct.sub}>{sub}</Text>
+        <TextInput style={ct.input} value={nombreAsistente} onChangeText={setNombreAsistente}
+          placeholder="Rosita" placeholderTextColor="#b0b8ba" />
+        <Text style={ct.vozLabel}>Elegí una voz</Text>
+        <SelectorVoces vozId={vozId} setVozId={setVozId} nombreAsistente={nombreAsistente} />
+      </ScrollView>
     );
   }
 
@@ -393,32 +514,7 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
         <TextInput style={ct.input} value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))}
           placeholder="Ej: 75" placeholderTextColor="#b0b8ba" keyboardType="numeric" maxLength={3} />
       )}
-      {paso === 3 && (
-        <>
-          <TextInput style={ct.input} value={nombreAsistente} onChangeText={setNombreAsistente}
-            placeholder="Rosita" placeholderTextColor="#b0b8ba" />
-          <Text style={ct.vozLabel}>Tipo de voz</Text>
-          <View style={ct.vozRow}>
-            {(['femenina', 'masculina'] as const).map(g => (
-              <TouchableOpacity
-                key={g}
-                style={[ct.vozChip, vozGenero === g && ct.vozChipActivo]}
-                onPress={() => setVozGenero(g)}
-                activeOpacity={0.75}
-              >
-                <Ionicons
-                  name={g === 'femenina' ? 'woman' : 'man'}
-                  size={18}
-                  color={vozGenero === g ? '#fff' : '#5a6468'}
-                />
-                <Text style={[ct.vozChipTxt, vozGenero === g && ct.vozChipTxtActivo]}>
-                  {g === 'femenina' ? 'Femenina' : 'Masculina'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </>
-      )}
+
       {paso === 5 && (
         <View style={ct.resumen}>
           {[
@@ -487,10 +583,5 @@ const ct = StyleSheet.create({
   resumenTxt: { fontFamily: 'Poppins_400Regular',   fontSize: 14, color: '#1a3a40', flex: 1, lineHeight: 20 },
 
   vozLabel:   { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#8a9699', textTransform: 'uppercase', letterSpacing: 1, marginTop: 20, marginBottom: 10 },
-  vozRow:     { flexDirection: 'row', gap: 12 },
-  vozChip:    { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: '#f4f6f7', borderWidth: 1.5, borderColor: '#e0e6e8' },
-  vozChipActivo:   { backgroundColor: '#0097b2', borderColor: '#0097b2' },
-  vozChipTxt:      { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#5a6468' },
-  vozChipTxtActivo:{ color: '#fff' },
   wrapScroll: { paddingHorizontal: 28, paddingTop: 28, paddingBottom: 16 },
 });

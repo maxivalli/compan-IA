@@ -63,8 +63,10 @@ export async function transcribirAudio(uri: string): Promise<string> {
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
 /** Devuelve el audio sintetizado como string base64, o null si falla. */
-export const VOICE_ID_FEMENINA = 'r3lotmx3BZETVvcKm6R6';
-export const VOICE_ID_MASCULINA = 'vgekQLm3GYiKMHUnPVvY';
+export const VOICE_ID_FEMENINA  = 'r3lotmx3BZETVvcKm6R6'; // Tucumana y enérgica
+export const VOICE_ID_FEMENINA2 = 'smHMxLX7gVgXrrfD70xq'; // Cálida y formal
+export const VOICE_ID_MASCULINA  = 'vgekQLm3GYiKMHUnPVvY'; // Santafesino y divertido
+export const VOICE_ID_MASCULINA2 = 'L7pBVwjueW3IPcQt4Ej9'; // Tranquilo y formal
 
 export async function sintetizarVoz(texto: string, voiceId?: string): Promise<string | null> {
   const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
