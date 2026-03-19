@@ -172,9 +172,14 @@ function maxTokensSegunEdad(edad?: number): string {
   return 'Respondé en 2-3 oraciones.';
 }
 
+/** Elimina saltos de línea y caracteres que podrían romper la estructura del prompt. */
+function sanitizarPrompt(texto: string, maxLen = 100): string {
+  return texto.replace(/[\n\r]/g, ' ').replace(/[[\]]/g, '').trim().slice(0, maxLen);
+}
+
 /** Bloque estable: instrucciones, tono, tags. Cambia solo cuando cambia el perfil base. */
 export function construirSystemPromptEstable(p: Perfil): string {
-  const asistente = p.nombreAsistente ?? 'Rosita';
+  const asistente = sanitizarPrompt(p.nombreAsistente ?? 'Rosita', 50);
   const edadTexto = p.edad ? ` de ${p.edad} años` : '';
   const rol = p.vozGenero === 'masculina' ? 'un compañero virtual' : 'una compañera virtual';
   return `Sos ${asistente}, ${rol} para ${p.nombreAbuela || 'la persona'}${edadTexto}.

@@ -9,18 +9,12 @@ const CLAVE_BIENVENIDA     = 'compania_bienvenida_dada';
 
 // ── Identidad del dispositivo ─────────────────────────────────────────────────
 
-function generarUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-    const r = Math.random() * 16 | 0;
-    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-  });
-}
-
 export async function obtenerInstallId(): Promise<string> {
   try {
     const existing = await AsyncStorage.getItem(CLAVE_INSTALL_ID);
     if (existing) return existing;
-    const id = generarUUID();
+    const { randomUUID } = await import('expo-crypto');
+    const id = randomUUID();
     await AsyncStorage.setItem(CLAVE_INSTALL_ID, id);
     return id;
   } catch {
@@ -70,6 +64,7 @@ export type Perfil = {
   nombreAbuela: string;
   nombreAsistente: string;
   vozGenero: 'femenina' | 'masculina';
+  vozId?: string;
   edad?: number;
   familiares: string[];
   gustos: string[];
@@ -171,20 +166,25 @@ export async function agregarRecuerdo(texto: string): Promise<void> {
 
 // ── Contexto ─────────────────────────────────────────────────────────────────
 
+function limpiarDato(s: string): string {
+  return s.replace(/[\n\r]/g, ' ').replace(/[[\]]/g, '').trim().slice(0, 200);
+}
+
 export function construirContexto(perfil: Perfil): string {
+  const san = (arr: string[]) => arr.map(limpiarDato).filter(Boolean);
   const lineas = [
-    `El nombre de la persona con quien hablás es ${perfil.nombreAbuela}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.`,
+    `El nombre de la persona con quien hablás es ${limpiarDato(perfil.nombreAbuela)}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.`,
   ];
   if (perfil.familiares.length > 0)
-    lineas.push(`Sus familiares cercanos son: ${perfil.familiares.join(', ')}.`);
+    lineas.push(`Sus familiares cercanos son: ${san(perfil.familiares).join(', ')}.`);
   if (perfil.gustos.length > 0)
-    lineas.push(`Le gusta: ${perfil.gustos.join(', ')}.`);
+    lineas.push(`Le gusta: ${san(perfil.gustos).join(', ')}.`);
   if (perfil.medicamentos.length > 0)
-    lineas.push(`Sus medicamentos son: ${perfil.medicamentos.join(', ')}.`);
+    lineas.push(`Sus medicamentos son: ${san(perfil.medicamentos).join(', ')}.`);
   if (perfil.fechasImportantes.length > 0)
-    lineas.push(`Fechas importantes: ${perfil.fechasImportantes.join(', ')}.`);
+    lineas.push(`Fechas importantes: ${san(perfil.fechasImportantes).join(', ')}.`);
   if (perfil.recuerdos.length > 0)
-    lineas.push(`Cosas que ha contado: ${perfil.recuerdos.join(', ')}.`);
+    lineas.push(`Cosas que ha contado: ${san(perfil.recuerdos).join(', ')}.`);
   return lineas.join('\n');
 }
 // ── Recordatorios diarios ────────────────────────────────────────────────────
