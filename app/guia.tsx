@@ -60,6 +60,14 @@ const SECCIONES: Seccion[] = [
     comandos: ['¿Cómo está el tiempo?', '¿Hace calor?', '¿Va a llover?', 'Temperatura de hoy'],
   },
   {
+    icono: 'color-palette-outline',
+    titulo: 'Fondo vivo',
+    descripcion: 'El fondo de la app cambia automáticamente según la hora del día y el clima real de tu ciudad. De día es azul cielo, al atardecer se pone naranja, de noche oscuro con estrellas. Si llueve o hay tormenta el cielo se torna gris.',
+    color: '#6A0D91',
+    bg: '#F0DEFF',
+    nota: 'Las animaciones se actualizan solas: caen gotas de lluvia o copos de nieve, aparecen rayos, el sol brilla o el viento sopla — todo en tiempo real según el clima.',
+  },
+  {
     icono: 'game-controller-outline',
     titulo: 'Juegos y ejercicios',
     descripcion: 'Juegos para entretener y ejercitar la mente. Adivinanzas, trivia, cálculos, trabalenguas, refranes y más.',
