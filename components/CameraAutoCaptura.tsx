@@ -51,7 +51,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar }: Pr
   return (
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={styles.contenedor}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" />
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
 
         {/* Overlay oscuro con cuenta regresiva */}
         <View style={styles.overlay}>
