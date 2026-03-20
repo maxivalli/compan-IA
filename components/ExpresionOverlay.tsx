@@ -75,7 +75,7 @@ export default function ExpresionOverlay({
           {expresion === 'triste'      && <Lagrimas />}
           {expresion === 'feliz'       && <Corazones />}
           {expresion === 'mimada'      && <Corazones />}
-          {expresion === 'mimada'      && <Mejillas />}
+          {expresion === 'mimada'      && <Mejillas faceScale={faceScale} />}
           {expresion === 'sorprendida' && <Exclamaciones />}
           {expresion === 'sorprendida' && <SudorFrio />}
           {expresion === 'pensativa'   && <SignosPregunta />}

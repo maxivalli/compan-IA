@@ -413,8 +413,12 @@ export function Grawlixes() {
 
 // ── Mejillas ──────────────────────────────────────────────────────────────────
 
-export function Mejillas() {
+export function Mejillas({ faceScale = 1 }: { faceScale?: number }) {
   const opacity = useRef(new Animated.Value(0)).current;
+  // Las posiciones compensan que el centro del scale del container está 20px a la
+  // izquierda del centro visual de la cara. Fórmula: 20/faceScale ± constante
+  const mejLeft  = 20 / faceScale - 41;
+  const mejRight = 20 / faceScale + 227;
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
@@ -423,8 +427,8 @@ export function Mejillas() {
 
   return (
     <Animated.View style={{ opacity }} pointerEvents="none">
-      <View style={{ position: 'absolute', left: -21,            top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
-      <View style={{ position: 'absolute', left: 247,            top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
+      <View style={{ position: 'absolute', left: mejLeft,  top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
+      <View style={{ position: 'absolute', left: mejRight, top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
     </Animated.View>
   );
 }
