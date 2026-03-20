@@ -68,7 +68,7 @@ export default function Index() {
     '¿Querés escuchar música?',
     '¿Qué pasó hoy en las noticias?',
     '¿Jugamos a algo?',
-    'Acá estoy para lo que necesités',
+    'Acá estoy para vos',
   ];
   const [hintIdx, setHintIdx] = useState(0);
   const hintOpacity           = useRef(new Animated.Value(0)).current;
@@ -261,7 +261,7 @@ export default function Index() {
             activeOpacity={0.75}
             disabled={botonDisabled && !musicaActiva}
           >
-            <Text style={[styles.botonTexto, musicaActiva && { color: '#E8392A' }, { fontSize: btnFont }]}>
+            <Text style={[styles.botonTexto, musicaActiva && { color: '#E8392A' }, { fontSize: btnFont }, musicaActiva && !isTablet && { fontSize: Math.round(btnFont * 1.2), fontWeight: '800' }]}>
               {musicaActiva ? 'Parar' : estado === 'escuchando' ? 'Escuchando...' : estado === 'pensando' ? 'Pensando...' : estado === 'hablando' ? 'Hablando...' : 'Hablar'}
             </Text>
           </TouchableOpacity>
@@ -284,7 +284,7 @@ export default function Index() {
           delayLongPress={2000}
           activeOpacity={1}
         >
-          <Text style={[styles.botonSOSTexto, { fontSize: btnFont }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
+          <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? btnFont : Math.round(btnFont * 1.2) }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
         </TouchableOpacity>
         {sosPresionando && (
           <View style={styles.sosBarra}>
