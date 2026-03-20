@@ -274,27 +274,30 @@ export default function Index() {
         <View style={styles.botonContenedor}>
           {/* Glow difuso detrás del botón */}
           <View style={[styles.btnGlow, { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor }]} />
-          {/* LinearGradient actúa como borde */}
-          <LinearGradient
-            colors={btnGradient}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.btnBorder, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}
+          {/* TouchableOpacity con gradiente como borde */}
+          <TouchableOpacity
+            style={[styles.btnBorder, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}
+            onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+            activeOpacity={0.85}
+            disabled={botonDisabled && !musicaActiva}
           >
-            <TouchableOpacity
-              style={[styles.boton, { width: btnW - 4, height: btnH - 4, borderRadius: (btnH - 4) / 2 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}
-              onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
-              activeOpacity={0.85}
-              disabled={botonDisabled && !musicaActiva}
-            >
-              <View style={styles.btnInner}>
-                <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
-                <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
-                  {btnLabel}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </LinearGradient>
+            {/* Gradiente como absoluteFill — el borde visible */}
+            <LinearGradient
+              colors={btnGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[StyleSheet.absoluteFill, { borderRadius: btnH / 2 }]}
+            />
+            {/* Relleno blanco inset — deja 3px de gradiente como borde */}
+            <View style={[styles.boton, { position: 'absolute', top: 3, bottom: 3, left: 3, right: 3, borderRadius: btnH / 2 - 3 }]} />
+            {/* Contenido encima */}
+            <View style={styles.btnInner}>
+              <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
+              <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
+                {btnLabel}
+              </Text>
+            </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -435,7 +438,7 @@ const styles = StyleSheet.create({
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
   btnGlow:            { position: 'absolute', opacity: 0.30 },
-  btnBorder:          { alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
+  btnBorder:          { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
   btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   statusDot:          { width: 10, height: 10, borderRadius: 5 },
