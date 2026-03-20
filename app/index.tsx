@@ -235,11 +235,15 @@ export default function Index() {
         />
       </View>
 
-      <View style={styles.ecualizadorWrap}>
+      <View style={[styles.ecualizadorWrap, isTablet && { height: Math.round(90 * textScale) }]}>
         {musicaActiva
           ? <AnimacionMusica />
           : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
-              <Text style={[styles.hintText, textScale !== 1 && { fontSize: fs(27) * textScale, lineHeight: fs(35) * textScale }]}>{HINTS[hintIdx]}</Text>
+              <Text
+                style={[styles.hintText, textScale !== 1 && { fontSize: fs(27) * textScale, lineHeight: fs(35) * textScale }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >{HINTS[hintIdx]}</Text>
             </Animated.View>
         }
       </View>
@@ -397,7 +401,7 @@ const styles = StyleSheet.create({
   contenedor:         { flex: 1, alignItems: 'center', justifyContent: 'space-evenly' },
   updateId:           { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
   ojoContenedor:      { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
-  ecualizadorWrap:    { minHeight: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
+  ecualizadorWrap:    { height: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
   botonAnillo:        { position: 'absolute', width: 212, height: 76, borderRadius: 38, borderWidth: 2.5, borderColor: '#E85D24', opacity: 0.5 },
