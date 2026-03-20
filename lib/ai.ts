@@ -34,7 +34,7 @@ export async function llamarClaude(options: {
     headers: await jsonHeaders(),
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: options.maxTokens ?? 180,
+      max_tokens: options.maxTokens ?? 140,
       system: options.system,
       messages: options.messages,
     }),
