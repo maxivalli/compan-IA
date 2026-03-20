@@ -412,7 +412,7 @@ const styles = StyleSheet.create({
   boton:              { width: 200, height: 64, borderRadius: 32, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#3A3A3A' },
   botonActivo:        { backgroundColor: '#E85D24', shadowColor: '#E85D24' },
-  botonDeshabilitado: { opacity: 0.3, shadowOpacity: 0 },
+  botonDeshabilitado: { backgroundColor: '#C8C8C8', shadowOpacity: 0 },
   botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
   botonSOSActivo:       { backgroundColor: '#FF1A1A', borderColor: '#ffffff', shadowOpacity: 0.7, elevation: 16 },
   botonSOSTexto:        { fontSize: fs(18), fontWeight: '700', color: '#fff' },
