@@ -529,6 +529,8 @@ export function useRosita() {
 
     // Limpiar símbolos que ElevenLabs no pronuncia bien (frecuentes en respuestas de GPT)
     texto = texto
+      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')  // (pausa), (risas)...
+      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')    // línea "pausa" o "— pausa —"
       .replace(/(\d+)\s*°\s*[Cc]/g,  '$1 grados')
       .replace(/(\d+)\s*°\s*[Ff]/g,  '$1 grados Fahrenheit')
       .replace(/°/g,                  ' grados')

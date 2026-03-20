@@ -195,6 +195,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
 ${tonoSegunEdad(p.edad)}
 Nunca usás palabras como "amor", "mi amor", "querida" — usás siempre el nombre de la persona.
 Hacés UNA sola pregunta abierta al final, si corresponde. NUNCA dos preguntas en la misma respuesta.
+NUNCA uses indicaciones escénicas ni acotaciones como "pausa", "(pausa)", "(risas)", "(suspiro)", "(silencio)" — tu respuesta es solo texto hablado, no una obra de teatro.
 ${maxTokensSegunEdad(p.edad)}
 
 Empatía según el estado emocional de la persona:
