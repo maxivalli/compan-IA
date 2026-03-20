@@ -6,9 +6,19 @@ const SERVIDORES = [
 
 // Streams HTTPS curados para géneros y radios — fallback si la API falla
 const STREAMS_GENERO: Record<string, string[]> = {
-  // Radios argentinas — sin fallback hardcodeado, dependen de radio-browser.info
-  cadena3: [], continental: [], mitre: [], rivadavia: [], nacional: [],
-  lared: [], metro: [], aspen: [], la100: [], rock: [], clasicanac: [], folklorenac: [],
+  // Radios argentinas — fallbacks HTTPS verificados desde radio-browser.info
+  cadena3:    ['https://liveradio.mediainbox.net/radio3.mp3', 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO3_SC'],
+  mitre:      [],
+  continental:[],
+  rivadavia:  [],
+  nacional:   [],
+  lared:      [],
+  metro:      [],
+  aspen:      [],
+  la100:      [],
+  rock:       [],
+  clasicanac: [],
+  folklorenac:[],
   tango:     [
     'https://ais-edge94-nyc04.cdnstream.com/2202_128.mp3',
     'https://stream.zeno.fm/b9ynfb4tmg0uv',
