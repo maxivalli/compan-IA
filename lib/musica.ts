@@ -6,19 +6,25 @@ const SERVIDORES = [
 
 // Streams HTTPS curados para géneros y radios — fallback si la API falla
 const STREAMS_GENERO: Record<string, string[]> = {
-  // Radios argentinas — fallbacks HTTPS verificados desde radio-browser.info
+  // Radios argentinas — solo fallbacks verificados
   cadena3:    ['https://liveradio.mediainbox.net/radio3.mp3', 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO3_SC'],
-  mitre:      [],
-  continental:[],
-  rivadavia:  [],
-  nacional:   [],
-  lared:      [],
-  metro:      [],
-  aspen:      [],
-  la100:      [],
-  rock:       [],
-  clasicanac: [],
-  folklorenac:[],
+  lv3:        ['https://liveradio.mediainbox.net/radio3.mp3', 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO3_SC'],
+  delplata:   ['https://streaming01.shockmedia.com.ar:10217/stream'],
+  lt8:        ['https://stream.lt8.com.ar:8080/lt8radio.mp3'],
+  mitre:      ['https://27363.live.streamtheworld.com/AM790_56AAC_SC'],
+  continental: ['https://frontend.radiohdvivo.com/continental/live'], rivadavia: ['https://14003.live.streamtheworld.com/RIVADAVIA.mp3'],
+  lared:      ['https://cdn.instream.audio:9288/stream', 'https://playerservices.streamtheworld.com/api/livestream-redirect/LA_RED_AM910AAC.aac'], metro: ['https://playerservices.streamtheworld.com/api/livestream-redirect/METRO.mp3'],
+  aspen:      ['https://playerservices.streamtheworld.com/api/livestream-redirect/ASPEN.mp3'],
+  la100:      ['https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3'],
+  folklorenac: ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad38'],
+  convos:     ['https://server1.stweb.tv/rcvos/live/playlist.m3u8'],
+  urbana:     ['https://cdn.instream.audio:9660/stream'],
+  radio10:    ['https://radio10.stweb.tv/radio10/live/playlist.m3u8'],
+  destape:    ['https://ipanel.instream.audio/8004/stream'],
+  mega:       ['https://mega.stweb.tv/mega983/live/playlist.m3u8'],
+  vida:       ['https://streaming450tb.locucionar.com/proxy/fmvida979?mp=/stream'],
+  rockpop:    ['https://playerservices.streamtheworld.com/api/livestream-redirect/ROCKANDPOPAAC.aac'],
+  // Géneros
   tango:     [
     'https://ais-edge94-nyc04.cdnstream.com/2202_128.mp3',
     'https://stream.zeno.fm/b9ynfb4tmg0uv',
@@ -49,8 +55,8 @@ const STREAMS_GENERO: Record<string, string[]> = {
   ],
 };
 
+// Quitamos el User-Agent para evitar problemas de CORS en navegadores
 const HEADERS = {
-  'User-Agent': 'CompañIA/1.0 (Radio Player)',
   'Accept': 'application/json',
 };
 
@@ -63,17 +69,24 @@ function fetchConTimeout(url: string, ms: number, options?: RequestInit): Promis
 // Términos de búsqueda reales para claves abreviadas
 const ALIAS_BUSQUEDA: Record<string, string> = {
   cadena3:    'Cadena 3',
+  lv3:        'Cadena 3',
+  delplata:   'Radio Del Plata',
+  lt8:        'LT8 Radio Rosario',
   mitre:      'Radio Mitre',
   continental:'Radio Continental',
   rivadavia:  'Radio Rivadavia',
-  nacional:   'Radio Nacional',
   lared:      'La Red',
   metro:      'Metro 95.1',
   aspen:      'Aspen',
   la100:      'La 100',
-  rock:       'Nacional Rock',
-  clasicanac: 'Nacional Clasica',
   folklorenac:'Nacional Folklorica',
+  rockpop:    'Rock & Pop',
+  convos:     'Radio Con Vos',
+  urbana:     'Urbana Play',
+  radio10:    'Radio 10',
+  destape:    'El Destape Radio',
+  mega:       'Mega 98.3',
+  vida:       'FM Vida',
 };
 
 async function buscarEnAPI(termino: string, pais?: string): Promise<string | null> {
@@ -86,22 +99,30 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
       try {
         const url = `${servidor}/json/stations/search?name=${encodeURIComponent(t)}${paisParam}&hidebroken=true&order=votes&reverse=true&limit=15`;
         const res = await fetchConTimeout(url, 8000, { headers: HEADERS });
+        
         if (!res.ok) continue;
+        
         const stations = await res.json();
-        if (!Array.isArray(stations)) continue;
-        // Preferir HTTPS; si solo hay HTTP intentar reemplazar protocolo (muchos CDNs lo soportan)
-        const https = stations.find((s: any) => s.url_resolved?.startsWith('https://'));
-        if (https) return https.url_resolved as string;
-        const http = stations.find((s: any) => s.url_resolved?.startsWith('http://'));
-        if (http) return (http.url_resolved as string).replace('http://', 'https://');
-      } catch {
-        // silencioso
+        if (!Array.isArray(stations) || stations.length === 0) continue;
+
+        // Buscar EXCLUSIVAMENTE streams HTTPS directos (sin listas de reproducción m3u/pls)
+        const streamValido = stations.find((s: any) => 
+          s.url_resolved?.startsWith('https://') && 
+          !s.url_resolved?.endsWith('.m3u') && 
+          !s.url_resolved?.endsWith('.pls')
+        );
+
+        if (streamValido) {
+          console.log(`📡 Stream encontrado en API para ${termino}:`, streamValido.url_resolved);
+          return streamValido.url_resolved as string;
+        }
+      } catch (error) {
+        console.warn(`Fallo al buscar en ${servidor}:`, error);
       }
     }
   }
   return null;
 }
-
 
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
@@ -110,6 +131,7 @@ export async function buscarRadio(genero: string): Promise<string | null> {
   const urlAPI = await buscarEnAPI(key, esArgentina ? 'AR' : undefined);
   if (urlAPI) return urlAPI;
 
+  console.log(`⚠️ API falló o no encontró HTTPS para ${key}. Usando fallback...`);
   const fallbacks = STREAMS_GENERO[key];
   if (fallbacks?.length) return fallbacks[0];
 
