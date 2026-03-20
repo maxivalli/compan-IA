@@ -158,6 +158,14 @@ export function detectarFechasProximas(fechas: string[], diasAnticipacion = 3): 
   });
 }
 
+export function velocidadSegunEdad(edad?: number): number {
+  if (!edad)    return 0.92; // fallback seguro
+  if (edad < 40) return 1.00;
+  if (edad < 60) return 0.95;
+  if (edad < 75) return 0.90;
+  return 0.85;
+}
+
 export function tonoSegunEdad(edad?: number): string {
   if (!edad) return `Hablás en español rioplatense, con cariño y sin apuro. Usás frases cortas y claras. Nunca sos condescendiente.`;
   if (edad < 18) return `Hablás en español rioplatense, con energía y entusiasmo. Usás un lenguaje juvenil y natural, dinámico y directo. Podés usar expresiones modernas pero sin exagerar.`;
@@ -167,9 +175,10 @@ export function tonoSegunEdad(edad?: number): string {
 }
 
 function maxTokensSegunEdad(edad?: number): string {
-  if (!edad || edad >= 60) return 'Respondé siempre en menos de 3 oraciones cortas.';
-  if (edad < 18) return 'Respondé en 2-4 oraciones. Podés ser más expresivo.';
-  return 'Respondé en 2-3 oraciones.';
+  if (!edad || edad >= 60) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 25 PALABRAS. Una o dos frases cortas y cálidas. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
+  if (edad < 18) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 45 PALABRAS. Podés ser más expresivo. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
+  if (edad < 41) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 40 PALABRAS. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
+  return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 35 PALABRAS. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
 }
 
 /** Elimina saltos de línea y caracteres que podrían romper la estructura del prompt. */
@@ -185,7 +194,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
   return `Sos ${asistente}, ${rol} para ${p.nombreAbuela || 'la persona'}${edadTexto}.
 ${tonoSegunEdad(p.edad)}
 Nunca usás palabras como "amor", "mi amor", "querida" — usás siempre el nombre de la persona.
-Hacés preguntas abiertas para que la persona se sienta escuchada.
+Hacés UNA sola pregunta abierta al final, si corresponde. NUNCA dos preguntas en la misma respuesta.
 ${maxTokensSegunEdad(p.edad)}
 
 Empatía según el estado emocional de la persona:

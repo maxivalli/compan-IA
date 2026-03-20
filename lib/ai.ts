@@ -84,11 +84,11 @@ export async function sintetizarVozMuestra(voiceId: string, nombre: string): Pro
   }
 }
 
-export async function sintetizarVoz(texto: string, voiceId?: string): Promise<string | null> {
+export async function sintetizarVoz(texto: string, voiceId?: string, speed?: number): Promise<string | null> {
   const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
     method: 'POST',
     headers: await jsonHeaders(),
-    body: JSON.stringify({ text: texto, voiceId }),
+    body: JSON.stringify({ text: texto, voiceId, speed }),
   }, 12000);
   if (!res.ok) return null;
   const data = await res.json();

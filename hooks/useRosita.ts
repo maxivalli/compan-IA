@@ -20,7 +20,7 @@ import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
 import {
   hashTexto, respuestaOffline,
-  construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta,
+  construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
 import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 
@@ -549,7 +549,7 @@ export function useRosita() {
 
       if (!uri) {
         const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-        const base64 = await sintetizarVoz(texto, voiceId);
+        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
         console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
         if (base64) {
           await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
@@ -736,14 +736,14 @@ export function useRosita() {
   }
 
   // ── Foto para la familia ─────────────────────────────────────────────────────
-  async function flujoFoto() {
+  async function flujoFoto(silencioso = false) {
     const p = perfilRef.current;
     const chatIds = (p?.telegramContactos ?? []).map(c => c.id);
     if (!chatIds.length) {
-      await hablar('No tenés familiares configurados para mandar la foto.');
+      if (!silencioso) await hablar('No tenés familiares configurados para mandar la foto.');
       return;
     }
-    await hablar('Dale, mirá la pantalla, te saco una foto en tres segundos.');
+    if (!silencioso) await hablar('Dale, mirá la pantalla, te saco una foto en tres segundos.');
     // Abrir cámara y esperar que el componente capture o cancele
     const base64 = await new Promise<string | null>(resolve => {
       fotoResolverRef.current = resolve;
@@ -751,18 +751,18 @@ export function useRosita() {
     });
     setMostrarCamara(false);
     if (!base64) {
-      await hablar('Bueno, cuando quieras sacamos la foto.');
+      if (!silencioso) await hablar('Bueno, cuando quieras sacamos la foto.');
       return;
     }
-    await hablar('Mandando la foto a tu familia, un momento.');
+    if (!silencioso) await hablar('Mandando la foto a tu familia, un momento.');
     try {
       const ahora = new Date();
       const hora = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
       const caption = `📸 Foto de ${p?.nombreAbuela ?? 'tu familiar'} — ${hora}`;
       await enviarFotoTelegram(chatIds, base64, caption);
-      await hablar('Listo, la foto ya está con tu familia.');
+      if (!silencioso) await hablar('Listo, la foto ya está con tu familia.');
     } catch {
-      await hablar('No pude mandar la foto, perdoname.');
+      if (!silencioso) await hablar('No pude mandar la foto, perdoname.');
     }
   }
 
@@ -797,7 +797,7 @@ export function useRosita() {
       if (pideNoticias) {
         const titulos = await buscarNoticias(textoUsuario);
         if (titulos) {
-          contextoNoticias = `\n\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${titulos}\nUsá esta información si es relevante para responder.`;
+          contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${titulos}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
         }
       }
 
@@ -809,7 +809,7 @@ export function useRosita() {
           : textoUsuario;
         const resultados = await buscarWeb(queryBusqueda);
         if (resultados) {
-          contextoBusqueda = `\n\nResultados de búsqueda web (Brave Search, ${new Date().toLocaleDateString('es-AR')}):\n${resultados}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
+          contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 50 palabras para dar la información encontrada con claridad.\nResultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):\n${resultados}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
         }
       }
 
@@ -1066,7 +1066,7 @@ export function useRosita() {
       telegramOffsetRef, inicioSesionRef, climaRef,
       musicaActivaRef, enFlujoVozRef,
       setEstado, hablar, iniciarSpeechRecognition,
-      modoNoche, iniciarSilbido, detenerSilbido,
+      modoNoche, iniciarSilbido, detenerSilbido, flujoFoto,
     },
     player,
   };

@@ -18,6 +18,7 @@ import {
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, obtenerUrlArchivo, MensajeVoz } from '../lib/telegram';
+import { obtenerClima, CODIGOS_ADVERSOS } from '../lib/clima';
 
 import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
 import { tonoSegunEdad } from '../lib/claudeParser';
@@ -44,6 +45,7 @@ export type NotificacionesRefs = {
   pararMusica:           () => void;
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
+  flujoFoto:             (silencioso?: boolean) => Promise<void>;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -54,7 +56,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, inicioSesionRef, climaRef,
     setEstado, hablar, iniciarSpeechRecognition,
-    modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido,
+    modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto,
   } = refs;
 
   // Grabador para respuestas de voz
@@ -734,6 +736,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
             await enviarMensajeTelegram(chatIds, mensaje);
           } catch {}
         }
+        if (cmd === 'camara') {
+          const horaCmd = new Date().getHours();
+          if (horaCmd >= 23 || horaCmd < 9) continue;
+          if (estadoRef.current !== 'esperando') continue;
+          try { await flujoFoto(true); } catch {}
+        }
       }
     }
 
@@ -785,6 +793,50 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     const id = setInterval(resetearAnimo, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ── Alerta de mal tiempo (8h y 14h) ─────────────────────────────────────────
+  useEffect(() => {
+    async function chequearClima() {
+      const p = perfilRef.current;
+      if (!p?.nombreAbuela) return;
+      if (noMolestarRef.current) return;
+      if (estadoRef.current !== 'esperando') return;
+
+      const hora = new Date().getHours();
+      // Solo a las 9h (cuando arranca la actividad) y a las 14h (alerta de tarde)
+      if (hora !== 9 && hora !== 14) return;
+
+      const clave = `alerta_clima_${fechaLocal()}_${hora}h`;
+      const ya = await yaRecordo(clave);
+      if (ya) return;
+      await marcarRecordado(clave);
+
+      const clima = await obtenerClima();
+      if (!clima) return;
+
+      const adversoAhora = CODIGOS_ADVERSOS.has(clima.codigoActual);
+      const manana = clima.pronostico[0];
+      const adversoManana = manana && CODIGOS_ADVERSOS.has(manana.codigo);
+
+      if (!adversoAhora && !adversoManana) return;
+
+      const nombre = p.nombreAbuela;
+      let frase: string;
+
+      if (adversoAhora) {
+        const desc = clima.descripcion;
+        frase = `${nombre}, te quería avisar que afuera hay ${desc}. Si pensabas salir, mejor esperá un poco o llevate el paraguas.`;
+      } else {
+        const desc = manana!.descripcion;
+        frase = `${nombre}, mañana se pronostica ${desc}. Por si tenés algo planeado, puede ser buena idea tenerlo en cuenta.`;
+      }
+
+      await hablar(frase);
+    }
+
+    const id = setInterval(chequearClima, 60000);
     return () => clearInterval(id);
   }, []);
 

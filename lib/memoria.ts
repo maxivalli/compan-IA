@@ -240,6 +240,13 @@ export async function guardarRecordatorio(r: Recordatorio): Promise<void> {
   try {
     const data = await AsyncStorage.getItem(CLAVE_RECORDATORIOS_PERSONAL);
     const lista: Recordatorio[] = data ? JSON.parse(data) : [];
+    // Deduplicar: no guardar si ya existe uno en la misma fecha con texto muy similar
+    const norm = (s: string) => s.toLowerCase().replace(/[^a-záéíóúñ0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+    const textoNorm = norm(r.texto);
+    const yaExiste = lista.some(
+      x => x.fechaISO === r.fechaISO && norm(x.texto) === textoNorm,
+    );
+    if (yaExiste) return;
     lista.push(r);
     await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(lista));
   } catch {}

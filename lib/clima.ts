@@ -32,14 +32,19 @@ export type PronosticoDia = {
   tempMax: number;
   tempMin: number;
   descripcion: string;
+  codigo: number;      // weathercode crudo — para detectar mal tiempo
 };
 
 export type DatosClima = {
   temperatura: number;
   descripcion: string;
+  codigoActual: number; // weathercode actual
   ciudad?: string;
   pronostico: PronosticoDia[];  // próximos 6 días
 };
+
+// Códigos que justifican avisar: lluvia intensa, chaparrones, tormentas, nieve intensa
+export const CODIGOS_ADVERSOS = new Set([65, 75, 80, 81, 82, 95, 96, 99]);
 
 export async function obtenerClima(): Promise<DatosClima | null> {
   try {
@@ -78,6 +83,7 @@ export async function obtenerClima(): Promise<DatosClima | null> {
         tempMax: Math.round(maximas[i]),
         tempMin: Math.round(minimas[i]),
         descripcion: CODIGOS_CLIMA[codigos[i]] ?? 'clima variable',
+        codigo: codigos[i],
       });
     }
 
@@ -85,7 +91,7 @@ export async function obtenerClima(): Promise<DatosClima | null> {
     const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
     const ciudad = geo?.[0]?.city ?? geo?.[0]?.region ?? undefined;
 
-    return { temperatura: temp, descripcion, ciudad, pronostico };
+    return { temperatura: temp, descripcion, codigoActual: codigo, ciudad, pronostico };
   } catch {
     return null;
   }
