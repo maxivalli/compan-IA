@@ -805,11 +805,18 @@ export function useRosita() {
       }
 
       let contextoBusqueda = '';
-      const pideBusqueda = /\b(numero|telefono|direccion|donde queda|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|banco|correo|correoargentino|renaper|anses|pami)\b/.test(textoNorm);
+      const pideBusqueda = /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo)\b/.test(textoNorm);
       if (pideBusqueda) {
-        const queryBusqueda = ciudadRef.current
-          ? `${textoUsuario} ${ciudadRef.current} Argentina`
-          : textoUsuario;
+        // Construir query específica según el tipo de consulta
+        const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
+        const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay/.test(textoNorm);
+        const esHorario  = /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
+        const ciudad     = ciudadRef.current;
+        let queryBusqueda = textoUsuario;
+        if (esTelefono && ciudad)  queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
+        else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
+        else if (esHorario)         queryBusqueda = `${textoUsuario} horario fecha Argentina ${new Date().getFullYear()}`;
+        else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
         const resultados = await buscarWeb(queryBusqueda);
         if (resultados) {
           contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 50 palabras para dar la información encontrada con claridad.\nResultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):\n${resultados}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
