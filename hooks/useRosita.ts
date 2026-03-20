@@ -719,7 +719,7 @@ export function useRosita() {
   async function buscarNoticias(query: string): Promise<string | null> {
     try {
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 6000);
+      const id = setTimeout(() => controller.abort(), 3000);
       const hace5dias = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query + ' after:' + hace5dias)}&hl=es-419&gl=AR&ceid=AR:es-419`;
       const res = await fetch(url, { signal: controller.signal });
@@ -794,33 +794,34 @@ export function useRosita() {
       const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
       const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm);
 
-      // Buscar noticias si la pregunta es sobre eventos actuales o deportes
-      let contextoNoticias = '';
+      // Búsquedas en paralelo para no bloquear
       const pideNoticias = /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
-      if (pideNoticias) {
-        const titulos = await buscarNoticias(textoUsuario);
-        if (titulos) {
-          contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${titulos}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
-        }
-      }
-
-      let contextoBusqueda = '';
       const pideBusqueda = /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo)\b/.test(textoNorm);
+
+      let queryBusqueda = textoUsuario;
       if (pideBusqueda) {
-        // Construir query específica según el tipo de consulta
         const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
         const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay/.test(textoNorm);
         const esHorario  = /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
         const ciudad     = ciudadRef.current;
-        let queryBusqueda = textoUsuario;
-        if (esTelefono && ciudad)  queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
+        if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
         else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
         else if (esHorario)         queryBusqueda = `${textoUsuario} horario fecha Argentina ${new Date().getFullYear()}`;
         else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
-        const resultados = await buscarWeb(queryBusqueda);
-        if (resultados) {
-          contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 50 palabras para dar la información encontrada con claridad.\nResultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):\n${resultados}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
-        }
+      }
+
+      const [titulosNoticias, resultadosBusqueda] = await Promise.all([
+        pideNoticias ? buscarNoticias(textoUsuario) : Promise.resolve(null),
+        pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
+      ]);
+
+      let contextoNoticias = '';
+      if (titulosNoticias) {
+        contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${titulosNoticias}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
+      }
+      let contextoBusqueda = '';
+      if (resultadosBusqueda) {
+        contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 50 palabras para dar la información encontrada con claridad.\nResultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):\n${resultadosBusqueda}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
       }
 
       console.log('[RC] llamando a Claude...');
