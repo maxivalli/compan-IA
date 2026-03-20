@@ -8,6 +8,7 @@ function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRosita } from '../hooks/useRosita';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import RosaOjos, { BG } from '../components/RosaOjos';
@@ -180,6 +181,7 @@ export default function Index() {
   }, [mostrarOnboarding]);
 
   const { width: screenW, height: screenH } = useWindowDimensions();
+  const { bottom: safeBottom } = useSafeAreaInsets();
   const isTablet  = screenW >= 600;
   const faceScale = isTablet ? Math.min(screenW / 390, 1.7) : 1;
   const textScale = faceScale; // mismo scale que la cara — texto proporcional en tablet y teléfono
@@ -271,7 +273,7 @@ export default function Index() {
 {/* Easter egg: toque largo en esquina inferior derecha → cumpleaños */}
       <TouchableOpacity
         onLongPress={triggerCumpleaños}
-        style={{ position: 'absolute', bottom: 0, right: 0, width: 40, height: 40 }}
+        style={{ position: 'absolute', bottom: safeBottom, right: 0, width: 40, height: 40 }}
       />
 
       <Animated.View style={{ transform: [{ scale: sosPulso }] }}>
@@ -374,7 +376,7 @@ export default function Index() {
       {/* Easter egg: toque largo en esquina inferior izquierda → silbido */}
       <TouchableOpacity
         onLongPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
-        style={{ position: 'absolute', bottom: 0, left: 0, width: 40, height: 40 }}
+        style={{ position: 'absolute', bottom: safeBottom, left: 0, width: 40, height: 40 }}
       />
 
       <Animated.View
