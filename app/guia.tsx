@@ -107,7 +107,7 @@ const SECCIONES: Seccion[] = [
     descripcion: 'Si preferís no hablar en voz alta, podés mantener apretado el botón del micrófono. Rosita escucha mientras lo sostenés y responde al soltar.',
     color: '#004785',
     bg: '#D3E4FF',
-    nota: 'El reconocimiento automático siempre está activo. El botón es una alternativa para cuando hay ruido o preferís más privacidad.',
+    nota: 'El botón muestra en todo momento el estado de Rosita: "Escuchando..." mientras capta tu voz, "Pensando..." mientras procesa la respuesta y "Hablando..." mientras te habla. Así siempre sabés qué está haciendo.',
   },
   {
     icono: 'send-outline',
