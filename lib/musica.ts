@@ -6,14 +6,19 @@ const SERVIDORES = [
 
 // Streams HTTPS curados para géneros y radios — fallback si la API falla
 const STREAMS_GENERO: Record<string, string[]> = {
-  // Radios argentinas
+  // Radios argentinas (solo HTTPS — Android bloquea HTTP)
   cadena3:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/CADENA3AAC.aac'],
-  mitre:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_MITRE.mp3'],
-  continental: ['https://playerservices.streamtheworld.com/api/livestream-redirect/AM590.mp3'],
-  rivadavia:   ['https://playerservices.streamtheworld.com/api/livestream-redirect/AM630.mp3'],
-  nacional:    ['https://icecast.radionacional.com.ar/nacional-nacional'],
-  lared:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/AM910.mp3'],
-  metro:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/METRO951.mp3'],
+  mitre:       ['https://buecrplb01.cienradios.com.ar/Mitre790.aac'],
+  continental: ['https://playerservices.streamtheworld.com/api/livestream-redirect/CONTINENTAL_SC'],
+  rivadavia:   ['https://streammax.alsolnet.com/radiorivadavia'],
+  nacional:    ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad1'],
+  lared:       ['https://strive-sdn-lsdlive-live.akamaized.net/live_passthrough_static/amlared/playlist.m3u8'],
+  metro:       ['https://edge-np.cdn.mdstrm.com/5a9ee26311c043ae48e40bcd.mp3'],
+  aspen:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/ASPENAAC'],
+  la100:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/LA100AAC'],
+  rock:        ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad39'],
+  clasicanac:  ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad37'],
+  folklorenac: ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad38'],
   tango:     [
     'https://ais-edge94-nyc04.cdnstream.com/2202_128.mp3',
     'https://stream.zeno.fm/b9ynfb4tmg0uv',
