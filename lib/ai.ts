@@ -109,6 +109,24 @@ export async function obtenerComandosPendientes(familiaId: string): Promise<stri
   }
 }
 
+/** Búsqueda web vía Brave Search. Devuelve resultados formateados o null si falla. */
+export async function buscarWeb(query: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(
+      `${BACKEND_URL}/ai/search?q=${encodeURIComponent(query)}`,
+      { headers: await jsonHeaders() },
+      8000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const results = data.results as { title: string; description: string }[] | undefined;
+    if (!results?.length) return null;
+    return results.map(r => `• ${r.title}: ${r.description}`).join('\n');
+  } catch {
+    return null;
+  }
+}
+
 /** Genera un efecto de sonido y devuelve base64, o null si falla. */
 export async function generarSonido(
   texto: string,

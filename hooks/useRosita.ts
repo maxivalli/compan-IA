@@ -16,12 +16,13 @@ import {
 import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { buscarRadio } from '../lib/musica';
 import { obtenerClima, climaATexto } from '../lib/clima';
+import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
 import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta,
 } from '../lib/claudeParser';
-import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -71,6 +72,8 @@ export function useRosita() {
   const silbidoTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoActivoRef    = useRef(false);
   const climaRef            = useRef<string>('');
+  const ciudadRef           = useRef<string>('');
+  const feriadosRef         = useRef<string>('');
   const duckTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerVozRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
   const telegramOffsetRef   = useRef<number>(0);
@@ -92,7 +95,7 @@ export function useRosita() {
     }
     return [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste) },
+      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste) + (ciudadRef.current ? `\nUbicación actual: ${ciudadRef.current}, Argentina.` : '') + (feriadosRef.current ? `\n${feriadosRef.current}` : '') },
     ];
   }
   const sinConexionRef   = useRef(false);
@@ -228,15 +231,14 @@ export function useRosita() {
     const nombreRegex = new RegExp('(^|\\s)' + nombreNorm.slice(0, 5), 'i');
     const mencionaNombre = nombreRegex.test(textoNorm);
     const enConversacion = musicaActivaRef.current ? false : (Date.now() - ultimaCharlaRef.current) < 60 * 1000;
-    const esPreguntaDirecta = /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
+    // Con música activa se exige siempre el nombre para evitar falsos disparos por letras en español
+    const esPreguntaDirecta = musicaActivaRef.current ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
 
     procesandoRef.current = true;
     ExpoSpeechRecognitionModule.stop();
-
-    if (musicaActivaRef.current) { playerMusica.pause(); setMusicaActiva(false); }
 
     try {
       const esRepeticion = enConversacion
@@ -371,9 +373,15 @@ export function useRosita() {
     // Clima en background — no bloquea el arranque
     obtenerClima().then(clima => {
       if (clima) {
-        climaRef.current = climaATexto(clima);
+        climaRef.current  = climaATexto(clima);
+        ciudadRef.current = clima.ciudad ?? '';
         setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
       }
+    }).catch(() => {});
+
+    // Feriados en background — no bloquea el arranque
+    getFeriadosCercanos().then(texto => {
+      feriadosRef.current = texto;
     }).catch(() => {});
   }
 
@@ -793,9 +801,21 @@ export function useRosita() {
         }
       }
 
+      let contextoBusqueda = '';
+      const pideBusqueda = /\b(numero|telefono|direccion|donde queda|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|banco|correo|correoargentino|renaper|anses|pami)\b/.test(textoNorm);
+      if (pideBusqueda) {
+        const queryBusqueda = ciudadRef.current
+          ? `${textoUsuario} ${ciudadRef.current} Argentina`
+          : textoUsuario;
+        const resultados = await buscarWeb(queryBusqueda);
+        if (resultados) {
+          contextoBusqueda = `\n\nResultados de búsqueda web (Brave Search, ${new Date().toLocaleDateString('es-AR')}):\n${resultados}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
+        }
+      }
+
       console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
-        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias, pideChiste),
+        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias + contextoBusqueda, pideChiste),
         messages: nuevoHistorial.slice(-10),
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
 
@@ -824,7 +844,7 @@ export function useRosita() {
       // ── MUSICA ──
       if (parsed.tagPrincipal === 'MUSICA' && parsed.generoMusica) {
         setExpresion('neutral');
-        await hablar(parsed.respuesta);
+        await hablar(parsed.respuesta + ' Para pararla, tocá el botón que dice Parar.');
         setEstado('pensando');
         estadoRef.current = 'pensando';
         ExpoSpeechRecognitionModule.stop();

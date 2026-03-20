@@ -250,23 +250,19 @@ export default function Index() {
         }
       </View>
 
-      {musicaActiva && (
-        <TouchableOpacity style={styles.musicaOverlay} onPress={pararMusica} activeOpacity={1} />
-      )}
-
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
           {escuchando && (
             <Animated.View style={[styles.botonAnillo, { width: btnW + 12, height: btnH + 12, borderRadius: (btnH + 12) / 2, transform: [{ scale: pulso }] }]} />
           )}
           <TouchableOpacity
-            style={[styles.boton, escuchando && styles.botonActivo, botonDisabled && styles.botonDeshabilitado, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
-            onPress={escuchando ? detenerEscucha : iniciarEscucha}
+            style={[styles.boton, escuchando && styles.botonActivo, botonDisabled && !musicaActiva && styles.botonDeshabilitado, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+            onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
             activeOpacity={0.75}
-            disabled={botonDisabled}
+            disabled={botonDisabled && !musicaActiva}
           >
-            <Text style={[styles.botonTexto, { fontSize: btnFont }]}>
-              {estado === 'escuchando' ? 'Escuchando...' : estado === 'pensando' ? 'Pensando...' : estado === 'hablando' ? 'Hablando...' : 'Hablar'}
+            <Text style={[styles.botonTexto, musicaActiva && { color: '#E8392A' }, { fontSize: btnFont }]}>
+              {musicaActiva ? 'Parar' : estado === 'escuchando' ? 'Escuchando...' : estado === 'pensando' ? 'Pensando...' : estado === 'hablando' ? 'Hablando...' : 'Hablar'}
             </Text>
           </TouchableOpacity>
         </View>

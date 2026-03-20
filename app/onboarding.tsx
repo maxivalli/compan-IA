@@ -513,22 +513,31 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
       )}
 
       {paso === 5 && (
-        <View style={ct.resumen}>
-          {[
-            { i: 'person',     t: nombreAbuela || '—' },
-            ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }] : []),
-            { i: 'chatbubble', t: `Asistente: ${nombreAsistente || 'Rosita'}` },
-            ...(hijos    ? [{ i: 'people',    t: `Hijos: ${hijos}` }]    : []),
-            ...(nietos   ? [{ i: 'happy',     t: `Nietos: ${nietos}` }]  : []),
-            ...(hermanos ? [{ i: 'person-add',t: `Hermanos: ${hermanos}` }] : []),
-            ...(mascotas ? [{ i: 'paw',       t: `Mascotas: ${mascotas}` }] : []),
-          ].map(({ i, t }) => (
-            <View key={t} style={ct.resumenFila}>
-              <Ionicons name={i as any} size={15} color="#0097b2" />
-              <Text style={ct.resumenTxt}>{t}</Text>
-            </View>
-          ))}
-        </View>
+        <>
+          <View style={ct.resumen}>
+            {[
+              { i: 'person',     t: nombreAbuela || '—' },
+              ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }] : []),
+              { i: 'chatbubble', t: `Asistente: ${nombreAsistente || 'Rosita'}` },
+              ...(hijos    ? [{ i: 'people',    t: `Hijos: ${hijos}` }]    : []),
+              ...(nietos   ? [{ i: 'happy',     t: `Nietos: ${nietos}` }]  : []),
+              ...(hermanos ? [{ i: 'person-add',t: `Hermanos: ${hermanos}` }] : []),
+              ...(mascotas ? [{ i: 'paw',       t: `Mascotas: ${mascotas}` }] : []),
+            ].map(({ i, t }) => (
+              <View key={t} style={ct.resumenFila}>
+                <Ionicons name={i as any} size={15} color="#0097b2" />
+                <Text style={ct.resumenTxt}>{t}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={ct.hint}>
+            <Ionicons name="settings-outline" size={15} color="#0097b2" />
+            <Text style={ct.hintTxt}>
+              Podés editar estos datos y agregar más información desde la pestaña{' '}
+              <Text style={ct.hintNegrita}>Configuración</Text>.
+            </Text>
+          </View>
+        </>
       )}
     </View>
   );
@@ -581,4 +590,7 @@ const ct = StyleSheet.create({
 
   vozLabel:   { fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#8a9699', textTransform: 'uppercase', letterSpacing: 1, marginTop: 20, marginBottom: 10 },
   wrapScroll: { paddingHorizontal: 28, paddingTop: 28, paddingBottom: 16 },
+  hint:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, backgroundColor: '#e6f7fa', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
+  hintTxt:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#1a4a54', lineHeight: 19, flex: 1 },
+  hintNegrita:{ fontFamily: 'Poppins_600SemiBold', color: '#0097b2' },
 });

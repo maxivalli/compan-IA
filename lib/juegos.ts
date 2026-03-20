@@ -115,21 +115,66 @@ Presentá la pregunta de forma cálida, esperá la respuesta y luego confirmá s
 type Chiste = { setup: string; remate: string };
 
 const CHISTES: Chiste[] = [
-  { setup: '— ¿Qué le dijo el mar al barco?', remate: '— ¡Nada!' },
-  { setup: '— ¿Cuál es el colmo de un electricista?', remate: '— Que su mujer lo deje y se lleve la corriente.' },
-  { setup: '— ¿Por qué los pájaros vuelan hacia el norte en verano?', remate: '— Porque caminando tardarían mucho.' },
-  { setup: '— ¿Qué hace una abeja en el gimnasio?', remate: '— ¡Zum-ba!' },
-  { setup: '— ¿Qué le dijo un semáforo a otro?', remate: '— No me mires que me estoy cambiando.' },
-  { setup: '— ¿Por qué el libro de matemáticas fue al psicólogo?', remate: '— Porque tenía demasiados problemas.' },
-  { setup: '— ¿Cuál es el animal más antiguo del mundo?', remate: '— El lagarto. Tiene muchos "años" encima.' },
-  { setup: 'Un señor entra a una librería y dice: "¡Un alfajor con dulce de leche, por favor!". El librero, bajito: "Señor, esto es una librería." El señor, también bajito:', remate: '"Perdón... ¿tiene un alfajor con dulce de leche, por favor?"' },
-  { setup: '— ¿Por qué los esqueletos no se pelean?', remate: '— Porque no tienen agallas.' },
-  { setup: '— ¿Qué le dice un jardinero a otro?', remate: '— ¡Seamos compinches!' },
-  { setup: '— Doctor, me duele todo el cuerpo. Donde me toco, me duele. — ¿Me muestra? Tóquese aquí... — ¡Ay! — Ahora aquí... — ¡Ay! — Y aquí... — ¡Ay!', remate: '— Ya sé lo que tiene: el dedo roto.' },
-  { setup: '— ¿Cómo se llama el campeón mundial de natación?', remate: '— Marco... Polo.' },
-  { setup: '— ¿Qué hace un perro con un taladro?', remate: '— ¡Taladrando!' },
-  { setup: '— ¿Por qué Batman no va al médico?', remate: '— Porque no quiere que lo vea Robin.' },
-  { setup: '— Mi abuelo tiene 95 años y no necesita anteojos para nada.', remate: '— Toma el vino directo de la botella.' },
+  {
+    setup: 'Un argentino le cuenta a su amigo sobre su viaje al Vaticano: "¡Che, fíjate cómo será de grande mi fama, que salí al balcón y la gente abajo preguntaba:"',
+    remate: '"¿Quién es el señor de blanco que está al lado de nuestro compatriota?"',
+  },
+  {
+    setup: '— ¿Cómo empieza un argentino una carta de amor?',
+    remate: '"Ya sé que soy maravilloso, brillante y hermoso, pero vos tampoco estás tan mal..."',
+  },
+  {
+    setup: '— ¿Cómo reconocer a un argentino en un velorio?',
+    remate: '— Es el que se quiere meter en el cajón para ser el centro de atención.',
+  },
+  {
+    setup: '— ¿En qué se diferencia un argentino de un rayo?',
+    remate: '— En que el rayo cae, y el argentino te explica cómo tendría que haber caído.',
+  },
+  {
+    setup: '— ¿Por qué los argentinos no usan paracaídas?',
+    remate: '— Porque de todas maneras, siempre caen re bien.',
+  },
+  {
+    setup: 'Un niño le dice a su papá: "Papá, cuando sea grande quiero ser exactamente como vos." El padre, emocionado: "¡Qué orgullo, hijo! ¿Por qué?"',
+    remate: '"¡Para poder tener un hijo como yo!"',
+  },
+  {
+    setup: 'Un abuelo le dice a su nieto: "En mis tiempos, con 10 pesos volvía del almacén con pan, leche, huevos, queso y chocolate." El nieto, asombrado: "¡Guau, abuelo! ¿Y ahora se puede?"',
+    remate: '"Ahora es imposible... ¡hay demasiadas cámaras de seguridad!"',
+  },
+  {
+    setup: 'Van dos abuelos caminando y uno le dice: "¡Che, cómo sopla el viento!" El otro: "¡Qué va! ¡Es jueves!"',
+    remate: '"¡Ah, yo también tengo sed! ¡Vamos a tomar un café!"',
+  },
+  {
+    setup: 'Una abuela le pregunta a su nieto: "Hijito, ¿cómo se llama el alemán ese que me esconde las llaves y los anteojos?"',
+    remate: '"Alzheimer, abuela, Alzheimer."',
+  },
+  {
+    setup: '— Abuelo, ¿sabés qué es un iPad?',
+    remate: '"No sé, hijo... yo soy de la época en que \'¡Ay, pad!\' era lo que decíamos cuando nos pisaban el pie."',
+  },
+  {
+    setup: 'Un abuelito entra a la farmacia: "Señor, ¿tienen pastillas para la memoria?" "Sí, claro." "¡Perfecto! Deme una caja y un kilo de pan." "Pero señor, esto es una farmacia, no una panadería."',
+    remate: '"¡Ah, tenés razón! Entonces dame solo las pastillas, que el pan ya lo compré en la ferretería."',
+  },
+  {
+    setup: '— ¿Por qué los gallegos ponen una escalera a la orilla del mar?',
+    remate: '— Para que suba la marea.',
+  },
+  {
+    setup: '— ¿Cómo te das cuenta de que un gallego estuvo usando la computadora?',
+    remate: '— Porque la pantalla está llena de corrector líquido.',
+  },
+  {
+    setup: 'Le dice un gallego a otro: "Oye Manolo, ¿tú sabes por qué los buzos se tiran hacia atrás para entrar al mar?"',
+    remate: '"¡Hombre, Venancio, es de lógica! ¡Porque si se tiran hacia adelante caen adentro del bote!"',
+  },
+  {
+    setup: '— ¿Qué hace un gallego corriendo a toda velocidad alrededor de la facultad?',
+    remate: '— Una carrera universitaria.',
+  },
 ];
 
 const chistesContados = new Set<string>();

@@ -20,6 +20,27 @@ import PinOverlay from '../components/PinOverlay';
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
 
+const TAGS_INTERESES = [
+  'Libros', 'Televisión', 'Fútbol', 'Jardín', 'Huerta', 'Cocina',
+  'Música', 'Tejido', 'Historia', 'Crucigramas', 'Religión', 'Política',
+];
+
+// [bg inactivo, texto inactivo, bg activo, texto activo]
+const TAG_COLORS: Record<string, [string, string, string, string]> = {
+  'Libros':      ['#EDE7F6', '#4527A0', '#7C3AED', '#fff'],
+  'Televisión':  ['#E3F2FD', '#1565C0', '#1E88E5', '#fff'],
+  'Fútbol':      ['#E8F5E9', '#1B5E20', '#2E7D32', '#fff'],
+  'Jardín':      ['#F1F8E9', '#33691E', '#558B2F', '#fff'],
+  'Huerta':      ['#FFF8E1', '#E65100', '#F57C00', '#fff'],
+  'Cocina':      ['#FBE9E7', '#BF360C', '#E64A19', '#fff'],
+  'Música':      ['#FCE4EC', '#880E4F', '#E91E8C', '#fff'],
+  'Tejido':      ['#F3E5F5', '#6A1B9A', '#AB47BC', '#fff'],
+  'Historia':    ['#EFEBE9', '#4E342E', '#6D4C41', '#fff'],
+  'Crucigramas': ['#E0F7FA', '#006064', '#00838F', '#fff'],
+  'Religión':    ['#E8EAF6', '#1A237E', '#3949AB', '#fff'],
+  'Política':    ['#FFEBEE', '#B71C1C', '#C62828', '#fff'],
+};
+
 function fetchTimeout(url: string, ms: number, options?: RequestInit): Promise<Response> {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
@@ -446,7 +467,44 @@ export default function Configuracion() {
         <M3Input label="Nietos"   hint="Separados por coma" value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
         <M3Input label="Hermanos" hint="Separados por coma" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
         <M3Input label="Mascotas" hint="Separados por coma" value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
-        <M3Input label="Gustos y temas favoritos" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
+        {/* Tags rápidos de intereses */}
+        {(() => {
+          const activos = gustos.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+          const toggleTag = (tag: string) => {
+            const lista = gustos.split(',').map(s => s.trim()).filter(Boolean);
+            const yaEsta = lista.map(s => s.toLowerCase()).includes(tag.toLowerCase());
+            setGustos(yaEsta
+              ? lista.filter(s => s.toLowerCase() !== tag.toLowerCase()).join(', ')
+              : [...lista, tag].join(', ')
+            );
+          };
+          const rows: string[][] = [];
+          for (let i = 0; i < TAGS_INTERESES.length; i += 4)
+            rows.push(TAGS_INTERESES.slice(i, i + 4));
+          return (
+            <View style={s.tagsWrap}>
+              {rows.map((row, ri) => (
+                <View key={ri} style={s.tagsRow}>
+                  {row.map(tag => {
+                    const activo = activos.includes(tag.toLowerCase());
+                    const [bgIn, txIn, bgAc, txAc] = TAG_COLORS[tag] ?? ['#e0e0e0', '#333', '#666', '#fff'];
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        style={[s.tagChip, { backgroundColor: activo ? bgAc : bgIn, borderColor: activo ? bgAc : '#00000018' }]}
+                        onPress={() => toggleTag(tag)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.tagChipTxt, { color: activo ? txAc : txIn }]}>{tag}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          );
+        })()}
+        <M3Input label="Otros gustos y temas" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
 
         {/* ── Salud ── */}
         <SectionLabel icon="medkit-outline" label="Salud" />
@@ -671,6 +729,11 @@ const s = StyleSheet.create({
   vozChipActivo:   { backgroundColor: M.primary },
   vozChipTxt:      { fontSize: 14, fontWeight: '500', color: M.onSurfaceVariant },
   vozChipTxtActivo:{ color: M.onPrimary },
+
+  tagsWrap:        { gap: 6, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  tagsRow:         { flexDirection: 'row', gap: 6 },
+  tagChip:         { flex: 1, paddingVertical: 9, borderRadius: 20, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  tagChipTxt:      { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   botBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: M.primary, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, borderRadius: 12 },
   botBtnText:  { fontSize: 14, fontWeight: '500', color: M.onPrimary },
 });

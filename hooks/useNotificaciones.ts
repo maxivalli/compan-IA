@@ -287,22 +287,35 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     const entradas = await cargarEntradasAnimo();
     const hoy = fechaLocal(Date.now());
     const entradasHoy = entradas.filter((e: EntradaAnimo) => fechaLocal(e.timestamp) === hoy);
-    const EMOJIS: Record<string, string> = {
+    const ETIQUETAS: Record<string, string> = {
       feliz: '😊 Contenta', triste: '😢 Triste', sorprendida: '😮 Sorprendida',
       pensativa: '🤔 Pensativa', neutral: '😐 Tranquila',
     };
     let animoLineas = 'sin registros';
     if (entradasHoy.length > 0) {
+      const total = entradasHoy.length;
       const conteo: Record<string, number> = {};
       for (const e of entradasHoy) {
-        const label = EMOJIS[e.expresion];
-        if (!label) continue;
+        if (!ETIQUETAS[e.expresion]) continue;
         conteo[e.expresion] = (conteo[e.expresion] ?? 0) + 1;
       }
-      animoLineas = Object.entries(conteo)
-        .sort((a, b) => b[1] - a[1])
-        .map(([k, v]) => `  ${EMOJIS[k]}: ${v > 10 ? '+10' : v}`)
-        .join('\n');
+      const lineas: string[] = [];
+      for (const [mood, count] of Object.entries(conteo).sort((a, b) => b[1] - a[1])) {
+        const label = ETIQUETAS[mood];
+        const pct = Math.round((count / total) * 100);
+        if (mood === 'triste') {
+          // La tristeza siempre se muestra con un aviso, sin importar qué tan minoritaria sea
+          lineas.push(`  ${label}: ${count} momento${count > 1 ? 's' : ''} (${pct}%) ⚠️`);
+        } else if (pct >= 50) {
+          lineas.push(`  ${label}: principalmente (${pct}%)`);
+        } else if (pct >= 20) {
+          lineas.push(`  ${label}: varios momentos (${pct}%)`);
+        } else if (pct >= 5) {
+          lineas.push(`  ${label}: algunos momentos (${pct}%)`);
+        }
+        // Estados con < 5% se omiten (excepto triste, ya cubierto arriba)
+      }
+      animoLineas = lineas.join('\n');
     }
 
     const historial = await cargarHistorial();
