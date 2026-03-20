@@ -877,15 +877,41 @@ export function useRosita() {
 
       // ── TIMER ──
       if (parsed.timerSegundos) {
-        if (timerVozRef.current) clearTimeout(timerVozRef.current);
-        timerVozRef.current = setTimeout(async () => {
-          if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
-            await new Promise<void>(resolve => {
-              const check = setInterval(() => { if (estadoRef.current === 'esperando') { clearInterval(check); resolve(); } }, 500);
-            });
-          }
-          await hablar(`${perfilRef.current?.nombreAbuela ?? ''}, se cumplió el tiempo.`);
-        }, parsed.timerSegundos * 1000);
+        const segundos = parsed.timerSegundos;
+        const nombre = perfilRef.current?.nombreAbuela ?? '';
+        const formatearTiempo = (s: number) => {
+          if (s < 60) return `${s} segundo${s !== 1 ? 's' : ''}`;
+          const m = Math.round(s / 60);
+          if (m < 60) return `${m} minuto${m !== 1 ? 's' : ''}`;
+          const h = Math.floor(m / 60); const mm = m % 60;
+          const hStr = `${h} hora${h !== 1 ? 's' : ''}`;
+          return mm === 0 ? hStr : `${hStr} y ${mm} minuto${mm !== 1 ? 's' : ''}`;
+        };
+        const mensaje = `${nombre}, ya pasaron los ${formatearTiempo(segundos)}.`.trimStart();
+
+        if (segundos > 3600) {
+          // Timer largo → recordatorio persistente con hora exacta
+          const targetMs = Date.now() + segundos * 1000;
+          const targetDate = new Date(targetMs).toISOString().slice(0, 10);
+          guardarRecordatorio({
+            id: `timer_${Date.now()}`,
+            texto: mensaje,
+            fechaISO: targetDate,
+            timestampEpoch: targetMs,
+            esTimer: true,
+            creadoEn: Date.now(),
+          }).catch(() => {});
+        } else {
+          if (timerVozRef.current) clearTimeout(timerVozRef.current);
+          timerVozRef.current = setTimeout(async () => {
+            if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
+              await new Promise<void>(resolve => {
+                const check = setInterval(() => { if (estadoRef.current === 'esperando') { clearInterval(check); resolve(); } }, 500);
+              });
+            }
+            await hablar(mensaje);
+          }, segundos * 1000);
+        }
       }
 
       // ── RECORDATORIO ──

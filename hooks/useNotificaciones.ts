@@ -563,15 +563,24 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const hora = new Date().getHours();
       if (hora < 9 || hora >= 21) return; // solo avisar en horario diurno
       const hoy = fechaLocal(); // local date, no UTC
+      const ahora = Date.now();
       const todos = await cargarRecordatorios();
-      const pendientes = todos.filter(r => r.fechaISO === hoy);
+      const pendientes = todos.filter(r => {
+        if (r.fechaISO !== hoy) return false;
+        if (r.timestampEpoch) return ahora >= r.timestampEpoch;
+        return true;
+      });
       for (const r of pendientes) {
         const clave = `recordatorio_${r.id}`;
         const ya = await yaRecordo(clave);
         if (ya) continue;
         await marcarRecordado(clave);
         const nombre = perfilRef.current?.nombreAbuela ?? '';
-        await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`);
+        if (r.esTimer) {
+          await hablar(r.texto);
+        } else {
+          await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`);
+        }
         break;
       }
     }

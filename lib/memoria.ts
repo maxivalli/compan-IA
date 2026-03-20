@@ -229,8 +229,10 @@ export async function marcarRecordado(nombre: string): Promise<void> {
 
 export type Recordatorio = {
   id: string;
-  texto: string;       // "pagar la luz"
+  texto: string;       // "pagar la luz" o mensaje completo si esTimer=true
   fechaISO: string;    // "2026-03-21" — día en que hay que recordarlo
+  timestampEpoch?: number; // unix ms — para recordatorios con hora exacta (timers largos)
+  esTimer?: boolean;   // true → texto es el mensaje completo a decir directamente
   creadoEn: number;    // timestamp
 };
 
