@@ -380,10 +380,10 @@ export default function Index() {
 
       <Modal visible={hintSOS} transparent animationType="fade" onRequestClose={() => setHintSOS(false)}>
         <TouchableOpacity style={styles.sosModalOverlay} activeOpacity={1} onPress={() => setHintSOS(false)}>
-          <View style={styles.sosModalCard}>
-            <Ionicons name="alert-circle" size={64} color="#fff" />
-            <Text style={styles.sosModalTitulo}>Botón SOS</Text>
-            <Text style={styles.sosModalTexto}>
+          <View style={[styles.sosModalCard, isTablet && { paddingVertical: 52, paddingHorizontal: 57, borderRadius: 36, gap: 21 }]}>
+            <Ionicons name="alert-circle" size={isTablet ? 83 : 64} color="#fff" />
+            <Text style={[styles.sosModalTitulo, isTablet && { fontSize: fs(32) * 1.3 }]}>Botón SOS</Text>
+            <Text style={[styles.sosModalTexto, isTablet && { fontSize: fs(22) * 1.3, lineHeight: fs(32) * 1.3 }]}>
               Mantené presionado{'\n'}2 segundos para avisar{'\n'}a tu familia
             </Text>
           </View>
