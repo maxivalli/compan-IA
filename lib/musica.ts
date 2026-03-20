@@ -7,7 +7,7 @@ const SERVIDORES = [
 // Streams HTTPS curados para géneros y radios — fallback si la API falla
 const STREAMS_GENERO: Record<string, string[]> = {
   // Radios argentinas (solo HTTPS — Android bloquea HTTP)
-  cadena3:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/CADENA3AAC.aac'],
+  cadena3:     [], // sin stream HTTPS directo — depende de radio-browser.info
   mitre:       ['https://buecrplb01.cienradios.com.ar/Mitre790.aac'],
   continental: ['https://playerservices.streamtheworld.com/api/livestream-redirect/CONTINENTAL_SC'],
   rivadavia:   ['https://streammax.alsolnet.com/radiorivadavia'],
@@ -65,8 +65,25 @@ function primeraQueAndé(urls: string[]): string | null {
   return urls[0] ?? null;
 }
 
+// Términos de búsqueda reales para claves abreviadas
+const ALIAS_BUSQUEDA: Record<string, string> = {
+  cadena3:    'Cadena 3',
+  mitre:      'Radio Mitre',
+  continental:'Radio Continental',
+  rivadavia:  'Radio Rivadavia',
+  nacional:   'Radio Nacional',
+  lared:      'La Red',
+  metro:      'Metro 95.1',
+  aspen:      'Aspen',
+  la100:      'La 100',
+  rock:       'Nacional Rock',
+  clasicanac: 'Nacional Clasica',
+  folklorenac:'Nacional Folklorica',
+};
+
 async function buscarEnAPI(termino: string, pais?: string): Promise<string | null> {
-  const terminos = [termino, `radio ${termino}`];
+  const nombre = ALIAS_BUSQUEDA[termino] ?? termino;
+  const terminos = [nombre, `radio ${nombre}`];
   const paisParam = pais ? `&countrycode=${pais}` : '&language=spanish';
 
   for (const servidor of SERVIDORES) {
