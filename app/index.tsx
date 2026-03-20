@@ -190,7 +190,7 @@ export default function Index() {
   const icoBtn    = Math.round(btnH * 0.46);
   const icoSOS    = Math.round(btnH * 0.50);
   const icoNM     = isTablet ? 28 : 18;
-  const btnFont   = isTablet ? fs(50) : fs(18);
+  const btnFont   = isTablet ? fs(43) : fs(18);
   const nmFont    = isTablet ? fs(24) : fs(13);
   // Padding vertical proporcional: deja ~8% arriba y ~8% abajo del espacio libre
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
@@ -265,7 +265,9 @@ export default function Index() {
             activeOpacity={0.75}
             disabled={botonDisabled}
           >
-            <Text style={[styles.botonTexto, { fontSize: btnFont }]}>{escuchando ? 'Escuchando...' : 'Hablar'}</Text>
+            <Text style={[styles.botonTexto, { fontSize: btnFont }]}>
+              {estado === 'escuchando' ? 'Escuchando...' : estado === 'pensando' ? 'Pensando...' : estado === 'hablando' ? 'Hablando...' : 'Hablar'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
