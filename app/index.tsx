@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
@@ -119,8 +120,9 @@ export default function Index() {
   const [sosPresionando, setSosPresionando] = useState(false);
   const sosPulso   = useRef(new Animated.Value(1)).current;   // scale — useNativeDriver: true
   const sosProgreso = useRef(new Animated.Value(0)).current;  // barra — useNativeDriver: false
-  const sosPulsoRef   = useRef<Animated.CompositeAnimation | null>(null);
-  const sosProgresoRef = useRef<Animated.CompositeAnimation | null>(null);
+  const sosPulsoRef    = useRef<Animated.CompositeAnimation | null>(null);
+  const sosProgresoRef  = useRef<Animated.CompositeAnimation | null>(null);
+  const dotPulseAnim   = useRef<Animated.CompositeAnimation | null>(null);
 
   function sosPresionado() {
     setSosPresionando(true);
@@ -150,23 +152,23 @@ export default function Index() {
     Animated.timing(sosProgreso, { toValue: 0, duration: 200, useNativeDriver: false }).start();
   }
 
-  // ── Animación del botón escuchando ──────────────────────────────────────────
+  // ── Animación del botón (dot pulsante) ──────────────────────────────────────
   const escuchando    = estado === 'escuchando';
   const botonDisabled = estado === 'pensando' || estado === 'hablando';
   const pulso = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    if (escuchando) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulso, { toValue: 1.5, duration: 700, useNativeDriver: true }),
-          Animated.timing(pulso, { toValue: 1,   duration: 700, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      pulso.stopAnimation();
-      pulso.setValue(1);
-    }
-  }, [escuchando]);
+    dotPulseAnim.current?.stop();
+    pulso.setValue(1);
+    const speed = (estado === 'hablando' || estado === 'escuchando') ? 450 : 1800;
+    dotPulseAnim.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulso, { toValue: 1.5, duration: speed, useNativeDriver: true }),
+        Animated.timing(pulso, { toValue: 1,   duration: speed, useNativeDriver: true }),
+      ])
+    );
+    dotPulseAnim.current.start();
+    return () => { dotPulseAnim.current?.stop(); };
+  }, [estado, musicaActiva]);
 
   // ── Nombre del asistente para el onboarding ─────────────────────────────────
   const nombreAsistente = refs.perfilRef.current?.nombreAsistente ?? 'Rosita';
@@ -194,6 +196,24 @@ export default function Index() {
   const nmFont    = isTablet ? fs(24) : fs(13);
   // Padding vertical proporcional: deja ~8% arriba y ~8% abajo del espacio libre
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
+
+  // ── Color del dot / borde / glow según estado ───────────────────────────────
+  const btnDotColor = musicaActiva        ? '#E8392A'
+    : estado === 'escuchando' ? '#E85D24'
+    : estado === 'pensando'   ? '#3b82f6'
+    : estado === 'hablando'   ? '#22c55e'
+    : '#ef4444'; // esperando
+  // Gradiente del borde: dos tonos del mismo color
+  const btnGradient: [string, string] = musicaActiva        ? ['#fca5a5', '#E8392A']
+    : estado === 'escuchando' ? ['#fdba74', '#E85D24']
+    : estado === 'pensando'   ? ['#93c5fd', '#3b82f6']
+    : estado === 'hablando'   ? ['#86efac', '#22c55e']
+    : ['#fca5a5', '#ef4444'];
+  const btnLabel = musicaActiva ? 'Parar'
+    : estado === 'escuchando' ? 'Escuchando...'
+    : estado === 'pensando'   ? 'Pensando...'
+    : estado === 'hablando'   ? 'Hablando...'
+    : 'Hablar';
 
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
@@ -252,19 +272,29 @@ export default function Index() {
 
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
-          {escuchando && (
-            <Animated.View style={[styles.botonAnillo, { width: btnW + 12, height: btnH + 12, borderRadius: (btnH + 12) / 2, transform: [{ scale: pulso }] }]} />
-          )}
-          <TouchableOpacity
-            style={[styles.boton, escuchando && styles.botonActivo, botonDisabled && !musicaActiva && styles.botonDeshabilitado, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
-            onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
-            activeOpacity={0.75}
-            disabled={botonDisabled && !musicaActiva}
+          {/* Glow difuso detrás del botón */}
+          <View style={[styles.btnGlow, { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor }]} />
+          {/* LinearGradient actúa como borde */}
+          <LinearGradient
+            colors={btnGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.btnBorder, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}
           >
-            <Text style={[styles.botonTexto, musicaActiva && { color: '#E8392A' }, { fontSize: btnFont }, musicaActiva && !isTablet && { fontSize: Math.round(btnFont * 1.2), fontWeight: '800' }]}>
-              {musicaActiva ? 'Parar' : estado === 'escuchando' ? 'Escuchando...' : estado === 'pensando' ? 'Pensando...' : estado === 'hablando' ? 'Hablando...' : 'Hablar'}
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.boton, { width: btnW - 4, height: btnH - 4, borderRadius: (btnH - 4) / 2 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}
+              onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+              activeOpacity={0.85}
+              disabled={botonDisabled && !musicaActiva}
+            >
+              <View style={styles.btnInner}>
+                <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
+                <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
+                  {btnLabel}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </LinearGradient>
         </View>
       </View>
 
@@ -404,11 +434,13 @@ const styles = StyleSheet.create({
   ecualizadorWrap:    { height: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
-  botonAnillo:        { position: 'absolute', width: 212, height: 76, borderRadius: 38, borderWidth: 2.5, borderColor: '#E85D24', opacity: 0.5 },
-  boton:              { width: 200, height: 64, borderRadius: 32, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8 },
-  botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#3A3A3A' },
-  botonActivo:        { backgroundColor: '#E85D24', shadowColor: '#E85D24' },
-  botonDeshabilitado: { backgroundColor: '#C8C8C8', shadowOpacity: 0 },
+  btnGlow:            { position: 'absolute', opacity: 0.30 },
+  btnBorder:          { alignItems: 'center', justifyContent: 'center', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
+  boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
+  btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  statusDot:          { width: 10, height: 10, borderRadius: 5 },
+  botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
+  botonDeshabilitado: { opacity: 0.55 },
   botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
   botonSOSActivo:       { backgroundColor: '#FF1A1A', borderColor: '#ffffff', shadowOpacity: 0.7, elevation: 16 },
   botonSOSTexto:        { fontSize: fs(18), fontWeight: '700', color: '#fff' },
