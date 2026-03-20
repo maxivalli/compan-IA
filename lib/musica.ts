@@ -79,11 +79,11 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
         if (!res.ok) continue;
         const stations = await res.json();
         if (!Array.isArray(stations)) continue;
-        // Solo HTTPS — Android bloquea HTTP en apps modernas
-        const station = stations.find(
-          (s: any) => s.url_resolved?.startsWith('https://'),
-        );
-        if (station) return station.url_resolved as string;
+        // Preferir HTTPS; si solo hay HTTP intentar reemplazar protocolo (muchos CDNs lo soportan)
+        const https = stations.find((s: any) => s.url_resolved?.startsWith('https://'));
+        if (https) return https.url_resolved as string;
+        const http = stations.find((s: any) => s.url_resolved?.startsWith('http://'));
+        if (http) return (http.url_resolved as string).replace('http://', 'https://');
       } catch {
         // silencioso
       }
