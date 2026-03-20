@@ -273,7 +273,7 @@ export default function Index() {
 {/* Easter egg: toque largo en esquina inferior derecha → cumpleaños */}
       <TouchableOpacity
         onLongPress={triggerCumpleaños}
-        style={{ position: 'absolute', bottom: safeBottom, right: 0, width: 40, height: 40 }}
+        style={{ position: 'absolute', bottom: safeBottom + 50, right: 0, width: 70, height: 70 }}
       />
 
       <Animated.View style={{ transform: [{ scale: sosPulso }] }}>
@@ -376,7 +376,7 @@ export default function Index() {
       {/* Easter egg: toque largo en esquina inferior izquierda → silbido */}
       <TouchableOpacity
         onLongPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
-        style={{ position: 'absolute', bottom: safeBottom, left: 0, width: 40, height: 40 }}
+        style={{ position: 'absolute', bottom: safeBottom + 50, left: 0, width: 70, height: 70 }}
       />
 
       <Animated.View
