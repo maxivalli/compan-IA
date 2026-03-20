@@ -227,7 +227,7 @@ export function useRosita() {
     const textoNorm   = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const nombreRegex = new RegExp('(^|\\s)' + nombreNorm.slice(0, 5), 'i');
     const mencionaNombre = nombreRegex.test(textoNorm);
-    const enConversacion = musicaActivaRef.current ? false : (Date.now() - ultimaCharlaRef.current) < 30 * 1000;
+    const enConversacion = musicaActivaRef.current ? false : (Date.now() - ultimaCharlaRef.current) < 60 * 1000;
     const esPreguntaDirecta = /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
