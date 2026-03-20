@@ -14,6 +14,7 @@ import {
   cargarHistorial,
   musicaEscuchadaHoy,
   limpiarHistorialAnimo,
+  fechaLocal,
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, obtenerUrlArchivo, MensajeVoz } from '../lib/telegram';
@@ -548,7 +549,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     async function chequearRecordatorios() {
       if (noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
-      const hoy = new Date().toISOString().slice(0, 10);
+      const hoy = fechaLocal(); // local date, no UTC
       const todos = await cargarRecordatorios();
       const pendientes = todos.filter(r => r.fechaISO === hoy);
       for (const r of pendientes) {

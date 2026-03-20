@@ -345,9 +345,11 @@ export function parsearRespuesta(
   // ── RECORDATORIO ──
   const recordatorioMatch = raw.match(/\[RECORDATORIO:\s*(.+?)\s*\|\s*(.+?)\]/i);
   const recordatorioFechaRaw = recordatorioMatch?.[1]?.trim() ?? '';
+  const d = new Date();
+  const fechaHoyLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const recordatorioFechaValida = /^\d{4}-\d{2}-\d{2}$/.test(recordatorioFechaRaw)
     && !isNaN(Date.parse(recordatorioFechaRaw))
-    && recordatorioFechaRaw >= new Date().toISOString().slice(0, 10);
+    && recordatorioFechaRaw >= fechaHoyLocal;
   const recordatorio: Recordatorio | undefined = (recordatorioMatch && recordatorioFechaValida) ? {
     id: Date.now().toString(),
     texto: recordatorioMatch[2].trim(),

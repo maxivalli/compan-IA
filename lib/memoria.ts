@@ -196,7 +196,7 @@ const CLAVE_RECORDATORIOS = 'rosa_recordatorios';
 
 type RegistroRecordatorio = { clave: string; timestamp: number };
 
-function fechaLocal(ts = Date.now()): string {
+export function fechaLocal(ts = Date.now()): string {
   const d = new Date(ts);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
