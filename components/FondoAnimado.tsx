@@ -66,7 +66,7 @@ export function ZZZ() {
   }, []);
 
   return (
-    <View style={[sz.contenedor, { width: Math.round(80 * zs), height: Math.round(90 * zs) }]}>
+    <View style={[sz.contenedor, { width: Math.round(80 * zs), height: Math.round(90 * zs) }, screenW >= 600 && { bottom: '65%' }]}>
       {zetas.map((z, i) => (
         <Animated.Text
           key={i}
