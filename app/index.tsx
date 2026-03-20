@@ -314,7 +314,7 @@ export default function Index() {
                 style={{ flex: 1, padding: 3, alignItems: 'center', justifyContent: 'center' }}
               >
                 <View style={[styles.boton, { flex: 1, alignSelf: 'stretch', borderRadius: btnH / 2 - 3 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
-                  <View style={styles.btnInner}>
+                  <View style={[styles.btnInner, { transform: [{ translateX: -Math.round(btnW * 0.10) }] }]}>
                     <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
                     <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
                       {btnLabel}
