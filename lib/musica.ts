@@ -4,8 +4,16 @@ const SERVIDORES = [
   'https://at1.api.radio-browser.info',
 ];
 
-// Streams HTTPS curados para géneros — fallback si la API falla
+// Streams HTTPS curados para géneros y radios — fallback si la API falla
 const STREAMS_GENERO: Record<string, string[]> = {
+  // Radios argentinas
+  cadena3:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/CADENA3AAC.aac'],
+  mitre:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_MITRE.mp3'],
+  continental: ['https://playerservices.streamtheworld.com/api/livestream-redirect/AM590.mp3'],
+  rivadavia:   ['https://playerservices.streamtheworld.com/api/livestream-redirect/AM630.mp3'],
+  nacional:    ['https://icecast.radionacional.com.ar/nacional-nacional'],
+  lared:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/AM910.mp3'],
+  metro:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/METRO951.mp3'],
   tango:     [
     'https://ais-edge94-nyc04.cdnstream.com/2202_128.mp3',
     'https://stream.zeno.fm/b9ynfb4tmg0uv',
