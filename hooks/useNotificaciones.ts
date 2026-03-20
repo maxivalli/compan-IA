@@ -549,6 +549,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     async function chequearRecordatorios() {
       if (noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
+      const hora = new Date().getHours();
+      if (hora < 9 || hora >= 21) return; // solo avisar en horario diurno
       const hoy = fechaLocal(); // local date, no UTC
       const todos = await cargarRecordatorios();
       const pendientes = todos.filter(r => r.fechaISO === hoy);
