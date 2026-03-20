@@ -152,10 +152,12 @@ export default function Index() {
     Animated.timing(sosProgreso, { toValue: 0, duration: 200, useNativeDriver: false }).start();
   }
 
-  // ── Animación del botón (dot pulsante) ──────────────────────────────────────
+  // ── Animación del botón (dot pulsante + glow respirando) ────────────────────
   const escuchando    = estado === 'escuchando';
   const botonDisabled = estado === 'pensando' || estado === 'hablando';
-  const pulso = useRef(new Animated.Value(1)).current;
+  const pulso     = useRef(new Animated.Value(1)).current;
+  const glowScale = useRef(new Animated.Value(1)).current;
+  const glowOpacity = useRef(new Animated.Value(0.30)).current;
   useEffect(() => {
     dotPulseAnim.current?.stop();
     pulso.setValue(1);
@@ -169,6 +171,24 @@ export default function Index() {
     dotPulseAnim.current.start();
     return () => { dotPulseAnim.current?.stop(); };
   }, [estado, musicaActiva]);
+
+  // Glow breathing (3.5s como en el HTML)
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(glowScale,   { toValue: 1.06, duration: 1750, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0.50, duration: 1750, useNativeDriver: false }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowScale,   { toValue: 1,    duration: 1750, useNativeDriver: true }),
+          Animated.timing(glowOpacity, { toValue: 0.30, duration: 1750, useNativeDriver: false }),
+        ]),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
 
   // ── Nombre del asistente para el onboarding ─────────────────────────────────
   const nombreAsistente = refs.perfilRef.current?.nombreAsistente ?? 'Rosita';
@@ -272,32 +292,38 @@ export default function Index() {
 
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
-          {/* Glow difuso detrás del botón */}
-          <View style={[styles.btnGlow, { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor }]} />
-          {/* TouchableOpacity con gradiente como borde */}
-          <TouchableOpacity
-            style={[styles.btnBorder, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}
-            onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
-            activeOpacity={0.85}
-            disabled={botonDisabled && !musicaActiva}
-          >
-            {/* Gradiente como absoluteFill — el borde visible */}
-            <LinearGradient
-              colors={btnGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[StyleSheet.absoluteFill, { borderRadius: btnH / 2 }]}
-            />
-            {/* Relleno blanco inset — deja 3px de gradiente como borde */}
-            <View style={[styles.boton, { position: 'absolute', top: 3, bottom: 3, left: 3, right: 3, borderRadius: btnH / 2 - 3 }]} />
-            {/* Contenido encima */}
-            <View style={styles.btnInner}>
-              <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
-              <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
-                {btnLabel}
-              </Text>
-            </View>
-          </TouchableOpacity>
+          {/* Glow difuso detrás del botón — blur en web, shadow en native */}
+          <Animated.View style={[
+            styles.btnGlow,
+            { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: glowOpacity, transform: [{ scale: glowScale }] },
+            Platform.OS === 'web' ? { filter: 'blur(28px)' } as any : {},
+          ]} />
+          {/* Wrapper para shadow (separado de overflow:hidden) */}
+          <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
+            <TouchableOpacity
+              style={{ borderRadius: btnH / 2, overflow: 'hidden', width: btnW, height: btnH }}
+              onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+              activeOpacity={0.85}
+              disabled={botonDisabled && !musicaActiva}
+            >
+              {/* LinearGradient con padding actúa como borde degradado */}
+              <LinearGradient
+                colors={btnGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{ flex: 1, padding: 3, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <View style={[styles.boton, { flex: 1, alignSelf: 'stretch', borderRadius: btnH / 2 - 3 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
+                  <View style={styles.btnInner}>
+                    <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
+                    <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
+                      {btnLabel}
+                    </Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -438,7 +464,7 @@ const styles = StyleSheet.create({
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
   btnGlow:            { position: 'absolute', opacity: 0.30 },
-  btnBorder:          { alignItems: 'center', justifyContent: 'center', overflow: 'hidden', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
+  btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
   btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   statusDot:          { width: 10, height: 10, borderRadius: 5 },
