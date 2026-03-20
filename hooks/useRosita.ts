@@ -845,7 +845,7 @@ export function useRosita() {
             await hablar('No pude conectar con la radio, perdoname.');
           }
         } else {
-          await hablar('No encontré música para poner, perdoname.');
+          await hablar('No pude conectar con esa radio ahora, perdoname. Podés intentar con otra o pedirme un género musical.');
         }
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
         historialRef.current = nuevoHist;
