@@ -472,9 +472,9 @@ export function useRosita() {
   // ── Música ──────────────────────────────────────────────────────────────────
   function duckMusica() {
     if (!musicaActivaRef.current) return;
-    playerMusica.volume = 0.15;
+    playerMusica.volume = 0.06;
     if (duckTimerRef.current) clearTimeout(duckTimerRef.current);
-    duckTimerRef.current = setTimeout(() => { if (musicaActivaRef.current) playerMusica.volume = 1.0; }, 4000);
+    // Sin auto-restore: unduckMusica() se llama cuando hablar() termina
   }
 
   function unduckMusica() {
@@ -647,6 +647,7 @@ export function useRosita() {
       } catch {}
     }
 
+    unduckMusica();
     setEstado('esperando');
     estadoRef.current = 'esperando';
 
