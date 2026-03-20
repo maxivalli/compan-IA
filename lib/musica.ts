@@ -50,11 +50,6 @@ function fetchConTimeout(url: string, ms: number, options?: RequestInit): Promis
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(id));
 }
 
-/** Devuelve la primera URL de la lista (los servidores de streaming no responden a HEAD) */
-function primeraQueAndé(urls: string[]): string | null {
-  return urls[0] ?? null;
-}
-
 // Términos de búsqueda reales para claves abreviadas
 const ALIAS_BUSQUEDA: Record<string, string> = {
   cadena3:    'Cadena 3',
@@ -83,8 +78,9 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
         const res = await fetchConTimeout(url, 8000, { headers: HEADERS });
         if (!res.ok) continue;
         const stations = await res.json();
+        if (!Array.isArray(stations)) continue;
         // Solo HTTPS — Android bloquea HTTP en apps modernas
-        const station = stations?.find(
+        const station = stations.find(
           (s: any) => s.url_resolved?.startsWith('https://'),
         );
         if (station) return station.url_resolved as string;
@@ -100,11 +96,12 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
 
-  const urlAPI = await buscarEnAPI(key);
+  const esArgentina = key in ALIAS_BUSQUEDA;
+  const urlAPI = await buscarEnAPI(key, esArgentina ? 'AR' : undefined);
   if (urlAPI) return urlAPI;
 
   const fallbacks = STREAMS_GENERO[key];
-  if (fallbacks) return primeraQueAndé(fallbacks) ?? fallbacks[0];
+  if (fallbacks?.length) return fallbacks[0];
 
   return null;
 }
