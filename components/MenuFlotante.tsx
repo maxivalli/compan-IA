@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +34,19 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   const [vozGenero, setVozGenero]      = useState<'femenina' | 'masculina'>('femenina');
   const insets = useSafeAreaInsets();
 
+  const { width: screenW } = useWindowDimensions();
+  const isTablet  = screenW >= 600;
+  const ms        = isTablet ? Math.min(screenW / 390, 1.6) : 1; // menu scale
+  const panelW    = Math.round(300 * ms);
+  const btnSize   = Math.round(44  * ms);
+  const icoMenu   = Math.round(22  * ms);
+  const icoNav    = Math.round(20  * ms);
+  const icoHeart  = Math.round(26  * ms);
+  const avatarOut = Math.round(64  * ms);
+  const avatarIn  = Math.round(52  * ms);
+  const itemH     = Math.round(56  * ms);
+  const iconWrap  = Math.round(40  * ms);
+
   useEffect(() => {
     cargarPerfil().then(p => {
       setNombre(p.nombreAsistente ?? 'Rosita');
@@ -63,16 +76,16 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
 
   function ir(ruta: string) { cerrar(() => router.push(ruta as any)); }
 
-  const translateX = slide.interpolate({ inputRange: [0, 1], outputRange: [320, 0] });
+  const translateX = slide.interpolate({ inputRange: [0, 1], outputRange: [panelW + 20, 0] });
 
   return (
     <>
       <Pressable
-        style={({ pressed }) => [s.btn, oscuro ? s.btnOscuro : s.btnClaro, pressed && { opacity: 0.75 }]}
+        style={({ pressed }) => [s.btn, oscuro ? s.btnOscuro : s.btnClaro, pressed && { opacity: 0.75 }, { width: btnSize, height: btnSize }]}
         onPress={abrir}
-        android_ripple={{ color: M3.primaryContainer, radius: 22 }}
+        android_ripple={{ color: M3.primaryContainer, radius: btnSize / 2 }}
       >
-        <Ionicons name="menu" size={22} color={oscuro ? M3.onPrimary : M3.primary} />
+        <Ionicons name="menu" size={icoMenu} color={oscuro ? M3.onPrimary : M3.primary} />
       </Pressable>
 
       {abierto && (
@@ -81,18 +94,18 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
             <Pressable style={StyleSheet.absoluteFill} onPress={() => cerrar()} />
           </Animated.View>
 
-          <Animated.View style={[s.panel, { transform: [{ translateX }] }]}>
+          <Animated.View style={[s.panel, { width: panelW, transform: [{ translateX }] }]}>
 
             {/* ── Hero header ── */}
             <View style={[s.header, { paddingTop: insets.top + 28 }]}>
-              <View style={s.avatarRing}>
-                <View style={s.avatar}>
-                  <Ionicons name="heart" size={26} color={M3.primary} />
+              <View style={[s.avatarRing, { width: avatarOut, height: avatarOut, borderRadius: avatarOut / 2 }]}>
+                <View style={[s.avatar, { width: avatarIn, height: avatarIn, borderRadius: avatarIn / 2 }]}>
+                  <Ionicons name="heart" size={icoHeart} color={M3.primary} />
                 </View>
               </View>
-              <Text style={s.headerEyebrow}>{vozGenero === 'masculina' ? 'tu compañero' : 'tu compañera'}</Text>
-              <Text style={s.headerTitulo}>{nombreAsistente}</Text>
-              <Text style={s.headerFecha}>
+              <Text style={[s.headerEyebrow, isTablet && { fontSize: 14 }]}>{vozGenero === 'masculina' ? 'tu compañero' : 'tu compañera'}</Text>
+              <Text style={[s.headerTitulo,  isTablet && { fontSize: 42 }]}>{nombreAsistente}</Text>
+              <Text style={[s.headerFecha,   isTablet && { fontSize: 15 }]}>
                 {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </Text>
             </View>
@@ -109,21 +122,22 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
                       s.item,
                       activo && s.itemActivo,
                       pressed && !activo && { opacity: 0.7 },
+                      { minHeight: itemH },
                     ]}
                     android_ripple={{ color: bg, radius: 140 }}
                   >
-                    <View style={[s.itemIconWrap, { backgroundColor: activo ? bg : M3.surfaceVariant }]}>
+                    <View style={[s.itemIconWrap, { backgroundColor: activo ? bg : M3.surfaceVariant, width: iconWrap, height: iconWrap, borderRadius: iconWrap / 2 }]}>
                       <Ionicons
                         name={icono as any}
-                        size={20}
+                        size={icoNav}
                         color={activo ? color : M3.onSurfaceVariant}
                       />
                     </View>
                     <View style={s.itemTextos}>
-                      <Text style={[s.itemLabel, activo && { color, fontWeight: '700' }]}>
+                      <Text style={[s.itemLabel, activo && { color, fontWeight: '700' }, isTablet && { fontSize: 18 }]}>
                         {label === 'ASISTENTE' ? nombreAsistente : label}
                       </Text>
-                      <Text style={s.itemSub}>{sub}</Text>
+                      <Text style={[s.itemSub, isTablet && { fontSize: 14 }]}>{sub}</Text>
                     </View>
                     {activo && <View style={[s.activeDot, { backgroundColor: color }]} />}
                   </Pressable>

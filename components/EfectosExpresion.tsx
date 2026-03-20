@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Dimensions, StyleSheet, View } from 'react-native';
+import { Animated, Dimensions, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -444,26 +444,28 @@ const GLOBOS_DATA = [
   { x: SW * 0.90, delay: 500,  color: '#FFD93D', size: 32, dur: 7300 },
 ];
 
-function UnGlobo({ x, delay, color, size, dur }: typeof GLOBOS_DATA[0]) {
-  const y  = useRef(new Animated.Value(SH + size + 20)).current;
+function UnGlobo({ x, delay, color, size, dur, gs }: typeof GLOBOS_DATA[0] & { gs: number }) {
+  const vs = size * gs; // tamaño visual escalado
+  const y  = useRef(new Animated.Value(SH + vs + 20)).current;
   const dx = useRef(new Animated.Value(0)).current;
+  const sway = Math.round(14 * gs);
 
   useEffect(() => {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
         Animated.parallel([
-          Animated.timing(y, { toValue: -(size + 30), duration: dur, useNativeDriver: true }),
+          Animated.timing(y, { toValue: -(vs + 30), duration: dur, useNativeDriver: true }),
           Animated.sequence([
-            Animated.timing(dx, { toValue: 14,  duration: dur * 0.25, useNativeDriver: true }),
-            Animated.timing(dx, { toValue: -14, duration: dur * 0.25, useNativeDriver: true }),
-            Animated.timing(dx, { toValue: 10,  duration: dur * 0.25, useNativeDriver: true }),
-            Animated.timing(dx, { toValue: 0,   duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue:  sway,      duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue: -sway,      duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue:  sway * 0.7,duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue:  0,         duration: dur * 0.25, useNativeDriver: true }),
           ]),
         ]),
         Animated.parallel([
-          Animated.timing(y,  { toValue: SH + size + 20, duration: 0, useNativeDriver: true }),
-          Animated.timing(dx, { toValue: 0,              duration: 0, useNativeDriver: true }),
+          Animated.timing(y,  { toValue: SH + vs + 20, duration: 0, useNativeDriver: true }),
+          Animated.timing(dx, { toValue: 0,             duration: 0, useNativeDriver: true }),
         ]),
       ])
     );
@@ -476,20 +478,19 @@ function UnGlobo({ x, delay, color, size, dur }: typeof GLOBOS_DATA[0]) {
       style={{ position: 'absolute', left: x, transform: [{ translateY: y }, { translateX: dx }] }}
       pointerEvents="none"
     >
-      {/* Cuerpo */}
-      <View style={{ width: size, height: size * 1.15, borderRadius: size / 2, backgroundColor: color, opacity: 0.88 }} />
-      {/* Nudo */}
-      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, alignSelf: 'center', marginTop: -1, opacity: 0.7 }} />
-      {/* Hilo */}
-      <View style={{ width: 1.5, height: 22, backgroundColor: color + '99', alignSelf: 'center' }} />
+      <View style={{ width: vs, height: vs * 1.15, borderRadius: vs / 2, backgroundColor: color, opacity: 0.88 }} />
+      <View style={{ width: Math.round(6 * gs), height: Math.round(6 * gs), borderRadius: Math.round(3 * gs), backgroundColor: color, alignSelf: 'center', marginTop: -1, opacity: 0.7 }} />
+      <View style={{ width: 1.5, height: Math.round(22 * gs), backgroundColor: color + '99', alignSelf: 'center' }} />
     </Animated.View>
   );
 }
 
 export function Globos() {
+  const { width: screenW } = useWindowDimensions();
+  const gs = screenW >= 600 ? Math.min(screenW / 390, 2.0) : 1;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {GLOBOS_DATA.map((g, i) => <UnGlobo key={i} {...g} />)}
+      {GLOBOS_DATA.map((g, i) => <UnGlobo key={i} {...g} gs={gs} />)}
     </View>
   );
 }

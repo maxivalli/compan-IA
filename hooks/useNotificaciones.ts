@@ -285,10 +285,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // ── Generar cuerpo del resumen diario ────────────────────────────────────
   async function generarMensajeResumen(p: Perfil): Promise<string> {
     const entradas = await cargarEntradasAnimo();
-    function fechaLocal(ts: number): string {
-      const d = new Date(ts);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }
     const hoy = fechaLocal(Date.now());
     const entradasHoy = entradas.filter((e: EntradaAnimo) => fechaLocal(e.timestamp) === hoy);
     const EMOJIS: Record<string, string> = {

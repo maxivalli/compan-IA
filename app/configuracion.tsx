@@ -370,7 +370,7 @@ export default function Configuracion() {
         const parts = fechaNacimiento.trim().replace(/\s/g, '').split('/');
         if (parts.length === 2) {
           const [dd, mm] = parts.map(Number);
-          if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12)
+          if (dd >= 1 && dd <= 31 && mm >= 1 && mm <= 12 && new Date(2000, mm - 1, dd).getDate() === dd)
             return `${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`;
         }
         return perfil?.fechaNacimiento;

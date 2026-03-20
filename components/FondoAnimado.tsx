@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 // ── Ecualizador de música ─────────────────────────────────────────────────────
 
@@ -35,6 +35,8 @@ export function AnimacionMusica() {
 // ── ZZZs de modo durmiendo ────────────────────────────────────────────────────
 
 export function ZZZ() {
+  const { width: screenW } = useWindowDimensions();
+  const zs = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1.4;
   const zetas = useRef([0, 1, 2].map(i => ({
     y:       new Animated.Value(0),
     opacity: new Animated.Value(0),
@@ -64,15 +66,16 @@ export function ZZZ() {
   }, []);
 
   return (
-    <View style={sz.contenedor}>
+    <View style={[sz.contenedor, { width: Math.round(80 * zs), height: Math.round(90 * zs) }]}>
       {zetas.map((z, i) => (
         <Animated.Text
           key={i}
           style={[sz.z, {
+            fontSize: Math.round(22 * zs),
             opacity: z.opacity,
             transform: [{ translateY: z.y }, { scale: z.scale }],
-            left: 10 + i * 22,
-            bottom: i * 12,
+            left: Math.round((10 + i * 22) * zs),
+            bottom: Math.round(i * 12 * zs),
           }]}
         >
           Z
@@ -121,6 +124,13 @@ function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }
 }
 
 export function CieloNoche({ bgColor }: { bgColor: string }) {
+  const { width: screenW } = useWindowDimensions();
+  const scaleX   = screenW / 390;                        // distribuye estrellas en todo el ancho
+  const skyScale = Math.min(scaleX, 1.8);               // escala luna y tamaño de estrellas
+  const lunaSize = Math.round(76 * skyScale);
+  const lunaBite = Math.round(62 * skyScale);
+  const lunaOff  = Math.round(20 * skyScale);
+
   const floatY = useRef(new Animated.Value(0)).current;
   const lunaOp = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
@@ -141,14 +151,16 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
   }, []);
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {ESTRELLAS_NOCHE.map((e) => <Estrella key={e.i} {...e} />)}
+      {ESTRELLAS_NOCHE.map((e) => (
+        <Estrella key={e.i} x={e.x * scaleX} y={e.y} r={e.r * skyScale} i={e.i} />
+      ))}
       <Animated.View style={{
         position: 'absolute', top: 88, left: 24,
-        width: 76, height: 76,
+        width: lunaSize, height: lunaSize,
         opacity: lunaOp, transform: [{ translateY: floatY }],
       }}>
-        <View style={{ position: 'absolute', left: 2, top: 4, width: 66, height: 66, borderRadius: 33, backgroundColor: '#D4C5A9' }} />
-        <View style={{ position: 'absolute', left: 20, top: 0, width: 62, height: 62, borderRadius: 31, backgroundColor: bgColor }} />
+        <View style={{ position: 'absolute', left: 2, top: 4, width: lunaSize - 10, height: lunaSize - 10, borderRadius: (lunaSize - 10) / 2, backgroundColor: '#D4C5A9' }} />
+        <View style={{ position: 'absolute', left: lunaOff, top: 0, width: lunaBite, height: lunaBite, borderRadius: lunaBite / 2, backgroundColor: bgColor }} />
       </Animated.View>
     </View>
   );
@@ -163,5 +175,5 @@ const s = StyleSheet.create({
 
 const sz = StyleSheet.create({
   contenedor: { position: 'absolute', bottom: '52%', right: '18%', width: 80, height: 90 },
-  z:          { position: 'absolute', fontSize: 22, fontWeight: '700', color: '#5DCAA5', opacity: 0 },
+  z:          { position: 'absolute', fontWeight: '700', color: '#5DCAA5', opacity: 0 },
 });

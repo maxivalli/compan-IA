@@ -335,8 +335,11 @@ function Ojo({
 
 export type ModoNoche = 'despierta' | 'soñolienta' | 'durmiendo';
 
+const FACE_W = EYE_W * 2 + 32;
+const FACE_H = EYE_H + 120;
+
 export default function RosaOjos({
-  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado,
+  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1,
 }: {
   estado: Estado;
   expresion: Expresion;
@@ -345,6 +348,7 @@ export default function RosaOjos({
   silbando?: boolean;
   noMolestar?: boolean;
   onOjoPicado?: () => void;
+  scale?: number;
 }) {
   const pxL      = useRef(new Animated.Value(0)).current;
   const pxR      = useRef(new Animated.Value(0)).current;
@@ -608,16 +612,18 @@ export default function RosaOjos({
   }
 
   return (
-    <View style={s.wrap}>
-      <View style={s.contenedor}>
-        <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
-          <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor}/>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1}>
-          <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor}/>
-        </TouchableOpacity>
+    <View style={{ width: FACE_W * scale, height: FACE_H * scale, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+      <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
+        <View style={s.contenedor}>
+          <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
+            <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor}/>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1}>
+            <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor}/>
+          </TouchableOpacity>
+        </View>
+        {noMolestar && estado === 'esperando' ? <Cremallera /> : <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />}
       </View>
-      {noMolestar && estado === 'esperando' ? <Cremallera /> : <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />}
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -114,23 +115,39 @@ export default function Index() {
   }
 
   // ── Animación del botón SOS ─────────────────────────────────────────────────
-  const sosAnim = useRef(new Animated.Value(0)).current;
-  const sosAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [sosPresionando, setSosPresionando] = useState(false);
+  const sosPulso   = useRef(new Animated.Value(1)).current;   // scale — useNativeDriver: true
+  const sosProgreso = useRef(new Animated.Value(0)).current;  // barra — useNativeDriver: false
+  const sosPulsoRef   = useRef<Animated.CompositeAnimation | null>(null);
+  const sosProgresoRef = useRef<Animated.CompositeAnimation | null>(null);
 
   function sosPresionado() {
-    sosAnimRef.current = Animated.timing(sosAnim, {
-      toValue: 1, duration: 2000, useNativeDriver: true,
+    setSosPresionando(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    // Pulso fuerte y repetitivo
+    sosPulsoRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sosPulso, { toValue: 1.22, duration: 280, useNativeDriver: true }),
+        Animated.timing(sosPulso, { toValue: 1,    duration: 280, useNativeDriver: true }),
+      ])
+    );
+    sosPulsoRef.current.start();
+
+    // Barra de progreso que se llena en 2 segundos
+    sosProgresoRef.current = Animated.timing(sosProgreso, {
+      toValue: 1, duration: 2000, useNativeDriver: false,
     });
-    sosAnimRef.current.start();
+    sosProgresoRef.current.start();
   }
 
   function sosSoltado() {
-    sosAnimRef.current?.stop();
-    Animated.timing(sosAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+    setSosPresionando(false);
+    sosPulsoRef.current?.stop();
+    sosPulso.setValue(1);
+    sosProgresoRef.current?.stop();
+    Animated.timing(sosProgreso, { toValue: 0, duration: 200, useNativeDriver: false }).start();
   }
-
-  const sosScale = sosAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.08] });
-  const sosOpacity = sosAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.75] });
 
   // ── Animación del botón escuchando ──────────────────────────────────────────
   const escuchando    = estado === 'escuchando';
@@ -162,10 +179,24 @@ export default function Index() {
     }
   }, [mostrarOnboarding]);
 
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const isTablet  = screenW >= 600;
+  const faceScale = isTablet ? Math.min(screenW / 390, 1.7) : 1;
+  const textScale = faceScale; // mismo scale que la cara — texto proporcional en tablet y teléfono
+  const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : 200;
+  const btnH      = isTablet ? Math.round(64 * textScale) : 64;
+  const icoBtn    = Math.round(btnH * 0.46);
+  const icoSOS    = Math.round(btnH * 0.50);
+  const icoNM     = isTablet ? 28 : 18;
+  const btnFont   = isTablet ? fs(50) : fs(18);
+  const nmFont    = isTablet ? fs(24) : fs(13);
+  // Padding vertical proporcional: deja ~8% arriba y ~8% abajo del espacio libre
+  const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
+
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
   return (
-    <View style={[styles.contenedor, { backgroundColor: bgActual }]}>
+    <View style={[styles.contenedor, { backgroundColor: bgActual }, isTablet && { justifyContent: 'space-evenly', paddingVertical: tabletPadV }]}>
       <MenuFlotante oscuro />
 
       {esFondoNoche && !(hora >= 6 && hora < 10) && !cieloTapado && <CieloNoche bgColor={bgActual} />}
@@ -173,7 +204,7 @@ export default function Index() {
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
-      <View style={styles.ojoContenedor} {...panCaricia.panHandlers}>
+      <View style={[styles.ojoContenedor, isTablet && { marginTop: 40 }]} {...panCaricia.panHandlers}>
         <ExpresionOverlay
           capa="fondo"
           expresion={expresion}
@@ -190,6 +221,7 @@ export default function Index() {
           silbando={silbando}
           noMolestar={noMolestar}
           onOjoPicado={onOjoPicado}
+          scale={faceScale}
         />
         <ExpresionOverlay
           capa="frente"
@@ -207,7 +239,7 @@ export default function Index() {
         {musicaActiva
           ? <AnimacionMusica />
           : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
-              <Text style={styles.hintText}>{HINTS[hintIdx]}</Text>
+              <Text style={[styles.hintText, textScale !== 1 && { fontSize: fs(27) * textScale, lineHeight: fs(35) * textScale }]}>{HINTS[hintIdx]}</Text>
             </Animated.View>
         }
       </View>
@@ -219,16 +251,15 @@ export default function Index() {
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
           {escuchando && (
-            <Animated.View style={[styles.botonAnillo, { transform: [{ scale: pulso }] }]} />
+            <Animated.View style={[styles.botonAnillo, { width: btnW + 12, height: btnH + 12, borderRadius: (btnH + 12) / 2, transform: [{ scale: pulso }] }]} />
           )}
           <TouchableOpacity
-            style={[styles.boton, escuchando && styles.botonActivo, botonDisabled && styles.botonDeshabilitado]}
+            style={[styles.boton, escuchando && styles.botonActivo, botonDisabled && styles.botonDeshabilitado, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
             onPress={escuchando ? detenerEscucha : iniciarEscucha}
             activeOpacity={0.75}
             disabled={botonDisabled}
           >
-            <Ionicons name={escuchando ? 'stop-circle' : 'mic'} size={26} color={escuchando ? '#fff' : '#3A3A3A'} />
-            <Text style={styles.botonTexto}>{escuchando ? 'Escuchando...' : 'Hablar'}</Text>
+            <Text style={[styles.botonTexto, { fontSize: btnFont }]}>{escuchando ? 'Escuchando...' : 'Hablar'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -239,9 +270,9 @@ export default function Index() {
         style={{ position: 'absolute', bottom: 0, right: 0, width: 40, height: 40 }}
       />
 
-      <Animated.View style={{ transform: [{ scale: sosScale }], opacity: sosOpacity }}>
+      <Animated.View style={{ transform: [{ scale: sosPulso }] }}>
         <TouchableOpacity
-          style={styles.botonSOS}
+          style={[styles.botonSOS, sosPresionando && styles.botonSOSActivo, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
           onPress={mostrarHintSOS}
           onPressIn={sosPresionado}
           onPressOut={sosSoltado}
@@ -249,13 +280,19 @@ export default function Index() {
           delayLongPress={2000}
           activeOpacity={1}
         >
-          <Ionicons name="alert-circle" size={26} color="#fff" />
-          <Text style={styles.botonSOSTexto}>SOS</Text>
+          <Text style={[styles.botonSOSTexto, { fontSize: btnFont }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
         </TouchableOpacity>
+        {sosPresionando && (
+          <View style={styles.sosBarra}>
+            <Animated.View style={[styles.sosBarraRelleno, {
+              width: sosProgreso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+            }]} />
+          </View>
+        )}
       </Animated.View>
 
       <TouchableOpacity
-        style={[styles.botonNoMolestar, noMolestar && styles.botonNoMolestarActivo]}
+        style={[styles.botonNoMolestar, noMolestar && styles.botonNoMolestarActivo, textScale !== 1 && { paddingHorizontal: Math.round(16 * textScale), paddingVertical: Math.round(8 * textScale), gap: Math.round(6 * textScale), borderRadius: Math.round(20 * textScale) }]}
         onPress={() => {
           const nuevo = !noMolestar;
           setNoMolestar(nuevo);
@@ -269,8 +306,8 @@ export default function Index() {
         }}
         activeOpacity={0.75}
       >
-        <Ionicons name={noMolestar ? 'notifications-off' : 'notifications-outline'} size={18} color={noMolestar ? '#fff' : '#ffffffaa'} />
-        <Text style={[styles.botonNoMolestarTexto, noMolestar && { color: '#fff' }]}>No molestar</Text>
+        <Ionicons name={noMolestar ? 'notifications-off' : 'notifications-outline'} size={icoNM} color={noMolestar ? '#fff' : '#ffffffaa'} />
+        <Text style={[styles.botonNoMolestarTexto, noMolestar && { color: '#fff' }, { fontSize: nmFont }]}>No molestar</Text>
       </TouchableOpacity>
 
       {mostrarOnboarding && (
@@ -364,12 +401,15 @@ const styles = StyleSheet.create({
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
   botonAnillo:        { position: 'absolute', width: 212, height: 76, borderRadius: 38, borderWidth: 2.5, borderColor: '#E85D24', opacity: 0.5 },
-  boton:              { width: 200, height: 64, borderRadius: 32, backgroundColor: '#FAFAFA', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8 },
+  boton:              { width: 200, height: 64, borderRadius: 32, backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#3A3A3A' },
   botonActivo:        { backgroundColor: '#E85D24', shadowColor: '#E85D24' },
   botonDeshabilitado: { opacity: 0.3, shadowOpacity: 0 },
-  botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8 },
-  botonSOSTexto:        { fontSize: fs(18), fontWeight: '600', color: '#fff' },
+  botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
+  botonSOSActivo:       { backgroundColor: '#FF1A1A', borderColor: '#ffffff', shadowOpacity: 0.7, elevation: 16 },
+  botonSOSTexto:        { fontSize: fs(18), fontWeight: '700', color: '#fff' },
+  sosBarra:             { height: 8, borderRadius: 4, backgroundColor: '#ffffff44', marginTop: 6, overflow: 'hidden' },
+  sosBarraRelleno:      { height: '100%', backgroundColor: '#fff', borderRadius: 4 },
   botonSOSHint:         { fontSize: fs(11), color: '#ffffff99' },
   sosModalOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 28, paddingVertical: 40, paddingHorizontal: 44, alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20 },
