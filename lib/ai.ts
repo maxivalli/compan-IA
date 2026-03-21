@@ -120,8 +120,11 @@ export async function buscarWeb(query: string): Promise<string | null> {
     if (!res.ok) return null;
     const data = await res.json();
     const results = data.results as { title: string; description: string }[] | undefined;
-    if (!results?.length) return null;
-    return results.map(r => `• ${r.title}: ${r.description}`).join('\n');
+    if (!results?.length && !data.answer) return null;
+    const partes: string[] = [];
+    if (data.answer) partes.push(data.answer);
+    if (results?.length) partes.push(results.map(r => `• ${r.title}: ${r.description}`).join('\n'));
+    return partes.join('\n\n');
   } catch {
     return null;
   }

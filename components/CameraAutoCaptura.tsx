@@ -9,27 +9,33 @@ type Props = {
 };
 
 export default function CameraAutoCaptura({ visible, onCaptura, onCancelar }: Props) {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [cuenta, setCuenta] = useState(3);
   const capturedRef = useRef(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!visible) { setCuenta(3); capturedRef.current = false; return; }
-    if (!permission?.granted) { requestPermission(); return; }
-
+    if (!permission?.granted) { onCancelar(); return; }
+    // La cuenta regresiva arranca en onCameraReady, no aquí
     setCuenta(3);
     capturedRef.current = false;
+  }, [visible, permission?.granted]);
 
-    const id = setInterval(() => {
+  function onCameraReady() {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
       setCuenta(prev => {
-        if (prev <= 1) { clearInterval(id); return 0; }
+        if (prev <= 1) { clearInterval(intervalRef.current!); intervalRef.current = null; return 0; }
         return prev - 1;
       });
     }, 1000);
+  }
 
-    return () => clearInterval(id);
-  }, [visible, permission?.granted]);
+  useEffect(() => {
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
 
   // Disparar cuando llega a 0
   useEffect(() => {
@@ -51,7 +57,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar }: Pr
   return (
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={styles.contenedor}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" onCameraReady={onCameraReady} />
 
         {/* Overlay oscuro con cuenta regresiva */}
         <View style={styles.overlay}>

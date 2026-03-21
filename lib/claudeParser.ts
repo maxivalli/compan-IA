@@ -265,13 +265,13 @@ export function construirSystemPrompt(p: Perfil, climaTexto: string, incluirJueg
 
 function limpiarTagsFinales(texto: string): string {
   return texto
-    .replace(/\[ANIMO_USUARIO:[^\]]+\]/gi, '')
-    .replace(/\[RECUERDO:[^\]]+\]/gi, '')
-    .replace(/\[LLAMAR_FAMILIA:[^\]]+\]/gi, '')
-    .replace(/\[EMERGENCIA:[^\]]+\]/gi, '')
-    .replace(/\[MENSAJE_FAMILIAR:[^\]]+\]/gi, '')
-    .replace(/\[RECORDATORIO:[^\]]+\]/gi, '')
-    .replace(/\[TIMER:\s*\d+\]/gi, '')
+    .replace(/\[ANIMO_USUARIO:[^\]]*\]?\s*/gi, '')
+    .replace(/\[RECUERDO:[^\]]*\]?\s*/gi, '')
+    .replace(/\[LLAMAR_FAMILIA:[^\]]*\]?\s*/gi, '')
+    .replace(/\[EMERGENCIA:[^\]]*\]?\s*/gi, '')
+    .replace(/\[MENSAJE_FAMILIAR:[^\]]*\]?\s*/gi, '')
+    .replace(/\[RECORDATORIO:[^\]]*\]?\s*/gi, '')
+    .replace(/\[TIMER:\s*\d+\]?\s*/gi, '')
     .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]/gi, '')
     .trim();
 }
@@ -388,11 +388,11 @@ export function parsearRespuesta(
   // ── RECUERDOS ──
   const recuerdoMatches = [...respuesta.matchAll(/\[RECUERDO:\s*(.+?)\]/gi)];
   const recuerdos = recuerdoMatches.map(m => m[1].trim());
-  respuesta = respuesta.replace(/\[RECUERDO:[^\]]+\]\s*/gi, '').trim();
+  respuesta = respuesta.replace(/\[RECUERDO:[^\]]*\]?\s*/gi, '').trim();
 
   // ── ANIMO_USUARIO ──
   const ANIMOS_VALIDOS: ExpresionAnimo[] = ['feliz', 'triste', 'sorprendida', 'pensativa', 'neutral'];
-  const animoMatch = respuesta.match(/\[ANIMO_USUARIO:\s*(.+?)\]/i);
+  const animoMatch = respuesta.match(/\[ANIMO_USUARIO:\s*([^\]]*)\]?/i);
   const animoRaw = animoMatch?.[1]?.trim().toLowerCase() ?? '';
   const fallbackAnimo: ExpresionAnimo = ANIMOS_VALIDOS.includes(expresion as ExpresionAnimo)
     ? (expresion as ExpresionAnimo)
@@ -400,17 +400,17 @@ export function parsearRespuesta(
   let animoUsuario: ExpresionAnimo = ANIMOS_VALIDOS.includes(animoRaw as ExpresionAnimo)
     ? (animoRaw as ExpresionAnimo)
     : fallbackAnimo;
-  respuesta = respuesta.replace(/\[ANIMO_USUARIO:[^\]]+\]\s*/i, '').trim();
+  respuesta = respuesta.replace(/\[ANIMO_USUARIO:[^\]]*\]?\s*/i, '').trim();
 
   // ── LLAMAR_FAMILIA ──
-  const alertaMatch = respuesta.match(/\[LLAMAR_FAMILIA:\s*(.+?)\]/i);
+  const alertaMatch = respuesta.match(/\[LLAMAR_FAMILIA:\s*([^\]]*)\]?/i);
   const llamarFamilia = alertaMatch?.[1]?.trim();
-  respuesta = respuesta.replace(/\[LLAMAR_FAMILIA:[^\]]+\]\s*/i, '').trim();
+  respuesta = respuesta.replace(/\[LLAMAR_FAMILIA:[^\]]*\]?\s*/i, '').trim();
 
   // ── EMERGENCIA ──
-  const emergenciaMatch = respuesta.match(/\[EMERGENCIA:\s*(.+?)\]/i);
+  const emergenciaMatch = respuesta.match(/\[EMERGENCIA:\s*([^\]]*)\]?/i);
   const emergencia = emergenciaMatch?.[1]?.trim();
-  respuesta = respuesta.replace(/\[EMERGENCIA:[^\]]+\]\s*/i, '').trim();
+  respuesta = respuesta.replace(/\[EMERGENCIA:[^\]]*\]?\s*/i, '').trim();
 
   // Si hay emergencia o llamada a familia, la persona claramente no está bien → triste
   if (emergencia || llamarFamilia) animoUsuario = 'triste';

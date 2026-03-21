@@ -34,7 +34,6 @@ export type NotificacionesRefs = {
   ultimaCharlaRef:       React.RefObject<number>;
   alertaInactividadRef:  React.RefObject<number>;
   telegramOffsetRef:     React.RefObject<number>;
-  inicioSesionRef:       React.RefObject<number>;
   climaRef:              React.RefObject<string>;
   setEstado:             (s: 'esperando' | 'escuchando' | 'pensando' | 'hablando') => void;
   hablar:                (texto: string) => Promise<void>;
@@ -45,7 +44,7 @@ export type NotificacionesRefs = {
   pararMusica:           () => void;
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
-  flujoFoto:             (silencioso?: boolean) => Promise<void>;
+  flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -54,7 +53,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   const {
     perfilRef, estadoRef, noMolestarRef, modoNocheRef,
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
-    telegramOffsetRef, inicioSesionRef, climaRef,
+    telegramOffsetRef, climaRef,
     setEstado, hablar, iniciarSpeechRecognition,
     modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto,
   } = refs;
@@ -170,7 +169,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     nombre: string,
     chatId: string,
     nombreAbuela: string,
-  ): Promise<boolean> {
+  ): Promise<'respondido' | 'rechazado' | 'ignorado'> {
     enFlujoVozRef.current = true;
     ExpoSpeechRecognitionModule.stop();
 
@@ -178,7 +177,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     const habiaMusica = musicaActivaRef.current;
     if (habiaMusica) pararMusica();
 
-    let resultado = false;
+    let resultado: 'respondido' | 'rechazado' | 'ignorado' = 'ignorado';
     try {
       await new Promise(resolve => setTimeout(resolve, 500));
 
@@ -187,9 +186,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await new Promise(resolve => setTimeout(resolve, 500));
       const respuestaPresencia = await escucharRespuesta();
 
-      if (!respuestaPresencia || esNegativo(respuestaPresencia)) {
-        return false;
-      }
+      if (esNegativo(respuestaPresencia)) return 'rechazado'; // dijo "no" → descartar
+      if (!respuestaPresencia) return 'ignorado';             // silencio → reintentar
 
       // 2. Anunciar el mensaje
       await hablar(`Te llegó un mensaje de voz de ${nombre}.`);
@@ -236,7 +234,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       } else {
         await hablar('Bueno, cuando quieras contestarle me avisás.');
       }
-      resultado = true;
+      resultado = 'respondido';
     } catch {
       // Error inesperado — el finally se encarga de liberar el flag
     } finally {
@@ -335,10 +333,13 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
     }
 
-    const minActiva = Math.round((Date.now() - inicioSesionRef.current) / 1000 / 60);
-    const horasActiva = minActiva >= 60
-      ? `${Math.floor(minActiva / 60)}h ${minActiva % 60}min`
-      : `${minActiva} minutos`;
+    const cantCharlas = entradasHoy.length;
+    const minAprox = Math.round(cantCharlas * 1.5);
+    const horasActiva = cantCharlas === 0
+      ? 'sin charlas hoy'
+      : minAprox >= 60
+        ? `${Math.floor(minAprox / 60)}h ${minAprox % 60}min aprox.`
+        : `${minAprox} min aprox.`;
 
     const escuchodMusica = await musicaEscuchadaHoy();
 
@@ -361,7 +362,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       `😊 <b>Estado de ánimo:</b>\n${animoLineas}\n\n` +
       `💬 <b>Temas del día:</b> ${temasTexto}\n\n` +
       `🎵 <b>Música:</b> ${escuchodMusica ? 'Sí escuchó música' : 'No escuchó música'}\n\n` +
-      `⏱ <b>Tiempo con ${asistente}:</b> ${horasActiva}` +
+      `💬 <b>Charlas con ${asistente}:</b> ${cantCharlas} vez${cantCharlas !== 1 ? 'es' : ''} hoy (${horasActiva})` +
       (alertasHoy > 0 ? `\n\n🚨 <b>Alertas enviadas:</b> ${alertasHoy}` : '') +
       (recPendientes > 0 ? `\n\n⏰ <b>Recordatorios pendientes:</b> ${recPendientes}` : '') +
       (enNoMolestar ? `\n\n🔇 <b>Modo no molestar:</b> activo al cierre del día` : '')
@@ -557,6 +558,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
   // ── Recordatorios personales ─────────────────────────────────────────────────
   useEffect(() => {
+    // Blacklist en RAM: evita race conditions entre ciclos del intervalo
+    const disparados = new Set<string>();
+
     async function chequearRecordatorios() {
       if (noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
@@ -572,8 +576,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       });
       for (const r of pendientes) {
         const clave = `recordatorio_${r.id}`;
+        // Chequeo síncrono en RAM primero — evita duplicados aunque AsyncStorage tarde
+        if (disparados.has(clave)) continue;
         const ya = await yaRecordo(clave);
-        if (ya) continue;
+        if (ya) { disparados.add(clave); continue; }
+        disparados.add(clave);
         await marcarRecordado(clave);
         const nombre = perfilRef.current?.nombreAbuela ?? '';
         if (r.esTimer) {
@@ -642,8 +649,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
 
       // manejarMensajeVoz se encarga de verificar presencia internamente
-      const respondio = await manejarMensajeVoz(urlAudio, nombre, msg.chatId, p.nombreAbuela);
-      return respondio;
+      const estado = await manejarMensajeVoz(urlAudio, nombre, msg.chatId, p.nombreAbuela);
+      // 'rechazado' también se considera procesado (no reintentar)
+      return estado !== 'ignorado';
     }
 
     async function chequearMensajesVoz() {
@@ -717,10 +725,10 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
         const contacto = (p.telegramContactos ?? []).find(c => c.id === primero.chatId);
         const nombre   = contacto?.nombre ?? primero.fromName;
-        const respondio = await manejarMensajeVoz(urlAudio, nombre, primero.chatId, p.nombreAbuela);
+        const estadoVoz = await manejarMensajeVoz(urlAudio, nombre, primero.chatId, p.nombreAbuela);
 
-        // Si no respondió, volver a poner en la cola
-        if (!respondio) {
+        // Solo volver a encolar si fue ignorado (silencio/ausencia) — no si rechazó explícitamente
+        if (estadoVoz === 'ignorado') {
           const rawActual = await AsyncStorage.getItem('vozPendiente');
           let actuales: any[] = [];
           try { actuales = JSON.parse(rawActual ?? '[]'); } catch { actuales = []; }
@@ -744,26 +752,26 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
             const mensaje = await generarMensajeResumen(p);
             await enviarMensajeTelegram(chatIds, mensaje);
           } catch {}
-        }
-        if (cmd === 'camara') {
+        } else if (cmd.startsWith('camara')) {
           const horaCmd = new Date().getHours();
           if (horaCmd >= 23 || horaCmd < 9) continue;
           if (estadoRef.current !== 'esperando') continue;
-          try { await flujoFoto(true); } catch {}
+          const destChatId = cmd.includes(':') ? cmd.split(':')[1] : undefined;
+          try { await flujoFoto(true, destChatId); } catch {}
         }
       }
     }
 
-    // Polling cada 3 min para mensajes nuevos y comandos pendientes
-    const idPolling = setInterval(() => {
-      chequearMensajesVoz();
-      chequearComandos();
-    }, 3 * 60 * 1000);
+    // Polling de mensajes de voz cada 3 min
+    const idPolling = setInterval(chequearMensajesVoz, 3 * 60 * 1000);
+    // Polling de comandos (cámara, informe) cada 15s para respuesta rápida
+    const idComandos = setInterval(chequearComandos, 15 * 1000);
     // Reintento de pendientes cada 15 minutos
     const idReintento = setInterval(reintentar, INTERVALO_REINTENTO);
 
     return () => {
       clearInterval(idPolling);
+      clearInterval(idComandos);
       clearInterval(idReintento);
     };
   }, []);

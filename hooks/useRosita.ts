@@ -9,7 +9,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Speech from 'expo-speech';
 import {
   cargarPerfil, cargarHistorial, guardarHistorial,
-  Perfil, guardarEntradaAnimo, agregarRecuerdo,
+  Perfil, TelegramContacto, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, bienvenidaYaDada, marcarBienvenidaDada,
   registrarMusicaHoy,
 } from '../lib/memoria';
@@ -77,7 +77,6 @@ export function useRosita() {
   const duckTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerVozRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
   const telegramOffsetRef   = useRef<number>(0);
-  const inicioSesionRef     = useRef<number>(Date.now());
   const flashAnim           = useRef(new Animated.Value(0)).current;
   const fotoResolverRef     = useRef<((base64: string | null) => void) | null>(null);
   const ultimoAudioUriRef   = useRef<string | null>(null);
@@ -306,7 +305,7 @@ export function useRosita() {
     try {
       const dir = FileSystem.cacheDirectory!;
       const archivos = await FileSystem.readDirectoryAsync(dir);
-      const hace7dias = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const hace7dias = Date.now() - 7 * 24 * 60 * 60 * 1000;
       for (const archivo of archivos) {
         if (!archivo.startsWith('tts_') || !archivo.endsWith('.mp3')) continue;
         const info = await FileSystem.getInfoAsync(dir + archivo);
@@ -314,6 +313,32 @@ export function useRosita() {
           await FileSystem.deleteAsync(dir + archivo, { idempotent: true });
         }
       }
+    } catch {}
+  }
+
+  // ── Muletillas (fillers de pensamiento) ─────────────────────────────────────
+  const MULETILLAS = ['A ver...', 'Dejame pensar...', 'Hmm...'];
+
+  async function precachearMuletillas(voiceId?: string) {
+    for (let i = 0; i < MULETILLAS.length; i++) {
+      const uri = FileSystem.cacheDirectory + `muletilla_${i}.mp3`;
+      const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
+      if (info.exists) continue;
+      const base64 = await sintetizarVoz(MULETILLAS[i], voiceId).catch(() => null);
+      if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
+    }
+  }
+
+  const ultimaMuletillaRef = useRef(0);
+  async function reproducirMuletilla() {
+    try {
+      const idx = ultimaMuletillaRef.current % MULETILLAS.length;
+      ultimaMuletillaRef.current++;
+      const uri = FileSystem.cacheDirectory + `muletilla_${idx}.mp3`;
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists) return;
+      player.replace({ uri });
+      player.play();
     } catch {}
   }
 
@@ -343,6 +368,13 @@ export function useRosita() {
 
   // ── Inicializar ─────────────────────────────────────────────────────────────
   async function inicializar() {
+    // Sync guard: si el año es anterior a 2024, el reloj de hardware está desincronizado
+    // (typical after battery drain in kiosk mode before NTP sync). Reintentar en 10s.
+    if (new Date().getFullYear() < 2024) {
+      setTimeout(inicializar, 10000);
+      return;
+    }
+
     try { await AudioModule.requestRecordingPermissionsAsync(); } catch {}
     try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
     limpiarCacheViejo().catch(() => {});
@@ -354,6 +386,9 @@ export function useRosita() {
     perfilRef.current    = perfilGuardado;
     historialRef.current = historialGuardado as Mensaje[];
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
+
+    // Pre-cachear muletillas en background (fire-and-forget)
+    precachearMuletillas(perfilGuardado.vozId).catch(() => {});
 
     if (!perfilGuardado.nombreAbuela) {
       setMostrarOnboarding(true);
@@ -739,9 +774,9 @@ export function useRosita() {
   }
 
   // ── Foto para la familia ─────────────────────────────────────────────────────
-  async function flujoFoto(silencioso = false) {
+  async function flujoFoto(silencioso = false, destChatId?: string) {
     const p = perfilRef.current;
-    const chatIds = (p?.telegramContactos ?? []).map(c => c.id);
+    const chatIds = destChatId ? [destChatId] : (p?.telegramContactos ?? []).map(c => c.id);
     if (!chatIds.length) {
       if (!silencioso) await hablar('No tenés familiares configurados para mandar la foto.');
       return;
@@ -755,6 +790,7 @@ export function useRosita() {
     setMostrarCamara(false);
     if (!base64) {
       if (!silencioso) await hablar('Bueno, cuando quieras sacamos la foto.');
+      else await enviarAlertaTelegram(chatIds, `📸 No pude sacar la foto. Verificá que la app tenga permisos de cámara.`, p?.nombreAsistente);
       return;
     }
     if (!silencioso) await hablar('Mandando la foto a tu familia, un momento.');
@@ -787,6 +823,7 @@ export function useRosita() {
     detenerSilbido();
     setEstado('pensando');
     estadoRef.current = 'pensando';
+    reproducirMuletilla(); // filler inmediato mientras Claude procesa
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
 
     try {
@@ -827,7 +864,7 @@ export function useRosita() {
       console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
         system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias + contextoBusqueda, pideChiste),
-        messages: nuevoHistorial.slice(-10),
+        messages: nuevoHistorial.slice(-8),
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
 
       const parsed = parsearRespuesta(
@@ -929,11 +966,30 @@ export function useRosita() {
         await guardarRecordatorio(parsed.recordatorio);
       }
 
-      // ── MENSAJE_FAMILIAR ──
-      if (parsed.mensajeFamiliar) {
+      // ── RECUERDOS ──
+      if (parsed.recuerdos.length > 0) {
+        await Promise.all(parsed.recuerdos.map(r => agregarRecuerdo(r)));
+        perfilRef.current = await cargarPerfil();
+      }
+
+      // ── Alertas Telegram: EMERGENCIA > LLAMAR_FAMILIA > MENSAJE_FAMILIAR ──
+      if (parsed.emergencia) {
+        const chatIds     = (p.telegramContactos ?? []).map(c => c.id);
+        const nombreAsist = p.nombreAsistente ?? 'Rosita';
+        ultimaAlertaRef.current = Date.now();
+        enviarAlertaTelegram(chatIds, `⚠️ *URGENTE* — ${p.nombreAbuela}\n\n${parsed.emergencia}\n\nAbrí ${nombreAsist} o llamala de inmediato.`, nombreAsist);
+      } else if (parsed.llamarFamilia) {
+        const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+        const ahora   = Date.now();
+        if (ahora - ultimaAlertaRef.current > 30 * 60 * 1000) {
+          ultimaAlertaRef.current = ahora;
+          enviarAlertaTelegram(chatIds, `${p.nombreAbuela} necesita hablar con vos.\n\n_${parsed.llamarFamilia}_`, p.nombreAsistente);
+        }
+      } else if (parsed.mensajeFamiliar) {
         const { nombreDestino, texto: textoMensaje } = parsed.mensajeFamiliar;
-        const contacto = (p.telegramContactos ?? []).find(c => c.nombre === nombreDestino)
-          ?? (p.telegramContactos ?? []).find(c => c.nombre.toLowerCase().includes(nombreDestino.toLowerCase()));
+        const contactos: TelegramContacto[] = p.telegramContactos ?? [];
+        const contacto = contactos.find(c => c.nombre === nombreDestino)
+          ?? contactos.find(c => c.nombre.toLowerCase().includes(nombreDestino.toLowerCase()));
         if (contacto) {
           try {
             await enviarAlertaTelegram([contacto.id], textoMensaje, p.nombreAsistente);
@@ -950,30 +1006,6 @@ export function useRosita() {
         historialRef.current = nuevoHist;
         await guardarHistorial(nuevoHist);
         return;
-      }
-
-      // ── RECUERDOS ──
-      if (parsed.recuerdos.length > 0) {
-        await Promise.all(parsed.recuerdos.map(r => agregarRecuerdo(r)));
-        perfilRef.current = await cargarPerfil();
-      }
-
-      // ── LLAMAR_FAMILIA ──
-      if (parsed.llamarFamilia) {
-        const chatIds = (p.telegramContactos ?? []).map(c => c.id);
-        const ahora   = Date.now();
-        if (ahora - ultimaAlertaRef.current > 30 * 60 * 1000) {
-          ultimaAlertaRef.current = ahora;
-          enviarAlertaTelegram(chatIds, `${p.nombreAbuela} necesita hablar con vos.\n\n_${parsed.llamarFamilia}_`, p.nombreAsistente);
-        }
-      }
-
-      // ── EMERGENCIA ──
-      if (parsed.emergencia) {
-        const chatIds     = (p.telegramContactos ?? []).map(c => c.id);
-        const nombreAsist = p.nombreAsistente ?? 'Rosita';
-        ultimaAlertaRef.current = Date.now();
-        enviarAlertaTelegram(chatIds, `⚠️ *URGENTE* — ${p.nombreAbuela}\n\n${parsed.emergencia}\n\nAbrí ${nombreAsist} o llamala de inmediato.`, nombreAsist);
       }
 
       // ── Respuesta normal ──
@@ -1025,6 +1057,7 @@ export function useRosita() {
         asistente,
       );
     }
+    guardarEntradaAnimo('triste');
     await hablar(`${nombre}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`);
   }
 
@@ -1046,6 +1079,7 @@ export function useRosita() {
         asistente,
       );
     }
+    guardarEntradaAnimo('triste');
     await hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`);
   }
 
@@ -1163,7 +1197,7 @@ export function useRosita() {
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
-      telegramOffsetRef, inicioSesionRef, climaRef,
+      telegramOffsetRef, climaRef,
       musicaActivaRef, enFlujoVozRef,
       setEstado, hablar, iniciarSpeechRecognition,
       modoNoche, iniciarSilbido, detenerSilbido, flujoFoto,
