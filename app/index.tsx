@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
   ecualizadorWrap:    { height: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
-  btnGlow:            { position: 'absolute', opacity: 0.30 },
+  btnGlow:            { position: 'absolute' },
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
   btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
