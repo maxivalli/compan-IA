@@ -895,10 +895,16 @@ export function useRosita() {
         else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
       }
 
+      console.log('[BUSQUEDA] textoNorm:', textoNorm);
+      console.log('[BUSQUEDA] flags:', { esConsultaHorario, pideNoticias, pideBusqueda, queryBusqueda });
+
       const [titulosNoticias, resultadosBusqueda] = await Promise.all([
         pideNoticias ? buscarNoticias(textoUsuario) : Promise.resolve(null),
         pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
       ]);
+
+      console.log('[BUSQUEDA] titulosNoticias:', titulosNoticias ?? 'null');
+      console.log('[BUSQUEDA] resultadosBusqueda:', resultadosBusqueda ?? 'null');
 
       let contextoNoticias = '';
       if (titulosNoticias) {
