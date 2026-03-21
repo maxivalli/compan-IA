@@ -171,12 +171,12 @@ export default function Index() {
     return () => { dotPulseAnim.current?.stop(); };
   }, [estado, musicaActiva]);
 
-  // Glow breathing — solo opacidad (useNativeDriver: false)
+  // Glow breathing — useNativeDriver: true (opacity es soportado por native driver)
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowOpacity, { toValue: 0.55, duration: 1750, useNativeDriver: false }),
-        Animated.timing(glowOpacity, { toValue: 0.20, duration: 1750, useNativeDriver: false }),
+        Animated.timing(glowOpacity, { toValue: 0.55, duration: 1750, useNativeDriver: true }),
+        Animated.timing(glowOpacity, { toValue: 0.20, duration: 1750, useNativeDriver: true }),
       ])
     );
     loop.start();
