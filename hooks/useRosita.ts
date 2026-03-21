@@ -879,7 +879,7 @@ export function useRosita() {
 
       // Búsquedas en paralelo para no bloquear
       // Consultas de calendario/horario futuro van solo a Tavily — Google News daría resultados irrelevantes
-      const esConsultaHorario = /\b(cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido)\b/.test(textoNorm);
+      const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
       const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
       const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo)\b/.test(textoNorm);
 
@@ -895,20 +895,17 @@ export function useRosita() {
         else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
       }
 
-      console.log('[BUSQUEDA] textoNorm:', textoNorm);
-      console.log('[BUSQUEDA] flags:', { esConsultaHorario, pideNoticias, pideBusqueda, queryBusqueda });
-
       const [titulosNoticias, resultadosBusqueda] = await Promise.all([
         pideNoticias ? buscarNoticias(textoUsuario) : Promise.resolve(null),
         pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
       ]);
 
-      console.log('[BUSQUEDA] titulosNoticias:', titulosNoticias ?? 'null');
-      console.log('[BUSQUEDA] resultadosBusqueda:', resultadosBusqueda ?? 'null');
+      // Si Tavily devuelve algo, descarta Google News — evita instrucciones contradictorias a Claude
+      const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
 
       let contextoNoticias = '';
-      if (titulosNoticias) {
-        contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${titulosNoticias}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
+      if (noticiasFinales) {
+        contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${noticiasFinales}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
       }
       let contextoBusqueda = '';
       if (resultadosBusqueda) {
