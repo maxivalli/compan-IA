@@ -841,7 +841,13 @@ export function useRosita() {
       await hablar('No pude ver bien la imagen. ¿Podés acercar un poco más la cámara y volvemos a intentar?');
       return;
     }
-    const textoFormateado = resultado.replace(/\d{4,}/g, m => m.split('').join(' '));
+    const DIGITOS_ES: Record<string, string> = {
+      '0': 'cero', '1': 'uno', '2': 'dos', '3': 'tres', '4': 'cuatro',
+      '5': 'cinco', '6': 'seis', '7': 'siete', '8': 'ocho', '9': 'nueve',
+    };
+    const textoFormateado = resultado.replace(/\d{2,}/g, m =>
+      m.split('').map(d => DIGITOS_ES[d] ?? d).join(', ')
+    );
     await hablar(textoFormateado);
   }
 
