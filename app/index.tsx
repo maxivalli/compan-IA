@@ -156,7 +156,6 @@ export default function Index() {
   const escuchando    = estado === 'escuchando';
   const botonDisabled = estado === 'pensando' || estado === 'hablando';
   const pulso     = useRef(new Animated.Value(1)).current;
-  const glowScale = useRef(new Animated.Value(1)).current;
   const glowOpacity = useRef(new Animated.Value(0.30)).current;
   useEffect(() => {
     dotPulseAnim.current?.stop();
@@ -172,18 +171,12 @@ export default function Index() {
     return () => { dotPulseAnim.current?.stop(); };
   }, [estado, musicaActiva]);
 
-  // Glow breathing — todo useNativeDriver: false (scale + opacity en mismo Animated.View)
+  // Glow breathing — solo opacidad (useNativeDriver: false)
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.parallel([
-          Animated.timing(glowScale,   { toValue: 1.06, duration: 1750, useNativeDriver: false }),
-          Animated.timing(glowOpacity, { toValue: 0.50, duration: 1750, useNativeDriver: false }),
-        ]),
-        Animated.parallel([
-          Animated.timing(glowScale,   { toValue: 1,    duration: 1750, useNativeDriver: false }),
-          Animated.timing(glowOpacity, { toValue: 0.30, duration: 1750, useNativeDriver: false }),
-        ]),
+        Animated.timing(glowOpacity, { toValue: 0.55, duration: 1750, useNativeDriver: false }),
+        Animated.timing(glowOpacity, { toValue: 0.20, duration: 1750, useNativeDriver: false }),
       ])
     );
     loop.start();
@@ -295,7 +288,7 @@ export default function Index() {
           {/* Glow difuso detrás del botón — blur en web, shadow en native */}
           <Animated.View style={[
             styles.btnGlow,
-            { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: glowOpacity, transform: [{ scale: glowScale }] },
+            { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: glowOpacity },
             Platform.OS === 'web' ? { filter: 'blur(28px)' } as any : {},
           ]} />
           {/* Wrapper para shadow (separado de overflow:hidden) */}
