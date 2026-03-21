@@ -973,8 +973,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       });
       if (frase && estadoRef.current === 'esperando') await hablar(frase);
     } catch {}
-    // En el test, apagar los globos al terminar para poder retestearlo
-    setEsCumpleaños(false);
   }
 
   return { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños };
