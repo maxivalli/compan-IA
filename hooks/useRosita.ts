@@ -1028,6 +1028,27 @@ export function useRosita() {
     await hablar(`${nombre}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`);
   }
 
+  async function dispararSOSCaida() {
+    const ahora = Date.now();
+    if (ahora - ultimoSosRef.current < 60000) return; // cooldown compartido con SOS
+    ultimoSosRef.current = ahora;
+
+    const p = perfilRef.current;
+    if (!p?.nombreAbuela) return;
+    const chatIds   = (p.telegramContactos ?? []).map(c => c.id);
+    const nombre    = p.nombreAbuela;
+    const asistente = p.nombreAsistente ?? 'Rosita';
+
+    if (chatIds.length) {
+      enviarAlertaTelegram(
+        chatIds,
+        `⚠️ *POSIBLE CAÍDA* — ${nombre}\n\nEl sensor del teléfono detectó un posible golpe o caída. Verificá que esté bien.`,
+        asistente,
+      );
+    }
+    await hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`);
+  }
+
   // ── Bostezo por inactividad ──────────────────────────────────────────────────
   const ultimoBostezRef = useRef<number>(0);
   const CINCO_MIN       = 5 * 60 * 1000;
@@ -1055,22 +1076,60 @@ export function useRosita() {
     return () => clearInterval(id);
   }, []);
 
-  // ── Detección de sacudida ────────────────────────────────────────────────────
+  // ── Detección de sacudida y caída ────────────────────────────────────────────
   useEffect(() => {
     if (Platform.OS === 'web') return; // Accelerometer no disponible en web
-    const UMBRAL = 2.5;      // g-force para detectar sacudida
-    const SACUDIDAS = 3;     // sacudidas necesarias
-    const VENTANA  = 1500;   // ms de ventana
+
+    // ── Parámetros sacudida ──
+    const UMBRAL_SACUDIDA = 2.5;   // g-force para detectar sacudida
+    const SACUDIDAS       = 3;     // sacudidas necesarias
+    const VENTANA_SACUDIDA = 1500; // ms de ventana
+
+    // ── Parámetros caída ──
+    const UMBRAL_CAIDA_LIBRE = 0.5;  // magnitud máxima para considerar caída libre (< 0.5g)
+    const UMBRAL_IMPACTO     = 3.0;  // magnitud mínima del impacto posterior (> 3g)
+    const VENTANA_IMPACTO    = 500;  // ms máximo entre caída libre e impacto
+
+    // ── Estado máquina de caída ──
+    let enCaidaLibre       = false;
+    let timerImpacto: ReturnType<typeof setTimeout> | null = null;
+    let ultimaCaida        = 0;     // cooldown de caída independiente del SOS
+    const COOLDOWN_CAIDA   = 60000; // 60s entre alertas de caída
+
+    // ── Estado sacudida ──
     let conteo = 0;
     let timerReset: ReturnType<typeof setTimeout> | null = null;
 
-    Accelerometer.setUpdateInterval(1000);
+    Accelerometer.setUpdateInterval(100); // 100ms: suficiente para ambos algoritmos
     const sub = Accelerometer.addListener(({ x, y, z }) => {
       const magnitud = Math.sqrt(x * x + y * y + z * z);
-      if (magnitud > UMBRAL) {
+
+      // ── Detección de caída: fase 1 — caída libre ──
+      if (magnitud < UMBRAL_CAIDA_LIBRE && !enCaidaLibre) {
+        enCaidaLibre = true;
+        if (timerImpacto) clearTimeout(timerImpacto);
+        // Si no hay impacto en VENTANA_IMPACTO ms, descartar
+        timerImpacto = setTimeout(() => { enCaidaLibre = false; }, VENTANA_IMPACTO);
+      }
+
+      // ── Detección de caída: fase 2 — impacto ──
+      if (enCaidaLibre && magnitud > UMBRAL_IMPACTO) {
+        enCaidaLibre = false;
+        if (timerImpacto) { clearTimeout(timerImpacto); timerImpacto = null; }
+        const ahora = Date.now();
+        if (ahora - ultimaCaida > COOLDOWN_CAIDA) {
+          ultimaCaida = ahora;
+          console.log('[CAIDA] caída detectada, magnitud impacto:', magnitud.toFixed(2));
+          dispararSOSCaida();
+        }
+        return; // No procesar sacudida con el mismo evento de impacto
+      }
+
+      // ── Detección de sacudida ──
+      if (magnitud > UMBRAL_SACUDIDA) {
         conteo++;
         if (timerReset) clearTimeout(timerReset);
-        timerReset = setTimeout(() => { conteo = 0; }, VENTANA);
+        timerReset = setTimeout(() => { conteo = 0; }, VENTANA_SACUDIDA);
         if (conteo >= SACUDIDAS) {
           conteo = 0;
           if (timerReset) clearTimeout(timerReset);
@@ -1079,7 +1138,11 @@ export function useRosita() {
       }
     });
 
-    return () => { sub.remove(); if (timerReset) clearTimeout(timerReset); };
+    return () => {
+      sub.remove();
+      if (timerReset) clearTimeout(timerReset);
+      if (timerImpacto) clearTimeout(timerImpacto);
+    };
   }, []);
 
   // ── Interfaz pública del hook ───────────────────────────────────────────────

@@ -314,9 +314,9 @@ export default function Index() {
                 style={{ flex: 1, padding: 3, alignItems: 'center', justifyContent: 'center' }}
               >
                 <View style={[styles.boton, { flex: 1, alignSelf: 'stretch', borderRadius: btnH / 2 - 3 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
-                  <View style={[styles.btnInner, { transform: [{ translateX: -Math.round(btnW * 0.10) }] }]}>
-                    <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }] }]} />
-                    <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151' }]}>
+                  <View style={styles.btnInner}>
+                    <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
+                    <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151', width: Math.round(btnW * 0.52), textAlign: 'center' }]}>
                       {btnLabel}
                     </Text>
                   </View>
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
   btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  statusDot:          { width: 10, height: 10, borderRadius: 5 },
+  statusDot:          { width: 13, height: 13, borderRadius: 7 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
   botonDeshabilitado: { opacity: 0.55 },
   botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
