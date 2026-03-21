@@ -13,18 +13,22 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   const [permission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [cuenta, setCuenta] = useState(3);
-  const capturedRef = useRef(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const capturedRef      = useRef(false);
+  const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cuentaArrancoRef = useRef(false);
 
   useEffect(() => {
-    if (!visible) { setCuenta(3); capturedRef.current = false; return; }
+    if (!visible) { setCuenta(3); capturedRef.current = false; cuentaArrancoRef.current = false; return; }
     if (!permission?.granted) { onCancelar(); return; }
     // La cuenta regresiva arranca en onCameraReady, no aquí
     setCuenta(3);
     capturedRef.current = false;
+    cuentaArrancoRef.current = false;
   }, [visible, permission?.granted]);
 
   function onCameraReady() {
+    if (cuentaArrancoRef.current) return; // evita reinicio si ya arrancó
+    cuentaArrancoRef.current = true;
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       setCuenta(prev => {
