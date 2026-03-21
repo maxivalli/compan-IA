@@ -79,7 +79,7 @@ export default function Animo() {
       setGrupos(agruparPorDia(entradas));
       setNombre(perfil.nombreAbuela);
       setNombreAsistente(perfil.nombreAsistente ?? 'la asistente');
-      setMasculino(perfil.vozGenero === 'masculina');
+      setMasculino(perfil.generoUsuario === 'masculino');
     });
   }
 

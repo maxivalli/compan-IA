@@ -328,9 +328,13 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     const entradas = await cargarEntradasAnimo();
     const hoy = fechaLocal(Date.now());
     const entradasHoy = entradas.filter((e: EntradaAnimo) => fechaLocal(e.timestamp) === hoy);
+    const masc = perfilRef.current?.generoUsuario === 'masculino';
     const ETIQUETAS: Record<string, string> = {
-      feliz: '😊 Contenta', triste: '😢 Triste', sorprendida: '😮 Sorprendida',
-      pensativa: '🤔 Pensativa', neutral: '😐 Tranquila',
+      feliz:       `😊 ${masc ? 'Contento'    : 'Contenta'}`,
+      triste:      '😢 Triste',
+      sorprendida: `😮 ${masc ? 'Sorprendido' : 'Sorprendida'}`,
+      pensativa:   `🤔 ${masc ? 'Pensativo'   : 'Pensativa'}`,
+      neutral:     `😐 ${masc ? 'Tranquilo'   : 'Tranquila'}`,
     };
     let animoLineas = 'sin registros';
     if (entradasHoy.length > 0) {
