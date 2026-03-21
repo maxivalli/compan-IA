@@ -195,10 +195,6 @@ export function useRosita() {
     return () => handler.remove();
   }, []);
 
-  // ── Ciclo de vida: volver del background ────────────────────────────────────
-  // AppState handler deshabilitado — causa crash en Android 15 / bridgeless.
-  // El watchdog (5s) ya se encarga de reiniciar SR al volver del background.
-
   // ── Modo noche ──────────────────────────────────────────────────────────────
   useEffect(() => {
     function calcularModo() {
@@ -581,7 +577,8 @@ export function useRosita() {
       .replace(/\*\*(.+?)\*\*/g,      '$1')   // negrita markdown
       .replace(/\*(.+?)\*/g,          '$1')   // cursiva markdown
       .replace(/#+\s/g,               '')     // títulos markdown
-      .replace(/[_~`]/g,              '');    // otros símbolos markdown
+      .replace(/[_~`]/g,              '')     // otros símbolos markdown
+      .replace(/(?:\d[- ]?){6,}\d/g, m => m.replace(/[- ]/g, '').split('').join(' ')); // <-- Separar números largos para que los lea dígito por dígito
 
     try {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
@@ -891,7 +888,7 @@ export function useRosita() {
         const ciudad     = ciudadRef.current;
         if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
         else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
-        else if (esHorario)         queryBusqueda = `${textoUsuario} horario fecha Argentina ${new Date().getFullYear()}`;
+        else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`; // <-- Búsqueda más precisa
         else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
       }
 
@@ -907,9 +904,17 @@ export function useRosita() {
       if (noticiasFinales) {
         contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${noticiasFinales}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
       }
+      
       let contextoBusqueda = '';
       if (resultadosBusqueda) {
-        contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 50 palabras para dar la información encontrada con claridad.\nResultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):\n${resultadosBusqueda}\nUsá esta información para responder con datos concretos. Si los resultados no tienen lo que la persona busca, decile amablemente que no encontraste la información exacta.`;
+        contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 80 palabras.
+Resultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):
+${resultadosBusqueda}
+
+REGLAS CRÍTICAS PARA RESPONDER:
+1. Respondé con datos concretos. Si no encontrás el dato, decilo amablemente.
+2. PRONUNCIACIÓN: Si das un número de teléfono o la altura de una dirección, separá TODOS sus números con comas (ejemplo: 3, 4, 0, 8, 6, 7... o San Martín 1, 2, 5, 0) para que el sistema de voz los dicte muy pausado, uno por uno. ¡No hagas esto con los años!
+3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta (prohibido decir "¿Te ayudo con otra cosa?", "¿Para qué precisás ir?", "¿Lo pudiste anotar?", etc.). Entregá la información y terminá tu frase en punto final para que la persona tenga paz y tiempo de asimilar el dato.`;
       }
 
       console.log('[RC] llamando a Claude...');
