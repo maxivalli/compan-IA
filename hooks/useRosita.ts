@@ -229,7 +229,7 @@ export function useRosita() {
     const mencionaNombre = nombreRegex.test(textoNorm);
     const esNoche = modoNocheRef.current !== 'despierta';
     const enConversacion = (musicaActivaRef.current || esNoche) ? false : (Date.now() - ultimaCharlaRef.current) < 60 * 1000;
-    // Con música activa o en modo noche se exige siempre el nombre para evitar falsos disparos
+    
     const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
@@ -260,8 +260,8 @@ export function useRosita() {
 
   useSpeechRecognitionEvent('end', () => {
     srActivoRef.current = false;
-    if (enFlujoVozRef.current) return; // no reactivar durante flujo de voz
-    if (!perfilRef.current?.nombreAbuela) return; // sin perfil = en onboarding
+    if (enFlujoVozRef.current) return; 
+    if (!perfilRef.current?.nombreAbuela) return; 
     if (estadoRef.current === 'esperando' && !procesandoRef.current) {
       setTimeout(() => {
         if (estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current) {
@@ -274,8 +274,8 @@ export function useRosita() {
   useSpeechRecognitionEvent('error', (event) => {
     console.log('[SR] error:', event.error);
     srActivoRef.current = false;
-    if (enFlujoVozRef.current) return; // no reactivar durante flujo de voz
-    if (!perfilRef.current?.nombreAbuela) return; // sin perfil = en onboarding
+    if (enFlujoVozRef.current) return; 
+    if (!perfilRef.current?.nombreAbuela) return; 
     if (estadoRef.current === 'esperando' && !procesandoRef.current) {
       const delay = event.error === 'network' ? 3000 : 1000;
       setTimeout(() => {
@@ -317,7 +317,7 @@ export function useRosita() {
     } catch {}
   }
 
-  // ── Muletillas (fillers de pensamiento) ─────────────────────────────────────
+  // ── Muletillas ──────────────────────────────────────────────────────────────
   const MULETILLAS = ['A ver...', 'Dejame pensar...', 'Hmm...'];
 
   async function precachearMuletillas(voiceId?: string) {
@@ -343,7 +343,7 @@ export function useRosita() {
     } catch {}
   }
 
-  // ── Activar post-onboarding (cuando se vuelve de /onboarding con perfil ya guardado) ──
+  // ── Activar post-onboarding ─────────────────────────────────────────────────
   async function reactivar() {
     const perfil = await cargarPerfil();
     if (!perfil.nombreAbuela) return;
@@ -359,7 +359,6 @@ export function useRosita() {
     }
   }
 
-  // ── Recargar perfil al volver de configuración ──────────────────────────────
   async function recargarPerfil() {
     const perfil = await cargarPerfil();
     if (!perfil.nombreAbuela) return;
@@ -369,8 +368,6 @@ export function useRosita() {
 
   // ── Inicializar ─────────────────────────────────────────────────────────────
   async function inicializar() {
-    // Sync guard: si el año es anterior a 2024, el reloj de hardware está desincronizado
-    // (typical after battery drain in kiosk mode before NTP sync). Reintentar en 10s.
     if (new Date().getFullYear() < 2024) {
       setTimeout(inicializar, 10000);
       return;
@@ -380,7 +377,6 @@ export function useRosita() {
     try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
     limpiarCacheViejo().catch(() => {});
 
-    // Cargar perfil e historial (rápido, AsyncStorage local)
     const [perfilGuardado, historialGuardado] = await Promise.all([
       cargarPerfil(), cargarHistorial(),
     ]);
@@ -388,7 +384,6 @@ export function useRosita() {
     historialRef.current = historialGuardado as Mensaje[];
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
 
-    // Pre-cachear muletillas en background (fire-and-forget)
     precachearMuletillas(perfilGuardado.vozId).catch(() => {});
 
     if (!perfilGuardado.nombreAbuela) {
@@ -398,7 +393,6 @@ export function useRosita() {
       iniciarSpeechRecognition();
     }
 
-    // Ping al backend para despertar Railway antes de que el usuario hable
     const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
     if (backendUrl) {
       const pingCtrl = new AbortController();
@@ -406,7 +400,6 @@ export function useRosita() {
       fetch(`${backendUrl}/health`, { signal: pingCtrl.signal }).catch(() => {});
     }
 
-    // Clima en background — no bloquea el arranque
     obtenerClima().then(clima => {
       if (clima) {
         climaRef.current  = climaATexto(clima);
@@ -415,7 +408,6 @@ export function useRosita() {
       }
     }).catch(() => {});
 
-    // Feriados en background — no bloquea el arranque
     getFeriadosCercanos().then(texto => {
       feriadosRef.current = texto;
     }).catch(() => {});
@@ -427,14 +419,14 @@ export function useRosita() {
   function iniciarSpeechRecognition() {
     if (enFlujoVozRef.current) return;
     const ahora = Date.now();
-    if (ahora - ultimaActivacionSrRef.current < 1500) return; // máx 1 restart cada 1.5s
+    if (ahora - ultimaActivacionSrRef.current < 1500) return; 
     try {
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
     } catch {
       srActivoRef.current = false;
     } finally {
-      ultimaActivacionSrRef.current = ahora; // throttle aplica siempre, incluso si falló
+      ultimaActivacionSrRef.current = ahora; 
     }
   }
 
@@ -470,8 +462,6 @@ export function useRosita() {
   }
 
   // ── Silbido ─────────────────────────────────────────────────────────────────
-  // Reproduce el silbido UNA vez y espera que termine (~4s).
-  // Las repeticiones las controla seriedeSilbidos() en useNotificaciones.
   async function reproducirSilbido() {
     if (!silbidoActivoRef.current) return;
     if (estadoRef.current !== 'esperando') return;
@@ -485,8 +475,6 @@ export function useRosita() {
       }
       player.replace({ uri: cacheUri });
       player.play();
-      // Timer fijo: 4s de audio + 500ms de margen.
-      // No usamos player.playing porque es poco confiable en Android.
       await new Promise<void>(resolve => setTimeout(resolve, 4500));
     } catch {}
   }
@@ -510,7 +498,6 @@ export function useRosita() {
     if (!musicaActivaRef.current) return;
     playerMusica.volume = 0.06;
     if (duckTimerRef.current) clearTimeout(duckTimerRef.current);
-    // Sin auto-restore: unduckMusica() se llama cuando hablar() termina
   }
 
   function unduckMusica() {
@@ -553,8 +540,6 @@ export function useRosita() {
     console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
-    // Actualizamos el ref inmediatamente para suprimir el watchdog,
-    // pero el setState visual lo hacemos justo antes de reproducir
     estadoRef.current = 'hablando';
 
     const MAX_CHARS = 450;
@@ -565,8 +550,8 @@ export function useRosita() {
 
     // Limpiar símbolos que ElevenLabs no pronuncia bien (frecuentes en respuestas de GPT)
     texto = texto
-      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')  // (pausa), (risas)...
-      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')    // línea "pausa" o "— pausa —"
+      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')  
+      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')    
       .replace(/(\d+)\s*°\s*[Cc]/g,  '$1 grados')
       .replace(/(\d+)\s*°\s*[Ff]/g,  '$1 grados Fahrenheit')
       .replace(/°/g,                  ' grados')
@@ -574,11 +559,12 @@ export function useRosita() {
       .replace(/(\d+)\s*km\/h/gi,     '$1 kilómetros por hora')
       .replace(/(\d+)\s*m\/s/gi,      '$1 metros por segundo')
       .replace(/\bkm\b/gi,            'kilómetros')
-      .replace(/\*\*(.+?)\*\*/g,      '$1')   // negrita markdown
-      .replace(/\*(.+?)\*/g,          '$1')   // cursiva markdown
-      .replace(/#+\s/g,               '')     // títulos markdown
-      .replace(/[_~`]/g,              '')     // otros símbolos markdown
-      .replace(/(?:\d[- ]?){6,}\d/g, m => m.replace(/[- ]/g, '').split('').join(' ')); // <-- Separar números largos para que los lea dígito por dígito
+      .replace(/\*\*(.+?)\*\*/g,      '$1')   
+      .replace(/\*(.+?)\*/g,          '$1')   
+      .replace(/#+\s/g,               '')     
+      .replace(/[_~`]/g,              '')     
+      // 👇 REGEX MEJORADO: Atrapa +54 o cualquier número largo y mete COMAS obligatorias
+      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', ')); 
 
     try {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
@@ -622,7 +608,6 @@ export function useRosita() {
           let durationTimer: ReturnType<typeof setTimeout> | undefined;
           let lastPos = -1;
 
-          // Si no arranca en 4s, asumimos fallo de carga
           const noStartTimer = setTimeout(() => { if (!started) done('no-start-4s'); }, 4000);
 
           const pollInterval = setInterval(() => {
@@ -645,13 +630,10 @@ export function useRosita() {
                 if (nearEnd) {
                   done('near-end');
                 } else if (pos === lastPos && !isNaN(dur) && dur > 0 && pos < dur - 0.3) {
-                  // Audio interrumpido por Android (audio focus) — intentar resumir
                   console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
                   player.play();
                   silenceCount = 0;
                 } else if (pos !== lastPos) {
-                  // La posición avanza → el audio sigue reproduciéndose aunque player.playing=false
-                  // (oscilación de audio focus en Android). No contar como silencio.
                   silenceCount = 0;
                 } else {
                   silenceCount++;
@@ -666,7 +648,6 @@ export function useRosita() {
           }, 150);
         });
       } else {
-        // Fallback al TTS del sistema si ElevenLabs no responde
         console.log('[TTS] fallback a Speech.speak (ElevenLabs falló)');
         setEstado('hablando');
         estadoRef.current = 'hablando';
@@ -690,7 +671,6 @@ export function useRosita() {
     setEstado('esperando');
     estadoRef.current = 'esperando';
 
-    // Solo reactivar SR si no estamos en flujo de voz
     if (!enFlujoVozRef.current) {
       iniciarSpeechRecognition();
     }
@@ -700,11 +680,11 @@ export function useRosita() {
   async function iniciarEscucha() {
     if (estadoRef.current !== 'esperando') return;
     detenerSilbido();
-    enFlujoVozRef.current = true; // bloquear SR durante todo el flujo del botón
+    enFlujoVozRef.current = true; 
     try {
       if (musicaActivaRef.current) { playerMusica.pause(); setMusicaActiva(false); }
       ExpoSpeechRecognitionModule.stop();
-      await new Promise(r => setTimeout(r, 400)); // esperar que SR libere el micrófono
+      await new Promise(r => setTimeout(r, 400)); 
       setEstado('escuchando');
       estadoRef.current = 'escuchando';
       await recorderConv.prepareToRecordAsync();
@@ -746,7 +726,6 @@ export function useRosita() {
       setEstado('esperando');
       estadoRef.current = 'esperando';
     } finally {
-      // Siempre liberar el flag y reiniciar SR al terminar el flujo del botón
       enFlujoVozRef.current = false;
       if (estadoRef.current === 'esperando') iniciarSpeechRecognition();
     }
@@ -763,11 +742,10 @@ export function useRosita() {
       clearTimeout(id);
       if (!res.ok) return null;
       const xml = await res.text();
-      // Extraer títulos del RSS — Google News usa CDATA, algunos feeds no
       const cdataMatches = [...xml.matchAll(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/gi)];
       const plainMatches = cdataMatches.length ? [] : [...xml.matchAll(/<title>([^<]+)<\/title>/gi)];
       const allMatches = cdataMatches.length ? cdataMatches : plainMatches;
-      const titulos = allMatches.slice(1, 6).map(m => m[1].trim()).filter(Boolean); // slice(1) para saltear el título del canal
+      const titulos = allMatches.slice(1, 6).map(m => m[1].trim()).filter(Boolean); 
       if (!titulos.length) return null;
       return titulos.join('\n');
     } catch {
@@ -784,7 +762,6 @@ export function useRosita() {
       return;
     }
     if (!silencioso) await hablar('Dale, mirá la pantalla, te saco una foto en tres segundos.');
-    // Abrir cámara y esperar que el componente capture o cancele
     const base64 = await new Promise<string | null>(resolve => {
       fotoResolverRef.current = resolve;
       setMostrarCamara(true);
@@ -866,7 +843,7 @@ export function useRosita() {
     detenerSilbido();
     setEstado('pensando');
     estadoRef.current = 'pensando';
-    reproducirMuletilla(); // filler inmediato mientras Claude procesa
+    reproducirMuletilla(); 
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
 
     try {
@@ -874,8 +851,6 @@ export function useRosita() {
       const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
       const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm);
 
-      // Búsquedas en paralelo para no bloquear
-      // Consultas de calendario/horario futuro van solo a Tavily — Google News daría resultados irrelevantes
       const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
       const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
       const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo)\b/.test(textoNorm);
@@ -888,7 +863,7 @@ export function useRosita() {
         const ciudad     = ciudadRef.current;
         if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
         else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
-        else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`; // <-- Búsqueda más precisa
+        else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`; 
         else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
       }
 
@@ -897,7 +872,6 @@ export function useRosita() {
         pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
       ]);
 
-      // Si Tavily devuelve algo, descarta Google News — evita instrucciones contradictorias a Claude
       const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
 
       let contextoNoticias = '';
@@ -928,6 +902,15 @@ REGLAS CRÍTICAS PARA RESPONDER:
         p.telegramContactos ?? [],
         p.familiares ?? [],
       );
+
+      // 👇 NUEVA TRAMPA: Si buscamos datos en internet, le cortamos cualquier pregunta final por si Claude no obedeció la regla 3
+      if (resultadosBusqueda) {
+        const sinPregunta = parsed.respuesta.replace(/¿[^?]+?\?\s*$/, '').trim();
+        // Solo lo reemplazamos si el texto resultante sigue teniendo información (más de 15 letras)
+        if (sinPregunta.length > 15) {
+          parsed.respuesta = sinPregunta;
+        }
+      }
 
       // ── PARAR_MUSICA ──
       if (parsed.tagPrincipal === 'PARAR_MUSICA') {
@@ -1182,41 +1165,38 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
   // ── Detección de sacudida y caída ────────────────────────────────────────────
   useEffect(() => {
-    if (Platform.OS === 'web') return; // Accelerometer no disponible en web
+    if (Platform.OS === 'web') return; 
 
     // ── Parámetros sacudida ──
-    const UMBRAL_SACUDIDA = 2.5;   // g-force para detectar sacudida
-    const SACUDIDAS       = 3;     // sacudidas necesarias
-    const VENTANA_SACUDIDA = 1500; // ms de ventana
+    const UMBRAL_SACUDIDA = 2.5;   
+    const SACUDIDAS       = 3;     
+    const VENTANA_SACUDIDA = 1500; 
 
     // ── Parámetros caída ──
-    const UMBRAL_CAIDA_LIBRE = 0.5;  // magnitud máxima para considerar caída libre (< 0.5g)
-    const UMBRAL_IMPACTO     = 3.0;  // magnitud mínima del impacto posterior (> 3g)
-    const VENTANA_IMPACTO    = 500;  // ms máximo entre caída libre e impacto
+    const UMBRAL_CAIDA_LIBRE = 0.5;  
+    const UMBRAL_IMPACTO     = 3.0;  
+    const VENTANA_IMPACTO    = 500;  
 
     // ── Estado máquina de caída ──
     let enCaidaLibre       = false;
     let timerImpacto: ReturnType<typeof setTimeout> | null = null;
-    let ultimaCaida        = 0;     // cooldown de caída independiente del SOS
-    const COOLDOWN_CAIDA   = 60000; // 60s entre alertas de caída
+    let ultimaCaida        = 0;     
+    const COOLDOWN_CAIDA   = 60000; 
 
     // ── Estado sacudida ──
     let conteo = 0;
     let timerReset: ReturnType<typeof setTimeout> | null = null;
 
-    Accelerometer.setUpdateInterval(100); // 100ms: suficiente para ambos algoritmos
+    Accelerometer.setUpdateInterval(100); 
     const sub = Accelerometer.addListener(({ x, y, z }) => {
       const magnitud = Math.sqrt(x * x + y * y + z * z);
 
-      // ── Detección de caída: fase 1 — caída libre ──
       if (magnitud < UMBRAL_CAIDA_LIBRE && !enCaidaLibre) {
         enCaidaLibre = true;
         if (timerImpacto) clearTimeout(timerImpacto);
-        // Si no hay impacto en VENTANA_IMPACTO ms, descartar
         timerImpacto = setTimeout(() => { enCaidaLibre = false; }, VENTANA_IMPACTO);
       }
 
-      // ── Detección de caída: fase 2 — impacto ──
       if (enCaidaLibre && magnitud > UMBRAL_IMPACTO) {
         enCaidaLibre = false;
         if (timerImpacto) { clearTimeout(timerImpacto); timerImpacto = null; }
@@ -1226,10 +1206,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
           console.log('[CAIDA] caída detectada, magnitud impacto:', magnitud.toFixed(2));
           dispararSOSCaida();
         }
-        return; // No procesar sacudida con el mismo evento de impacto
+        return; 
       }
 
-      // ── Detección de sacudida ──
       if (magnitud > UMBRAL_SACUDIDA) {
         conteo++;
         if (timerReset) clearTimeout(timerReset);
@@ -1251,11 +1230,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
   // ── Interfaz pública del hook ───────────────────────────────────────────────
   return {
-    // Estado UI
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
     modoNoche, horaActual, climaObj, flashAnim,
-    // Acciones
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS, forzarBostezo: () => {
       ultimoBostezRef.current = Date.now();
       setExpresion('bostezando');
@@ -1263,7 +1240,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
     },
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, onFotoCapturada, onFotoCancelada, flujoFoto,
-    // Refs que useNotificaciones necesita
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,

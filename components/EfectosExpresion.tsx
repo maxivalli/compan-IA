@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Dimensions, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -345,11 +346,11 @@ export function CenoEnojado() {
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
   }, []);
-
+  
   return (
     <Animated.View style={{ opacity }}>
-      <View style={{ position: 'absolute', left: 14, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
-      <View style={{ position: 'absolute', left: EYE_W + GAP + 16, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
+      <View style={{ position: 'absolute', left: 25, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
+      <View style={{ position: 'absolute', left: 165, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
     </Animated.View>
   );
 }
@@ -411,24 +412,70 @@ export function Grawlixes() {
   return <>{GRAWLIXES.map((g, i) => <UnGrawlix key={i} {...g} />)}</>;
 }
 
-// ── Mejillas ──────────────────────────────────────────────────────────────────
+// ── Mejillas (Glow SVG Radial) ────────────────────────────────────────────────
 
 export function Mejillas({ faceScale = 1 }: { faceScale?: number }) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  // Las posiciones compensan que el centro del scale del container está 20px a la
-  // izquierda del centro visual de la cara. Fórmula: 20/faceScale ± constante
+  const animacion = useRef(new Animated.Value(0)).current;
+
+  // Posiciones originales basadas en tu matemática
   const mejLeft  = 20 / faceScale - 41;
   const mejRight = 20 / faceScale + 227;
 
   useEffect(() => {
-    Animated.timing(opacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
-    return () => opacity.setValue(0);
-  }, []);
+    Animated.sequence([
+      Animated.timing(animacion, {
+        toValue: 1,
+        duration: 700, 
+        useNativeDriver: true,
+      }),
+      Animated.delay(1800), 
+      Animated.timing(animacion, {
+        toValue: 0,
+        duration: 900, 
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [animacion]);
+
+  // Dimensiones del lienzo SVG para dar espacio al resplandor
+  const w = 120;
+  const h = 80;
+  // Radios del núcleo del óvalo (la mitad de tus 62x34 originales)
+  const rx = 31;
+  const ry = 17;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  // Color naranja/rojizo original (#FF6B35) en formato rgba para el gradiente
+  const colorGlow = 'rgba(255, 107, 53, 1)';
+
+  const MejillaSvg = () => (
+    <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+      <Defs>
+        <RadialGradient id="glowMejilla" cx="50%" cy="50%" rx="50%" ry="50%" gradientUnits="objectBoundingBox">
+          <Stop offset="0%"   stopColor={colorGlow} stopOpacity={0.8} />
+          <Stop offset="40%"  stopColor={colorGlow} stopOpacity={0.4} />
+          <Stop offset="100%" stopColor={colorGlow} stopOpacity={0}   />
+        </RadialGradient>
+      </Defs>
+      <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#glowMejilla)" />
+    </Svg>
+  );
+
+  // Compensamos el offset visual generado por el lienzo SVG de 120x80
+  // La diferencia entre 120 y tu 62 original es 58 (29 por lado)
+  // La diferencia entre 80 y tu 34 original es 46 (23 por lado)
+  const offsetW = 29;
+  const offsetH = 23;
 
   return (
-    <Animated.View style={{ opacity }} pointerEvents="none">
-      <View style={{ position: 'absolute', left: mejLeft,  top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
-      <View style={{ position: 'absolute', left: mejRight, top: EYE_H + 44, width: 62, height: 34, borderRadius: 17, backgroundColor: '#FF6B35', opacity: 0.7 }} />
+    <Animated.View style={{ opacity: animacion }} pointerEvents="none">
+      <View style={{ position: 'absolute', left: mejLeft - offsetW, top: EYE_H + 44 - offsetH }}>
+        <MejillaSvg />
+      </View>
+      <View style={{ position: 'absolute', left: mejRight - offsetW, top: EYE_H + 44 - offsetH }}>
+        <MejillaSvg />
+      </View>
     </Animated.View>
   );
 }
