@@ -115,7 +115,7 @@ export async function buscarWeb(query: string): Promise<string | null> {
     const res = await fetchConTimeout(
       `${BACKEND_URL}/ai/search?q=${encodeURIComponent(query)}`,
       { headers: await jsonHeaders() },
-      8000,
+      15000,
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -124,8 +124,11 @@ export async function buscarWeb(query: string): Promise<string | null> {
     const partes: string[] = [];
     if (data.answer) partes.push(data.answer);
     if (results?.length) partes.push(results.map(r => `• ${r.title}: ${r.description}`).join('\n'));
-    return partes.join('\n\n');
-  } catch {
+    const resultado = partes.join('\n\n');
+    console.log('[TAVILY] resultado:', resultado.slice(0, 300));
+    return resultado;
+  } catch (e: any) {
+    console.log('[TAVILY] error:', e?.name ?? 'unknown');
     return null;
   }
 }
