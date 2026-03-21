@@ -172,23 +172,22 @@ export default function Index() {
     return () => { dotPulseAnim.current?.stop(); };
   }, [estado, musicaActiva]);
 
-  // Glow breathing — scale y opacity en loops separados (no mezclar useNativeDriver)
+  // Glow breathing — todo useNativeDriver: false (scale + opacity en mismo Animated.View)
   useEffect(() => {
-    const loopScale = Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(glowScale, { toValue: 1.06, duration: 1750, useNativeDriver: true }),
-        Animated.timing(glowScale, { toValue: 1,    duration: 1750, useNativeDriver: true }),
+        Animated.parallel([
+          Animated.timing(glowScale,   { toValue: 1.06, duration: 1750, useNativeDriver: false }),
+          Animated.timing(glowOpacity, { toValue: 0.50, duration: 1750, useNativeDriver: false }),
+        ]),
+        Animated.parallel([
+          Animated.timing(glowScale,   { toValue: 1,    duration: 1750, useNativeDriver: false }),
+          Animated.timing(glowOpacity, { toValue: 0.30, duration: 1750, useNativeDriver: false }),
+        ]),
       ])
     );
-    const loopOpacity = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowOpacity, { toValue: 0.50, duration: 1750, useNativeDriver: false }),
-        Animated.timing(glowOpacity, { toValue: 0.30, duration: 1750, useNativeDriver: false }),
-      ])
-    );
-    loopScale.start();
-    loopOpacity.start();
-    return () => { loopScale.stop(); loopOpacity.stop(); };
+    loop.start();
+    return () => loop.stop();
   }, []);
 
   // ── Nombre del asistente para el onboarding ─────────────────────────────────
