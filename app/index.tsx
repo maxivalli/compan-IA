@@ -30,7 +30,7 @@ export default function Index() {
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
-    mostrarCamara, onFotoCapturada, onFotoCancelada,
+    mostrarCamara, camaraFacing, onFotoCapturada, onFotoCancelada,
     refs, player,
   } = useRosita();
 
@@ -248,7 +248,7 @@ export default function Index() {
       {esFondoNoche && !(hora >= 6 && hora < 10) && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {modoNoche === 'durmiendo' && <ZZZ />}
       {esCumpleaños && <Globos />}
-      <CameraAutoCaptura visible={mostrarCamara} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
+      <CameraAutoCaptura visible={mostrarCamara} facing={camaraFacing} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
       {/* Polaroid — foto recibida por Telegram */}
       {fotoTelegram && (

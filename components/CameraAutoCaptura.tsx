@@ -6,9 +6,10 @@ type Props = {
   visible: boolean;
   onCaptura: (base64: string) => void;
   onCancelar: () => void;
+  facing?: 'front' | 'back';
 };
 
-export default function CameraAutoCaptura({ visible, onCaptura, onCancelar }: Props) {
+export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, facing = 'front' }: Props) {
   const [permission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [cuenta, setCuenta] = useState(3);
@@ -57,7 +58,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar }: Pr
   return (
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={styles.contenedor}>
-        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" onCameraReady={onCameraReady} />
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={onCameraReady} />
 
         {/* Overlay oscuro con cuenta regresiva */}
         <View style={styles.overlay}>

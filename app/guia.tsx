@@ -145,6 +145,14 @@ const SECCIONES: Seccion[] = [
     nota: 'Rosita pregunta si estás disponible antes de reproducir el audio. Podés contestar directamente desde la app.',
   },
   {
+    icono: 'image-outline',
+    titulo: 'Fotos de la familia',
+    descripcion: 'Cuando un familiar te manda una foto por Telegram, Rosita te avisa, la muestra en pantalla y te la describe en voz alta.',
+    color: '#6A0D91',
+    bg: '#F0DEFF',
+    nota: 'La foto aparece grande en pantalla durante 30 segundos. Rosita pregunta si estás disponible antes de mostrarla.',
+  },
+  {
     icono: 'camera-outline',
     titulo: 'Foto para la familia',
     descripcion: 'Pedile que te saque una foto y la manda directamente a tu familia por Telegram. La cámara abre sola con una cuenta regresiva y se dispara automáticamente.',

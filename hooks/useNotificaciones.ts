@@ -434,7 +434,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         if (ya) continue;
         await marcarRecordado(clave);
         const nombre = med.split(/\s+/)[0];
-        await hablar(`${p.nombreAbuela}, es hora de tomar el ${nombre}.`);
+        const textoRecordatorio = `${p.nombreAbuela}, es hora de tomar el ${nombre}.`;
+        await AsyncStorage.setItem('medPendiente', JSON.stringify({ texto: textoRecordatorio, ts: Date.now() }));
+        await hablar(textoRecordatorio);
         break;
       }
     }

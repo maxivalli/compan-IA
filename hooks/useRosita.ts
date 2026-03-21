@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
 import { Accelerometer } from 'expo-sensors';
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from 'expo-audio';
@@ -22,7 +23,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -45,6 +46,7 @@ export function useRosita() {
   const [musicaActiva,      setMusicaActiva]      = useState(false);
   const [silbando,          setSilbando]          = useState(false);
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
+  const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
   const [noMolestar,        setNoMolestar]        = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
@@ -249,6 +251,8 @@ export function useRosita() {
         await hablar(ultimoTextoHabladoRef.current!);
       } else if (/\bfoto\b/i.test(textoNorm)) {
         await flujoFoto();
+      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso))\b/.test(textoNorm)) {
+        await flujoLeerImagen();
       } else {
         await responderConClaude(texto);
       }
@@ -806,6 +810,35 @@ export function useRosita() {
     }
   }
 
+  // ── Leer imagen con Claude Vision ───────────────────────────────────────────
+  async function flujoLeerImagen() {
+    const p = perfilRef.current;
+    const nombre = p?.nombreAbuela ?? '';
+    await hablar(
+      `Bueno${nombre ? ` ${nombre}` : ''}, apuntá la cámara a lo que querés que te lea. ` +
+      `Cuando estés lista, quedate quieta y esperá hasta que cuente tres. ` +
+      `Yo te digo todo lo que vea.`
+    );
+    setCamaraFacing('back');
+    const base64 = await new Promise<string | null>(resolve => {
+      fotoResolverRef.current = resolve;
+      setMostrarCamara(true);
+    });
+    setMostrarCamara(false);
+    setCamaraFacing('front');
+    if (!base64) {
+      await hablar('No pude sacar la foto. ¿Querés intentarlo de nuevo?');
+      return;
+    }
+    await hablar('A ver, déjame mirar...');
+    const resultado = await leerImagen(base64);
+    if (!resultado) {
+      await hablar('No pude ver bien la imagen. ¿Podés acercar un poco más la cámara y volvemos a intentar?');
+      return;
+    }
+    await hablar(resultado);
+  }
+
   function onFotoCapturada(base64: string) {
     fotoResolverRef.current?.(base64);
     fotoResolverRef.current = null;
@@ -1018,6 +1051,20 @@ export function useRosita() {
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
       await hablar(parsed.respuesta);
+
+      // ── Recordatorio de medicamento pendiente ────────────────────────────────
+      try {
+        const medRaw = await AsyncStorage.getItem('medPendiente');
+        if (medRaw) {
+          const { texto, ts } = JSON.parse(medRaw);
+          await AsyncStorage.removeItem('medPendiente');
+          const cuatroHoras = 4 * 60 * 60 * 1000;
+          if (Date.now() - ts < cuatroHoras) {
+            await hablar(`Por cierto, ${texto}`);
+          }
+        }
+      } catch { /* si falla no interrumpir el flujo */ }
+
       if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
       expresionTimerRef.current = setTimeout(() => {
         if (estadoRef.current === 'esperando') setExpresion('neutral');
@@ -1193,7 +1240,7 @@ export function useRosita() {
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
     },
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
-    mostrarCamara, onFotoCapturada, onFotoCancelada, flujoFoto,
+    mostrarCamara, camaraFacing, onFotoCapturada, onFotoCancelada, flujoFoto,
     // Refs que useNotificaciones necesita
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,

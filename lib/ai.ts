@@ -130,6 +130,22 @@ export async function buscarWeb(query: string): Promise<string | null> {
   }
 }
 
+/** Envía una imagen al backend para que Claude Vision la lea/describa. */
+export async function leerImagen(base64: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/leer-imagen`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ imagen: base64 }),
+    }, 25000);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.texto ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Genera un efecto de sonido y devuelve base64, o null si falla. */
 export async function generarSonido(
   texto: string,
