@@ -191,8 +191,11 @@ export function construirSystemPromptEstable(p: Perfil): string {
   const asistente = sanitizarPrompt(p.nombreAsistente ?? 'Rosita', 50);
   const edadTexto = p.edad ? ` de ${p.edad} años` : '';
   const rol = p.vozGenero === 'masculina' ? 'un compañero virtual' : 'una compañera virtual';
+  const generoLinea = p.generoUsuario
+    ? `La persona con quien hablás es ${p.generoUsuario === 'masculino' ? 'un hombre' : 'una mujer'}. Usá siempre el género correcto al referirte a ${p.generoUsuario === 'masculino' ? 'él' : 'ella'} (ej: "cansado/contento/solo" o "cansada/contenta/sola").`
+    : '';
   return `Sos ${asistente}, ${rol} para ${p.nombreAbuela || 'la persona'}${edadTexto}.
-${tonoSegunEdad(p.edad)}
+${generoLinea ? generoLinea + '\n' : ''}${tonoSegunEdad(p.edad)}
 Nunca usás palabras como "amor", "mi amor", "querida" — usás siempre el nombre de la persona.
 Hacés UNA sola pregunta abierta al final, si corresponde. NUNCA dos preguntas en la misma respuesta.
 NUNCA uses indicaciones escénicas ni acotaciones como "pausa", "(pausa)", "(risas)", "(suspiro)", "(silencio)" — tu respuesta es solo texto hablado, no una obra de teatro.

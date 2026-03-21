@@ -255,6 +255,7 @@ export default function Configuracion() {
   const [edad, setEdad]                   = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('');
   const [vozGenero, setVozGenero]         = useState<'femenina' | 'masculina'>('femenina');
+  const [generoUsuario, setGeneroUsuario] = useState<'femenino' | 'masculino'>('femenino');
   const [hijos,      setHijos]            = useState('');
   const [nietos,     setNietos]           = useState('');
   const [hermanos,   setHermanos]         = useState('');
@@ -291,6 +292,7 @@ export default function Configuracion() {
       setEdad(p.edad ? String(p.edad) : '');
       setNombreAsistente(p.nombreAsistente ?? 'Rosita');
       setVozGenero(p.vozGenero ?? 'femenina');
+      setGeneroUsuario(p.generoUsuario ?? 'femenino');
       const findCat = (cat: string) => {
         const e = p.familiares.find(f => f.toLowerCase().startsWith(cat + ':'));
         return e ? e.slice(cat.length + 1).trim() : '';
@@ -377,6 +379,7 @@ export default function Configuracion() {
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente:   nombreAsistente.trim() || 'Rosita',
       vozGenero,
+      generoUsuario,
       familiares: [
         hijos.trim()    && `hijos: ${hijos.trim()}`,
         nietos.trim()   && `nietos: ${nietos.trim()}`,
@@ -442,6 +445,24 @@ export default function Configuracion() {
         <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
         <M3Input label="Fecha de nacimiento" hint="DD/MM — para el saludo de cumpleaños" value={fechaNacimiento} onChangeText={t => setFechaNacimiento(t.replace(/[^0-9/]/g, '').slice(0, 5))} placeholder="19/03" />
         <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
+
+        <Surface style={{ marginTop: 4 }}>
+          <View style={s.vozRow}>
+            {(['femenino', 'masculino'] as const).map(g => (
+              <TouchableOpacity
+                key={g}
+                style={[s.vozChip, generoUsuario === g && s.vozChipActivo]}
+                onPress={() => setGeneroUsuario(g)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name={g === 'femenino' ? 'woman' : 'man'} size={16} color={generoUsuario === g ? M.onPrimary : M.onSurfaceVariant} />
+                <Text style={[s.vozChipTxt, generoUsuario === g && s.vozChipTxtActivo]}>
+                  {g === 'femenino' ? 'Soy mujer' : 'Soy hombre'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Surface>
 
         <Surface style={{ marginTop: 4 }}>
           <View style={s.vozRow}>

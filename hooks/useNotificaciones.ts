@@ -366,7 +366,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         temasTexto = await llamarClaude({
           maxTokens: 80,
-          system: 'Resumí en una sola línea corta los temas principales de estos mensajes de una señora mayor. Sin puntuación al final. Solo los temas, sin nombres propios. Máximo 15 palabras.',
+          system: `Resumí en una sola línea corta los temas principales de estos mensajes de ${perfilRef.current?.generoUsuario === 'masculino' ? 'un señor mayor' : 'una señora mayor'}. Sin puntuación al final. Solo los temas, sin nombres propios. Máximo 15 palabras.`,
           messages: [{ role: 'user', content: mensajesUsuario.join(' | ') }],
         }) || 'conversación general';
       } catch {

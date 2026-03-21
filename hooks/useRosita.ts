@@ -810,13 +810,18 @@ export function useRosita() {
     }
   }
 
+  // ── Helper de género del usuario ─────────────────────────────────────────────
+  function g(femenino: string, masculino: string): string {
+    return perfilRef.current?.generoUsuario === 'masculino' ? masculino : femenino;
+  }
+
   // ── Leer imagen con Claude Vision ───────────────────────────────────────────
   async function flujoLeerImagen() {
     const p = perfilRef.current;
     const nombre = p?.nombreAbuela ?? '';
     await hablar(
       `Bueno${nombre ? ` ${nombre}` : ''}, apuntá la cámara a lo que querés que te lea. ` +
-      `Cuando estés lista, quedate quieta y esperá hasta que cuente tres. ` +
+      `Cuando estés ${g('lista', 'listo')}, quedate ${g('quieta', 'quieto')} y esperá hasta que cuente tres. ` +
       `Yo te digo todo lo que vea.`
     );
     setCamaraFacing('back');

@@ -64,6 +64,7 @@ export type Perfil = {
   nombreAbuela: string;
   nombreAsistente: string;
   vozGenero: 'femenina' | 'masculina';
+  generoUsuario?: 'femenino' | 'masculino';
   vozId?: string;
   edad?: number;
   familiares: string[];
