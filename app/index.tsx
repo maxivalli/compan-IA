@@ -285,12 +285,16 @@ export default function Index() {
 
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
-          {/* Glow difuso detrás del botón — blur en web, shadow en native */}
-          <Animated.View style={[
-            styles.btnGlow,
-            { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: glowOpacity },
-            Platform.OS === 'web' ? { filter: 'blur(28px)' } as any : {},
-          ]} />
+          {/* Glow difuso detrás del botón */}
+          {Platform.OS === 'web'
+            ? <Animated.View style={[styles.btnGlow, { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: glowOpacity, filter: 'blur(28px)' } as any]} />
+            : <Animated.View style={[styles.btnGlow, { opacity: glowOpacity }]}>
+                <View style={{ position: 'absolute', width: btnW + 72, height: btnH + 48, borderRadius: (btnH + 48) / 2, backgroundColor: btnDotColor, opacity: 0.10 }} />
+                <View style={{ position: 'absolute', width: btnW + 50, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: 0.20 }} />
+                <View style={{ position: 'absolute', width: btnW + 30, height: btnH + 18, borderRadius: (btnH + 18) / 2, backgroundColor: btnDotColor, opacity: 0.35 }} />
+                <View style={{ position: 'absolute', width: btnW + 14, height: btnH + 8,  borderRadius: (btnH + 8)  / 2, backgroundColor: btnDotColor, opacity: 0.55 }} />
+              </Animated.View>
+          }
           {/* Wrapper para shadow (separado de overflow:hidden) */}
           <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
             <TouchableOpacity
