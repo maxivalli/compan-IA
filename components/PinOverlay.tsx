@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Alert, Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { eliminarPIN, obtenerPIN } from '../lib/memoria';
 
@@ -30,7 +30,12 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
   const [fase,     setFase]     = useState<'entrada' | 'confirmar'>('entrada');
   const [error,    setError]    = useState('');
   const [intentos, setIntentos] = useState(0);
-  const shake = useRef(new Animated.Value(0)).current;
+  const shake        = useRef(new Animated.Value(0)).current;
+  const evalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (evalTimerRef.current) clearTimeout(evalTimerRef.current);
+  }, []);
 
   function sacudir() {
     Animated.sequence([
@@ -46,7 +51,7 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
     if (actual.length >= 4) return;
     const nuevo = actual + d;
     fase === 'confirmar' ? setConfirma(nuevo) : setDigitos(nuevo);
-    if (nuevo.length === 4) setTimeout(() => evaluar(nuevo), 120);
+    if (nuevo.length === 4) { evalTimerRef.current = setTimeout(() => evaluar(nuevo), 120); }
   }
 
   function borrar() {
@@ -108,7 +113,8 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
       : 'Creá un PIN de 4 dígitos';
 
   return (
-    <View style={st.overlay}>
+    <Modal visible transparent animationType="fade" statusBarTranslucent>
+      <View style={st.backdrop}>
       <View style={st.card}>
         <Ionicons name="lock-closed-outline" size={32} color={M.primary} style={{ marginBottom: 12 }} />
         <Text style={st.titulo}>{titulo}</Text>
@@ -148,12 +154,13 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
           </TouchableOpacity>
         )}
       </View>
-    </View>
+      </View>
+    </Modal>
   );
 }
 
 const st = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000aa', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
+  backdrop: { flex: 1, backgroundColor: '#000000aa', alignItems: 'center', justifyContent: 'center' },
   card:    { backgroundColor: '#fff', borderRadius: 24, padding: 28, alignItems: 'center', width: 300, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12 },
   titulo:  { fontSize: 16, fontWeight: '500', color: '#171d1e', marginBottom: 20 },
   error:   { fontSize: 13, color: '#ba1a1a', marginBottom: 12, marginTop: -8, textAlign: 'center' },

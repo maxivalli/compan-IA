@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAudioPlayer } from 'expo-audio';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
@@ -51,6 +51,12 @@ export type NotificacionesRefs = {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<typeof useAudioPlayer>) {
+  // Cola FIFO — serializa los handlers de Telegram para evitar race conditions
+  const colaRef = useRef<Promise<void>>(Promise.resolve());
+  function encolar(fn: () => Promise<void>): void {
+    colaRef.current = colaRef.current.then(fn).catch(() => {});
+  }
+
   const {
     perfilRef, estadoRef, noMolestarRef, modoNocheRef,
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
@@ -414,13 +420,43 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     );
   }
 
-  // ── Recordatorio de medicamentos ────────────────────────────────────────────
+  // ── Cumpleaños — hooks y estado deben estar en el scope del hook ─────────────
+  const [esCumpleaños, setEsCumpleaños] = useState(false);
+  const playerCumple = useAudioPlayer(require('../assets/audio/0319.mp3'));
+
+  // Detecta si hoy es el cumpleaños al montar (para mostrar globos todo el día)
+  useEffect(() => {
+    (async () => {
+      const p = perfilRef.current;
+      if (!p?.fechaNacimiento) return;
+      const ahora = new Date();
+      const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
+      if (ahora.getMonth() + 1 === mm && ahora.getDate() === dd) setEsCumpleaños(true);
+    })();
+  }, []);
+
+  // ── Reloj Maestro — un único setInterval reemplaza 5 efectos de 1 minuto ─────
   useEffect(() => {
     function parsearHoraMed(med: string): number | null {
       const m = med.match(/(\d{1,2})(?::(\d{2}))?\s*h/i);
       if (!m) return null;
       return parseInt(m[1], 10);
     }
+
+    function parsearFecha(texto: string): { dia: number; mes: number } | null {
+      const MESES: Record<string, number> = {
+        enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
+        julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
+      };
+      const m = texto.toLowerCase().match(/(\d{1,2})\s+(\w+)/);
+      if (!m) return null;
+      const mes = MESES[m[2]];
+      if (!mes) return null;
+      return { dia: parseInt(m[1], 10), mes };
+    }
+
+    // Blacklist en RAM: evita duplicados aunque AsyncStorage tarde
+    const disparados = new Set<string>();
 
     async function chequearMedicamentos() {
       const p = perfilRef.current;
@@ -429,7 +465,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const horaActualVal = new Date().getHours();
       const minActual = new Date().getMinutes();
       if (minActual > 5) return;
-
       for (const med of p.medicamentos) {
         const hora = parsearHoraMed(med);
         if (hora === null || hora !== horaActualVal) continue;
@@ -445,31 +480,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
     }
 
-    const id = setInterval(chequearMedicamentos, 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  // ── Felicitaciones por fechas importantes ───────────────────────────────────
-  useEffect(() => {
-    function parsearFecha(texto: string): { dia: number; mes: number } | null {
-      const MESES: Record<string, number> = {
-        enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6,
-        julio: 7, agosto: 8, septiembre: 9, octubre: 10, noviembre: 11, diciembre: 12,
-      };
-      const m = texto.toLowerCase().match(/(\d{1,2})\s+(\w+)/);
-      if (!m) return null;
-      const mes = MESES[m[2]];
-      if (!mes) return null;
-      return { dia: parseInt(m[1], 10), mes };
-    }
-
     async function chequearFechas() {
       const p = perfilRef.current;
       if (!p || noMolestarRef.current) return;
       const ahora = new Date();
-      // Desfasado 2 minutos respecto al saludoMatutino (9:00-9:05) para no pisarse
+      // Desfasado 2 minutos respecto al saludoMatutino para no pisarse
       if (ahora.getHours() !== 9 || ahora.getMinutes() < 2 || ahora.getMinutes() > 7) return;
-
       for (const fecha of p.fechasImportantes) {
         const parsed = parsearFecha(fecha);
         if (!parsed) continue;
@@ -490,33 +506,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
     }
 
-    const id = setInterval(chequearFechas, 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  // ── Cumpleaños ───────────────────────────────────────────────────────────────
-  const [esCumpleaños, setEsCumpleaños] = useState(false);
-  const playerCumple = useAudioPlayer(require('../assets/audio/0319.mp3'));
-
-  // Detecta si hoy es el cumpleaños al montar (para mostrar globos todo el día)
-  useEffect(() => {
-    (async () => {
-      const p = perfilRef.current;
-      if (!p?.fechaNacimiento) return;
-      const ahora = new Date();
-      const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
-      if (ahora.getMonth() + 1 === mm && ahora.getDate() === dd) {
-        setEsCumpleaños(true);
-      }
-    })();
-  }, []);
-
-  // Saludo especial de cumpleaños a las 9am (reemplaza al saludo matutino)
-  useEffect(() => {
     async function cumpleañosMatutino() {
       const p = perfilRef.current;
-      if (!p?.fechaNacimiento) return;
-      if (noMolestarRef.current) return;
+      if (!p?.fechaNacimiento || noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
       const ahora = new Date();
       if (ahora.getHours() !== 9 || ahora.getMinutes() > 8) return;
@@ -527,11 +519,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (ya) return;
       await marcarRecordado(clave);
       setEsCumpleaños(true);
-      // Reproduce audio de cumpleaños
       try {
         playerCumple.seekTo(0);
         playerCumple.play();
-        // Espera que termine (max 90s) o que deje de reproducir
         await new Promise<void>(resolve => {
           let ticks = 0;
           const check = setInterval(() => {
@@ -540,7 +530,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           }, 500);
         });
       } catch {}
-      // Saludo de cumpleaños con Claude
       try {
         const frase = await llamarClaude({
           maxTokens: 120,
@@ -551,12 +540,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       } catch {}
     }
 
-    const id = setInterval(cumpleañosMatutino, 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  // ── Saludo matutino con fecha y clima ───────────────────────────────────────
-  useEffect(() => {
     async function saludoMatutino() {
       const p = perfilRef.current;
       if (!p || noMolestarRef.current) return;
@@ -577,43 +560,22 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         let frase: string | null;
         if (esNavidad) {
-          frase = await llamarClaude({
-            maxTokens: 120,
-            system: `${systemBase} Generá UN saludo de Navidad breve, muy cálido y emotivo para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`,
-            messages: [{ role: 'user', content: `Deseale Feliz Navidad a ${p.nombreAbuela} con mucho cariño.` }],
-          });
+          frase = await llamarClaude({ maxTokens: 120, system: `${systemBase} Generá UN saludo de Navidad breve, muy cálido y emotivo para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`, messages: [{ role: 'user', content: `Deseale Feliz Navidad a ${p.nombreAbuela} con mucho cariño.` }] });
         } else if (esAñoNuevo) {
-          frase = await llamarClaude({
-            maxTokens: 120,
-            system: `${systemBase} Generá UN saludo de Año Nuevo breve, muy cálido y esperanzador para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`,
-            messages: [{ role: 'user', content: `Deseale Feliz Año Nuevo a ${p.nombreAbuela} con mucho cariño.` }],
-          });
+          frase = await llamarClaude({ maxTokens: 120, system: `${systemBase} Generá UN saludo de Año Nuevo breve, muy cálido y esperanzador para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`, messages: [{ role: 'user', content: `Deseale Feliz Año Nuevo a ${p.nombreAbuela} con mucho cariño.` }] });
         } else {
-          frase = await llamarClaude({
-            maxTokens: 100,
-            system: `${systemBase} Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Respondé SOLO con la frase, sin etiquetas.`,
-            messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días.` }],
-          });
+          frase = await llamarClaude({ maxTokens: 100, system: `${systemBase} Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Respondé SOLO con la frase, sin etiquetas.`, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días.` }] });
         }
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
       } catch {}
     }
 
-    const id = setInterval(saludoMatutino, 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  // ── Recordatorios personales ─────────────────────────────────────────────────
-  useEffect(() => {
-    // Blacklist en RAM: evita race conditions entre ciclos del intervalo
-    const disparados = new Set<string>();
-
     async function chequearRecordatorios() {
       if (noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
       const hora = new Date().getHours();
-      if (hora < 9 || hora >= 21) return; // solo avisar en horario diurno
-      const hoy = fechaLocal(); // local date, no UTC
+      if (hora < 9 || hora >= 21) return;
+      const hoy = fechaLocal();
       const ahora = Date.now();
       const todos = await cargarRecordatorios();
       const pendientes = todos.filter(r => {
@@ -623,24 +585,83 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       });
       for (const r of pendientes) {
         const clave = `recordatorio_${r.id}`;
-        // Chequeo síncrono en RAM primero — evita duplicados aunque AsyncStorage tarde
         if (disparados.has(clave)) continue;
         const ya = await yaRecordo(clave);
         if (ya) { disparados.add(clave); continue; }
         disparados.add(clave);
         await marcarRecordado(clave);
         const nombre = perfilRef.current?.nombreAbuela ?? '';
-        if (r.esTimer) {
-          await hablar(r.texto);
-        } else {
-          await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`);
-        }
+        if (r.esTimer) { await hablar(r.texto); } else { await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`); }
         break;
       }
     }
 
+    async function enviarResumenDiario() {
+      const p = perfilRef.current;
+      if (!p) return;
+      const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+      if (!chatIds.length) return;
+      const ahora = new Date();
+      if (ahora.getHours() !== 22 || ahora.getMinutes() > 5) return;
+      const clave = `resumen_${ahora.toISOString().slice(0, 10)}`;
+      const ya = await yaRecordo(clave);
+      if (ya) return;
+      await marcarRecordado(clave);
+      const mensaje = await generarMensajeResumen(p);
+      await enviarMensajeTelegram(chatIds, mensaje);
+    }
+
+    async function resetearAnimo() {
+      const ahora = new Date();
+      if (ahora.getHours() !== 23 || ahora.getMinutes() > 5) return;
+      const clave = `reset_animo_${ahora.toISOString().slice(0, 10)}`;
+      const ya = await yaRecordo(clave);
+      if (ya) return;
+      await marcarRecordado(clave);
+      await limpiarHistorialAnimo();
+    }
+
+    async function chequearClima() {
+      const p = perfilRef.current;
+      if (!p?.nombreAbuela) return;
+      if (noMolestarRef.current) return;
+      if (estadoRef.current !== 'esperando') return;
+      const hora = new Date().getHours();
+      if (hora !== 9 && hora !== 14) return;
+      const clave = `alerta_clima_${fechaLocal()}_${hora}h`;
+      const ya = await yaRecordo(clave);
+      if (ya) return;
+      await marcarRecordado(clave);
+      const clima = await obtenerClima();
+      if (!clima) return;
+      const adversoAhora = CODIGOS_ADVERSOS.has(clima.codigoActual);
+      const manana = clima.pronostico[0];
+      const adversoManana = manana && CODIGOS_ADVERSOS.has(manana.codigo);
+      if (!adversoAhora && !adversoManana) return;
+      const nombre = p.nombreAbuela;
+      let frase: string;
+      if (adversoAhora) {
+        frase = `${nombre}, te quería avisar que afuera hay ${clima.descripcion}. Si pensabas salir, mejor esperá un poco o llevate el paraguas.`;
+      } else {
+        frase = `${nombre}, mañana se pronostica ${manana!.descripcion}. Por si tenés algo planeado, puede ser buena idea tenerlo en cuenta.`;
+      }
+      await hablar(frase);
+    }
+
     borrarRecordatoriosViejos().catch(() => {});
-    const id = setInterval(chequearRecordatorios, 60000);
+
+    async function tick() {
+      await chequearMedicamentos();
+      await chequearFechas();
+      await cumpleañosMatutino();
+      await saludoMatutino();
+      await chequearRecordatorios();
+      await enviarResumenDiario();
+      await resetearAnimo();
+      await chequearClima();
+    }
+
+    const id = setInterval(tick, 60000);
     return () => clearInterval(id);
   }, []);
 
@@ -880,14 +901,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
     }
 
-    // Polling de mensajes de voz cada 3 min
-    const idPolling = setInterval(chequearMensajesVoz, 3 * 60 * 1000);
-    // Polling de fotos cada 3 min
-    const idFotos = setInterval(chequearMensajesFoto, 3 * 60 * 1000);
-    // Polling de comandos (cámara, informe) cada 15s para respuesta rápida
-    const idComandos = setInterval(chequearComandos, 15 * 1000);
-    // Reintento de pendientes cada 15 minutos
-    const idReintento = setInterval(reintentar, INTERVALO_REINTENTO);
+    // Polling serializado via cola FIFO — evita race conditions entre handlers
+    const idPolling  = setInterval(() => encolar(chequearMensajesVoz),  3 * 60 * 1000);
+    const idFotos    = setInterval(() => encolar(chequearMensajesFoto), 3 * 60 * 1000);
+    const idComandos = setInterval(() => encolar(chequearComandos),     15 * 1000);
+    const idReintento = setInterval(() => encolar(reintentar),          INTERVALO_REINTENTO);
 
     return () => {
       clearInterval(idPolling);
@@ -895,87 +913,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       clearInterval(idComandos);
       clearInterval(idReintento);
     };
-  }, []);
-
-  // ── Resumen diario a las 22hs ───────────────────────────────────────────────
-  useEffect(() => {
-    async function enviarResumenDiario() {
-      const p = perfilRef.current;
-      if (!p) return;
-      const chatIds = (p.telegramContactos ?? []).map(c => c.id);
-      if (!chatIds.length) return;
-      const ahora = new Date();
-      if (ahora.getHours() !== 22 || ahora.getMinutes() > 5) return;
-      const clave = `resumen_${ahora.toISOString().slice(0, 10)}`;
-      const ya = await yaRecordo(clave);
-      if (ya) return;
-      await marcarRecordado(clave);
-      const mensaje = await generarMensajeResumen(p);
-      await enviarMensajeTelegram(chatIds, mensaje);
-    }
-
-    const id = setInterval(enviarResumenDiario, 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  // ── Reseteo nocturno del historial de ánimo a las 23hs ──────────────────────
-  useEffect(() => {
-    async function resetearAnimo() {
-      const ahora = new Date();
-      if (ahora.getHours() !== 23 || ahora.getMinutes() > 5) return;
-      const clave = `reset_animo_${ahora.toISOString().slice(0, 10)}`;
-      const ya = await yaRecordo(clave);
-      if (ya) return;
-      await marcarRecordado(clave);
-      await limpiarHistorialAnimo();
-    }
-
-    const id = setInterval(resetearAnimo, 60000);
-    return () => clearInterval(id);
-  }, []);
-
-  // ── Alerta de mal tiempo (8h y 14h) ─────────────────────────────────────────
-  useEffect(() => {
-    async function chequearClima() {
-      const p = perfilRef.current;
-      if (!p?.nombreAbuela) return;
-      if (noMolestarRef.current) return;
-      if (estadoRef.current !== 'esperando') return;
-
-      const hora = new Date().getHours();
-      // Solo a las 9h (cuando arranca la actividad) y a las 14h (alerta de tarde)
-      if (hora !== 9 && hora !== 14) return;
-
-      const clave = `alerta_clima_${fechaLocal()}_${hora}h`;
-      const ya = await yaRecordo(clave);
-      if (ya) return;
-      await marcarRecordado(clave);
-
-      const clima = await obtenerClima();
-      if (!clima) return;
-
-      const adversoAhora = CODIGOS_ADVERSOS.has(clima.codigoActual);
-      const manana = clima.pronostico[0];
-      const adversoManana = manana && CODIGOS_ADVERSOS.has(manana.codigo);
-
-      if (!adversoAhora && !adversoManana) return;
-
-      const nombre = p.nombreAbuela;
-      let frase: string;
-
-      if (adversoAhora) {
-        const desc = clima.descripcion;
-        frase = `${nombre}, te quería avisar que afuera hay ${desc}. Si pensabas salir, mejor esperá un poco o llevate el paraguas.`;
-      } else {
-        const desc = manana!.descripcion;
-        frase = `${nombre}, mañana se pronostica ${desc}. Por si tenés algo planeado, puede ser buena idea tenerlo en cuenta.`;
-      }
-
-      await hablar(frase);
-    }
-
-    const id = setInterval(chequearClima, 60000);
-    return () => clearInterval(id);
   }, []);
 
   // ── Timer de silbido ────────────────────────────────────────────────────────
