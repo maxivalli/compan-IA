@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -48,8 +48,18 @@ export default function Index() {
     return () => { ExpoSpeechRecognitionModule.stop(); };
   }, [cargando]));
 
+  // ── Foto recibida por Telegram ───────────────────────────────────────────────
+  const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
+  const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function mostrarFoto(urlFoto: string, descripcion: string) {
+    if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current);
+    setFotoTelegram({ url: urlFoto, descripcion });
+    fotoTimerRef.current = setTimeout(() => setFotoTelegram(null), 30000);
+  }
+
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
-  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido }, player);
+  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido, mostrarFoto }, player);
 
 
   // ── Cálculo del fondo ───────────────────────────────────────────────────────
@@ -239,6 +249,35 @@ export default function Index() {
       {modoNoche === 'durmiendo' && <ZZZ />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
+
+      {/* Polaroid — foto recibida por Telegram */}
+      {fotoTelegram && (
+        <Modal transparent animationType="fade" statusBarTranslucent>
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setFotoTelegram(null)}
+            style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <View style={{
+              transform: [{ rotate: '-3deg' }],
+              backgroundColor: '#fff',
+              padding: 12,
+              paddingBottom: 48,
+              borderRadius: 4,
+              shadowColor: '#000',
+              shadowOpacity: 0.5,
+              shadowRadius: 20,
+              elevation: 20,
+              width: '88%',
+            }}>
+              <Animated.Image
+                source={{ uri: fotoTelegram.url }}
+                style={{ width: '100%', aspectRatio: 1, resizeMode: 'cover', borderRadius: 2 }}
+              />
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
       <View style={[styles.ojoContenedor, isTablet && { marginTop: 40 }]} {...panCaricia.panHandlers}>
         <ExpresionOverlay

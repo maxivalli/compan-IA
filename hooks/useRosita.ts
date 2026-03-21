@@ -229,9 +229,10 @@ export function useRosita() {
     const textoNorm   = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const nombreRegex = new RegExp('(^|\\s)' + nombreNorm.slice(0, 5), 'i');
     const mencionaNombre = nombreRegex.test(textoNorm);
-    const enConversacion = musicaActivaRef.current ? false : (Date.now() - ultimaCharlaRef.current) < 60 * 1000;
-    // Con música activa se exige siempre el nombre para evitar falsos disparos por letras en español
-    const esPreguntaDirecta = musicaActivaRef.current ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
+    const esNoche = modoNocheRef.current !== 'despierta';
+    const enConversacion = (musicaActivaRef.current || esNoche) ? false : (Date.now() - ultimaCharlaRef.current) < 60 * 1000;
+    // Con música activa o en modo noche se exige siempre el nombre para evitar falsos disparos
+    const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }

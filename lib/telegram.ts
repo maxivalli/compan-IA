@@ -62,6 +62,25 @@ export async function enviarFotoTelegram(chatIds: string[], fotoBase64: string, 
   } catch {}
 }
 
+export type MensajeFoto = {
+  fromName:   string;
+  chatId:     string;
+  descripcion: string;
+  urlFoto:    string;
+};
+
+export async function recibirMensajesFoto(chatIds: string[] = []): Promise<MensajeFoto[]> {
+  if (!chatIds.length) return [];
+  try {
+    const params = new URLSearchParams({ chatIds: chatIds.join(',') });
+    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-foto?${params}`, { headers: await h() });
+    const data = await res.json();
+    return data.mensajes ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function enviarMensajeTelegram(chatIds: string[], texto: string): Promise<void> {
   if (!chatIds.length) return;
   try {

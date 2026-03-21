@@ -17,7 +17,7 @@ import {
   fechaLocal,
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
-import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, obtenerUrlArchivo, MensajeVoz } from '../lib/telegram';
+import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, recibirMensajesFoto, obtenerUrlArchivo, MensajeVoz, MensajeFoto } from '../lib/telegram';
 import { obtenerClima, CODIGOS_ADVERSOS } from '../lib/clima';
 
 import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
@@ -45,6 +45,7 @@ export type NotificacionesRefs = {
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
   flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
+  mostrarFoto:           (urlFoto: string, descripcion: string) => void;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, climaRef,
     setEstado, hablar, iniciarSpeechRecognition,
-    modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto,
+    modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
   } = refs;
 
   // Grabador para respuestas de voz
@@ -239,6 +240,46 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // Error inesperado — el finally se encarga de liberar el flag
     } finally {
       // Garantiza que el flag siempre se libera, sin importar qué pasó
+      enFlujoVozRef.current = false;
+      setEstado('esperando');
+      estadoRef.current = 'esperando';
+      iniciarSpeechRecognition();
+    }
+    return resultado;
+  }
+
+  // ── Flujo completo de foto entrante de Telegram ───────────────────────────────
+  async function manejarMensajeFoto(
+    msg: MensajeFoto,
+    nombre: string,
+    nombreAbuela: string,
+  ): Promise<'respondido' | 'rechazado' | 'ignorado'> {
+    enFlujoVozRef.current = true;
+    ExpoSpeechRecognitionModule.stop();
+
+    const habiaMusica = musicaActivaRef.current;
+    if (habiaMusica) pararMusica();
+
+    let resultado: 'respondido' | 'rechazado' | 'ignorado' = 'ignorado';
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 1. Verificar presencia
+      await hablar(`¿Estás por ahí, ${nombreAbuela}? ${nombre} te mandó una foto.`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const respuesta = await escucharRespuesta();
+
+      if (esNegativo(respuesta)) return 'rechazado';
+      if (!respuesta) return 'ignorado';
+
+      // 2. Mostrar foto en pantalla + describir con voz
+      mostrarFoto(msg.urlFoto, msg.descripcion);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      await hablar(msg.descripcion);
+
+      resultado = 'respondido';
+    } catch {
+    } finally {
       enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
@@ -762,8 +803,81 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
     }
 
+    async function procesarMensajeFoto(msg: MensajeFoto, p: Perfil): Promise<boolean> {
+      const contacto  = (p.telegramContactos ?? []).find(c => c.id === msg.chatId);
+      const nombre    = contacto?.nombre ?? msg.fromName;
+
+      const hora = new Date().getHours();
+      const horarioNocturno = hora >= 22 || hora < 9;
+      const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
+
+      if (horarioNocturno || dormida || noMolestarRef.current) return false;
+
+      if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
+        await new Promise<void>(resolve => {
+          const timeout = setTimeout(resolve, 15000);
+          const check = setInterval(() => {
+            if (estadoRef.current === 'esperando') { clearInterval(check); clearTimeout(timeout); resolve(); }
+          }, 500);
+        });
+      }
+
+      const estado = await manejarMensajeFoto(msg, nombre, p.nombreAbuela);
+      return estado !== 'ignorado';
+    }
+
+    async function chequearMensajesFoto() {
+      const estadoActual = estadoRef.current as string;
+      if (estadoActual === 'hablando' || estadoActual === 'pensando') return;
+
+      const p = perfilRef.current;
+      if (!p) return;
+
+      const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+      if (!chatIds.length) return;
+
+      // Fotos nuevas del servidor
+      const nuevas = await recibirMensajesFoto(chatIds);
+      const pendientesRaw = await AsyncStorage.getItem('fotoPendiente');
+      let pendientes: MensajeFoto[] = [];
+      try { pendientes = JSON.parse(pendientesRaw ?? '[]'); } catch { pendientes = []; }
+
+      // Agregar nuevas a pendientes (sin duplicar por urlFoto)
+      for (const foto of nuevas) {
+        if (!pendientes.some(f => f.urlFoto === foto.urlFoto)) {
+          pendientes.push(foto);
+        }
+      }
+
+      if (!pendientes.length) return;
+
+      // Solo procesar si el usuario estuvo activo en los últimos 10 min (o hay fotos nuevas)
+      const usuarioActivo = (Date.now() - ultimaCharlaRef.current) < 10 * 60 * 1000;
+      if (!usuarioActivo && !nuevas.length) {
+        await AsyncStorage.setItem('fotoPendiente', JSON.stringify(pendientes));
+        return;
+      }
+
+      // Mostrar todas las pendientes de a una, después de la respuesta actual
+      const procesadas: MensajeFoto[] = [];
+      for (const foto of pendientes) {
+        const ok = await procesarMensajeFoto(foto, p);
+        if (ok) procesadas.push(foto);
+        else break; // si no responde, dejar el resto en cola
+      }
+
+      const restantes = pendientes.filter(f => !procesadas.some(p => p.urlFoto === f.urlFoto));
+      if (restantes.length) {
+        await AsyncStorage.setItem('fotoPendiente', JSON.stringify(restantes));
+      } else {
+        await AsyncStorage.removeItem('fotoPendiente');
+      }
+    }
+
     // Polling de mensajes de voz cada 3 min
     const idPolling = setInterval(chequearMensajesVoz, 3 * 60 * 1000);
+    // Polling de fotos cada 3 min
+    const idFotos = setInterval(chequearMensajesFoto, 3 * 60 * 1000);
     // Polling de comandos (cámara, informe) cada 15s para respuesta rápida
     const idComandos = setInterval(chequearComandos, 15 * 1000);
     // Reintento de pendientes cada 15 minutos
@@ -771,6 +885,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     return () => {
       clearInterval(idPolling);
+      clearInterval(idFotos);
       clearInterval(idComandos);
       clearInterval(idReintento);
     };
