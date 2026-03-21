@@ -836,7 +836,8 @@ export function useRosita() {
       await hablar('No pude ver bien la imagen. ¿Podés acercar un poco más la cámara y volvemos a intentar?');
       return;
     }
-    await hablar(resultado);
+    const textoFormateado = resultado.replace(/\d{4,}/g, m => m.split('').join(' '));
+    await hablar(textoFormateado);
   }
 
   function onFotoCapturada(base64: string) {
