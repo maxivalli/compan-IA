@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
@@ -285,16 +286,21 @@ export default function Index() {
 
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
-          {/* Glow difuso detrás del botón */}
-          {Platform.OS === 'web'
-            ? <Animated.View style={[styles.btnGlow, { width: btnW + 48, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: glowOpacity, filter: 'blur(28px)' } as any]} />
-            : <Animated.View style={[styles.btnGlow, { opacity: glowOpacity }]}>
-                <View style={{ position: 'absolute', width: btnW + 72, height: btnH + 48, borderRadius: (btnH + 48) / 2, backgroundColor: btnDotColor, opacity: 0.10 }} />
-                <View style={{ position: 'absolute', width: btnW + 50, height: btnH + 32, borderRadius: (btnH + 32) / 2, backgroundColor: btnDotColor, opacity: 0.20 }} />
-                <View style={{ position: 'absolute', width: btnW + 30, height: btnH + 18, borderRadius: (btnH + 18) / 2, backgroundColor: btnDotColor, opacity: 0.35 }} />
-                <View style={{ position: 'absolute', width: btnW + 14, height: btnH + 8,  borderRadius: (btnH + 8)  / 2, backgroundColor: btnDotColor, opacity: 0.55 }} />
-              </Animated.View>
-          }
+          {/* Glow — RadialGradient SVG, funciona en todas las plataformas */}
+          {(() => { const gW = btnW + 90; const gH = btnH + 70; return (
+            <Animated.View style={[styles.btnGlow, { opacity: glowOpacity }]}>
+              <Svg width={gW} height={gH}>
+                <Defs>
+                  <RadialGradient id="btnGlow" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
+                    <Stop offset="0%"   stopColor={btnDotColor} stopOpacity={0.9} />
+                    <Stop offset="40%"  stopColor={btnDotColor} stopOpacity={0.5} />
+                    <Stop offset="100%" stopColor={btnDotColor} stopOpacity={0}   />
+                  </RadialGradient>
+                </Defs>
+                <Ellipse cx={gW / 2} cy={gH / 2} rx={gW / 2} ry={gH / 2} fill="url(#btnGlow)" />
+              </Svg>
+            </Animated.View>
+          ); })()}
           {/* Wrapper para shadow (separado de overflow:hidden) */}
           <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
             <TouchableOpacity
