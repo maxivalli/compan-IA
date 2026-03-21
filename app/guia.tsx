@@ -162,6 +162,15 @@ const SECCIONES: Seccion[] = [
     nota: 'La foto se toma con la cámara frontal. No hace falta tocar nada — solo pedirlo.',
   },
   {
+    icono: 'eye-outline',
+    titulo: 'Leer textos y documentos',
+    descripcion: 'Si tenés algo escrito que no podés leer bien — un papel, una receta, una carta — pedile a Rosita que te lo lea. Apuntás la cámara y ella te dice en voz alta todo lo que ve.',
+    color: '#004785',
+    bg: '#D3E4FF',
+    comandos: ['Rosita, ¿qué dice acá?', '¿Qué pone acá?', 'Leeme esto', 'Describime esto'],
+    nota: 'La cámara trasera se abre sola con una cuenta regresiva de 3 segundos. Quedate quieto y Rosita lee todo lo que encuentre.',
+  },
+  {
     icono: 'bar-chart-outline',
     titulo: 'Resumen diario para la familia',
     descripcion: 'Cada día a las 22hs Rosita le manda a la familia un resumen por Telegram con el estado de ánimo del día, los temas que se hablaron y el tiempo que estuvieron juntos.',

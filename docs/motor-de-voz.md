@@ -367,6 +367,37 @@ onPressIn (botón micrófono)
 
 ---
 
+## Lectura de imágenes / OCR (flujoLeerImagen)
+
+```
+  SR detecta: "qué dice acá", "leeme esto", "qué pone", "describime", etc.
+         │
+         ▼
+  hablar("Apuntá la cámara a lo que querés que vea...")
+         │
+         ▼
+  setCamaraFacing('back') → CameraAutoCaptura visible
+  cuenta regresiva 3s → disparo automático → base64
+         │
+         ▼
+  setMostrarCamara(false) → setCamaraFacing('front')
+         │
+         ▼
+  POST /ai/leer-imagen { imagen: base64 }
+    → Claude Haiku Vision (max_tokens: 300)
+    → prompt: "Respondé en español argentino. Si hay texto, leelo completo..."
+         │
+         ▼
+  resultado: string
+    → replace /\d{2,}/g → dígitos a palabras en español
+      (ej: "15" → "uno, cinco")
+         │
+         ▼
+  hablar(textoFormateado)
+```
+
+---
+
 ## Modo noche (evaluado cada 10s)
 
 ```
