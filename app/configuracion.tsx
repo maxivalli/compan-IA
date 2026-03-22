@@ -16,6 +16,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
+import QRCode from 'react-native-qrcode-svg';
+import { obtenerQRVinculacion, obtenerEstadoTuya, actualizarDispositivos, desvincularSmartlife, Dispositivo } from '../lib/tuya';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
@@ -275,6 +277,15 @@ export default function Configuracion() {
   const [pinConfigurado, setPinConfigurado] = useState(false);
   const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
 
+  // ── Domótica ──
+  const [tuyaVinculado, setTuyaVinculado]       = useState(false);
+  const [tuyaDispositivos, setTuyaDispositivos] = useState<Dispositivo[]>([]);
+  const [mostrarQR, setMostrarQR]               = useState(false);
+  const [qrData, setQrData]                     = useState<{ qrCode: string; expireTime: number } | null>(null);
+  const [esperandoVinculacion, setEsperandoVinculacion] = useState(false);
+  const [tuyaCargando, setTuyaCargando]         = useState(false);
+  const pollingTuyaRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   useFocusEffect(useCallback(() => {
     obtenerPIN().then(p => {
       if (p) { setPinConfigurado(true); setPinDesbloqueado(false); setPinOverlay('verificar'); }
@@ -282,6 +293,61 @@ export default function Configuracion() {
     });
     cargarRecordatorios().then(setRecordatorios);
   }, []));
+
+  useEffect(() => {
+    obtenerEstadoTuya().then(({ vinculado, dispositivos }) => {
+      setTuyaVinculado(vinculado);
+      setTuyaDispositivos(dispositivos);
+    });
+  }, []);
+
+  async function iniciarVinculacionTuya() {
+    setTuyaCargando(true);
+    const data = await obtenerQRVinculacion();
+    setTuyaCargando(false);
+    if (!data) return;
+    setQrData(data);
+    setMostrarQR(true);
+    setEsperandoVinculacion(true);
+
+    // Polling cada 5s para detectar vinculación
+    if (pollingTuyaRef.current) clearInterval(pollingTuyaRef.current);
+    pollingTuyaRef.current = setInterval(async () => {
+      const estado = await obtenerEstadoTuya();
+      if (estado.vinculado) {
+        clearInterval(pollingTuyaRef.current!);
+        pollingTuyaRef.current = null;
+        setTuyaVinculado(true);
+        setTuyaDispositivos(estado.dispositivos);
+        setMostrarQR(false);
+        setEsperandoVinculacion(false);
+        setQrData(null);
+      }
+    }, 5000);
+
+    // Timeout a los 3 minutos
+    setTimeout(() => {
+      if (pollingTuyaRef.current) {
+        clearInterval(pollingTuyaRef.current);
+        pollingTuyaRef.current = null;
+        setEsperandoVinculacion(false);
+        setMostrarQR(false);
+      }
+    }, 3 * 60_000);
+  }
+
+  async function desvinculnarTuya() {
+    await desvincularSmartlife();
+    setTuyaVinculado(false);
+    setTuyaDispositivos([]);
+  }
+
+  async function refrescarDispositivosTuya() {
+    setTuyaCargando(true);
+    const lista = await actualizarDispositivos();
+    setTuyaDispositivos(lista);
+    setTuyaCargando(false);
+  }
 
   useEffect(() => {
     cargarRecordatorios().then(setRecordatorios);
@@ -626,6 +692,81 @@ export default function Configuracion() {
           </TouchableOpacity>
         </Surface>
 
+        {/* ── Domótica ── */}
+        <SectionLabel icon="home-outline" label="Domótica Smartlife" />
+        <Surface>
+          {tuyaVinculado ? (
+            <>
+              <View style={s.tuyaEstado}>
+                <Ionicons name="checkmark-circle" size={18} color="#2E7D32" />
+                <Text style={s.tuyaEstadoText}>Smartlife vinculado</Text>
+              </View>
+
+              {tuyaDispositivos.length > 0 && (
+                <>
+                  <View style={s.divisorThin} />
+                  {tuyaDispositivos.map((d, i) => (
+                    <View key={d.id}>
+                      {i > 0 && <View style={s.divisorThin} />}
+                      <View style={s.dispositivoRow}>
+                        <Ionicons
+                          name={d.tipo.startsWith('dj') || d.tipo.startsWith('dd') ? 'bulb-outline' : 'power-outline'}
+                          size={16}
+                          color={d.online ? M.primary : M.outline}
+                        />
+                        <Text style={s.dispositivoNombre}>{d.nombre}</Text>
+                        <View style={[s.dispositivoBadge, { backgroundColor: d.online ? '#E8F5E9' : M.surfaceVariant }]}>
+                          <Text style={[s.dispositivoBadgeText, { color: d.online ? '#2E7D32' : M.outline }]}>
+                            {d.online ? 'online' : 'offline'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+
+              <View style={s.divisorThin} />
+              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={refrescarDispositivosTuya} disabled={tuyaCargando}>
+                {tuyaCargando
+                  ? <ActivityIndicator size="small" color={M.primary} />
+                  : <Ionicons name="refresh-outline" size={18} color={M.primary} />
+                }
+                <Text style={s.buscarText}>Actualizar dispositivos</Text>
+              </TouchableOpacity>
+
+              <View style={s.divisorThin} />
+              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvinculnarTuya}>
+                <Ionicons name="unlink-outline" size={18} color={M.error} />
+                <Text style={[s.buscarText, { color: M.error }]}>Desvincular Smartlife</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              {mostrarQR && qrData ? (
+                <View style={s.qrContainer}>
+                  <QRCode value={qrData.qrCode} size={180} />
+                  <Text style={s.qrInstruccion}>Abrí Smartlife → tocá + → Escanear</Text>
+                  {esperandoVinculacion && (
+                    <View style={s.qrEsperando}>
+                      <ActivityIndicator size="small" color={M.primary} />
+                      <Text style={s.qrEsperandoText}>Esperando vinculación...</Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={iniciarVinculacionTuya} disabled={tuyaCargando}>
+                  {tuyaCargando
+                    ? <ActivityIndicator size="small" color={M.primary} />
+                    : <Ionicons name="link-outline" size={18} color={M.primary} />
+                  }
+                  <Text style={s.buscarText}>Vincular Smartlife</Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </Surface>
+
         {/* ── Recordatorios ── */}
         {recordatorios.length > 0 && (
           <>
@@ -762,4 +903,15 @@ const s = StyleSheet.create({
   tagChipTxt:      { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   botBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: M.primary, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, borderRadius: 12 },
   botBtnText:  { fontSize: 14, fontWeight: '500', color: M.onPrimary },
+  // Domótica
+  tuyaEstado:         { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
+  tuyaEstadoText:     { fontSize: 14, fontWeight: '500', color: '#2E7D32' },
+  dispositivoRow:     { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  dispositivoNombre:  { flex: 1, fontSize: 14, color: M.onSurface },
+  dispositivoBadge:   { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+  dispositivoBadgeText: { fontSize: 11, fontWeight: '600' },
+  qrContainer:        { alignItems: 'center', padding: 20, gap: 12 },
+  qrInstruccion:      { fontSize: 13, color: M.onSurfaceVariant, textAlign: 'center' },
+  qrEsperando:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  qrEsperandoText:    { fontSize: 13, color: M.primary },
 });
