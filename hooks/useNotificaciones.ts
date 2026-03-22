@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Perfil,
   EntradaAnimo,
+  cargarPerfil,
   yaRecordo,
   marcarRecordado,
   cargarRecordatorios,
@@ -18,7 +19,7 @@ import {
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, recibirMensajesFoto, obtenerUrlArchivo, MensajeVoz, MensajeFoto } from '../lib/telegram';
-import { obtenerClima, CODIGOS_ADVERSOS } from '../lib/clima';
+import { obtenerClima, climaATexto, CODIGOS_ADVERSOS } from '../lib/clima';
 
 import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
 import { tonoSegunEdad } from '../lib/claudeParser';
@@ -35,6 +36,8 @@ export type NotificacionesRefs = {
   alertaInactividadRef:  React.RefObject<number>;
   telegramOffsetRef:     React.RefObject<number>;
   climaRef:              React.RefObject<string>;
+  ciudadRef:             React.RefObject<string>;
+  setClimaObj:           (c: { temperatura: number; descripcion: string } | null) => void;
   setEstado:             (s: 'esperando' | 'escuchando' | 'pensando' | 'hablando') => void;
   hablar:                (texto: string) => Promise<void>;
   iniciarSpeechRecognition: () => void;
@@ -60,7 +63,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   const {
     perfilRef, estadoRef, noMolestarRef, modoNocheRef,
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
-    telegramOffsetRef, climaRef,
+    telegramOffsetRef, climaRef, ciudadRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
     modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
   } = refs;
@@ -385,7 +388,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     const cantCharlas = entradasHoy.length;
-    const minAprox = Math.round(cantCharlas * 1.5);
+    const minAprox = Math.round(cantCharlas * 0.5); // ~30 seg por intercambio
     const horasActiva = cantCharlas === 0
       ? 'sin charlas hoy'
       : minAprox >= 60
@@ -427,7 +430,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // Detecta si hoy es el cumpleaños al montar (para mostrar globos todo el día)
   useEffect(() => {
     (async () => {
-      const p = perfilRef.current;
+      // Leer directamente de storage por si perfilRef aún no cargó
+      const p = perfilRef.current ?? await cargarPerfil();
       if (!p?.fechaNacimiento) return;
       const ahora = new Date();
       const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
@@ -650,6 +654,19 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     borrarRecordatoriosViejos().catch(() => {});
 
+    let ultimoRefrescoClima = 0;
+
+    async function actualizarClima() {
+      const ahora = Date.now();
+      if (ahora - ultimoRefrescoClima < 30 * 60 * 1000) return;
+      ultimoRefrescoClima = ahora;
+      const clima = await obtenerClima();
+      if (!clima) return;
+      climaRef.current  = climaATexto(clima);
+      ciudadRef.current = clima.ciudad ?? '';
+      setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
+    }
+
     async function tick() {
       await chequearMedicamentos();
       await chequearFechas();
@@ -659,6 +676,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await enviarResumenDiario();
       await resetearAnimo();
       await chequearClima();
+      await actualizarClima();
     }
 
     const id = setInterval(tick, 60000);

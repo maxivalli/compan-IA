@@ -30,7 +30,7 @@ export default function Index() {
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
-    mostrarCamara, camaraFacing, onFotoCapturada, onFotoCancelada,
+    mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada,
     refs, player,
   } = useRosita();
 
@@ -65,17 +65,20 @@ export default function Index() {
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
   const hora           = horaActual;
   const esAtardecerBg  = hora >= 17 && hora < 20;
-  const esFondoNoche   = hora >= 20 || hora < HORA_DESPERTAR;
+  const esAmanecer     = hora >= 5  && hora < 8;
+  const esFondoNoche   = hora >= 20 || hora < 5;
   const esClimaOscuro  = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo/);
   
   // Tu color base original
-  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#6B7280' : esAtardecerBg ? '#FFBD59' : '#38B6FF';
+  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#6B7280' : esAmanecer ? '#87CEEB' : esAtardecerBg ? '#FFBD59' : '#38B6FF';
 
   // Degradados para el cielo
   const degradadoCielo: readonly [string, string, string] | readonly [string, string, string, string] = esFondoNoche
     ? ['#000000', '#050A30', bgActual] // Negro arriba -> Azul Profundo abajo -> BG
     : esClimaOscuro
     ? ['#374151', '#4B5563', bgActual]
+    : esAmanecer
+    ? ['#87CEEB', '#FF8C00', '#CC2200'] // celeste arriba → naranja → rojo abajo
     : esAtardecerBg
     ? ['#2B1055', '#FF416C', '#FF4B2B', bgActual] // 4 colores: Violeta -> Rosa -> Naranja -> Fondo
     : ['#0052D4', '#4364F7', bgActual];
@@ -217,7 +220,7 @@ export default function Index() {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom } = useSafeAreaInsets();
   const isTablet  = screenW >= 600;
-  const faceScale = isTablet ? Math.min(screenW / 390, 1.7) : 1;
+  const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : 1;
   const textScale = faceScale; 
   const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : 200;
   const btnH      = isTablet ? Math.round(64 * textScale) : 64;
@@ -257,10 +260,10 @@ export default function Index() {
     >
       <MenuFlotante oscuro />
 
-      {esFondoNoche && !(hora >= 6 && hora < 10) && !cieloTapado && <CieloNoche bgColor={bgActual} />}
+      {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {modoNoche === 'durmiendo' && <ZZZ />}
       {esCumpleaños && <Globos />}
-      <CameraAutoCaptura visible={mostrarCamara} facing={camaraFacing} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
+      <CameraAutoCaptura visible={mostrarCamara} facing={camaraFacing} silencioso={camaraSilenciosa} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
@@ -293,7 +296,7 @@ export default function Index() {
       <View
   style={[
     styles.ojoContenedor,
-    { marginTop: isTablet ? Math.round(screenH * 0.18) : 180 },
+    { marginTop: isTablet ? Math.round(screenH * 0.06) : 180 },
   ]}
   onLayout={(e) => console.log('W:', e.nativeEvent.layout.width, 'X:', e.nativeEvent.layout.x)}
   {...panCaricia.panHandlers}
@@ -325,6 +328,7 @@ export default function Index() {
           modoNoche={modoNoche}
           silbando={silbando}
           onRelampago={onRelampago}
+          esCumpleaños={esCumpleaños}
         />
       </View>
 
@@ -341,91 +345,97 @@ export default function Index() {
         }
       </View>
 
-      <View style={styles.botonesWrap}>
-        <View style={styles.botonContenedor}>
-          {/* Glow — RadialGradient SVG, lo mantenemos como estaba originalmente (sutil) */}
-          {(() => { const gW = btnW + 90; const gH = btnH + 70; return (
-            <Animated.View style={[styles.btnGlow, { opacity: glowOpacity }]}>
-              <Svg width={gW} height={gH}>
-                <Defs>
-                  <RadialGradient id="btnGlow" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
-                    <Stop offset="0%"   stopColor={btnDotColor} stopOpacity={0.9} />
-                    <Stop offset="40%"  stopColor={btnDotColor} stopOpacity={0.5} />
-                    <Stop offset="100%" stopColor={btnDotColor} stopOpacity={0}   />
-                  </RadialGradient>
-                </Defs>
-                <Ellipse cx={gW / 2} cy={gH / 2} rx={gW / 2} ry={gH / 2} fill="url(#btnGlow)" />
-              </Svg>
-            </Animated.View>
-          ); })()}
-          {/* Wrapper para shadow (separado de overflow:hidden) */}
-          <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
-            <TouchableOpacity
-              style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
-              onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
-              activeOpacity={0.85}
-              disabled={botonDisabled && !musicaActiva}
-            >
-              {/* Eliminamos el LinearGradient que hacía de borde degradado.
-                  El View.boton ahora va directo dentro de TouchableOpacity.
-                  También quitamos el borderRadius - 3, ahora es directo btnH / 2. */}
-              <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
-                  <View style={styles.btnInner}>
-                    <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
-                    <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151', width: Math.round(btnW * 0.52), textAlign: 'center' }]}>
-                      {btnLabel}
-                    </Text>
-                  </View>
-                </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
       <TouchableOpacity
         onLongPress={triggerCumpleaños}
         style={{ position: 'absolute', bottom: safeBottom + 50, right: 0, width: 70, height: 70 }}
       />
 
-      <Animated.View style={{ transform: [{ scale: sosPulso }] }}>
-        <TouchableOpacity
-          style={[styles.botonSOS, sosPresionando && styles.botonSOSActivo, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
-          onPress={mostrarHintSOS}
-          onPressIn={sosPresionado}
-          onPressOut={sosSoltado}
-          onLongPress={dispararSOS}
-          delayLongPress={2000}
-          activeOpacity={1}
-        >
-          <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? btnFont : Math.round(btnFont * 1.2) }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
-        </TouchableOpacity>
-        {sosPresionando && (
-          <View style={styles.sosBarra}>
-            <Animated.View style={[styles.sosBarraRelleno, {
-              width: sosProgreso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-            }]} />
-          </View>
-        )}
-      </Animated.View>
+      {/* ── Zona de botones ── */}
+      <View style={[styles.botonesZona, isTablet && styles.botonesZonaTablet]}>
 
-      <TouchableOpacity
-        style={[styles.botonNoMolestar, noMolestar && styles.botonNoMolestarActivo, textScale !== 1 && { paddingHorizontal: Math.round(16 * textScale), paddingVertical: Math.round(8 * textScale), gap: Math.round(6 * textScale), borderRadius: Math.round(20 * textScale) }]}
-        onPress={() => {
-          const nuevo = !noMolestar;
-          setNoMolestar(nuevo);
-          if (nuevo) {
-            ExpoSpeechRecognitionModule.stop();
-            detenerSilbido();
-          } else {
-            refs.iniciarSpeechRecognition();
-            chequearPendientesAlActivar();
-          }
-        }}
-        activeOpacity={0.75}
-      >
-        <Ionicons name={noMolestar ? 'notifications-off' : 'notifications-outline'} size={icoNM} color={noMolestar ? '#fff' : '#ffffffaa'} />
-        <Text style={[styles.botonNoMolestarTexto, noMolestar && { color: '#fff' }, { fontSize: nmFont }]}>No molestar</Text>
-      </TouchableOpacity>
+        {/* Fila superior: Hablar + SOS */}
+        <View style={[styles.botonesFilaPrincipal, isTablet && { flexDirection: 'row', gap: 32 }]}>
+
+          {/* Botón Hablar */}
+          <View style={styles.botonContenedor}>
+            {(() => { const gW = btnW + 90; const gH = btnH + 70; return (
+              <Animated.View style={[styles.btnGlow, { opacity: glowOpacity, top: -(gH - btnH) / 2, left: -(gW - btnW) / 2 }]}>
+                <Svg width={gW} height={gH}>
+                  <Defs>
+                    <RadialGradient id="btnGlow" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
+                      <Stop offset="0%"   stopColor={btnDotColor} stopOpacity={0.9} />
+                      <Stop offset="40%"  stopColor={btnDotColor} stopOpacity={0.5} />
+                      <Stop offset="100%" stopColor={btnDotColor} stopOpacity={0}   />
+                    </RadialGradient>
+                  </Defs>
+                  <Ellipse cx={gW / 2} cy={gH / 2} rx={gW / 2} ry={gH / 2} fill="url(#btnGlow)" />
+                </Svg>
+              </Animated.View>
+            ); })()}
+            <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
+              <TouchableOpacity
+                style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
+                onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+                activeOpacity={0.85}
+                disabled={botonDisabled && !musicaActiva}
+              >
+                <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
+                  <View style={styles.btnInner}>
+                    <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151', width: Math.round(btnW * 0.68), textAlign: 'center' }]}>
+                      {btnLabel}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Botón SOS */}
+          <Animated.View style={{ transform: [{ scale: sosPulso }], alignItems: 'center' }}>
+            <TouchableOpacity
+              style={[styles.botonSOS, sosPresionando && styles.botonSOSActivo, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+              onPress={mostrarHintSOS}
+              onPressIn={sosPresionado}
+              onPressOut={sosSoltado}
+              onLongPress={dispararSOS}
+              delayLongPress={2000}
+              activeOpacity={1}
+            >
+              <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? btnFont : Math.round(btnFont * 1.2) }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
+            </TouchableOpacity>
+            {sosPresionando && (
+              <View style={styles.sosBarra}>
+                <Animated.View style={[styles.sosBarraRelleno, {
+                  width: sosProgreso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+                }]} />
+              </View>
+            )}
+          </Animated.View>
+
+        </View>
+
+        {/* Fila inferior: No Molestar centrado */}
+        <TouchableOpacity
+          style={[styles.botonNoMolestar, noMolestar && styles.botonNoMolestarActivo, textScale !== 1 && { paddingHorizontal: Math.round(16 * textScale), paddingVertical: Math.round(8 * textScale), gap: Math.round(6 * textScale), borderRadius: Math.round(20 * textScale) }]}
+          onPress={() => {
+            const nuevo = !noMolestar;
+            setNoMolestar(nuevo);
+            if (nuevo) {
+              ExpoSpeechRecognitionModule.stop();
+              detenerSilbido();
+            } else {
+              refs.iniciarSpeechRecognition();
+              chequearPendientesAlActivar();
+            }
+          }}
+          activeOpacity={0.75}
+        >
+          <Ionicons name={noMolestar ? 'notifications-off' : 'notifications-outline'} size={icoNM} color={noMolestar ? '#fff' : '#ffffffaa'} />
+          <Text style={[styles.botonNoMolestarTexto, noMolestar && { color: '#fff' }, { fontSize: nmFont }]}>No molestar</Text>
+        </TouchableOpacity>
+
+      </View>
 
       {mostrarOnboarding && (
         <TouchableOpacity
@@ -514,12 +524,15 @@ const styles = StyleSheet.create({
   updateId:           { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
   ojoContenedor:      { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
   ecualizadorWrap:    { height: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  botonesZona:        { alignItems: 'center', gap: 12 },
+  botonesZonaTablet:  { alignItems: 'center', gap: 16 },
+  botonesFilaPrincipal: { alignItems: 'center', justifyContent: 'center', gap: 12 },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
-  botonContenedor:    { alignItems: 'center', justifyContent: 'center', width: 240, height: 90 },
+  botonContenedor:    { alignItems: 'center', justifyContent: 'center' },
   btnGlow:            { position: 'absolute' },
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
-  btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 12, overflow: 'hidden' },
   statusDot:          { width: 13, height: 13, borderRadius: 7 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
   botonDeshabilitado: { opacity: 0.55 },

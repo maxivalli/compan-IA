@@ -149,6 +149,17 @@ export async function leerImagen(base64: string): Promise<string | null> {
   }
 }
 
+/** Sincroniza una entrada de ánimo al backend (fire-and-forget). */
+export function sincronizarAnimo(expresion: string, timestamp: number): void {
+  jsonHeaders().then(headers =>
+    fetch(`${BACKEND_URL}/ai/animo`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ expresion, timestamp }),
+    })
+  ).catch(() => {}); // silencioso — no crítico
+}
+
 /** Genera un efecto de sonido y devuelve base64, o null si falla. */
 export async function generarSonido(
   texto: string,

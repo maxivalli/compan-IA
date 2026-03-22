@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 // ── Ecualizador de música ─────────────────────────────────────────────────────
 
@@ -123,13 +124,132 @@ function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }
   );
 }
 
+// ── Cálculo de fase lunar ─────────────────────────────────────────────────────
+// Devuelve un valor de 0 a 1 representando la fase del ciclo lunar.
+// 0 = luna nueva, 0.25 = cuarto creciente, 0.5 = luna llena, 0.75 = cuarto menguante.
+function calcularFaseLunar(fecha: Date): number {
+  // Época de referencia: luna nueva conocida — 6 enero 2000 18:14 UTC
+  const LUNA_NUEVA_REF = new Date('2000-01-06T18:14:00Z').getTime();
+  const CICLO_MS = 29.53058867 * 24 * 60 * 60 * 1000;
+  const diff = fecha.getTime() - LUNA_NUEVA_REF;
+  const fase = ((diff % CICLO_MS) + CICLO_MS) % CICLO_MS / CICLO_MS;
+  return fase;
+}
+
+// Genera el path SVG de la silueta iluminada de la luna.
+// El círculo base tiene radio R centrado en (R, R).
+// La fase determina qué porción está iluminada y en qué lado.
+function lunaPath(R: number, fase: number): string {
+  // fase 0   = luna nueva (todo oscuro)
+  // fase 0.5 = luna llena (todo iluminado)
+  // 0..0.5   = creciente (iluminado lado derecho)
+  // 0.5..1   = menguante (iluminado lado izquierdo)
+
+  const cx = R;
+  const cy = R;
+
+  // El "terminator" es una elipse cuyo eje X varía con la fase.
+  // Cuando fase=0.25 → elipse plana (cuarto creciente)
+  // Cuando fase=0.5  → círculo lleno
+  // Cuando fase=0.75 → elipse plana (cuarto menguante)
+  const creciente = fase <= 0.5;
+  // Normalizar: 0..0.5 → 0..1 y 0.5..1 → 1..0
+  const t = creciente ? fase * 2 : (1 - fase) * 2;
+  // rx del terminator: va de R (luna nueva/llena) a 0 (cuartos)
+  // t=0 → rx=R (terminador = semicírculo, nada iluminado / todo iluminado)
+  // t=1 → rx=0 (cuarto exacto, terminador es línea recta)
+  const rx = R * Math.abs(1 - t * 2); // 0..R
+  const ladoDerecho = fase <= 0.5;
+
+  if (fase < 0.02 || fase > 0.98) {
+    // Luna nueva — círculo muy tenue, casi invisible
+    return `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} Z`;
+  }
+
+  if (fase > 0.48 && fase < 0.52) {
+    // Luna llena — círculo completo
+    return `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} Z`;
+  }
+
+  // Semicírculo iluminado (mitad derecha para creciente, izquierda para menguante)
+  // + arco elíptico del terminator
+  const sweep_semi  = ladoDerecho ? 1 : 0; // sentido del semicírculo
+  const sweep_term  = ladoDerecho ? (t < 1 ? 0 : 1) : (t < 1 ? 1 : 0);
+
+  // Puntos superior e inferior del diámetro vertical
+  const top    = `${cx} ${cy - R}`;
+  const bottom = `${cx} ${cy + R}`;
+
+  // Semicírculo exterior (lado iluminado)
+  const semi = `M ${top} A ${R} ${R} 0 1 ${sweep_semi} ${bottom}`;
+  // Arco elíptico del terminator (une bottom con top)
+  const term = `A ${rx} ${R} 0 1 ${sweep_term} ${top}`;
+
+  return `${semi} ${term} Z`;
+}
+
+// ── Luna con fase real ────────────────────────────────────────────────────────
+
+function LunaFase({ size, bgColor, floatY, lunaOp }: {
+  size: number;
+  bgColor: string;
+  floatY: Animated.Value;
+  lunaOp: Animated.Value;
+}) {
+  const fase = calcularFaseLunar(new Date());
+  const R    = size / 2;
+  const path = lunaPath(R, fase);
+
+  // Luna nueva: muy tenue
+  const esNueva = fase < 0.02 || fase > 0.98;
+  // Luna llena: más brillante
+  const esLlena = fase > 0.48 && fase < 0.52;
+
+  const colorIluminado = esLlena ? '#F5EBC8' : '#D4C5A9';
+  const opacityBase    = esNueva ? 0.15 : 1;
+
+  return (
+    <Animated.View style={{
+      position: 'absolute', top: 88, left: 24,
+      width: size, height: size,
+      opacity: Animated.multiply(lunaOp, opacityBase as any),
+      transform: [{ translateY: floatY }],
+    }}>
+      <Svg width={size} height={size}>
+        {/* Círculo base oscuro (cara no iluminada) */}
+        <Circle
+          cx={R} cy={R} r={R - 1}
+          fill={esNueva ? '#1a1a2e' : '#2a2a3e'}
+          opacity={esNueva ? 0.5 : 0.8}
+        />
+        {/* Silueta iluminada según fase */}
+        {!esNueva && (
+          <Path
+            d={path}
+            fill={colorIluminado}
+            opacity={esLlena ? 1 : 0.95}
+          />
+        )}
+        {/* Halo para luna llena */}
+        {esLlena && (
+          <Circle
+            cx={R} cy={R} r={R + 4}
+            fill="none"
+            stroke="#F5EBC8"
+            strokeWidth={3}
+            opacity={0.25}
+          />
+        )}
+      </Svg>
+    </Animated.View>
+  );
+}
+
 export function CieloNoche({ bgColor }: { bgColor: string }) {
   const { width: screenW } = useWindowDimensions();
-  const scaleX   = screenW / 390;                        // distribuye estrellas en todo el ancho
-  const skyScale = Math.min(scaleX, 1.8);               // escala luna y tamaño de estrellas
+  const scaleX   = screenW / 390;
+  const skyScale = Math.min(scaleX, 1.8);
   const lunaSize = Math.round(76 * skyScale);
-  const lunaBite = Math.round(62 * skyScale);
-  const lunaOff  = Math.round(20 * skyScale);
 
   const floatY = useRef(new Animated.Value(0)).current;
   const lunaOp = useRef(new Animated.Value(0.85)).current;
@@ -149,19 +269,18 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
     anim.start();
     return () => anim.stop();
   }, []);
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {ESTRELLAS_NOCHE.map((e) => (
         <Estrella key={e.i} x={e.x * scaleX} y={e.y} r={e.r * skyScale} i={e.i} />
       ))}
-      <Animated.View style={{
-        position: 'absolute', top: 88, left: 24,
-        width: lunaSize, height: lunaSize,
-        opacity: lunaOp, transform: [{ translateY: floatY }],
-      }}>
-        <View style={{ position: 'absolute', left: 2, top: 4, width: lunaSize - 10, height: lunaSize - 10, borderRadius: (lunaSize - 10) / 2, backgroundColor: '#D4C5A9' }} />
-        <View style={{ position: 'absolute', left: lunaOff, top: 0, width: lunaBite, height: lunaBite, borderRadius: lunaBite / 2, backgroundColor: bgColor }} />
-      </Animated.View>
+      <LunaFase
+        size={lunaSize}
+        bgColor={bgColor}
+        floatY={floatY}
+        lunaOp={lunaOp}
+      />
     </View>
   );
 }

@@ -23,7 +23,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import { obtenerEstadoTuya, controlarDispositivo, Dispositivo } from '../lib/tuya';
 
 const MINUTOS_SIN_CHARLA = 120;
@@ -73,6 +73,7 @@ export function useRosita() {
   const [silbando,          setSilbando]          = useState(false);
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
+  const [camaraSilenciosa,  setCamaraSilenciosa]  = useState(false);
   const [noMolestar,        setNoMolestar]        = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
@@ -99,6 +100,7 @@ export function useRosita() {
   const ojoPicadoTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoActivoRef    = useRef(false);
+  const musicaNocheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const climaRef            = useRef<string>('');
   const ciudadRef           = useRef<string>('');
   const feriadosRef         = useRef<string>('');
@@ -142,8 +144,29 @@ export function useRosita() {
     musicaActivaRef.current = musicaActiva;
     if (musicaActiva) {
       ExpoSpeechRecognitionModule.stop();
-    } else if (!enFlujoVozRef.current) {
-      iniciarSpeechRecognition();
+      // Si son las 23 o más, programar verificación tras 30 minutos
+      const h = new Date().getHours();
+      if (h >= 23) {
+        if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
+        musicaNocheTimerRef.current = setTimeout(async () => {
+          if (!musicaActivaRef.current) return;
+          const nombre = perfilRef.current?.nombreAbuela ?? '';
+          const tsAntes = ultimaCharlaRef.current;
+          await hablar(`¿Seguís ahí, ${nombre}? Son las ${new Date().getHours()} y tenés la música puesta.`);
+          // Esperar 2 minutos para ver si responde
+          musicaNocheTimerRef.current = setTimeout(() => {
+            if (!musicaActivaRef.current) return;
+            if (ultimaCharlaRef.current > tsAntes + 5000) return; // respondió
+            pararMusica();
+          }, 2 * 60 * 1000);
+        }, 30 * 60 * 1000);
+      }
+    } else {
+      if (musicaNocheTimerRef.current) {
+        clearTimeout(musicaNocheTimerRef.current);
+        musicaNocheTimerRef.current = null;
+      }
+      if (!enFlujoVozRef.current) iniciarSpeechRecognition();
     }
   }, [musicaActiva]);
   useEffect(() => { noMolestarRef.current  = noMolestar;  }, [noMolestar]);
@@ -266,6 +289,20 @@ export function useRosita() {
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
+
+    // ── Hot word para parar música ──────────────────────────────────────────
+    // Si hay música y se menciona el nombre (solo o con "para/stop/basta/silencio"),
+    // parar directamente sin llamar a Claude.
+    if (musicaActivaRef.current && mencionaNombre) {
+      const soloNombre = textoNorm.replace(new RegExp(nombreNorm.slice(0, 5), 'gi'), '').trim().length < 4;
+      const pideParar  = /\b(par[aá]|stop|basta|silencio|callate|callá|apag[aá]|sacá|saca)\b/.test(textoNorm);
+      if (soloNombre || pideParar) {
+        pararMusica();
+        procesandoRef.current = false;
+        iniciarSpeechRecognition();
+        return;
+      }
+    }
 
     procesandoRef.current = true;
     ExpoSpeechRecognitionModule.stop();
@@ -463,6 +500,8 @@ export function useRosita() {
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
+      // Duck preventivo: baja la música ANTES de escuchar para que el SR capte la voz
+      if (musicaActivaRef.current) playerMusica.volume = 0.15;
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
     } catch {
@@ -538,7 +577,7 @@ export function useRosita() {
   // ── Música ──────────────────────────────────────────────────────────────────
   function duckMusica() {
     if (!musicaActivaRef.current) return;
-    playerMusica.volume = 0.06;
+    playerMusica.volume = 0.15;
     if (duckTimerRef.current) clearTimeout(duckTimerRef.current);
   }
 
@@ -802,11 +841,13 @@ export function useRosita() {
       return;
     }
     if (!silencioso) await hablar('Dale, mirá la pantalla, te saco una foto en tres segundos.');
+    setCamaraSilenciosa(silencioso);
     const base64 = await new Promise<string | null>(resolve => {
       fotoResolverRef.current = resolve;
       setMostrarCamara(true);
     });
     setMostrarCamara(false);
+    setCamaraSilenciosa(false);
     if (!base64) {
       if (!silencioso) await hablar('Bueno, cuando quieras sacamos la foto.');
       else await enviarAlertaTelegram(chatIds, `📸 No pude sacar la foto. Verificá que la app tenga permisos de cámara.`, p?.nombreAsistente);
@@ -974,7 +1015,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── MUSICA ──
       if (parsed.tagPrincipal === 'MUSICA' && parsed.generoMusica) {
         setExpresion('neutral');
-        await hablar(parsed.respuesta + ' Para pararla, tocá el botón que dice Parar.');
+        await hablar(parsed.respuesta + ` Para pararla, decí mi nombre.`);
         setEstado('pensando');
         estadoRef.current = 'pensando';
         ExpoSpeechRecognitionModule.stop();
@@ -1076,6 +1117,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const chatIds     = (p.telegramContactos ?? []).map(c => c.id);
         const nombreAsist = p.nombreAsistente ?? 'Rosita';
         ultimaAlertaRef.current = Date.now();
+        sincronizarAnimo('emergencia', Date.now());
         enviarAlertaTelegram(chatIds, `⚠️ *URGENTE* — ${p.nombreAbuela}\n\n${parsed.emergencia}\n\nAbrí ${nombreAsist} o llamala de inmediato.`, nombreAsist);
       } else if (parsed.llamarFamilia) {
         const chatIds = (p.telegramContactos ?? []).map(c => c.id);
@@ -1110,6 +1152,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── Respuesta normal ──
       setExpresion(parsed.expresion);
       guardarEntradaAnimo(parsed.animoUsuario);
+      sincronizarAnimo(parsed.animoUsuario, Date.now());
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
       historialRef.current = nuevoHist;
       await guardarHistorial(nuevoHist);
@@ -1171,6 +1214,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       );
     }
     guardarEntradaAnimo('triste');
+    sincronizarAnimo('sos', Date.now());
     await hablar(`${nombre}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`);
   }
 
@@ -1193,6 +1237,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       );
     }
     guardarEntradaAnimo('triste');
+    sincronizarAnimo('caida', Date.now());
     await hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`);
   }
 
@@ -1293,7 +1338,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
     },
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
-    mostrarCamara, camaraFacing, onFotoCapturada, onFotoCancelada, flujoFoto,
+    mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, flujoFoto,
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,

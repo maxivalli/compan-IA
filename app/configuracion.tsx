@@ -280,10 +280,10 @@ export default function Configuracion() {
   // ── Domótica ──
   const [tuyaVinculado, setTuyaVinculado]       = useState(false);
   const [tuyaDispositivos, setTuyaDispositivos] = useState<Dispositivo[]>([]);
+  const [tuyaCargando, setTuyaCargando]         = useState(false);
   const [mostrarQR, setMostrarQR]               = useState(false);
   const [qrData, setQrData]                     = useState<{ qrCode: string; expireTime: number } | null>(null);
   const [esperandoVinculacion, setEsperandoVinculacion] = useState(false);
-  const [tuyaCargando, setTuyaCargando]         = useState(false);
   const pollingTuyaRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useFocusEffect(useCallback(() => {
@@ -310,7 +310,6 @@ export default function Configuracion() {
     setMostrarQR(true);
     setEsperandoVinculacion(true);
 
-    // Polling cada 5s para detectar vinculación
     if (pollingTuyaRef.current) clearInterval(pollingTuyaRef.current);
     pollingTuyaRef.current = setInterval(async () => {
       const estado = await obtenerEstadoTuya();
@@ -325,7 +324,6 @@ export default function Configuracion() {
       }
     }, 5000);
 
-    // Timeout a los 3 minutos
     setTimeout(() => {
       if (pollingTuyaRef.current) {
         clearInterval(pollingTuyaRef.current);
@@ -746,7 +744,7 @@ export default function Configuracion() {
               {mostrarQR && qrData ? (
                 <View style={s.qrContainer}>
                   <QRCode value={qrData.qrCode} size={180} />
-                  <Text style={s.qrInstruccion}>Abrí Smartlife → tocá + → Escanear</Text>
+                  <Text style={s.qrInstruccion}>Escaneá con la cámara del celular e iniciá sesión con tu cuenta de Smartlife</Text>
                   {esperandoVinculacion && (
                     <View style={s.qrEsperando}>
                       <ActivityIndicator size="small" color={M.primary} />
@@ -910,8 +908,8 @@ const s = StyleSheet.create({
   dispositivoNombre:  { flex: 1, fontSize: 14, color: M.onSurface },
   dispositivoBadge:   { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   dispositivoBadgeText: { fontSize: 11, fontWeight: '600' },
-  qrContainer:        { alignItems: 'center', padding: 20, gap: 12 },
-  qrInstruccion:      { fontSize: 13, color: M.onSurfaceVariant, textAlign: 'center' },
-  qrEsperando:        { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qrEsperandoText:    { fontSize: 13, color: M.primary },
+  qrContainer:    { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16, gap: 12 },
+  qrInstruccion:  { fontSize: 13, color: M.onSurfaceVariant, textAlign: 'center' },
+  qrEsperando:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  qrEsperandoText: { fontSize: 13, color: M.primary },
 });

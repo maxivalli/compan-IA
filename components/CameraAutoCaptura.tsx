@@ -7,9 +7,10 @@ type Props = {
   onCaptura: (base64: string) => void;
   onCancelar: () => void;
   facing?: 'front' | 'back';
+  silencioso?: boolean;
 };
 
-export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, facing = 'front' }: Props) {
+export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, facing = 'front', silencioso = false }: Props) {
   const [permission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [cuenta, setCuenta] = useState(3);
@@ -20,15 +21,15 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   useEffect(() => {
     if (!visible) { setCuenta(3); capturedRef.current = false; cuentaArrancoRef.current = false; return; }
     if (!permission?.granted) { onCancelar(); return; }
-    // La cuenta regresiva arranca en onCameraReady, no aquí
-    setCuenta(3);
+    setCuenta(silencioso ? 0 : 3);
     capturedRef.current = false;
     cuentaArrancoRef.current = false;
   }, [visible, permission?.granted]);
 
   function onCameraReady() {
-    if (cuentaArrancoRef.current) return; // evita reinicio si ya arrancó
+    if (cuentaArrancoRef.current) return;
     cuentaArrancoRef.current = true;
+    if (silencioso) return; // captura inmediata vía useEffect de cuenta=0
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       setCuenta(prev => {
@@ -59,6 +60,15 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
 
   if (!visible) return null;
 
+  if (silencioso) {
+    // Cámara invisible — sin modal, sin UI, captura sin interrumpir al usuario
+    return (
+      <View style={styles.invisible} pointerEvents="none">
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={onCameraReady} />
+      </View>
+    );
+  }
+
   return (
     <Modal visible animationType="fade" statusBarTranslucent>
       <View style={styles.contenedor}>
@@ -82,6 +92,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
 }
 
 const styles = StyleSheet.create({
+  invisible:  { position: 'absolute', width: 1, height: 1, opacity: 0 },
   contenedor: { flex: 1, backgroundColor: '#000' },
   overlay:    { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
   numero:     { fontSize: 140, fontWeight: '800', color: '#fff', opacity: 0.9, textShadowColor: '#000', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 12 },

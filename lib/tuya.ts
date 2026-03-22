@@ -24,6 +24,29 @@ export async function obtenerQRVinculacion(): Promise<{ qrCode: string; expireTi
     const res = await fetch(`${BACKEND_URL}/tuya/qr`, { headers: await h() });
     if (!res.ok) return null;
     return await res.json() as { qrCode: string; expireTime: number };
+  } catch { return null; }
+}
+
+export async function vincularConCredenciales(email: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/tuya/vincular-credenciales`, {
+      method:  'POST',
+      headers: await h(),
+      body:    JSON.stringify({ email, password }),
+    });
+    const data = await res.json() as { ok?: boolean; error?: string };
+    if (!res.ok) return { ok: false, error: data.error ?? 'Error al vincular.' };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: 'No se pudo conectar con el servidor.' };
+  }
+}
+
+export async function obtenerOAuthUrl(): Promise<{ url: string; redirectUri: string } | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/tuya/oauth-url`, { headers: await h() });
+    if (!res.ok) return null;
+    return await res.json() as { url: string; redirectUri: string };
   } catch {
     return null;
   }
