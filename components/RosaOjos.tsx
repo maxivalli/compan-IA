@@ -1,16 +1,40 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import Svg, {
+  Circle,
+  ClipPath,
+  Defs,
+  Ellipse,
+  Path,
+  RadialGradient,
+  Rect,
+  Stop,
+  G,
+} from 'react-native-svg';
+
+const AnimatedCircle  = Animated.createAnimatedComponent(Circle);
+const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
+const AnimatedRect    = Animated.createAnimatedComponent(Rect);
+const AnimatedPath    = Animated.createAnimatedComponent(Path);
 
 export type Expresion = 'neutral' | 'feliz' | 'triste' | 'sorprendida' | 'pensativa' | 'chiste' | 'enojada' | 'avergonzada' | 'cansada' | 'bostezando' | 'mimada';
 type Estado = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 
 export const BG = '#0D0D14';
 
-const EYE_W = 108;
-const EYE_H = 126;
-const IRIS   = 68;
-const PUPIL  = 34;
+export const EYE_W = 124;  // 108 * 1.15
+export const EYE_H = 159;  // 138 * 1.15
+export const GAP   = 32;
+export const OW    = 20 + EYE_W * 2 + GAP + 20; // 318
+const IRIS   = 78;  // 68  * 1.15
+const PUPIL  = 39;  // 34  * 1.15
 const MAX    = 14;
+
+// Centro del iris dentro del SVG — lo bajamos para que quede en la zona ancha del huevo
+const CX = EYE_W / 2;        // 54
+const CY = EYE_H * 0.58;     // ~80 — iris centrado en mitad baja
+
+
 
 const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: number; lower: number; ceno: number; gapOffset: number }> = {
   neutral:     { pxL: 0,   pxR: 0,   py: 0,   upper: EYE_H * 0.06, lower: 0,            ceno: 0,            gapOffset: 0  },
@@ -37,7 +61,6 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     loopRef.current?.stop();
     loopRef.current = null;
 
-    // Silbido: círculo que pulsa suavemente — solo si no está hablando
     if (silbando && !hablando) {
       const loop = Animated.loop(
         Animated.sequence([
@@ -60,7 +83,6 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     }
 
     if (expresion === 'bostezando' && !hablando && !silbando) {
-      // Abrir boca lentamente, sostener, cerrar sola
       Animated.sequence([
         Animated.parallel([
           Animated.timing(height, { toValue: 52, duration: 800, useNativeDriver: false }),
@@ -76,9 +98,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     }
 
     if (hablando) {
-      // Mientras habla, estrechamos la boca un poco para que parezca que vocaliza
       Animated.timing(width, { toValue: 60, duration: 150, useNativeDriver: false }).start();
-      
       loopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(height, { toValue: 22, duration: 220, useNativeDriver: false }),
@@ -92,11 +112,10 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 10 :
         expresion === 'enojada' ? 3 :
         expresion === 'cansada' ? 8 :
-        expresion === 'neutral' ? 14 : 5; 
-        
-      // Hacemos el neutral más ancho (86), feliz un poco ancho (76), el resto normal (64)
-      const reposoWidth = 
-        expresion === 'neutral' ? 86 : 
+        expresion === 'neutral' ? 14 : 5;
+
+      const reposoWidth =
+        expresion === 'neutral' ? 86 :
         expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 76 : 64;
 
       Animated.parallel([
@@ -111,28 +130,27 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
 
   const forma = (silbando && !hablando)
     ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
-    :
-    expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada'
-      ? { borderTopLeftRadius: 3,  borderTopRightRadius: 3,  borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }
-      : expresion === 'triste' || expresion === 'enojada'
-      ? { borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: 3,  borderBottomRightRadius: 3  }
-      : expresion === 'bostezando'
-      ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
-      : expresion === 'sorprendida'
-      ? { borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 2,  borderBottomRightRadius: 2  }
-      : expresion === 'neutral'
-      ? { borderBottomLeftRadius: 42, borderBottomRightRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 } // <-- Aumentamos el radio para que acompañe el nuevo ancho
-      : { borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 };
+    : expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada'
+    ? { borderTopLeftRadius: 3,  borderTopRightRadius: 3,  borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }
+    : expresion === 'triste' || expresion === 'enojada'
+    ? { borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: 3,  borderBottomRightRadius: 3  }
+    : expresion === 'bostezando'
+    ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
+    : expresion === 'sorprendida'
+    ? { borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 2,  borderBottomRightRadius: 2  }
+    : expresion === 'neutral'
+    ? { borderBottomLeftRadius: 42, borderBottomRightRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }
+    : { borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 };
 
   return (
     <Animated.View style={[
       sb.boca,
       forma,
-      { height, width }, // <-- Aplicamos el ancho dinámico aquí
+      { height, width },
       esCurvaNeutral && {
         backgroundColor: 'transparent',
-        borderBottomWidth: 3,           
-        borderLeftWidth: 1.5,           
+        borderBottomWidth: 3,
+        borderLeftWidth: 1.5,
         borderRightWidth: 1.5,
         borderColor: '#B06050',
       }
@@ -149,28 +167,23 @@ const sb = StyleSheet.create({
 });
 
 // ── Cremallera (modo no molestar) ────────────────────────────────────────────
-// Cremallera con dientes en X, tope izquierdo y pestillo con tirador colgante.
-// Color gris #9E9E9E. Animación de entrada con spring desde el centro.
 
 const GRIS = '#9E9E9E';
 const GRIS_OSC = '#757575';
-const CR_W = 100;   // ancho total cremallera
-const CR_H = 16;    // alto de los dientes
+const CR_W = 100;
+const CR_H = 16;
 const N_DIENTES = 9;
 
 function Cremallera() {
   const scaleX  = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  // Tirador: oscila suavemente hacia abajo
   const tiraY   = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Entrada
     Animated.parallel([
       Animated.spring(scaleX,  { toValue: 1, useNativeDriver: true, tension: 70, friction: 7 }),
       Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
     ]).start();
-    // Tirador oscila
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(tiraY, { toValue: 3,  duration: 1200, useNativeDriver: true }),
@@ -181,16 +194,11 @@ function Cremallera() {
     return () => loop.stop();
   }, []);
 
-  const dienteW  = CR_W / N_DIENTES; // ocupa todo el ancho
+  const dienteW = CR_W / N_DIENTES;
 
   return (
     <Animated.View style={[sc.wrap, { opacity, transform: [{ scaleX }] }]}>
-
-      {/* ── Tope izquierdo ── */}
       <View style={sc.topeIzq} />
-
-      {/* ── Cuerpo de dientes entrelazados ── */}
-      {/* Pares bajan desde arriba al centro, impares suben desde abajo al centro */}
       <View style={sc.cuerpo}>
         {Array.from({ length: N_DIENTES * 2 }, (_, i) => {
           const esArriba = i % 2 === 0;
@@ -212,83 +220,63 @@ function Cremallera() {
           );
         })}
       </View>
-
-      {/* ── Pestillo (cuerpo del cursor) ── */}
       <View style={sc.pestilloCuerpo}>
-        {/* Óvalo del cursor */}
         <View style={sc.pestilloOvalo} />
-        {/* Tirador colgante */}
         <Animated.View style={[sc.tiradorWrap, { transform: [{ translateY: tiraY }] }]}>
           <View style={sc.tiradorBarra} />
           <View style={sc.tiradorCuerpo} />
           <View style={sc.tiradorVentana} />
         </Animated.View>
       </View>
-
     </Animated.View>
   );
 }
 
 const sc = StyleSheet.create({
   wrap: {
-    width: CR_W + 36, // espacio para pestillo
+    width: CR_W + 36,
     height: 60,
     marginTop: 72,
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
   },
-
-  // Tope izquierdo — rectángulo redondeado pequeño
   topeIzq: {
     width: 10, height: CR_H + 4,
     borderRadius: 3,
     backgroundColor: GRIS_OSC,
     marginRight: 2,
   },
-
-  // Cuerpo con dientes
   cuerpo: {
     width: CR_W, height: CR_H,
     backgroundColor: GRIS + '33',
     borderRadius: 2,
     overflow: 'visible',
   },
-
-
-
-
-
-  // Pestillo — agrupa el óvalo y el tirador
   pestilloCuerpo: {
     marginLeft: 2,
     alignItems: 'center',
     marginTop: 28,
   },
-
   pestilloOvalo: {
     width: 22, height: CR_H + 8,
     borderRadius: 11,
     backgroundColor: GRIS,
   },
-
   tiradorWrap: {
     alignItems: 'center',
     marginTop: 2,
   },
-
   tiradorBarra: {
     width: 3, height: 8,
     backgroundColor: GRIS_OSC,
     borderRadius: 1,
   },
-
   tiradorCuerpo: {
     width: 18, height: 26,
     borderRadius: 4,
     backgroundColor: GRIS,
   },
-
   tiradorVentana: {
     position: 'absolute',
     bottom: 5,
@@ -299,10 +287,10 @@ const sc = StyleSheet.create({
   },
 });
 
-// ── Ojo ──────────────────────────────────────────────────────────────────────
+// ── Ojo SVG ───────────────────────────────────────────────────────────────────
 
 function Ojo({
-  pxAnim, pyAnim, upperLid, lowerLid, blinkLid, cenoLid, cenoExpr, scaleY, offsetX, lidBg,
+  pxAnim, pyAnim, upperLid, lowerLid, blinkLid, cenoLid, cenoExpr, scaleY, offsetX, lidBg, nightAnim,
 }: {
   pxAnim:   Animated.Value;
   pyAnim:   Animated.Value;
@@ -311,22 +299,230 @@ function Ojo({
   blinkLid: Animated.Value;
   cenoLid:  Animated.Value;
   cenoExpr: Animated.Value;
-  scaleY:   Animated.Value;
-  offsetX:  Animated.Value;
-  lidBg:    string;
+  scaleY:    Animated.Value;
+  offsetX:   Animated.Value;
+  lidBg:     string;
+  nightAnim: Animated.Value;
 }) {
-  const totalUpper = Animated.add(Animated.add(Animated.add(upperLid, blinkLid), cenoLid), cenoExpr);
+  // Suma total del párpado superior: expresión + parpadeo + ceño estado + ceño expresión
+  const totalUpper = Animated.add(
+    Animated.add(Animated.add(upperLid, blinkLid), cenoLid),
+    cenoExpr,
+  );
+
+  // translateX del iris (offsetX viene del gap entre ojos, pxAnim del movimiento)
+  const irisX = Animated.add(pxAnim, new Animated.Value(CX));
+  const irisY = Animated.add(pyAnim, new Animated.Value(CY));
+
+  // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
+  // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
+  const pathFormaOjo = `
+    M ${EYE_W / 2}, 4
+    C ${EYE_W * 0.84}, 4
+      ${EYE_W * 1.04}, ${EYE_H * 0.38}
+      ${EYE_W * 1.0},  ${EYE_H * 0.62}
+    C ${EYE_W * 0.98}, ${EYE_H * 0.88}
+      ${EYE_W * 0.78}, ${EYE_H - 4}
+      ${EYE_W / 2},    ${EYE_H - 4}
+    C ${EYE_W * 0.22}, ${EYE_H - 4}
+      ${EYE_W * 0.02}, ${EYE_H * 0.88}
+      ${EYE_W * 0.0},  ${EYE_H * 0.62}
+    C ${-EYE_W * 0.04}, ${EYE_H * 0.38}
+      ${EYE_W * 0.16}, 4
+      ${EYE_W / 2}, 4
+    Z
+  `;
 
   return (
-    <Animated.View style={[s.eyeWhite, { transform: [{ scaleY }, { translateX: offsetX }] }]}>
-      <View style={s.iris}>
-        <Animated.View style={[s.pupil, { transform: [{ translateX: pxAnim }, { translateY: pyAnim }] }]}>
-          <View style={s.reflect1} />
-          <View style={s.reflect2} />
-        </Animated.View>
-      </View>
-      <Animated.View style={[s.lid, s.lidTop,    { height: totalUpper, backgroundColor: lidBg }]} />
-      <Animated.View style={[s.lid, s.lidBottom, { height: lowerLid,   backgroundColor: lidBg }]} />
+    <Animated.View style={[
+      s.eyeContainer,
+      { transform: [{ scaleY }, { translateX: offsetX }] },
+    ]}>
+      <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`}>
+        <Defs>
+          {/* Forma suavizada: afinada arriba pero no tanto. Clippeado al path recalculated */}
+          <ClipPath id="huevo">
+            <Path d={pathFormaOjo}/>
+          </ClipPath>
+
+          {/* Gradiente radial esclera: blanco cremoso al centro, más oscuro en bordes */}
+          <RadialGradient id="gradEsclera" cx="50%" cy="45%" rx="55%" ry="52%">
+            <Stop offset="0%"   stopColor="#FDFAF4" stopOpacity="1"/>
+            <Stop offset="60%"  stopColor="#EDE6D8" stopOpacity="1"/>
+            <Stop offset="100%" stopColor="#D4C8B0" stopOpacity="1"/>
+          </RadialGradient>
+
+          {/* Gradiente radial iris: celeste brillante al centro, azul oscuro en bordes */}
+          <RadialGradient id="gradIris" cx="40%" cy="35%" rx="60%" ry="60%">
+            <Stop offset="0%"   stopColor="#A8D8F8" stopOpacity="1"/>
+            <Stop offset="30%"  stopColor="#5BA8E0" stopOpacity="1"/>
+            <Stop offset="65%"  stopColor="#2464B8" stopOpacity="1"/>
+            <Stop offset="100%" stopColor="#082E70" stopOpacity="1"/>
+          </RadialGradient>
+
+          {/* Gradiente radial pupila: no completamente negro, con profundidad */}
+          <RadialGradient id="gradPupila" cx="44%" cy="40%" rx="56%" ry="56%">
+            <Stop offset="0%"   stopColor="#1E1E38" stopOpacity="1"/>
+            <Stop offset="100%" stopColor="#000008" stopOpacity="1"/>
+          </RadialGradient>
+
+          {/* Gradiente piel párpado: da volumen al párpado */}
+          <RadialGradient id="gradPiel" cx="50%" cy="0%" rx="60%" ry="80%">
+            <Stop offset="0%"   stopColor="#D4A87A" stopOpacity="1"/>
+            <Stop offset="100%" stopColor="#B8864E" stopOpacity="1"/>
+          </RadialGradient>
+
+          {/* Sombra suave del párpado sobre el ojo — degradé de oscuro a transparente */}
+          <RadialGradient id="gradSombraParpado" cx="50%" cy="0%" rx="50%" ry="100%">
+            <Stop offset="0%"   stopColor="#000000" stopOpacity="0.18"/>
+            <Stop offset="100%" stopColor="#000000" stopOpacity="0"/>
+          </RadialGradient>
+        </Defs>
+
+        {/* ── Fondo piel (forma recalculated completa) ── */}
+        <Path
+          d={pathFormaOjo}
+          fill="#C4996A"
+        />
+
+        {/* ── Contenido del ojo (clippeado a la forma suavizada) ── */}
+        <G clipPath="url(#huevo)">
+
+          {/* Esclera con gradiente */}
+          <Ellipse
+            cx={CX}
+            cy={EYE_H * 0.68}
+            rx={EYE_W * 0.54}
+            ry={EYE_H * 0.46}
+            fill="url(#gradEsclera)"
+          />
+
+          {/* Iris + pupila animados ── */}
+          {/* Iris */}
+          <AnimatedCircle
+            cx={irisX as any}
+            cy={irisY as any}
+            r={IRIS / 2}
+            fill="url(#gradIris)"
+          />
+          {/* Anillo exterior del iris */}
+          <AnimatedCircle
+            cx={irisX as any}
+            cy={irisY as any}
+            r={IRIS / 2}
+            fill="none"
+            stroke="rgba(8,30,80,0.25)"
+            strokeWidth={1.5}
+          />
+          {/* Anillo interior del iris */}
+          <AnimatedCircle
+            cx={irisX as any}
+            cy={irisY as any}
+            r={IRIS * 0.6 / 2}
+            fill="none"
+            stroke="rgba(8,30,80,0.12)"
+            strokeWidth={1}
+          />
+          {/* Pupila */}
+          <AnimatedCircle
+            cx={irisX as any}
+            cy={irisY as any}
+            r={PUPIL / 2}
+            fill="url(#gradPupila)"
+          />
+          {/* Reflejo principal ── */}
+          <AnimatedEllipse
+            cx={Animated.add(irisX, new Animated.Value(-PUPIL * 0.28)) as any}
+            cy={Animated.add(irisY, new Animated.Value(-PUPIL * 0.30)) as any}
+            rx={5}
+            ry={4}
+            fill="white"
+            opacity={0.92}
+          />
+          {/* Reflejo secundario */}
+          <AnimatedEllipse
+            cx={Animated.add(irisX, new Animated.Value(PUPIL * 0.22)) as any}
+            cy={Animated.add(irisY, new Animated.Value(PUPIL * 0.25)) as any}
+            rx={2.5}
+            ry={2}
+            fill="white"
+            opacity={0.45}
+          />
+
+          {/* Sombra suave del párpado cayendo sobre el ojo */}
+          <Rect
+            x={0} y={0}
+            width={EYE_W}
+            height={EYE_H * 0.35}
+            fill="url(#gradSombraParpado)"
+          />
+
+          {/* ── Párpado superior ── */}
+          <AnimatedRect
+            x={0}
+            y={0}
+            width={EYE_W}
+            height={totalUpper as any}
+            fill={lidBg}
+          />
+          <AnimatedRect
+            x={0}
+            y={0}
+            width={EYE_W}
+            height={totalUpper as any}
+            fill="#000000"
+            opacity={nightAnim.interpolate({
+              inputRange:  [0, 1],
+              outputRange: [0, 0.82],
+            }) as any}
+          />
+
+          {/* ── Párpado inferior ── */}
+          <AnimatedRect
+            x={0}
+            y={Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1)) as any}
+            width={EYE_W}
+            height={lowerLid as any}
+            fill={lidBg}
+          />
+          <AnimatedRect
+            x={0}
+            y={Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1)) as any}
+            width={EYE_W}
+            height={lowerLid as any}
+            fill="#000000"
+            opacity={nightAnim.interpolate({
+              inputRange:  [0, 1],
+              outputRange: [0, 0.82],
+            }) as any}
+          />
+
+        </G>
+
+        {/* ── Párpado exterior con gradiente de piel — clippeado a la forma suavizada ── */}
+        <G clipPath="url(#huevo)">
+          <AnimatedRect
+            x={0}
+            y={0}
+            width={EYE_W}
+            height={totalUpper as any}
+            fill="url(#gradPiel)"
+          />
+          {/* Oscurecimiento nocturno encima del gradiente de piel */}
+          <AnimatedRect
+            x={0}
+            y={0}
+            width={EYE_W}
+            height={totalUpper as any}
+            fill="#000000"
+            opacity={nightAnim.interpolate({
+              inputRange:  [0, 1],
+              outputRange: [0, 0.82],
+            }) as any}
+          />
+        </G>
+
+      </Svg>
     </Animated.View>
   );
 }
@@ -361,6 +557,8 @@ export default function RosaOjos({
   const scaleY   = useRef(new Animated.Value(1)).current;
   const eyeGapL  = useRef(new Animated.Value(0)).current;
   const eyeGapR  = useRef(new Animated.Value(0)).current;
+  // 0 = despierta, 0.5 = soñolienta, 1 = durmiendo
+  const nightAnim = useRef(new Animated.Value(0)).current;
 
   const expresionRef  = useRef<Expresion>('neutral');
   const running       = useRef(true);
@@ -375,7 +573,8 @@ export default function RosaOjos({
       if (blinkTmr.current) clearTimeout(blinkTmr.current);
       breathingAnim.current?.stop();
       running.current = false;
-      Animated.timing(upperLid, { toValue: EYE_H, duration: 1800, useNativeDriver: false }).start();
+      Animated.timing(upperLid,  { toValue: EYE_H, duration: 1800, useNativeDriver: false }).start();
+      Animated.timing(nightAnim, { toValue: 1,      duration: 1800, useNativeDriver: false }).start();
       Animated.parallel([
         Animated.timing(scaleY,  { toValue: 1, duration: 1200, useNativeDriver: true }),
         Animated.timing(pxL,     { toValue: 0, duration: 800,  useNativeDriver: true }),
@@ -388,7 +587,8 @@ export default function RosaOjos({
       Animated.parallel([
         Animated.timing(upperLid, { toValue: EYE_H * 0.55, duration: 1200, useNativeDriver: false }),
         Animated.timing(lowerLid, { toValue: EYE_H * 0.10, duration: 1200, useNativeDriver: false }),
-        Animated.timing(cenoExpr, { toValue: 0,             duration: 1200, useNativeDriver: false }),
+        Animated.timing(cenoExpr,  { toValue: 0,    duration: 1200, useNativeDriver: false }),
+        Animated.timing(nightAnim, { toValue: 0.5,  duration: 1200, useNativeDriver: false }),
       ]).start();
       Animated.parallel([
         Animated.timing(scaleY,  { toValue: 0.45, duration: 1200, useNativeDriver: true }),
@@ -401,7 +601,8 @@ export default function RosaOjos({
       Animated.parallel([
         Animated.timing(upperLid, { toValue: c.upper, duration: 1200, useNativeDriver: false }),
         Animated.timing(lowerLid, { toValue: c.lower, duration: 1200, useNativeDriver: false }),
-        Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 1200, useNativeDriver: false }),
+        Animated.timing(cenoExpr,  { toValue: c.ceno, duration: 1200, useNativeDriver: false }),
+        Animated.timing(nightAnim, { toValue: 0,     duration: 1200, useNativeDriver: false }),
       ]).start();
       Animated.parallel([
         Animated.timing(scaleY,  { toValue: 1,            duration: 1200, useNativeDriver: true }),
@@ -411,31 +612,26 @@ export default function RosaOjos({
     }
   }, [modoNoche]);
 
-  // ── No molestar: ojos entornados + mirada distraída de lado a lado ───────────
+  // ── No molestar ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (noMolestar) {
-      // Entornar párpados
       Animated.parallel([
         Animated.timing(upperLid, { toValue: EYE_H * 0.38, duration: 400, useNativeDriver: false }),
         Animated.timing(cenoLid,  { toValue: EYE_H * 0.10, duration: 400, useNativeDriver: false }),
       ]).start();
-      // Iris arriba + movimiento lateral lento — efecto "ojos en blanco" distraído
       const loopMirada = Animated.loop(
         Animated.sequence([
-          // Subir el iris hacia arriba primero
           Animated.parallel([
             Animated.timing(py,  { toValue: -MAX * 1.1, duration: 400, useNativeDriver: true }),
             Animated.timing(pxL, { toValue:  MAX * 0.7, duration: 400, useNativeDriver: true }),
             Animated.timing(pxR, { toValue:  MAX * 0.7, duration: 400, useNativeDriver: true }),
           ]),
           Animated.delay(500),
-          // Ir al otro lado
           Animated.parallel([
             Animated.timing(pxL, { toValue: -MAX * 0.7, duration: 2000, useNativeDriver: true }),
             Animated.timing(pxR, { toValue: -MAX * 0.7, duration: 2000, useNativeDriver: true }),
           ]),
           Animated.delay(500),
-          // Volver al centro un momento
           Animated.parallel([
             Animated.timing(pxL, { toValue: 0, duration: 800, useNativeDriver: true }),
             Animated.timing(pxR, { toValue: 0, duration: 800, useNativeDriver: true }),
@@ -446,20 +642,19 @@ export default function RosaOjos({
       loopMirada.start();
       return () => {
         loopMirada.stop();
-        // Restaurar al salir del modo
         const c = EXPR[expresionRef.current];
         Animated.parallel([
           Animated.timing(upperLid, { toValue: c.upper, duration: 400, useNativeDriver: false }),
           Animated.timing(cenoLid,  { toValue: 0,       duration: 400, useNativeDriver: false }),
           Animated.timing(pxL,      { toValue: c.pxL,   duration: 400, useNativeDriver: true }),
           Animated.timing(pxR,      { toValue: c.pxR,   duration: 400, useNativeDriver: true }),
-          Animated.timing(py,       { toValue: c.py,     duration: 400, useNativeDriver: true }),
+          Animated.timing(py,       { toValue: c.py,    duration: 400, useNativeDriver: true }),
         ]).start();
       };
     }
   }, [noMolestar]);
 
-  // ── Expresión: párpados + ceño + gap ─────────────────────────────────────────
+  // ── Expresión ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (modoNoche !== 'despierta') return;
     expresionRef.current = expresion;
@@ -565,14 +760,12 @@ export default function RosaOjos({
       timer.current = setTimeout(loopHablando, 280 + Math.random() * 180);
     }
 
-    // Ceño por estado (pensando)
     Animated.timing(cenoLid, {
       toValue: estado === 'pensando' ? EYE_H * 0.22 : 0,
       duration: 400,
       useNativeDriver: false,
     }).start();
 
-    // Respiración suave cuando esperando
     if (estado === 'esperando' && modoNoche === 'despierta') {
       breathingAnim.current = Animated.loop(
         Animated.sequence([
@@ -599,7 +792,6 @@ export default function RosaOjos({
   }, [estado, modoNoche]);
 
   function picarOjo(_lado: 'L' | 'R') {
-    // Parpadeo rápido del ojo tocado — usa blinkLid compartido
     const lid = blinkLid;
     Animated.sequence([
       Animated.timing(lid, { toValue: EYE_H, duration: 40,  useNativeDriver: false }),
@@ -607,7 +799,6 @@ export default function RosaOjos({
       Animated.timing(lid, { toValue: EYE_H, duration: 40,  useNativeDriver: false }),
       Animated.timing(lid, { toValue: 0,     duration: 60,  useNativeDriver: false }),
     ]).start();
-    // Avisar al padre para cambiar expresión
     onOjoPicado?.();
   }
 
@@ -616,10 +807,10 @@ export default function RosaOjos({
       <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
         <View style={s.contenedor}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
-            <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor}/>
+            <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1}>
-            <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor}/>
+            <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
         </View>
         {noMolestar && estado === 'esperando' ? <Cremallera /> : <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />}
@@ -631,26 +822,9 @@ export default function RosaOjos({
 const s = StyleSheet.create({
   wrap:       { alignItems: 'center', height: EYE_H + 120 },
   contenedor: { flexDirection: 'row', gap: 32, alignItems: 'flex-end' },
-  eyeWhite: {
-    width: EYE_W, height: EYE_H,
-    borderTopLeftRadius: EYE_W / 2, borderTopRightRadius: EYE_W / 2,
-    borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
-    backgroundColor: '#EDE8DF',
-    alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
+  eyeContainer: {
+    width: EYE_W,
+    height: EYE_H,
+    overflow: 'visible',
   },
-  iris: {
-    width: IRIS, height: IRIS, borderRadius: IRIS / 2,
-    backgroundColor: '#4B7FB5',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  pupil: {
-    width: PUPIL, height: PUPIL, borderRadius: PUPIL / 2,
-    backgroundColor: '#1A3A5C',
-  },
-  reflect1: { position: 'absolute', width: 10, height: 10, borderRadius: 5, backgroundColor: '#fff', top: 5,    left: 5  },
-  reflect2: { position: 'absolute', width: 5,  height: 5,  borderRadius: 3, backgroundColor: '#fff', bottom: 5, right: 4 },
-  lid:       { position: 'absolute', left: 0, right: 0 },
-  lidTop:    { top: 0 },
-  lidBottom: { bottom: 0 },
 });

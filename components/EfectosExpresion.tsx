@@ -4,10 +4,10 @@ import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
-export const EYE_W = 108;
-export const EYE_H = 126;
+export const EYE_W = 124;
+export const EYE_H = 159;
 export const GAP   = 32;
-export const OW    = 20 + EYE_W * 2 + GAP + 20; // 288
+export const OW    = 20 + EYE_W * 2 + GAP + 20; // 320
 
 // ── Lágrimas ──────────────────────────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ function UnSigno({ x, delay, size }: typeof PREGUNTAS[0]) {
   }, []);
 
   return (
-    <Animated.Text style={{ position: 'absolute', left: x, top: -38, fontSize: size, fontWeight: '300', color: '#8BC4E8', opacity, transform: [{ scale }, { translateY: y }] }}>
+    <Animated.Text style={{ position: 'absolute', left: x, top: 2, fontSize: size, fontWeight: '300', color: '#8BC4E8', opacity, transform: [{ scale }, { translateY: y }] }}>
       ?
     </Animated.Text>
   );
@@ -192,7 +192,7 @@ function UnExclamacion({ x, delay }: { x: number; delay: number }) {
   }, []);
 
   return (
-    <Animated.Text style={{ position: 'absolute', left: x, top: -48, fontSize: 46, fontWeight: '800', color: '#FF6B35', opacity, transform: [{ scale }, { translateY: y }] }}>
+    <Animated.Text style={{ position: 'absolute', left: x, top: -12, fontSize: 46, fontWeight: '800', color: '#FF6B35', opacity, transform: [{ scale }, { translateY: y }] }}>
       !
     </Animated.Text>
   );
@@ -349,8 +349,9 @@ export function CenoEnojado() {
   
   return (
     <Animated.View style={{ opacity }}>
+      {/* Tus coordenadas originales que funcionaban perfecto */}
       <View style={{ position: 'absolute', left: 25, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
-      <View style={{ position: 'absolute', left: 165, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
+      <View style={{ position: 'absolute', left: 181, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
     </Animated.View>
   );
 }
@@ -414,12 +415,8 @@ export function Grawlixes() {
 
 // ── Mejillas (Glow SVG Radial) ────────────────────────────────────────────────
 
-export function Mejillas({ faceScale = 1 }: { faceScale?: number }) {
+export function Mejillas() {
   const animacion = useRef(new Animated.Value(0)).current;
-
-  // Posiciones originales basadas en tu matemática
-  const mejLeft  = 20 / faceScale - 41;
-  const mejRight = 20 / faceScale + 227;
 
   useEffect(() => {
     Animated.sequence([
@@ -437,16 +434,13 @@ export function Mejillas({ faceScale = 1 }: { faceScale?: number }) {
     ]).start();
   }, [animacion]);
 
-  // Dimensiones del lienzo SVG para dar espacio al resplandor
   const w = 120;
   const h = 80;
-  // Radios del núcleo del óvalo (la mitad de tus 62x34 originales)
   const rx = 31;
   const ry = 17;
   const cx = w / 2;
   const cy = h / 2;
 
-  // Color naranja/rojizo original (#FF6B35) en formato rgba para el gradiente
   const colorGlow = 'rgba(255, 107, 53, 1)';
 
   const MejillaSvg = () => (
@@ -462,18 +456,13 @@ export function Mejillas({ faceScale = 1 }: { faceScale?: number }) {
     </Svg>
   );
 
-  // Compensamos el offset visual generado por el lienzo SVG de 120x80
-  // La diferencia entre 120 y tu 62 original es 58 (29 por lado)
-  // La diferencia entre 80 y tu 34 original es 46 (23 por lado)
-  const offsetW = 29;
-  const offsetH = 23;
-
   return (
     <Animated.View style={{ opacity: animacion }} pointerEvents="none">
-      <View style={{ position: 'absolute', left: mejLeft - offsetW, top: EYE_H + 44 - offsetH }}>
+      {/* Tus coordenadas originales limpias que funcionaban perfecto */}
+      <View style={{ position: 'absolute', left: 22, top: 204 }}>
         <MejillaSvg />
       </View>
-      <View style={{ position: 'absolute', left: mejRight - offsetW, top: EYE_H + 44 - offsetH }}>
+      <View style={{ position: 'absolute', left: 178, top: 204 }}>
         <MejillaSvg />
       </View>
     </Animated.View>

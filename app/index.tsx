@@ -62,12 +62,23 @@ export default function Index() {
   const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido, mostrarFoto }, player);
 
 
-  // ── Cálculo del fondo ───────────────────────────────────────────────────────
+  // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
   const hora           = horaActual;
   const esAtardecerBg  = hora >= 17 && hora < 20;
   const esFondoNoche   = hora >= 20 || hora < HORA_DESPERTAR;
   const esClimaOscuro  = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo/);
+  
+  // Tu color base original
   const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#6B7280' : esAtardecerBg ? '#FFBD59' : '#38B6FF';
+
+  // Degradados para el cielo
+  const degradadoCielo: readonly [string, string, string] | readonly [string, string, string, string] = esFondoNoche
+    ? ['#000000', '#050A30', bgActual] // Negro arriba -> Azul Profundo abajo -> BG
+    : esClimaOscuro
+    ? ['#374151', '#4B5563', bgActual]
+    : esAtardecerBg
+    ? ['#2B1055', '#FF416C', '#FF4B2B', bgActual] // 4 colores: Violeta -> Rosa -> Naranja -> Fondo
+    : ['#0052D4', '#4364F7', bgActual];
 
   const desc        = climaObj?.descripcion?.toLowerCase() ?? '';
   const cieloTapado = /\bnublado\b/.test(desc) && !/parcial|algunas nubes/.test(desc)
@@ -129,8 +140,8 @@ export default function Index() {
 
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
-  const sosPulso   = useRef(new Animated.Value(1)).current;   // scale — useNativeDriver: true
-  const sosProgreso = useRef(new Animated.Value(0)).current;  // barra — useNativeDriver: false
+  const sosPulso   = useRef(new Animated.Value(1)).current;   
+  const sosProgreso = useRef(new Animated.Value(0)).current;  
   const sosPulsoRef    = useRef<Animated.CompositeAnimation | null>(null);
   const sosProgresoRef  = useRef<Animated.CompositeAnimation | null>(null);
   const dotPulseAnim   = useRef<Animated.CompositeAnimation | null>(null);
@@ -139,7 +150,6 @@ export default function Index() {
     setSosPresionando(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    // Pulso fuerte y repetitivo
     sosPulsoRef.current = Animated.loop(
       Animated.sequence([
         Animated.timing(sosPulso, { toValue: 1.22, duration: 280, useNativeDriver: true }),
@@ -148,7 +158,6 @@ export default function Index() {
     );
     sosPulsoRef.current.start();
 
-    // Barra de progreso que se llena en 2 segundos
     sosProgresoRef.current = Animated.timing(sosProgreso, {
       toValue: 1, duration: 2000, useNativeDriver: false,
     });
@@ -182,7 +191,6 @@ export default function Index() {
     return () => { dotPulseAnim.current?.stop(); };
   }, [estado, musicaActiva]);
 
-  // Glow breathing — useNativeDriver: true (opacity es soportado por native driver)
   useEffect(() => {
     const loop = Animated.loop(
       Animated.sequence([
@@ -210,7 +218,7 @@ export default function Index() {
   const { bottom: safeBottom } = useSafeAreaInsets();
   const isTablet  = screenW >= 600;
   const faceScale = isTablet ? Math.min(screenW / 390, 1.7) : 1;
-  const textScale = faceScale; // mismo scale que la cara — texto proporcional en tablet y teléfono
+  const textScale = faceScale; 
   const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : 200;
   const btnH      = isTablet ? Math.round(64 * textScale) : 64;
   const icoBtn    = Math.round(btnH * 0.46);
@@ -218,7 +226,6 @@ export default function Index() {
   const icoNM     = isTablet ? 28 : 18;
   const btnFont   = isTablet ? fs(43) : fs(18);
   const nmFont    = isTablet ? fs(24) : fs(13);
-  // Padding vertical proporcional: deja ~8% arriba y ~8% abajo del espacio libre
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
 
   // ── Color del dot / borde / glow según estado ───────────────────────────────
@@ -226,23 +233,28 @@ export default function Index() {
     : estado === 'escuchando' ? '#E85D24'
     : estado === 'pensando'   ? '#3b82f6'
     : estado === 'hablando'   ? '#22c55e'
-    : '#ef4444'; // esperando
-  // Gradiente del borde: dos tonos del mismo color
+    : '#ef4444'; 
   const btnGradient: [string, string] = musicaActiva        ? ['#fca5a5', '#E8392A']
     : estado === 'escuchando' ? ['#fdba74', '#E85D24']
     : estado === 'pensando'   ? ['#93c5fd', '#3b82f6']
     : estado === 'hablando'   ? ['#86efac', '#22c55e']
     : ['#fca5a5', '#ef4444'];
   const btnLabel = musicaActiva ? 'Parar'
-    : estado === 'escuchando' ? 'Escuchando...'
+    : estado === 'escuchando' ? 'Escuchando'
     : estado === 'pensando'   ? 'Pensando...'
-    : estado === 'hablando'   ? 'Hablando...'
+    : estado === 'hablando'   ? 'Hablando'
     : 'Hablar';
 
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
   return (
-    <View style={[styles.contenedor, { backgroundColor: bgActual }, isTablet && { justifyContent: 'space-evenly', paddingVertical: tabletPadV }]}>
+    <LinearGradient 
+      colors={degradadoCielo} 
+      start={{ x: 0, y: 0 }} 
+      end={{ x: 0, y: 1 }}
+      locations={degradadoCielo.length === 4 ? [0, 0.25, 0.55, 1] : [0, 0.4, 1]} 
+      style={[styles.contenedor, isTablet && { justifyContent: 'space-evenly', paddingVertical: tabletPadV }]}
+    >
       <MenuFlotante oscuro />
 
       {esFondoNoche && !(hora >= 6 && hora < 10) && !cieloTapado && <CieloNoche bgColor={bgActual} />}
@@ -250,7 +262,6 @@ export default function Index() {
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara} facing={camaraFacing} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
-      {/* Polaroid — foto recibida por Telegram */}
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
           <TouchableOpacity
@@ -279,7 +290,11 @@ export default function Index() {
         </Modal>
       )}
 
-      <View style={[styles.ojoContenedor, isTablet && { marginTop: 40 }]} {...panCaricia.panHandlers}>
+      <View 
+        style={[styles.ojoContenedor, isTablet && { marginTop: 40 }]} 
+        onLayout={(e) => console.log('W:', e.nativeEvent.layout.width, 'X:', e.nativeEvent.layout.x)}
+        {...panCaricia.panHandlers}
+      >
         <ExpresionOverlay
           capa="fondo"
           expresion={expresion}
@@ -325,7 +340,7 @@ export default function Index() {
 
       <View style={styles.botonesWrap}>
         <View style={styles.botonContenedor}>
-          {/* Glow — RadialGradient SVG, funciona en todas las plataformas */}
+          {/* Glow — RadialGradient SVG, lo mantenemos como estaba originalmente (sutil) */}
           {(() => { const gW = btnW + 90; const gH = btnH + 70; return (
             <Animated.View style={[styles.btnGlow, { opacity: glowOpacity }]}>
               <Svg width={gW} height={gH}>
@@ -343,19 +358,15 @@ export default function Index() {
           {/* Wrapper para shadow (separado de overflow:hidden) */}
           <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
             <TouchableOpacity
-              style={{ borderRadius: btnH / 2, overflow: 'hidden', width: btnW, height: btnH }}
+              style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
               onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
               activeOpacity={0.85}
               disabled={botonDisabled && !musicaActiva}
             >
-              {/* LinearGradient con padding actúa como borde degradado */}
-              <LinearGradient
-                colors={btnGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ flex: 1, padding: 3, alignItems: 'center', justifyContent: 'center' }}
-              >
-                <View style={[styles.boton, { flex: 1, alignSelf: 'stretch', borderRadius: btnH / 2 - 3 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
+              {/* Eliminamos el LinearGradient que hacía de borde degradado.
+                  El View.boton ahora va directo dentro de TouchableOpacity.
+                  También quitamos el borderRadius - 3, ahora es directo btnH / 2. */}
+              <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
                   <View style={styles.btnInner}>
                     <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
                     <Text style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151', width: Math.round(btnW * 0.52), textAlign: 'center' }]}>
@@ -363,13 +374,11 @@ export default function Index() {
                     </Text>
                   </View>
                 </View>
-              </LinearGradient>
             </TouchableOpacity>
           </View>
         </View>
       </View>
 
-{/* Easter egg: toque largo en esquina inferior derecha → cumpleaños */}
       <TouchableOpacity
         onLongPress={triggerCumpleaños}
         style={{ position: 'absolute', bottom: safeBottom + 50, right: 0, width: 70, height: 70 }}
@@ -421,7 +430,6 @@ export default function Index() {
           onPress={() => setMostrarOnboarding(false)}
           activeOpacity={1}
         >
-
           <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.onboardingCard}>
             <View style={styles.onboardingHeader}>
               <View style={styles.onboardingAvatarRing}>
@@ -472,7 +480,6 @@ export default function Index() {
         </TouchableOpacity>
       )}
 
-      {/* Easter egg: toque largo en esquina inferior izquierda → silbido */}
       <TouchableOpacity
         onLongPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
         style={{ position: 'absolute', bottom: safeBottom + 50, left: 0, width: 70, height: 70 }}
@@ -494,7 +501,8 @@ export default function Index() {
           </View>
         </TouchableOpacity>
       </Modal>
-    </View>
+
+    </LinearGradient>
   );
 }
 

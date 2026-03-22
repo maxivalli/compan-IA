@@ -3,7 +3,7 @@ import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Expresion, ModoNoche } from './RosaOjos';
 import {
   Lagrimas, Corazones, Mejillas, SignosPregunta, Exclamaciones,
-  SudorFrio, Carcajada, NotasMusica, CenoEnojado, Grawlixes,
+  Carcajada, NotasMusica, CenoEnojado, Grawlixes,
 } from './EfectosExpresion';
 import {
   GotasLluvia, Nieve, Viento, CalorEfecto,
@@ -46,15 +46,6 @@ export default function ExpresionOverlay({
     }).start();
   }, [expresion]);
 
-  // Contenedor posicionado para que el transform: scale escale desde el centro de la cara,
-  // no desde el centro del overlay. FACE_W/H deben coincidir con los de RosaOjos.
-  const FACE_W = 248; // EYE_W * 2 + 32
-  const FACE_H = 246; // EYE_H + 120
-  // El overlay extiende 20px a la izquierda y 60px arriba de la cara.
-  // Para que el scale sea desde el centro visual de la cara:
-  const containerLeft = FACE_W * (faceScale - 1) / 2;
-  const containerTop  = FACE_H * (faceScale - 1) / 2;
-
   if (capa === 'fondo') return (
     <View style={s.overlay} pointerEvents="none">
       {esLluvia                                                           && <GotasLluvia />}
@@ -69,21 +60,28 @@ export default function ExpresionOverlay({
   return (
     <View style={s.overlay} pointerEvents="none">
       {esTormenta && <Relampagos onRelampago={onRelampago} />}
-      <View style={{ position: 'absolute', left: containerLeft, top: containerTop, width: FACE_W, height: FACE_H, transform: [{ scale: faceScale }], overflow: 'visible' }}>
-        {(musicaActiva || silbando) && <NotasMusica />}
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
-          {expresion === 'triste'      && <Lagrimas />}
-          {expresion === 'feliz'       && <Corazones />}
-          {expresion === 'mimada'      && <Corazones />}
-          {expresion === 'mimada'      && <Mejillas faceScale={faceScale} />}
-          {expresion === 'sorprendida' && <Exclamaciones />}
-          {expresion === 'sorprendida' && <SudorFrio />}
-          {expresion === 'pensativa'   && <SignosPregunta />}
-          {expresion === 'chiste'      && <Carcajada />}
-          {expresion === 'enojada'     && <CenoEnojado />}
-          {expresion === 'enojada'     && <Grawlixes />}
-        </Animated.View>
+      
+      {/* Usamos Flexbox para anclar el punto de escala exactamente en el centro geométrico */}
+      <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
+        
+        {/* Este es tu lienzo original de 320x409. Al escalarlo acá, no se va a desplazar nunca hacia los costados */}
+        <View onLayout={(e) => console.log('EfectosLayout:', JSON.stringify(e.nativeEvent.layout))} style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: 'visible' }}>
+          {(musicaActiva || silbando) && <NotasMusica />}
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
+            {expresion === 'triste'      && <Lagrimas />}
+            {expresion === 'feliz'       && <Corazones />}
+            {expresion === 'mimada'      && <Corazones />}
+            {expresion === 'mimada'      && <Mejillas />}
+            {expresion === 'sorprendida' && <Exclamaciones />}
+            {/* La gota (SudorFrio) ha sido eliminada de aquí */}
+            {expresion === 'pensativa'   && <SignosPregunta />}
+            {expresion === 'chiste'      && <Carcajada />}
+            {expresion === 'enojada'     && <CenoEnojado />}
+            {expresion === 'enojada'     && <Grawlixes />}
+          </Animated.View>
+        </View>
       </View>
+
     </View>
   );
 }
