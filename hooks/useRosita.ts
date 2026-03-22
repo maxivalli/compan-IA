@@ -24,6 +24,7 @@ import {
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
 import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { obtenerEstadoTuya, controlarDispositivo, Dispositivo } from '../lib/tuya';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -112,6 +113,9 @@ export function useRosita() {
   // ── Flag para bloquear SR durante flujo de mensajes de voz ──────────────────
   const enFlujoVozRef    = useRef(false);
 
+  // ── Dispositivos Tuya/Smartlife ───────────────────────────────────────────────
+  const dispositivosTuyaRef = useRef<Dispositivo[]>([]);
+
   // ── System prompt en dos bloques: estable (cacheable) + dinámico ─────────────
   const systemEstableRef = useRef<{ key: string; text: string } | null>(null);
   function getSystemBlocks(p: Perfil, climaTexto: string, incluirJuego: boolean, extra = '', incluirChiste = false) {
@@ -121,7 +125,7 @@ export function useRosita() {
     }
     return [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste) + (ciudadRef.current ? `\nUbicación actual: ${ciudadRef.current}, Argentina.` : '') + (feriadosRef.current ? `\n${feriadosRef.current}` : '') },
+      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste, dispositivosTuyaRef.current) + (ciudadRef.current ? `\nUbicación actual: ${ciudadRef.current}, Argentina.` : '') + (feriadosRef.current ? `\n${feriadosRef.current}` : '') },
     ];
   }
   const sinConexionRef   = useRef(false);
@@ -440,6 +444,10 @@ export function useRosita() {
         ciudadRef.current = clima.ciudad ?? '';
         setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
       }
+    }).catch(() => {});
+
+    obtenerEstadoTuya().then(({ vinculado, dispositivos }) => {
+      if (vinculado) dispositivosTuyaRef.current = dispositivos;
     }).catch(() => {});
 
     getFeriadosCercanos().then(texto => {
@@ -1043,6 +1051,24 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.recuerdos.length > 0) {
         await Promise.all(parsed.recuerdos.map(r => agregarRecuerdo(r)));
         perfilRef.current = await cargarPerfil();
+      }
+
+      // ── DOMÓTICA ──
+      if (parsed.domotica) {
+        const { tipo, dispositivoNombre, codigo, valor } = parsed.domotica;
+        const dispositivos = dispositivosTuyaRef.current;
+        if (!dispositivos.length) {
+          // Sin dispositivos vinculados — Rosita ya habrá dicho algo amable
+        } else if (tipo === 'control') {
+          const dispositivo = dispositivos.find(d =>
+            d.nombre.toLowerCase().includes(dispositivoNombre.toLowerCase()) ||
+            dispositivoNombre.toLowerCase().includes(d.nombre.toLowerCase())
+          );
+          if (dispositivo) {
+            controlarDispositivo(dispositivo.id, codigo, valor!).catch(() => {});
+          }
+        }
+        // tipo === 'estado': Rosita describe el estado con su respuesta en voz, no acción extra
       }
 
       // ── Alertas Telegram: EMERGENCIA > LLAMAR_FAMILIA > MENSAJE_FAMILIAR ──

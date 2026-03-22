@@ -11,6 +11,13 @@ export type TagPrincipal =
   | 'FELIZ' | 'TRISTE' | 'SORPRENDIDA' | 'PENSATIVA' | 'NEUTRAL'
   | 'CUENTO' | 'JUEGO' | 'CHISTE' | 'ENOJADA' | 'AVERGONZADA' | 'CANSADA';
 
+export type DispositivoTuya = {
+  id: string;
+  nombre: string;
+  tipo: string;
+  online: boolean;
+};
+
 export type RespuestaParsed = {
   tagPrincipal: TagPrincipal;
   generoMusica?: string;           // solo si tagPrincipal === 'MUSICA'
@@ -23,6 +30,12 @@ export type RespuestaParsed = {
   mensajeFamiliar?: { nombreDestino: string; texto: string };
   llamarFamilia?: string;          // motivo
   emergencia?: string;             // síntoma
+  domotica?: {
+    tipo: 'control' | 'estado';
+    dispositivoNombre: string;
+    codigo: string;
+    valor?: boolean | number;
+  };
 };
 
 // ── Helpers públicos ──────────────────────────────────────────────────────────
@@ -239,7 +252,7 @@ REGLA CRÍTICA — BÚSQUEDA WEB: Cuando en el contexto aparezcan "Resultados de
 }
 
 /** Bloque dinámico: fecha/hora, clima, contexto de perfil y recuerdos. Se envía sin cache. */
-export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false): string {
+export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false, dispositivosTuya: DispositivoTuya[] = []): string {
   const ahora = new Date();
   const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -250,6 +263,10 @@ export function construirContextoDinamico(p: Perfil, climaTexto: string, incluir
   })();
   const esNavidad   = ahora.getMonth() === 11 && ahora.getDate() === 25;
   const esAñoNuevo  = ahora.getMonth() === 0  && ahora.getDate() === 1;
+  const bloqueDispositivos = dispositivosTuya.length > 0
+    ? `\nDOMÓTICA — La persona tiene dispositivos Smartlife vinculados. Podés controlarlos usando estos tags:\n[DOMOTICA:nombre_dispositivo:codigo:valor] para controlar, [DOMOTICA_ESTADO:nombre_dispositivo] para consultar estado.\n\nDispositivos disponibles:\n${dispositivosTuya.map(d => `- ${d.nombre} (tipo: ${d.tipo}, ${d.online ? 'online' : 'offline'})`).join('\n')}\n\nCódigos por tipo:\n- Luces (dj, dd, xdd): switch_led (true/false), bright_value (10-1000)\n- Enchufes (cz, pc): switch_1 (true/false)\n\nEjemplos:\n- "apagá la luz" → frase cálida + [DOMOTICA:luz_salon:switch_led:false]\n- "prendé el enchufe" → [DOMOTICA:enchufe_cocina:switch_1:true]\n- "bajá la luz" → [DOMOTICA:luz_salon:bright_value:300]\nIMPORTANTE: Solo usá estos tags si la persona tiene dispositivos vinculados. Si no reconocés el dispositivo, decíselo amablemente.`
+    : '';
+
   return `Fecha y hora actual: ${fecha}, ${hora}.
 ${climaTexto}
 ${esCumple    ? `\n¡HOY ES EL CUMPLEAÑOS DE ${p.nombreAbuela.toUpperCase()}! Mencionar el cumpleaños con mucho cariño en la primera respuesta de la conversación.\n` : ''}
@@ -257,7 +274,7 @@ ${esNavidad   ? `\n¡HOY ES NAVIDAD! Podés desearle Feliz Navidad con calidez s
 ${esAñoNuevo  ? `\n¡HOY ES AÑO NUEVO! Podés desearle Feliz Año Nuevo con alegría si surge naturalmente en la conversación.\n` : ''}
 Lo que sabés de la persona:
 ${construirContexto(p)}
-${incluirJuego ? '\n' + formatearJuegoParaClaude(obtenerJuego()) : ''}${incluirChiste ? '\n' + formatearChisteParaClaude(obtenerChiste()) : ''}${extra}`;
+${incluirJuego ? '\n' + formatearJuegoParaClaude(obtenerJuego()) : ''}${incluirChiste ? '\n' + formatearChisteParaClaude(obtenerChiste()) : ''}${bloqueDispositivos}${extra}`;
 }
 
 /** @deprecated Usar construirSystemPromptEstable + construirContextoDinamico */
@@ -276,6 +293,8 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[MENSAJE_FAMILIAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[RECORDATORIO:[^\]]*\]?\s*/gi, '')
     .replace(/\[TIMER:\s*\d+\]?\s*/gi, '')
+    .replace(/\[DOMOTICA[^\]]*\]?\s*/gi, '')
+    .replace(/\[DOMOTICA_ESTADO:[^\]]*\]?\s*/gi, '')
     .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]/gi, '')
     .trim();
 }
@@ -355,6 +374,26 @@ export function parsearRespuesta(
   // ── TIMER ──
   const timerMatch = raw.match(/\[TIMER:\s*(\d+)\]/i);
   const timerSegundos = timerMatch ? parseInt(timerMatch[1], 10) : undefined;
+
+  // ── DOMOTICA ──
+  const domoticaEstadoMatch = raw.match(/\[DOMOTICA_ESTADO:\s*([^\]]+)\]/i);
+  const domoticaControlMatch = raw.match(/\[DOMOTICA:\s*([^:\]]+)\s*:\s*([^:\]]+)\s*:\s*([^\]]+)\]/i);
+  let domotica: RespuestaParsed['domotica'];
+  if (domoticaEstadoMatch) {
+    domotica = { tipo: 'estado', dispositivoNombre: domoticaEstadoMatch[1].trim(), codigo: '', valor: undefined };
+  } else if (domoticaControlMatch) {
+    const valorRaw = domoticaControlMatch[3].trim();
+    const valor: boolean | number =
+      valorRaw === 'true'  ? true  :
+      valorRaw === 'false' ? false :
+      !isNaN(Number(valorRaw)) ? Number(valorRaw) : true;
+    domotica = {
+      tipo: 'control',
+      dispositivoNombre: domoticaControlMatch[1].trim(),
+      codigo: domoticaControlMatch[2].trim(),
+      valor,
+    };
+  }
 
   // ── RECORDATORIO ──
   const recordatorioMatch = raw.match(/\[RECORDATORIO:\s*(.+?)\s*\|\s*(.+?)\]/i);
@@ -443,5 +482,6 @@ export function parsearRespuesta(
     mensajeFamiliar,
     llamarFamilia,
     emergencia,
+    domotica,
   };
 }
