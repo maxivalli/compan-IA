@@ -32,6 +32,31 @@ const HORA_FIN           = 21;
 
 type Mensaje = { role: 'user' | 'assistant'; content: string };
 
+// ── Muletillas por género ─────────────────────────────────────────────────────
+
+const MULETILLAS_FEMENINA = [
+  'A ver...',
+  'Mmm...',
+  'Dejame pensar...',
+  '¿Sabés qué?...',
+  'Uy, buena pregunta...',
+];
+
+const MULETILLAS_MASCULINO = [
+  'A ver...',
+  'Mmm...',
+  'Déjame pensar...',
+  '¿Sabés qué?...',
+  'Uy, buena pregunta...',
+];
+
+// Solo se usa muletilla cuando la pregunta genuinamente requiere reflexión
+const REQUIERE_MULETILLA = /\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] es|cont[aá]me|explic[aá]me|qu[eé] pens[aá]s|qu[eé] opin[aá]s|me recomend[aá]s|qu[eé] hago|ayud[aá]me|qu[eé] ten[ií]a|cu[aá]l|cu[aá]nto|qu[eé] pas[oó])\b/i;
+
+function debeUsarMuletilla(texto: string): boolean {
+  return REQUIERE_MULETILLA.test(texto) && texto.length > 20;
+}
+
 export function useRosita() {
   useEffect(() => {
     activateKeepAwakeAsync();
@@ -111,8 +136,6 @@ export function useRosita() {
   useEffect(() => { estadoRef.current      = estado;      }, [estado]);
   useEffect(() => {
     musicaActivaRef.current = musicaActiva;
-    // Con música activa el SR se apaga para evitar colisiones con letras en español.
-    // Se reactiva automáticamente cuando la música se detiene.
     if (musicaActiva) {
       ExpoSpeechRecognitionModule.stop();
     } else if (!enFlujoVozRef.current) {
@@ -127,7 +150,7 @@ export function useRosita() {
     return () => clearInterval(id);
   }, []);
 
-  // ── OTA update: descarga y aplica automáticamente ───────────────────────────
+  // ── OTA update ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (__DEV__) return;
     const id = setTimeout(async () => {
@@ -229,12 +252,12 @@ export function useRosita() {
     const mencionaNombre = nombreRegex.test(textoNorm);
     const esNoche = modoNocheRef.current !== 'despierta';
     const tiempoDesdeUltimaCharla = Date.now() - ultimaCharlaRef.current;
-    const enConversacion = musicaActivaRef.current 
-      ? false // Si hay música, SIEMPRE exige el nombre
-      : esNoche 
-        ? tiempoDesdeUltimaCharla < 30 * 1000  // 🌙 Noche: 30 segundos de memoria
-        : tiempoDesdeUltimaCharla < 60 * 1000; // ☀️ Día: 60 segundos de memoria
-    
+    const enConversacion = musicaActivaRef.current
+      ? false
+      : esNoche
+        ? tiempoDesdeUltimaCharla < 30 * 1000
+        : tiempoDesdeUltimaCharla < 60 * 1000;
+
     const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
@@ -265,8 +288,8 @@ export function useRosita() {
 
   useSpeechRecognitionEvent('end', () => {
     srActivoRef.current = false;
-    if (enFlujoVozRef.current) return; 
-    if (!perfilRef.current?.nombreAbuela) return; 
+    if (enFlujoVozRef.current) return;
+    if (!perfilRef.current?.nombreAbuela) return;
     if (estadoRef.current === 'esperando' && !procesandoRef.current) {
       setTimeout(() => {
         if (estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current) {
@@ -279,8 +302,8 @@ export function useRosita() {
   useSpeechRecognitionEvent('error', (event) => {
     console.log('[SR] error:', event.error);
     srActivoRef.current = false;
-    if (enFlujoVozRef.current) return; 
-    if (!perfilRef.current?.nombreAbuela) return; 
+    if (enFlujoVozRef.current) return;
+    if (!perfilRef.current?.nombreAbuela) return;
     if (estadoRef.current === 'esperando' && !procesandoRef.current) {
       const delay = event.error === 'network' ? 3000 : 1000;
       setTimeout(() => {
@@ -323,23 +346,29 @@ export function useRosita() {
   }
 
   // ── Muletillas ──────────────────────────────────────────────────────────────
-  const MULETILLAS = ['A ver...', 'Dejame pensar...', 'Hmm...'];
 
   async function precachearMuletillas(voiceId?: string) {
-    for (let i = 0; i < MULETILLAS.length; i++) {
+    const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
+    const lista = vozGenero === 'masculina' ? MULETILLAS_MASCULINO : MULETILLAS_FEMENINA;
+    for (let i = 0; i < lista.length; i++) {
       const uri = FileSystem.cacheDirectory + `muletilla_${i}.mp3`;
       const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
       if (info.exists) continue;
-      const base64 = await sintetizarVoz(MULETILLAS[i], voiceId).catch(() => null);
+      const base64 = await sintetizarVoz(lista[i], voiceId).catch(() => null);
       if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
     }
   }
 
   const ultimaMuletillaRef = useRef(0);
+
   async function reproducirMuletilla() {
     try {
-      const idx = ultimaMuletillaRef.current % MULETILLAS.length;
-      ultimaMuletillaRef.current++;
+      const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
+      const lista = vozGenero === 'masculina' ? MULETILLAS_MASCULINO : MULETILLAS_FEMENINA;
+      // Índice aleatorio, evitando repetir la última
+      let idx: number;
+      do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimaMuletillaRef.current && lista.length > 1);
+      ultimaMuletillaRef.current = idx;
       const uri = FileSystem.cacheDirectory + `muletilla_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return;
@@ -424,14 +453,14 @@ export function useRosita() {
   function iniciarSpeechRecognition() {
     if (enFlujoVozRef.current) return;
     const ahora = Date.now();
-    if (ahora - ultimaActivacionSrRef.current < 1500) return; 
+    if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
     } catch {
       srActivoRef.current = false;
     } finally {
-      ultimaActivacionSrRef.current = ahora; 
+      ultimaActivacionSrRef.current = ahora;
     }
   }
 
@@ -553,10 +582,9 @@ export function useRosita() {
       texto = corte > 40 ? texto.slice(0, corte + 1) : texto.slice(0, MAX_CHARS).trimEnd();
     }
 
-    // Limpiar símbolos que ElevenLabs no pronuncia bien (frecuentes en respuestas de GPT)
     texto = texto
-      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')  
-      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')    
+      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')
+      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')
       .replace(/(\d+)\s*°\s*[Cc]/g,  '$1 grados')
       .replace(/(\d+)\s*°\s*[Ff]/g,  '$1 grados Fahrenheit')
       .replace(/°/g,                  ' grados')
@@ -564,12 +592,11 @@ export function useRosita() {
       .replace(/(\d+)\s*km\/h/gi,     '$1 kilómetros por hora')
       .replace(/(\d+)\s*m\/s/gi,      '$1 metros por segundo')
       .replace(/\bkm\b/gi,            'kilómetros')
-      .replace(/\*\*(.+?)\*\*/g,      '$1')   
-      .replace(/\*(.+?)\*/g,          '$1')   
-      .replace(/#+\s/g,               '')     
-      .replace(/[_~`]/g,              '')     
-      // 👇 REGEX MEJORADO: Atrapa +54 o cualquier número largo y mete COMAS obligatorias
-      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', ')); 
+      .replace(/\*\*(.+?)\*\*/g,      '$1')
+      .replace(/\*(.+?)\*/g,          '$1')
+      .replace(/#+\s/g,               '')
+      .replace(/[_~`]/g,              '')
+      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', '));
 
     try {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
@@ -685,11 +712,11 @@ export function useRosita() {
   async function iniciarEscucha() {
     if (estadoRef.current !== 'esperando') return;
     detenerSilbido();
-    enFlujoVozRef.current = true; 
+    enFlujoVozRef.current = true;
     try {
       if (musicaActivaRef.current) { playerMusica.pause(); setMusicaActiva(false); }
       ExpoSpeechRecognitionModule.stop();
-      await new Promise(r => setTimeout(r, 400)); 
+      await new Promise(r => setTimeout(r, 400));
       setEstado('escuchando');
       estadoRef.current = 'escuchando';
       await recorderConv.prepareToRecordAsync();
@@ -750,7 +777,7 @@ export function useRosita() {
       const cdataMatches = [...xml.matchAll(/<title><!\[CDATA\[([\s\S]*?)\]\]><\/title>/gi)];
       const plainMatches = cdataMatches.length ? [] : [...xml.matchAll(/<title>([^<]+)<\/title>/gi)];
       const allMatches = cdataMatches.length ? cdataMatches : plainMatches;
-      const titulos = allMatches.slice(1, 6).map(m => m[1].trim()).filter(Boolean); 
+      const titulos = allMatches.slice(1, 6).map(m => m[1].trim()).filter(Boolean);
       if (!titulos.length) return null;
       return titulos.join('\n');
     } catch {
@@ -848,7 +875,12 @@ export function useRosita() {
     detenerSilbido();
     setEstado('pensando');
     estadoRef.current = 'pensando';
-    reproducirMuletilla(); 
+
+    // Muletilla solo cuando la pregunta genuinamente lo requiere
+    if (debeUsarMuletilla(textoUsuario)) {
+      reproducirMuletilla();
+    }
+
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
 
     try {
@@ -868,7 +900,7 @@ export function useRosita() {
         const ciudad     = ciudadRef.current;
         if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
         else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
-        else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`; 
+        else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`;
         else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
       }
 
@@ -883,7 +915,7 @@ export function useRosita() {
       if (noticiasFinales) {
         contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${noticiasFinales}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
       }
-      
+
       let contextoBusqueda = '';
       if (resultadosBusqueda) {
         contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 80 palabras.
@@ -908,10 +940,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
         p.familiares ?? [],
       );
 
-      // 👇 NUEVA TRAMPA: Si buscamos datos en internet, le cortamos cualquier pregunta final por si Claude no obedeció la regla 3
       if (resultadosBusqueda) {
         const sinPregunta = parsed.respuesta.replace(/¿[^?]+?\?\s*$/, '').trim();
-        // Solo lo reemplazamos si el texto resultante sigue teniendo información (más de 15 letras)
         if (sinPregunta.length > 15) {
           parsed.respuesta = sinPregunta;
         }
@@ -981,7 +1011,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const mensaje = `${nombre}, ya pasaron los ${formatearTiempo(segundos)}.`.trimStart();
 
         if (segundos > 3600) {
-          // Timer largo → recordatorio persistente con hora exacta
           const targetMs = Date.now() + segundos * 1000;
           const targetDate = new Date(targetMs).toISOString().slice(0, 10);
           guardarRecordatorio({
@@ -1062,7 +1091,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       ultimaActividadRef.current = Date.now();
       await hablar(parsed.respuesta);
 
-      // ── Recordatorio de medicamento pendiente ────────────────────────────────
+      // ── Recordatorio de medicamento pendiente ──
       try {
         const medRaw = await AsyncStorage.getItem('medPendiente');
         if (medRaw) {
@@ -1073,7 +1102,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
             await hablar(`Por cierto, ${texto}`);
           }
         }
-      } catch { /* si falla no interrumpir el flujo */ }
+      } catch {}
 
       if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
       expresionTimerRef.current = setTimeout(() => {
@@ -1100,7 +1129,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
   // ── SOS ─────────────────────────────────────────────────────────────────────
   async function dispararSOS() {
     const ahora = Date.now();
-    if (ahora - ultimoSosRef.current < 60000) return; // cooldown 1 minuto
+    if (ahora - ultimoSosRef.current < 60000) return;
     ultimoSosRef.current = ahora;
 
     const p = perfilRef.current;
@@ -1121,7 +1150,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
   async function dispararSOSCaida() {
     const ahora = Date.now();
-    if (ahora - ultimoSosRef.current < 60000) return; // cooldown compartido con SOS
+    if (ahora - ultimoSosRef.current < 60000) return;
     ultimoSosRef.current = ahora;
 
     const p = perfilRef.current;
@@ -1160,7 +1189,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if ((Date.now() - ultimaActividadRef.current) < CINCO_MIN) return;
       if ((Date.now() - ultimoBostezRef.current) < 10 * 60 * 1000) return;
       ultimoBostezRef.current = Date.now();
-      // 3 bostezos seguidos con 5s entre cada uno
       bostezar();
       setTimeout(bostezar, 5000);
       setTimeout(bostezar, 10000);
@@ -1170,29 +1198,24 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
   // ── Detección de sacudida y caída ────────────────────────────────────────────
   useEffect(() => {
-    if (Platform.OS === 'web') return; 
+    if (Platform.OS === 'web') return;
 
-    // ── Parámetros sacudida ──
-    const UMBRAL_SACUDIDA = 2.5;   
-    const SACUDIDAS       = 3;     
-    const VENTANA_SACUDIDA = 1500; 
+    const UMBRAL_SACUDIDA  = 2.5;
+    const SACUDIDAS        = 3;
+    const VENTANA_SACUDIDA = 1500;
+    const UMBRAL_CAIDA_LIBRE = 0.5;
+    const UMBRAL_IMPACTO     = 3.0;
+    const VENTANA_IMPACTO    = 500;
 
-    // ── Parámetros caída ──
-    const UMBRAL_CAIDA_LIBRE = 0.5;  
-    const UMBRAL_IMPACTO     = 3.0;  
-    const VENTANA_IMPACTO    = 500;  
-
-    // ── Estado máquina de caída ──
     let enCaidaLibre       = false;
     let timerImpacto: ReturnType<typeof setTimeout> | null = null;
-    let ultimaCaida        = 0;     
-    const COOLDOWN_CAIDA   = 60000; 
+    let ultimaCaida        = 0;
+    const COOLDOWN_CAIDA   = 60000;
 
-    // ── Estado sacudida ──
     let conteo = 0;
     let timerReset: ReturnType<typeof setTimeout> | null = null;
 
-    Accelerometer.setUpdateInterval(100); 
+    Accelerometer.setUpdateInterval(100);
     const sub = Accelerometer.addListener(({ x, y, z }) => {
       const magnitud = Math.sqrt(x * x + y * y + z * z);
 
@@ -1211,7 +1234,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
           console.log('[CAIDA] caída detectada, magnitud impacto:', magnitud.toFixed(2));
           dispararSOSCaida();
         }
-        return; 
+        return;
       }
 
       if (magnitud > UMBRAL_SACUDIDA) {

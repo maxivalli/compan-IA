@@ -290,11 +290,14 @@ export default function Index() {
         </Modal>
       )}
 
-      <View 
-        style={[styles.ojoContenedor, isTablet && { marginTop: 40 }]} 
-        onLayout={(e) => console.log('W:', e.nativeEvent.layout.width, 'X:', e.nativeEvent.layout.x)}
-        {...panCaricia.panHandlers}
-      >
+      <View
+  style={[
+    styles.ojoContenedor,
+    { marginTop: isTablet ? Math.round(screenH * 0.18) : 180 },
+  ]}
+  onLayout={(e) => console.log('W:', e.nativeEvent.layout.width, 'X:', e.nativeEvent.layout.x)}
+  {...panCaricia.panHandlers}
+>
         <ExpresionOverlay
           capa="fondo"
           expresion={expresion}

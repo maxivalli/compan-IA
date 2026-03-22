@@ -201,57 +201,27 @@ function UnExclamacion({ x, delay }: { x: number; delay: number }) {
 export function Exclamaciones() {
   return (
     <>
-      <UnExclamacion x={44}               delay={0}   />
-      <UnExclamacion x={EYE_W + GAP + 44} delay={420} />
+      <UnExclamacion x={20}             delay={0}   />
+      <UnExclamacion x={EYE_W + GAP + 20} delay={300} />
     </>
   );
 }
 
-// ── Sudor frío ────────────────────────────────────────────────────────────────
-
-export function SudorFrio() {
-  const y       = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.delay(300),
-        Animated.parallel([
-          Animated.sequence([
-            Animated.timing(opacity, { toValue: 0.9, duration: 250,  useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.7, duration: 900,  useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0,   duration: 350,  useNativeDriver: true }),
-          ]),
-          Animated.timing(y, { toValue: 36, duration: 1500, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(y,       { toValue: 0, duration: 0, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
-        ]),
-        Animated.delay(1000),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
-  }, []);
-
-  return <Animated.View style={[s.sudorFrio, { opacity, transform: [{ translateY: y }] }]} />;
-}
-
 // ── Carcajada ─────────────────────────────────────────────────────────────────
 
-const JAS = [
-  { x: 6,   y: 20,  text: 'ja',   size: 30, delay: 0   },
-  { x: 72,  y: -10, text: 'jaja', size: 24, delay: 250 },
-  { x: 160, y: 16,  text: 'ja',   size: 34, delay: 500 },
-  { x: 216, y: -6,  text: 'je',   size: 22, delay: 150 },
+const CARCAJADAS = [
+  { x: 8,   delay: 0,   size: 32, color: '#FFD93D' },
+  { x: 50,  delay: 200, size: 38, color: '#FF6B35' },
+  { x: 100, delay: 100, size: 28, color: '#FFD93D' },
+  { x: 148, delay: 300, size: 40, color: '#FF6B35' },
+  { x: 198, delay: 150, size: 30, color: '#FFD93D' },
+  { x: 244, delay: 250, size: 34, color: '#FF6B35' },
 ];
 
-function UnJa({ x, y, text, size, delay }: typeof JAS[0]) {
+function UnaCarcajada({ x, delay, size, color }: typeof CARCAJADAS[0]) {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale   = useRef(new Animated.Value(0.5)).current;
-  const ty      = useRef(new Animated.Value(0)).current;
+  const y       = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -259,18 +229,22 @@ function UnJa({ x, y, text, size, delay }: typeof JAS[0]) {
         Animated.delay(delay),
         Animated.parallel([
           Animated.sequence([
-            Animated.timing(opacity, { toValue: 1,   duration: 200, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.8, duration: 600, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0,   duration: 300, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 1,   duration: 150, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.9, duration: 600, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0,   duration: 250, useNativeDriver: true }),
           ]),
           Animated.sequence([
-            Animated.timing(scale, { toValue: 1.3, duration: 200, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.3, duration: 150, useNativeDriver: true }),
             Animated.timing(scale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
-            Animated.timing(scale, { toValue: 0.5, duration: 300, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.5, duration: 250, useNativeDriver: true }),
           ]),
-          Animated.timing(ty, { toValue: -32, duration: 1100, useNativeDriver: true }),
+          Animated.timing(y, { toValue: -50, duration: 1000, useNativeDriver: true }),
         ]),
-        Animated.timing(ty, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.parallel([
+          Animated.timing(y,       { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 0.5, duration: 0, useNativeDriver: true }),
+        ]),
         Animated.delay(400),
       ])
     );
@@ -279,31 +253,30 @@ function UnJa({ x, y, text, size, delay }: typeof JAS[0]) {
   }, []);
 
   return (
-    <Animated.Text style={{ position: 'absolute', left: x, top: y, fontSize: size, fontWeight: '700', color: '#F4A800', opacity, transform: [{ scale }, { translateY: ty }] }}>
-      {text}
+    <Animated.Text style={{ position: 'absolute', left: x, top: EYE_H + 4, fontSize: size, color, opacity, transform: [{ scale }, { translateY: y }] }}>
+      😄
     </Animated.Text>
   );
 }
 
 export function Carcajada() {
-  return <>{JAS.map((j, i) => <UnJa key={i} {...j} />)}</>;
+  return <>{CARCAJADAS.map((c, i) => <UnaCarcajada key={i} {...c} />)}</>;
 }
 
-// ── Notas musicales ───────────────────────────────────────────────────────────
+// ── Notas de música ───────────────────────────────────────────────────────────
 
 const NOTAS = [
-  { x: 5,   delay: 0    },
-  { x: 80,  delay: 600  },
-  { x: 155, delay: 1200 },
-  { x: 230, delay: 400  },
-  { x: 50,  delay: 900  },
-  { x: 190, delay: 1600 },
+  { x: -10, delay: 0,    size: 28, nota: '♪' },
+  { x: 60,  delay: 600,  size: 34, nota: '♫' },
+  { x: 130, delay: 300,  size: 26, nota: '♪' },
+  { x: 195, delay: 900,  size: 32, nota: '♫' },
+  { x: 255, delay: 150,  size: 28, nota: '♪' },
 ];
 
-function UnaNota({ x, delay }: { x: number; delay: number }) {
-  const y       = useRef(new Animated.Value(0)).current;
+function UnaNota({ x, delay, size, nota }: typeof NOTAS[0]) {
   const opacity = useRef(new Animated.Value(0)).current;
-  const nota    = useRef(delay % 1200 < 600 ? '♪' : '♫').current;
+  const y       = useRef(new Animated.Value(0)).current;
+  const scale   = useRef(new Animated.Value(0.6)).current;
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -311,16 +284,23 @@ function UnaNota({ x, delay }: { x: number; delay: number }) {
         Animated.delay(delay),
         Animated.parallel([
           Animated.sequence([
-            Animated.timing(opacity, { toValue: 1,   duration: 300,  useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0.7, duration: 1000, useNativeDriver: true }),
-            Animated.timing(opacity, { toValue: 0,   duration: 400,  useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.95, duration: 400,  useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.7,  duration: 1000, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0,    duration: 500,  useNativeDriver: true }),
           ]),
-          Animated.timing(y, { toValue: -70, duration: 1700, useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(scale, { toValue: 1.1, duration: 400,  useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.9, duration: 1000, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.6, duration: 500,  useNativeDriver: true }),
+          ]),
+          Animated.timing(y, { toValue: -70, duration: 1900, useNativeDriver: true }),
         ]),
         Animated.parallel([
-          Animated.timing(y,       { toValue: 0, duration: 0, useNativeDriver: true }),
-          Animated.timing(opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
+          Animated.timing(y,       { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 0.6, duration: 0, useNativeDriver: true }),
         ]),
+        Animated.delay(300),
       ])
     );
     anim.start();
@@ -328,17 +308,17 @@ function UnaNota({ x, delay }: { x: number; delay: number }) {
   }, []);
 
   return (
-    <Animated.Text style={{ position: 'absolute', left: x, top: EYE_H - 10, fontSize: 28, color: '#5DCAA5', opacity, transform: [{ translateY: y }] }}>
+    <Animated.Text style={{ position: 'absolute', left: x, top: -20, fontSize: size, color: '#5DCAA5', opacity, transform: [{ scale }, { translateY: y }] }}>
       {nota}
     </Animated.Text>
   );
 }
 
 export function NotasMusica() {
-  return <>{NOTAS.map((n, i) => <UnaNota key={i} x={n.x} delay={n.delay} />)}</>;
+  return <>{NOTAS.map((n, i) => <UnaNota key={i} {...n} />)}</>;
 }
 
-// ── Ceño fruncido ─────────────────────────────────────────────────────────────
+// ── Ceño enojado ──────────────────────────────────────────────────────────────
 
 export function CenoEnojado() {
   const opacity = useRef(new Animated.Value(0)).current;
@@ -346,10 +326,9 @@ export function CenoEnojado() {
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
   }, []);
-  
+
   return (
     <Animated.View style={{ opacity }}>
-      {/* Tus coordenadas originales que funcionaban perfecto */}
       <View style={{ position: 'absolute', left: 25, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
       <View style={{ position: 'absolute', left: 181, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
     </Animated.View>
@@ -420,17 +399,9 @@ export function Mejillas() {
 
   useEffect(() => {
     Animated.sequence([
-      Animated.timing(animacion, {
-        toValue: 1,
-        duration: 700, 
-        useNativeDriver: true,
-      }),
-      Animated.delay(1800), 
-      Animated.timing(animacion, {
-        toValue: 0,
-        duration: 900, 
-        useNativeDriver: true,
-      }),
+      Animated.timing(animacion, { toValue: 1, duration: 700,  useNativeDriver: true }),
+      Animated.delay(1800),
+      Animated.timing(animacion, { toValue: 0, duration: 900,  useNativeDriver: true }),
     ]).start();
   }, [animacion]);
 
@@ -440,7 +411,6 @@ export function Mejillas() {
   const ry = 17;
   const cx = w / 2;
   const cy = h / 2;
-
   const colorGlow = 'rgba(255, 107, 53, 1)';
 
   const MejillaSvg = () => (
@@ -458,13 +428,8 @@ export function Mejillas() {
 
   return (
     <Animated.View style={{ opacity: animacion }} pointerEvents="none">
-      {/* Tus coordenadas originales limpias que funcionaban perfecto */}
-      <View style={{ position: 'absolute', left: 22, top: 204 }}>
-        <MejillaSvg />
-      </View>
-      <View style={{ position: 'absolute', left: 178, top: 204 }}>
-        <MejillaSvg />
-      </View>
+      <View style={{ position: 'absolute', left: 22,  top: 204 }}><MejillaSvg /></View>
+      <View style={{ position: 'absolute', left: 178, top: 204 }}><MejillaSvg /></View>
     </Animated.View>
   );
 }
@@ -485,9 +450,9 @@ const GLOBOS_DATA = [
 ];
 
 function UnGlobo({ x, delay, color, size, dur, gs }: typeof GLOBOS_DATA[0] & { gs: number }) {
-  const vs = size * gs; // tamaño visual escalado
-  const y  = useRef(new Animated.Value(SH + vs + 20)).current;
-  const dx = useRef(new Animated.Value(0)).current;
+  const vs   = size * gs;
+  const y    = useRef(new Animated.Value(SH + vs + 20)).current;
+  const dx   = useRef(new Animated.Value(0)).current;
   const sway = Math.round(14 * gs);
 
   useEffect(() => {
@@ -497,10 +462,10 @@ function UnGlobo({ x, delay, color, size, dur, gs }: typeof GLOBOS_DATA[0] & { g
         Animated.parallel([
           Animated.timing(y, { toValue: -(vs + 30), duration: dur, useNativeDriver: true }),
           Animated.sequence([
-            Animated.timing(dx, { toValue:  sway,      duration: dur * 0.25, useNativeDriver: true }),
-            Animated.timing(dx, { toValue: -sway,      duration: dur * 0.25, useNativeDriver: true }),
-            Animated.timing(dx, { toValue:  sway * 0.7,duration: dur * 0.25, useNativeDriver: true }),
-            Animated.timing(dx, { toValue:  0,         duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue:  sway,       duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue: -sway,       duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue:  sway * 0.7, duration: dur * 0.25, useNativeDriver: true }),
+            Animated.timing(dx, { toValue:  0,          duration: dur * 0.25, useNativeDriver: true }),
           ]),
         ]),
         Animated.parallel([
@@ -514,10 +479,7 @@ function UnGlobo({ x, delay, color, size, dur, gs }: typeof GLOBOS_DATA[0] & { g
   }, []);
 
   return (
-    <Animated.View
-      style={{ position: 'absolute', left: x, transform: [{ translateY: y }, { translateX: dx }] }}
-      pointerEvents="none"
-    >
+    <Animated.View style={{ position: 'absolute', left: x, transform: [{ translateY: y }, { translateX: dx }] }} pointerEvents="none">
       <View style={{ width: vs, height: vs * 1.15, borderRadius: vs / 2, backgroundColor: color, opacity: 0.88 }} />
       <View style={{ width: Math.round(6 * gs), height: Math.round(6 * gs), borderRadius: Math.round(3 * gs), backgroundColor: color, alignSelf: 'center', marginTop: -1, opacity: 0.7 }} />
       <View style={{ width: 1.5, height: Math.round(22 * gs), backgroundColor: color + '99', alignSelf: 'center' }} />
@@ -535,9 +497,210 @@ export function Globos() {
   );
 }
 
-// ── Estilos ───────────────────────────────────────────────────────────────────
+// ── Bonete de cumpleaños ──────────────────────────────────────────────────────
+// Se posiciona sobre los ojos, centrado en el lienzo de 320x409.
+// El centro horizontal de los dos ojos es OW/2 ≈ 160.
+
+const PUNTITOS_BONETE = [
+  { dx: -20, dy: -38, color: '#FFD700', r: 4 },
+  { dx:   0, dy: -60, color: '#ffffff', r: 4 },
+  { dx:  20, dy: -38, color: '#FFD700', r: 4 },
+  { dx: -10, dy: -22, color: '#ffffff', r: 3 },
+  { dx:  10, dy: -22, color: '#FFD700', r: 3 },
+];
+
+export function Bonete() {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const balanceo = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Fade in suave al aparecer
+    Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+
+    // Pequeño balanceo continuo para darle vida
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(balanceo, { toValue:  4, duration: 1800, useNativeDriver: true }),
+        Animated.timing(balanceo, { toValue: -4, duration: 1800, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  // Centro horizontal del lienzo (entre los dos ojos)
+  const cx = OW / 2; // ~160
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: cx - 48,   // centrado, el bonete mide ~96px de ancho en la base
+        top: -75,        // por encima de los ojos
+        opacity,
+        transform: [{ rotate: balanceo.interpolate({ inputRange: [-4, 4], outputRange: ['-4deg', '4deg'] }) }],
+      }}
+    >
+      {/* Cuerpo del bonete — triángulo via bordes CSS */}
+      <View style={sb.boneteTriangulo} />
+
+      {/* Banda blanca en la base */}
+      <View style={sb.boneteBanda} />
+
+      {/* Puntitos decorativos encima del triángulo */}
+      {PUNTITOS_BONETE.map((p, i) => (
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            left: 48 + p.dx - p.r,   // 48 = mitad del ancho base
+            top:  92 + p.dy - p.r,   // 92 = altura del triángulo
+            width: p.r * 2,
+            height: p.r * 2,
+            borderRadius: p.r,
+            backgroundColor: p.color,
+          }}
+        />
+      ))}
+
+      {/* Pompón en la punta */}
+      <View style={sb.boneteCompon} />
+    </Animated.View>
+  );
+}
+
+const sb = StyleSheet.create({
+  // Triángulo con border trick: base 96px, altura 92px, color rosa fiesta
+  boneteTriangulo: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 48,
+    borderRightWidth: 48,
+    borderBottomWidth: 92,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FF3366',
+    alignSelf: 'center',
+  },
+  // Banda blanca en la base del triángulo
+  boneteBanda: {
+    width: 96,
+    height: 14,
+    borderRadius: 5,
+    backgroundColor: '#ffffff',
+    alignSelf: 'center',
+    marginTop: -2,
+  },
+  // Pompón amarillo en la punta
+  boneteCompon: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFD700',
+    alignSelf: 'center',
+    left: 38,   // (96/2) - (20/2)
+    top: -10,   // justo en la punta del triángulo
+  },
+});
+
+// ── Gorro navideño ────────────────────────────────────────────────────────────
+// Mismo sistema de posicionamiento que el bonete.
+
+export function GorroNavidad() {
+  const opacity  = useRef(new Animated.Value(0)).current;
+  const balanceo = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(opacity, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(balanceo, { toValue:  5, duration: 2200, useNativeDriver: true }),
+        Animated.timing(balanceo, { toValue: -3, duration: 2200, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const cx = OW / 2;
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: cx - 56,
+        top: -75,
+        opacity,
+        transform: [{ rotate: balanceo.interpolate({ inputRange: [-5, 5], outputRange: ['-5deg', '5deg'] }) }],
+      }}
+    >
+      {/* Cuerpo rojo del gorro (triángulo más ancho = gorro de Papá Noel) */}
+      <View style={sn.gorroTriangulo} />
+
+      {/* Punta doblada hacia la derecha — simulada con un rectángulo redondeado rotado */}
+      <View style={sn.gorroPunta} />
+
+      {/* Pompón blanco en la punta doblada */}
+      <View style={sn.gorroPompon} />
+
+      {/* Doblez blanco en la base */}
+      <View style={sn.gorroBanda} />
+    </Animated.View>
+  );
+}
+
+const sn = StyleSheet.create({
+  // Triángulo rojo — base 112px, altura 100px
+  gorroTriangulo: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 56,
+    borderRightWidth: 56,
+    borderBottomWidth: 100,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#CC0000',
+    alignSelf: 'center',
+  },
+  // Punta doblada: rectángulo rojo rotado, saliendo por arriba a la derecha
+  gorroPunta: {
+    position: 'absolute',
+    width: 44,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#CC0000',
+    top: 10,
+    left: 72,   // sale hacia la derecha desde la punta
+    transform: [{ rotate: '30deg' }],
+  },
+  // Pompón blanco al final de la punta
+  gorroPompon: {
+    position: 'absolute',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#F5F5F5',
+    top: 2,
+    left: 106,
+  },
+  // Banda blanca en la base
+  gorroBanda: {
+    width: 116,
+    height: 18,
+    borderRadius: 6,
+    backgroundColor: '#F5F5F5',
+    alignSelf: 'center',
+    marginTop: -3,
+  },
+});
+
+// ── Estilos base ──────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  lagrima:  { position: 'absolute', top: EYE_H + 2, width: 13, height: 20, borderRadius: 7, backgroundColor: '#7EB8D4' },
-  sudorFrio:{ position: 'absolute', right: 6, top: 2, width: 16, height: 24, borderRadius: 8, backgroundColor: '#90CAE8' },
+  lagrima:   { position: 'absolute', top: EYE_H + 2, width: 13, height: 20, borderRadius: 7, backgroundColor: '#7EB8D4' },
+  sudorFrio: { position: 'absolute', right: 6, top: 2, width: 16, height: 24, borderRadius: 8, backgroundColor: '#90CAE8' },
 });

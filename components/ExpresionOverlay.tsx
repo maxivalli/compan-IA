@@ -4,6 +4,7 @@ import type { Expresion, ModoNoche } from './RosaOjos';
 import {
   Lagrimas, Corazones, Mejillas, SignosPregunta, Exclamaciones,
   Carcajada, NotasMusica, CenoEnojado, Grawlixes,
+  Bonete, GorroNavidad,
 } from './EfectosExpresion';
 import {
   GotasLluvia, Nieve, Viento, CalorEfecto,
@@ -21,10 +22,23 @@ type Props = {
   onRelampago?: () => void;
 };
 
+// Detecta si hoy es cumpleaños o Navidad para mostrar el accesorio correspondiente
+// PRUEBA — sacar antes del deploy
+function detectarAccesorio(): 'bonete' | 'gorro' | null {
+  const ahora = new Date();
+  const mes   = ahora.getMonth() + 1; // 1-12
+  const dia   = ahora.getDate();
+  if (mes === 12 && dia === 25) return 'gorro';
+  // El cumpleaños se pasa como prop desde afuera (esCumpleaños),
+  // pero también lo detectamos acá como fallback para el overlay
+  return null;
+}
+
 export default function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
   modoNoche, capa = 'frente', silbando = false, onRelampago,
-}: Props) {
+  esCumpleaños = false,
+}: Props & { esCumpleaños?: boolean }) {
   const fade = useRef(new Animated.Value(0)).current;
   const { width: screenW } = useWindowDimensions();
   const faceScale = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1;
@@ -37,6 +51,10 @@ export default function ExpresionOverlay({
   const esViento  = !!condicion?.toLowerCase().match(/viento|ventoso|ráfaga|rafaga/);
   const esCalor   = !esLluvia && !esNieve && (temperatura !== undefined && temperatura > 35);
   const esNublado = !!condicion?.toLowerCase().match(/nublado|nuboso|cubierto|parcial|algunas nubes/);
+
+  // Accesorio: cumpleaños tiene prioridad sobre Navidad
+  const accesorioFallback = detectarAccesorio();
+  const accesorio: 'bonete' | 'gorro' | null = esCumpleaños ? 'bonete' : accesorioFallback;
 
   useEffect(() => {
     Animated.timing(fade, {
@@ -60,20 +78,24 @@ export default function ExpresionOverlay({
   return (
     <View style={s.overlay} pointerEvents="none">
       {esTormenta && <Relampagos onRelampago={onRelampago} />}
-      
-      {/* Usamos Flexbox para anclar el punto de escala exactamente en el centro geométrico */}
+
       <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
-        
-        {/* Este es tu lienzo original de 320x409. Al escalarlo acá, no se va a desplazar nunca hacia los costados */}
-        <View onLayout={(e) => console.log('EfectosLayout:', JSON.stringify(e.nativeEvent.layout))} style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: 'visible' }}>
+        <View
+          onLayout={(e) => console.log('EfectosLayout:', JSON.stringify(e.nativeEvent.layout))}
+          style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: 'visible' }}
+        >
+          {/* Accesorios estacionales — van por encima de todo */}
+          {accesorio === 'bonete' && <Bonete />}
+          {accesorio === 'gorro'  && <GorroNavidad />}
+
           {(musicaActiva || silbando) && <NotasMusica />}
+
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
             {expresion === 'triste'      && <Lagrimas />}
             {expresion === 'feliz'       && <Corazones />}
             {expresion === 'mimada'      && <Corazones />}
             {expresion === 'mimada'      && <Mejillas />}
             {expresion === 'sorprendida' && <Exclamaciones />}
-            {/* La gota (SudorFrio) ha sido eliminada de aquí */}
             {expresion === 'pensativa'   && <SignosPregunta />}
             {expresion === 'chiste'      && <Carcajada />}
             {expresion === 'enojada'     && <CenoEnojado />}
@@ -81,7 +103,6 @@ export default function ExpresionOverlay({
           </Animated.View>
         </View>
       </View>
-
     </View>
   );
 }
