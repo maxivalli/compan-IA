@@ -54,6 +54,8 @@ export default function Onboarding() {
 
   const [paso,            setPaso]            = useState(0);
   const [nombreAbuela,    setNombreAbuela]    = useState('');
+  // 👇 ACÁ AGREGAMOS EL ESTADO DEL GÉNERO
+  const [generoUsuario,   setGeneroUsuario]   = useState<'femenino' | 'masculino'>('femenino');
   const [edad,            setEdad]            = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
   const [vozId,           setVozId]           = useState(VOCES[0].id);
@@ -101,6 +103,7 @@ export default function Onboarding() {
     await guardarPerfil({
       ...perfilActual,
       nombreAbuela:    nombre,
+      generoUsuario:   generoUsuario, // 👇 ACÁ LO GUARDAMOS EN EL PERFIL
       edad:            edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente: asistente,
       vozGenero:       vozSeleccionada.genero,
@@ -185,6 +188,7 @@ export default function Onboarding() {
             <StepContent
               paso={paso}
               nombreAbuela={nombreAbuela}       setNombreAbuela={setNombreAbuela}
+              generoUsuario={generoUsuario}     setGeneroUsuario={setGeneroUsuario} // Pasamos el prop
               edad={edad}                       setEdad={setEdad}
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
               vozId={vozId}                     setVozId={setVozId}
@@ -451,14 +455,14 @@ const sv = StyleSheet.create({
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
-    { titulo: '¿Cómo se llama?',             sub: 'El nombre de quien va a usar la app. Así la va a llamar la asistente.' },
-    { titulo: '¿Cuántos años tiene?',        sub: 'La asistente adapta su forma de hablar según la edad. Podés saltear este paso.' },
-    { titulo: '¿Cómo la van a llamar?',      sub: `El nombre con el que ${nombreAbuela || 'ella'} llamará a la asistente.` },
-    { titulo: 'La familia',                  sub: '¿Quiénes son sus familiares cercanos? Podés completarlo después.' },
+    { titulo: '¿Cómo te llamas?',            sub: 'Decime tu nombre y cómo preferís que te trate.' }, // Ajusté un poco el copy para que sea más claro
+    { titulo: '¿Cuántos años tenés?',        sub: 'La asistente adapta su forma de hablar según la edad. Podés saltear este paso.' },
+    { titulo: '¿Cómo la vas a llamar?',      sub: `El nombre con el que llamarás a la asistente.` },
+    { titulo: 'Tu familia',                  sub: '¿Quiénes son tus familiares cercanos? Podés completarlo después.' },
     { titulo: `¡Todo listo${nombreAbuela ? ', ' + nombreAbuela : ''}!`, sub: `${nombreAsistente || 'Rosita'} ya sabe quién sos y está ${vozSeleccionada.genero === 'masculina' ? 'listo' : 'lista'} para acompañarte.` },
   ];
   const { titulo, sub } = info[paso];
@@ -506,10 +510,37 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
       <Text style={ct.titulo}>{titulo}</Text>
       <Text style={ct.sub}>{sub}</Text>
 
+      {/* 👇 ACÁ INTEGRAMOS EL SELECTOR DE GÉNERO EN EL PASO 1 */}
       {paso === 1 && (
-        <TextInput style={ct.input} value={nombreAbuela} onChangeText={setNombreAbuela}
-          placeholder="Ej: Negrita, María, Abuela" placeholderTextColor="#b0b8ba" />
+        <View style={{ gap: 20 }}>
+          <TextInput style={[ct.input, { marginTop: 0 }]} value={nombreAbuela} onChangeText={setNombreAbuela}
+            placeholder="Ej: Negrita, María, Abuela" placeholderTextColor="#b0b8ba" />
+          
+          <View>
+            <Text style={ct.vozLabel}>¿Cómo preferís que te trate?</Text>
+            <View style={ct.rowBotones}>
+              <TouchableOpacity
+                style={[ct.btnGenero, generoUsuario === 'femenino' && ct.btnGeneroActivo]}
+                onPress={() => setGeneroUsuario('femenino')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="woman" size={20} color={generoUsuario === 'femenino' ? '#fff' : '#8a9699'} />
+                <Text style={[ct.btnGeneroTxt, generoUsuario === 'femenino' && ct.btnGeneroTxtActivo]}>Mujer / Abuela</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[ct.btnGenero, generoUsuario === 'masculino' && ct.btnGeneroActivo]}
+                onPress={() => setGeneroUsuario('masculino')}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="man" size={20} color={generoUsuario === 'masculino' ? '#fff' : '#8a9699'} />
+                <Text style={[ct.btnGeneroTxt, generoUsuario === 'masculino' && ct.btnGeneroTxtActivo]}>Hombre / Abuelo</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       )}
+
       {paso === 2 && (
         <TextInput style={ct.input} value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))}
           placeholder="Ej: 75" placeholderTextColor="#b0b8ba" keyboardType="numeric" maxLength={3} />
@@ -519,7 +550,7 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, edad, setEdad, nombr
         <>
           <View style={ct.resumen}>
             {[
-              { i: 'person',     t: nombreAbuela || '—' },
+              { i: 'person',     t: nombreAbuela ? `${nombreAbuela} (${generoUsuario === 'femenino' ? 'Mujer' : 'Hombre'})` : '—' },
               ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }] : []),
               { i: 'chatbubble', t: `Asistente: ${nombreAsistente || 'Rosita'}` },
               ...(hijos    ? [{ i: 'people',    t: `Hijos: ${hijos}` }]    : []),
@@ -596,4 +627,11 @@ const ct = StyleSheet.create({
   hint:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 14, backgroundColor: '#e6f7fa', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 11 },
   hintTxt:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#1a4a54', lineHeight: 19, flex: 1 },
   hintNegrita:{ fontFamily: 'Poppins_600SemiBold', color: '#0097b2' },
+
+  // 👇 ACÁ ESTÁN LOS ESTILOS NUEVOS DE LOS BOTONES DE GÉNERO
+  rowBotones: { flexDirection: 'row', gap: 10 },
+  btnGenero:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#f4f6f7', borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: '#e0e6e8' },
+  btnGeneroActivo: { backgroundColor: '#7C9EFF', borderColor: '#7C9EFF' },
+  btnGeneroTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#8a9699' },
+  btnGeneroTxtActivo: { color: '#fff' },
 });

@@ -228,7 +228,12 @@ export function useRosita() {
     const nombreRegex = new RegExp('(^|\\s)' + nombreNorm.slice(0, 5), 'i');
     const mencionaNombre = nombreRegex.test(textoNorm);
     const esNoche = modoNocheRef.current !== 'despierta';
-    const enConversacion = (musicaActivaRef.current || esNoche) ? false : (Date.now() - ultimaCharlaRef.current) < 60 * 1000;
+    const tiempoDesdeUltimaCharla = Date.now() - ultimaCharlaRef.current;
+    const enConversacion = musicaActivaRef.current 
+      ? false // Si hay música, SIEMPRE exige el nombre
+      : esNoche 
+        ? tiempoDesdeUltimaCharla < 30 * 1000  // 🌙 Noche: 30 segundos de memoria
+        : tiempoDesdeUltimaCharla < 60 * 1000; // ☀️ Día: 60 segundos de memoria
     
     const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
     console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);

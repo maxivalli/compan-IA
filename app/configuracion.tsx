@@ -442,11 +442,9 @@ export default function Configuracion() {
         {/* ── Identidad ── */}
         <SectionLabel icon="person-outline" label="Identidad" />
         <M3Input label="Nombre" value={nombre} onChangeText={setNombre} placeholder="María" />
-        <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
-        <M3Input label="Fecha de nacimiento" hint="DD/MM — para el saludo de cumpleaños" value={fechaNacimiento} onChangeText={t => setFechaNacimiento(t.replace(/[^0-9/]/g, '').slice(0, 5))} placeholder="19/03" />
-        <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
-
-        <Surface style={{ marginTop: 4 }}>
+        
+        {/* 👇 ACÁ SE MOVIÓ EL SELECTOR DE GÉNERO 👇 */}
+        <Surface style={{ marginTop: 4, marginBottom: 12 }}>
           <View style={s.vozRow}>
             {(['femenino', 'masculino'] as const).map(g => (
               <TouchableOpacity
@@ -457,12 +455,19 @@ export default function Configuracion() {
               >
                 <Ionicons name={g === 'femenino' ? 'woman' : 'man'} size={16} color={generoUsuario === g ? M.onPrimary : M.onSurfaceVariant} />
                 <Text style={[s.vozChipTxt, generoUsuario === g && s.vozChipTxtActivo]}>
-                  {g === 'femenino' ? 'Soy mujer' : 'Soy hombre'}
+                  {g === 'femenino' ? 'Mujer / Abuela' : 'Hombre / Abuelo'}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </Surface>
+
+        <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
+        <M3Input label="Fecha de nacimiento" hint="DD/MM — para el saludo de cumpleaños" value={fechaNacimiento} onChangeText={t => setFechaNacimiento(t.replace(/[^0-9/]/g, '').slice(0, 5))} placeholder="19/03" />
+        
+        {/* 👇 NUEVA SECCIÓN ASISTENTE 👇 */}
+        <SectionLabel icon="chatbubble-ellipses-outline" label="Asistente" />
+        <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
 
         <Surface style={{ marginTop: 4 }}>
           <View style={s.vozRow}>
