@@ -38,6 +38,7 @@ export type NotificacionesRefs = {
   telegramOffsetRef:     React.RefObject<number>;
   climaRef:              React.RefObject<string>;
   ciudadRef:             React.RefObject<string>;
+  coordRef:              React.RefObject<{ lat: number; lon: number } | null>;
   setClimaObj:           (c: { temperatura: number; descripcion: string } | null) => void;
   setEstado:             (s: 'esperando' | 'escuchando' | 'pensando' | 'hablando') => void;
   hablar:                (texto: string) => Promise<void>;
@@ -64,7 +65,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   const {
     perfilRef, estadoRef, noMolestarRef, modoNocheRef,
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
-    telegramOffsetRef, climaRef, ciudadRef, setClimaObj,
+    telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
     modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
   } = refs;
@@ -665,6 +666,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!clima) return;
       climaRef.current  = climaATexto(clima);
       ciudadRef.current = clima.ciudad ?? '';
+      if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
       setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
     }
 

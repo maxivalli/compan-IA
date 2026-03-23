@@ -38,9 +38,11 @@ export type PronosticoDia = {
 export type DatosClima = {
   temperatura: number;
   descripcion: string;
-  codigoActual: number; // weathercode actual
+  codigoActual: number;
   ciudad?: string;
-  pronostico: PronosticoDia[];  // próximos 6 días
+  latitud?: number;
+  longitud?: number;
+  pronostico: PronosticoDia[];
 };
 
 // Códigos que justifican avisar: lluvia intensa, chaparrones, tormentas, nieve intensa
@@ -91,7 +93,7 @@ export async function obtenerClima(): Promise<DatosClima | null> {
     const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
     const ciudad = geo?.[0]?.city ?? geo?.[0]?.region ?? undefined;
 
-    return { temperatura: temp, descripcion, codigoActual: codigo, ciudad, pronostico };
+    return { temperatura: temp, descripcion, codigoActual: codigo, ciudad, latitud: latitude, longitud: longitude, pronostico };
   } catch {
     return null;
   }

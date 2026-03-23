@@ -103,6 +103,7 @@ export function useRosita() {
   const musicaNocheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const climaRef            = useRef<string>('');
   const ciudadRef           = useRef<string>('');
+  const coordRef            = useRef<{ lat: number; lon: number } | null>(null);
   const feriadosRef         = useRef<string>('');
   const duckTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerVozRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,7 +128,7 @@ export function useRosita() {
     }
     return [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste, dispositivosTuyaRef.current) + (ciudadRef.current ? `\nUbicación actual: ${ciudadRef.current}, Argentina.` : '') + (feriadosRef.current ? `\n${feriadosRef.current}` : '') },
+      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste, dispositivosTuyaRef.current) + (ciudadRef.current ? `\nUbicación actual: ${ciudadRef.current}, Argentina.` : '') + (coordRef.current ? `\nCoordenadas GPS exactas: ${coordRef.current.lat.toFixed(4)}, ${coordRef.current.lon.toFixed(4)} — usá estas coordenadas para calcular distancias precisas.` : '') + (feriadosRef.current ? `\n${feriadosRef.current}` : '') },
     ];
   }
   const sinConexionRef   = useRef(false);
@@ -468,6 +469,7 @@ export function useRosita() {
       if (clima) {
         climaRef.current  = climaATexto(clima);
         ciudadRef.current = clima.ciudad ?? '';
+        if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
         setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
       }
     }).catch(() => {});
@@ -1322,7 +1324,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
-      telegramOffsetRef, climaRef, ciudadRef, setClimaObj,
+      telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
       musicaActivaRef, enFlujoVozRef,
       setEstado, hablar, iniciarSpeechRecognition,
       modoNoche, iniciarSilbido, detenerSilbido, flujoFoto,
