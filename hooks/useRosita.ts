@@ -24,6 +24,7 @@ import {
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
 import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import * as Brightness from 'expo-brightness';
 import { obtenerEstadoTuya, controlarDispositivo, controlarTodosLosTipos, obtenerEstadoDispositivo, Dispositivo } from '../lib/tuya';
 
 const MINUTOS_SIN_CHARLA = 120;
@@ -72,6 +73,7 @@ export function useRosita() {
   const [musicaActiva,      setMusicaActiva]      = useState(false);
   const [silbando,          setSilbando]          = useState(false);
   const [linternaActiva,    setLinternaActiva]    = useState(false);
+  const brilloOriginalRef = useRef<number | null>(null);
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
   const [camaraSilenciosa,  setCamaraSilenciosa]  = useState(false);
@@ -1014,6 +1016,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.tagPrincipal === 'LINTERNA') {
         setLinternaActiva(true);
         Animated.timing(flashAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+        try {
+          const { status } = await Brightness.requestPermissionsAsync();
+          if (status === 'granted') {
+            brilloOriginalRef.current = await Brightness.getBrightnessAsync();
+            await Brightness.setBrightnessAsync(1);
+          }
+        } catch {}
         await hablar(parsed.respuesta);
         return;
       }
@@ -1382,6 +1391,10 @@ REGLAS CRÍTICAS PARA RESPONDER:
     linternaActiva, apagarLinterna: () => {
       setLinternaActiva(false);
       Animated.timing(flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      if (brilloOriginalRef.current !== null) {
+        Brightness.setBrightnessAsync(brilloOriginalRef.current).catch(() => {});
+        brilloOriginalRef.current = null;
+      }
     },
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS, forzarBostezo: () => {
