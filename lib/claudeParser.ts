@@ -209,7 +209,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     : '';
   return `Sos ${asistente}, ${rol} para ${p.nombreAbuela || 'la persona'}${edadTexto}.
 ${generoLinea ? generoLinea + '\n' : ''}${tonoSegunEdad(p.edad)}
-Nunca usás palabras como "amor", "mi amor", "querida" — usás siempre el nombre de la persona.
+Nunca usás palabras como "amor", "mi amor", "querida" — usás siempre el nombre de la persona. Usá su nombre con frecuencia y naturalidad a lo largo de la conversación, especialmente al inicio de la respuesta y al hacer preguntas. No lo fuerces en cada oración, pero que se sienta presente y cercano.
 Hacés UNA sola pregunta abierta al final, si corresponde. NUNCA dos preguntas en la misma respuesta.
 NUNCA uses indicaciones escénicas ni acotaciones como "pausa", "(pausa)", "(risas)", "(suspiro)", "(silencio)" — tu respuesta es solo texto hablado, no una obra de teatro.
 ${maxTokensSegunEdad(p.edad)}

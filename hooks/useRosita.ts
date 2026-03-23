@@ -562,16 +562,8 @@ export function useRosita() {
   }
 
   // ── Música ──────────────────────────────────────────────────────────────────
-  function duckMusica() {
-    if (!musicaActivaRef.current) return;
-    playerMusica.volume = 0.15;
-    if (duckTimerRef.current) clearTimeout(duckTimerRef.current);
-  }
-
-  function unduckMusica() {
-    if (duckTimerRef.current) clearTimeout(duckTimerRef.current);
-    if (musicaActivaRef.current) playerMusica.volume = 0.50;
-  }
+  function duckMusica() { /* volumen fijo — duck desactivado */ }
+  function unduckMusica() { /* volumen fijo — duck desactivado */ }
 
   function pararMusica() { playerMusica.pause(); setMusicaActiva(false); }
 
