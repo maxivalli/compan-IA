@@ -23,14 +23,11 @@ type Props = {
 };
 
 // Detecta si hoy es cumpleaños o Navidad para mostrar el accesorio correspondiente
-// PRUEBA — sacar antes del deploy
 function detectarAccesorio(): 'bonete' | 'gorro' | null {
   const ahora = new Date();
-  const mes   = ahora.getMonth() + 1; // 1-12
+  const mes   = ahora.getMonth() + 1;
   const dia   = ahora.getDate();
   if (mes === 12 && dia === 25) return 'gorro';
-  // El cumpleaños se pasa como prop desde afuera (esCumpleaños),
-  // pero también lo detectamos acá como fallback para el overlay
   return null;
 }
 

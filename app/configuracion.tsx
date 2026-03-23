@@ -334,7 +334,7 @@ export default function Configuracion() {
     }, 3 * 60_000);
   }
 
-  async function desvinculnarTuya() {
+  async function desvincularTuya() {
     await desvincularSmartlife();
     setTuyaVinculado(false);
     setTuyaDispositivos([]);
@@ -348,7 +348,6 @@ export default function Configuracion() {
   }
 
   useEffect(() => {
-    cargarRecordatorios().then(setRecordatorios);
     obtenerCodigoRegistro().then(setCodigoRegistro);
     cargarPerfil().then(p => {
       setPerfil(p);
@@ -382,8 +381,12 @@ export default function Configuracion() {
     setBuscando(true);
     setErrorBusqueda('');
     try {
-      const familiaId   = await obtenerFamiliaId() ?? 'default';
-      const installId   = await obtenerInstallId();
+      const familiaId = await obtenerFamiliaId();
+      if (!familiaId) {
+        setErrorBusqueda('Primero guardá el nombre para registrar el dispositivo.');
+        return;
+      }
+      const installId = await obtenerInstallId();
       const res  = await fetchTimeout(`${BACKEND_URL}/telegram/contactos?familiaId=${familiaId}`, 10000, {
         headers: { 'x-api-key': API_KEY, 'x-install-id': installId },
       });
@@ -734,7 +737,7 @@ export default function Configuracion() {
               </TouchableOpacity>
 
               <View style={s.divisorThin} />
-              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvinculnarTuya}>
+              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvincularTuya}>
                 <Ionicons name="unlink-outline" size={18} color={M.error} />
                 <Text style={[s.buscarText, { color: M.error }]}>Desvincular Smartlife</Text>
               </TouchableOpacity>

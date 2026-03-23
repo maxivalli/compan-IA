@@ -143,6 +143,7 @@ export function useRosita() {
   useEffect(() => {
     musicaActivaRef.current = musicaActiva;
     if (musicaActiva) {
+      setSilbando(true);
       ExpoSpeechRecognitionModule.stop();
       // Si son las 23 o más, programar verificación tras 30 minutos
       const h = new Date().getHours();
@@ -162,6 +163,7 @@ export function useRosita() {
         }, 30 * 60 * 1000);
       }
     } else {
+      setSilbando(false);
       if (musicaNocheTimerRef.current) {
         clearTimeout(musicaNocheTimerRef.current);
         musicaNocheTimerRef.current = null;
@@ -290,20 +292,6 @@ export function useRosita() {
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
 
-    // ── Hot word para parar música ──────────────────────────────────────────
-    // Si hay música y se menciona el nombre (solo o con "para/stop/basta/silencio"),
-    // parar directamente sin llamar a Claude.
-    if (musicaActivaRef.current && mencionaNombre) {
-      const soloNombre = textoNorm.replace(new RegExp(nombreNorm.slice(0, 5), 'gi'), '').trim().length < 4;
-      const pideParar  = /\b(par[aá]|stop|basta|silencio|callate|callá|apag[aá]|sacá|saca)\b/.test(textoNorm);
-      if (soloNombre || pideParar) {
-        pararMusica();
-        procesandoRef.current = false;
-        iniciarSpeechRecognition();
-        return;
-      }
-    }
-
     procesandoRef.current = true;
     ExpoSpeechRecognitionModule.stop();
 
@@ -322,6 +310,7 @@ export function useRosita() {
         await responderConClaude(texto);
       }
     } finally {
+      unduckMusica();
       procesandoRef.current = false;
       iniciarSpeechRecognition();
     }
@@ -500,8 +489,6 @@ export function useRosita() {
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
-      // Duck preventivo: baja la música ANTES de escuchar para que el SR capte la voz
-      if (musicaActivaRef.current) playerMusica.volume = 0.15;
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
     } catch {
@@ -583,7 +570,7 @@ export function useRosita() {
 
   function unduckMusica() {
     if (duckTimerRef.current) clearTimeout(duckTimerRef.current);
-    if (musicaActivaRef.current) playerMusica.volume = 1.0;
+    if (musicaActivaRef.current) playerMusica.volume = 0.50;
   }
 
   function pararMusica() { playerMusica.pause(); setMusicaActiva(false); }
@@ -1015,7 +1002,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── MUSICA ──
       if (parsed.tagPrincipal === 'MUSICA' && parsed.generoMusica) {
         setExpresion('neutral');
-        await hablar(parsed.respuesta + ` Para pararla, decí mi nombre.`);
+        await hablar(parsed.respuesta + ` Para pararla, tocá la pantalla.`);
         setEstado('pensando');
         estadoRef.current = 'pensando';
         ExpoSpeechRecognitionModule.stop();
@@ -1023,6 +1010,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (urlStream) {
           try {
             playerMusica.replace({ uri: urlStream });
+            playerMusica.volume = 0.50;
             playerMusica.play();
             setMusicaActiva(true);
             registrarMusicaHoy().catch(() => {});
@@ -1342,7 +1330,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
-      telegramOffsetRef, climaRef,
+      telegramOffsetRef, climaRef, ciudadRef, setClimaObj,
       musicaActivaRef, enFlujoVozRef,
       setEstado, hablar, iniciarSpeechRecognition,
       modoNoche, iniciarSilbido, detenerSilbido, flujoFoto,

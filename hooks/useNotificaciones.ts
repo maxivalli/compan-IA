@@ -7,6 +7,7 @@ import {
   Perfil,
   EntradaAnimo,
   cargarPerfil,
+  obtenerFamiliaId,
   yaRecordo,
   marcarRecordado,
   cargarRecordatorios,
@@ -827,7 +828,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     async function chequearComandos() {
       const p = perfilRef.current;
       if (!p) return;
-      const familiaId = await AsyncStorage.getItem('compania_familia_id');
+      const familiaId = await obtenerFamiliaId();
       if (!familiaId) return;
       const comandos = await obtenerComandosPendientes(familiaId);
       for (const cmd of comandos) {

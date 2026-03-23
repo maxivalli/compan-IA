@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { Animated, Modal, PanResponder, PixelRatio, Platform, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -19,8 +19,6 @@ import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
-
-const HORA_DESPERTAR = 7;
 
 export default function Index() {
   const router = useRouter();
@@ -251,6 +249,10 @@ export default function Index() {
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
   return (
+    <Pressable
+      style={{ flex: 1 }}
+      onPress={() => { if (musicaActiva) pararMusica(); }}
+    >
     <LinearGradient 
       colors={degradadoCielo} 
       start={{ x: 0, y: 0 }} 
@@ -516,6 +518,7 @@ export default function Index() {
       </Modal>
 
     </LinearGradient>
+    </Pressable>
   );
 }
 
