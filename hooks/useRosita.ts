@@ -24,7 +24,7 @@ import {
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
 import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
-import { obtenerEstadoTuya, controlarDispositivo, Dispositivo } from '../lib/tuya';
+import { obtenerEstadoTuya, controlarDispositivo, controlarTodosLosTipos, obtenerEstadoDispositivo, Dispositivo } from '../lib/tuya';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -474,8 +474,22 @@ export function useRosita() {
       }
     }).catch(() => {});
 
-    obtenerEstadoTuya().then(({ vinculado, dispositivos }) => {
-      if (vinculado) dispositivosTuyaRef.current = dispositivos;
+    obtenerEstadoTuya().then(async ({ vinculado, dispositivos }) => {
+      if (!vinculado) return;
+      // Consultar estado real (encendido/apagado) de cada dispositivo online
+      const TIPOS_LUZ     = ['dj', 'dd', 'xdd'];
+      const TIPOS_ENCHUFE = ['cz', 'pc'];
+      const conEstado = await Promise.all(
+        dispositivos.map(async d => {
+          if (!d.online || !([...TIPOS_LUZ, ...TIPOS_ENCHUFE].includes(d.tipo))) return d;
+          try {
+            const est = await obtenerEstadoDispositivo(d.id);
+            const encendido = est?.['switch_led'] ?? est?.['switch_1'];
+            return { ...d, estado: typeof encendido === 'boolean' ? encendido : undefined };
+          } catch { return d; }
+        })
+      );
+      dispositivosTuyaRef.current = conEstado;
     }).catch(() => {});
 
     getFeriadosCercanos().then(texto => {
@@ -1074,7 +1088,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // ── RECUERDOS ──
       if (parsed.recuerdos.length > 0) {
-        await Promise.all(parsed.recuerdos.map(r => agregarRecuerdo(r)));
+        await Promise.all(parsed.recuerdos.map((r: string) => agregarRecuerdo(r)));
         perfilRef.current = await cargarPerfil();
       }
 
@@ -1082,8 +1096,18 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.domotica) {
         const { tipo, dispositivoNombre, codigo, valor } = parsed.domotica;
         const dispositivos = dispositivosTuyaRef.current;
+        const TIPOS_LUZ     = ['dj', 'dd', 'xdd'];
+        const TIPOS_ENCHUFE = ['cz', 'pc'];
         if (!dispositivos.length) {
           // Sin dispositivos vinculados — Rosita ya habrá dicho algo amable
+        } else if (tipo === 'todo') {
+          // Apagar todas las luces y enchufes online
+          await controlarTodosLosTipos(dispositivos, TIPOS_LUZ,     'switch_led', false).catch(() => {});
+          await controlarTodosLosTipos(dispositivos, TIPOS_ENCHUFE, 'switch_1',   false).catch(() => {});
+          // Actualizar estado local
+          dispositivosTuyaRef.current = dispositivos.map(d =>
+            [...TIPOS_LUZ, ...TIPOS_ENCHUFE].includes(d.tipo) ? { ...d, estado: false } : d
+          );
         } else if (tipo === 'control') {
           const dispositivo = dispositivos.find(d =>
             d.nombre.toLowerCase().includes(dispositivoNombre.toLowerCase()) ||
@@ -1091,9 +1115,40 @@ REGLAS CRÍTICAS PARA RESPONDER:
           );
           if (dispositivo) {
             controlarDispositivo(dispositivo.id, codigo, valor!).catch(() => {});
+            // Actualizar estado local si es un switch
+            if (codigo === 'switch_led' || codigo === 'switch_1') {
+              dispositivosTuyaRef.current = dispositivos.map(d =>
+                d.id === dispositivo.id ? { ...d, estado: Boolean(valor) } : d
+              );
+            }
+          }
+        } else if (tipo === 'estado') {
+          // Consultar estado real y decírselo a la persona
+          const dispositivo = dispositivos.find(d =>
+            d.nombre.toLowerCase().includes(dispositivoNombre.toLowerCase()) ||
+            dispositivoNombre.toLowerCase().includes(d.nombre.toLowerCase())
+          );
+          if (dispositivo) {
+            const est = await obtenerEstadoDispositivo(dispositivo.id).catch(() => null);
+            if (est) {
+              const encendida = est['switch_led'] ?? est['switch_1'];
+              const brillo    = est['bright_value'];
+              let descripcion = encendida === true
+                ? `La ${dispositivo.nombre} está encendida`
+                : encendida === false
+                  ? `La ${dispositivo.nombre} está apagada`
+                  : `No pude determinar el estado de ${dispositivo.nombre}`;
+              if (encendida && brillo !== undefined) {
+                descripcion += ` al ${Math.round((brillo / 1000) * 100)}% de brillo`;
+              }
+              descripcion += '.';
+              dispositivosTuyaRef.current = dispositivos.map(d =>
+                d.id === dispositivo.id ? { ...d, estado: typeof encendida === 'boolean' ? encendida : d.estado } : d
+              );
+              await hablar(descripcion);
+            }
           }
         }
-        // tipo === 'estado': Rosita describe el estado con su respuesta en voz, no acción extra
       }
 
       // ── Alertas Telegram: EMERGENCIA > LLAMAR_FAMILIA > MENSAJE_FAMILIAR ──

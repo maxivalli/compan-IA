@@ -8,6 +8,7 @@ export type Dispositivo = {
   nombre: string;
   tipo: string;
   online: boolean;
+  estado?: boolean; // true = encendido, false = apagado, undefined = desconocido
 };
 
 async function h(): Promise<Record<string, string>> {
@@ -101,4 +102,30 @@ export async function desvincularSmartlife(): Promise<void> {
   } catch {
     // silencioso — el usuario verá el estado al recargar
   }
+}
+
+/** Obtiene el estado actual de un dispositivo (ej: si la luz está encendida). */
+export async function obtenerEstadoDispositivo(deviceId: string): Promise<Record<string, any> | null> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/tuya/estado-dispositivo?deviceId=${encodeURIComponent(deviceId)}`, {
+      headers: await h(),
+    });
+    if (!res.ok) return null;
+    return await res.json() as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
+/** Controla todos los dispositivos de un tipo (luces o enchufes) a la vez. */
+export async function controlarTodosLosTipos(
+  dispositivos: Dispositivo[],
+  tipos: string[],
+  codigo: string,
+  valor: boolean | number,
+): Promise<void> {
+  const targets = dispositivos.filter(d => tipos.includes(d.tipo) && d.online);
+  await Promise.allSettled(
+    targets.map(d => controlarDispositivo(d.id, codigo, valor))
+  );
 }
