@@ -46,6 +46,7 @@ export type NotificacionesRefs = {
   modoNoche:             ModoNoche;
   musicaActivaRef:       React.RefObject<boolean>;
   enFlujoVozRef:         React.RefObject<boolean>;
+  proximaAlarmaRef:      React.RefObject<number>;
   pararMusica:           () => void;
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
@@ -67,7 +68,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
-    modoNoche, musicaActivaRef, enFlujoVozRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
+    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
   } = refs;
 
   // Grabador para respuestas de voz
@@ -576,6 +577,26 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       } catch {}
     }
 
+    async function chequearAlarmas() {
+      if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
+      const ahora = Date.now();
+      const todos = await cargarRecordatorios();
+      const alarmas = todos.filter(r => r.esAlarma && r.timestampEpoch && ahora >= r.timestampEpoch);
+      for (const alarma of alarmas) {
+        const clave = `alarma_${alarma.id}`;
+        if (disparados.has(clave)) continue;
+        const ya = await yaRecordo(clave);
+        if (ya) { disparados.add(clave); continue; }
+        disparados.add(clave);
+        await marcarRecordado(clave);
+        await borrarRecordatorio(alarma.id);
+        proximaAlarmaRef.current = 0;
+        await hablar(alarma.texto);
+        ultimaCharlaRef.current = Date.now();
+        break;
+      }
+    }
+
     async function chequearRecordatorios() {
       if (noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
@@ -672,6 +693,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     async function tick() {
+      await chequearAlarmas();
       await chequearMedicamentos();
       await chequearFechas();
       await cumpleañosMatutino();

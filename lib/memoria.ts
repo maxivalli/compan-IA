@@ -73,6 +73,8 @@ export type Perfil = {
   fechasImportantes: string[];
   recuerdos: string[];
   fechaNacimiento?: string;         // "MM-DD" ej: "03-19" — para cumpleaños propio
+  horaInicioNoche?: number;         // hora en que empieza el modo noche (default 23)
+  horaFinNoche?: number;            // hora en que termina el modo noche / arrancan charlas (default 9)
   telegramChatIds: string[];        // legacy — se migra automáticamente
   telegramContactos: TelegramContacto[];
 };
@@ -234,6 +236,7 @@ export type Recordatorio = {
   fechaISO: string;    // "2026-03-21" — día en que hay que recordarlo
   timestampEpoch?: number; // unix ms — para recordatorios con hora exacta (timers largos)
   esTimer?: boolean;   // true → texto es el mensaje completo a decir directamente
+  esAlarma?: boolean;  // true → alarma con hora exacta, se dispara a cualquier hora del día
   creadoEn: number;    // timestamp
 };
 

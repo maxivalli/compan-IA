@@ -133,7 +133,7 @@ type Perfil = {
 - Si `procesandoRef` lleva >60s en `true` → forzado a `false` (recovery de stuck state)
 - `procesandoRef.current = true` se setea dentro del try block (no antes), para garantizar que se limpie en finally aunque `stop()` lance error
 
-**Charla proactiva**: si pasan 120 min sin charla entre las 9h y 21h, Rosita inicia conversación.
+**Charla proactiva**: si pasan 120 min sin charla entre `horaFinNoche` y `horaInicioNoche`, Rosita inicia conversación. Los temas varían según el momento del día (`temasPorMomento`: mañana, mediodía, tarde, noche) y se seleccionan al azar dentro del slot. No se inicia si hay una alarma pendiente en las próximas 2 horas.
 
 **Bostezo**: si pasan 5 min de inactividad (estado `esperando`, de día, sin música), Rosita hace animación de bostezo. Se repite cada 10 min mínimo.
 
@@ -183,8 +183,9 @@ Tags opcionales al **final** de la respuesta:
 - `[TIMER: segundos]` — activa un setTimeout que llama a `hablar()`
 - `[RECORDATORIO: fechaISO | texto]` — guarda recordatorio futuro
 - `[MENSAJE_FAMILIAR: nombre | texto]` — envía mensaje Telegram al familiar
-- `[LLAMAR_FAMILIA: motivo]` — alerta de angustia emocional
+- `[LLAMAR_FAMILIA: motivo]` — alerta de angustia emocional; también se emite silenciosamente si la persona evita ir al médico ante una consulta médica
 - `[EMERGENCIA: síntoma]` — alerta urgente a todos los contactos
+- `[ALARMA: YYYY-MM-DDTHH:MM | texto]` — programa una alarma con fecha y hora exacta (ver sección Alarmas)
 
 Claves de música válidas — géneros: `tango`, `bolero`, `folklore`, `romantica`, `clasica`, `jazz`, `pop` — radios: `cadena3`, `mitre`, `continental`, `rivadavia`, `nacional`, `lared`, `metro`
 
@@ -240,13 +241,43 @@ Generado por `construirContextoDinamico(p, climaTexto, incluirJuego, extra)`. Co
 
 ---
 
+## Alarmas por voz
+
+El tag `[ALARMA: YYYY-MM-DDTHH:MM | texto]` permite programar una alarma con fecha y hora exacta.
+
+### Formato del tag
+```
+[ALARMA: 2026-03-24T10:00 | Buenas días, ya son las 10]
+```
+
+### Storage
+Se guarda como `Recordatorio` con `esAlarma: true`, `esTimer: true` y `timestampEpoch` en `rosa_recordatorios_personal`.
+
+### Disparo (`chequearAlarmas` en useNotificaciones.ts)
+- Se evalúa en cada tick (cada 15s)
+- Filtra recordatorios con `esAlarma && timestampEpoch && ahora >= timestampEpoch`
+- Sin restricción de horario (se dispara a cualquier hora del día)
+- Al dispararse: llama `hablar(r.texto)`, borra el recordatorio de AsyncStorage, limpia `proximaAlarmaRef.current = 0`
+
+### Supresión de charla proactiva
+- `proximaAlarmaRef` (useRef<number>) compartido entre `useRosita` y `useNotificaciones`
+- Al guardar la alarma: `proximaAlarmaRef.current = timestampEpoch`
+- En `verificarCharlaProactiva`: si `proximaAlarmaRef.current - Date.now() < 2 * 60 * 60 * 1000` → no inicia charla
+
+---
+
 ## Modo noche (modoNoche)
 
-Evaluado cada 10 segundos:
+Evaluado cada 10 segundos. Los horarios son configurables desde el perfil (`horaInicioNoche`, `horaFinNoche`); los valores por defecto son 23h y 9h.
 
-- `despierta` — horario normal (9h–23h)
-- `soñolienta` — horario nocturno (23h–9h) con actividad reciente (< 1 min)
+- `despierta` — horario normal
+- `soñolienta` — horario nocturno con actividad reciente (< 1 min)
 - `durmiendo` — horario nocturno sin actividad por 1+ minuto
+
+Los mismos horarios se usan para:
+- Evaluar modo noche en `useRosita.ts` (`modoNocheActual`)
+- Decidir si iniciar charla proactiva (entre `horaFinNoche` y `horaInicioNoche`)
+- Timer de música nocturna (apaga la música dentro del horario nocturno)
 
 ---
 

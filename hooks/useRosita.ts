@@ -96,6 +96,7 @@ export function useRosita() {
   const srActivoRef         = useRef(false);
   const procesandoDesdeRef  = useRef<number>(0);
   const charlaProactivaRef  = useRef(false);
+  const proximaAlarmaRef    = useRef<number>(0); // epoch ms de la próxima alarma activa (0 = ninguna)
   const ultimaAlertaRef     = useRef<number>(0);
   const nombreAsistenteRef  = useRef<string>('rosita');
   const expresionTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -154,8 +155,10 @@ export function useRosita() {
       musicaNocheTimerRef.current = setTimeout(async () => {
         if (!musicaActivaRef.current) return;
         const hAhora = new Date().getHours();
-        // Solo actuar si es horario nocturno (23h–9h)
-        if (hAhora >= 9 && hAhora < 23) return;
+        // Solo actuar si es horario nocturno
+        const _inicio = perfilRef.current?.horaInicioNoche ?? 23;
+        const _fin    = perfilRef.current?.horaFinNoche    ?? 9;
+        if (hAhora >= _fin && hAhora < _inicio) return;
         const nombre = perfilRef.current?.nombreAbuela ?? '';
         const tsAntes = ultimaCharlaRef.current;
         try {
@@ -257,7 +260,9 @@ export function useRosita() {
   useEffect(() => {
     function calcularModo() {
       const h = new Date().getHours();
-      const esDormir = h >= 23 || h < HORA_DESPERTAR;
+      const inicioNoche = perfilRef.current?.horaInicioNoche ?? 23;
+      const finNoche    = perfilRef.current?.horaFinNoche    ?? HORA_DESPERTAR;
+      const esDormir = h >= inicioNoche || h < finNoche;
       if (!esDormir) { setModoNoche('despierta'); modoNocheRef.current = 'despierta'; return; }
       const minutos = (Date.now() - ultimaCharlaRef.current) / 60000;
       const nuevoModo: ModoNoche = minutos >= 1 ? 'durmiendo' : 'soñolienta';
@@ -539,8 +544,11 @@ export function useRosita() {
   function verificarCharlaProactiva(): boolean {
     if (noMolestarRef.current) return false;
     const hora = new Date().getHours();
-    const dentroDeHorario = hora >= HORA_CHARLA_INICIO && hora < HORA_FIN;
+    const dentroDeHorario = hora >= (perfilRef.current?.horaFinNoche ?? HORA_CHARLA_INICIO) && hora < (perfilRef.current?.horaInicioNoche ?? HORA_FIN);
     const minutosSinCharla = (Date.now() - ultimaCharlaRef.current) / 1000 / 60;
+    // No arrancar charla proactiva si hay una alarma en las próximas 2 horas
+    const alarmaProxima = proximaAlarmaRef.current;
+    if (alarmaProxima && alarmaProxima - Date.now() < 2 * 60 * 60 * 1000) return false;
     if (dentroDeHorario && minutosSinCharla >= MINUTOS_SIN_CHARLA) { arrancarCharlaProactiva(); return true; }
     return false;
   }
@@ -553,10 +561,45 @@ export function useRosita() {
     charlaProactivaRef.current = true;
     const hora = new Date().getHours();
     const momento = hora < 12 ? 'la mañana' : hora < 14 ? 'la hora del almuerzo' : hora < 18 ? 'la tarde' : 'la noche';
+
+    const temasPorMomento: Record<string, string[]> = {
+      'la mañana': [
+        'cómo amaneció, si durmió bien o cómo se siente',
+        'qué tiene pensado hacer hoy o si tiene algún plan',
+        'algo relacionado con el clima de hoy y cómo afecta el día',
+        'una comida o desayuno, si ya tomó algo rico',
+        'un recuerdo o anécdota relacionada con las mañanas',
+      ],
+      'la hora del almuerzo': [
+        'qué va a comer o ya comió, o sugerirle algo rico y saludable',
+        'cómo va el día hasta ahora',
+        'si descansó un rato o tiene planes para la tarde',
+        'algo liviano sobre algún gustos o actividad que le gusta',
+      ],
+      'la tarde': [
+        'cómo está pasando la tarde, si descansó o hizo algo',
+        'algún tema de conversación basado en sus gustos o intereses',
+        'si se movió un poco hoy o si le apetece hacer algún ejercicio liviano',
+        'algo relacionado con algún familiar mencionado en su perfil',
+        'una curiosidad, dato interesante o pregunta lúdica para pasar el rato',
+        'un recuerdo o anécdota personal que surge naturalmente',
+      ],
+      'la noche': [
+        'cómo le fue en el día, qué fue lo mejor',
+        'si cenó algo rico o qué tiene ganas de cenar',
+        'si está cansada o cómo se siente físicamente',
+        'un tema tranquilo y cálido para cerrar el día con buena energía',
+        'si tiene ganas de escuchar música o que le cuenten algo',
+      ],
+    };
+
+    const temas = temasPorMomento[momento];
+    const tema = temas[Math.floor(Math.random() * temas.length)];
+
     try {
       const frase = await llamarClaude({
         maxTokens: 120,
-        system: getSystemBlocks(p, climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida para charlar. Respondé SOLO con la frase, sin etiquetas.`),
+        system: getSystemBlocks(p, climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${tema}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });
       if (frase) { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
@@ -571,6 +614,7 @@ export function useRosita() {
   async function reproducirSilbido() {
     if (!silbidoActivoRef.current) return;
     if (estadoRef.current !== 'esperando') return;
+    if (musicaActivaRef.current) return;
     try {
       const cacheUri = FileSystem.cacheDirectory + 'silbido.mp3';
       const cached = await FileSystem.getInfoAsync(cacheUri);
@@ -1053,7 +1097,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (urlStream) {
           try {
             playerMusica.replace({ uri: urlStream });
-            playerMusica.volume = 0.50;
+            playerMusica.volume = 0.70;
             playerMusica.play();
             setMusicaActiva(true);
             registrarMusicaHoy().catch(() => {});
@@ -1117,6 +1161,21 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── RECORDATORIO ──
       if (parsed.recordatorio) {
         await guardarRecordatorio(parsed.recordatorio);
+      }
+
+      // ── ALARMA ──
+      if (parsed.alarma) {
+        const fechaISO = new Date(parsed.alarma.timestampEpoch).toISOString().slice(0, 10);
+        await guardarRecordatorio({
+          id: `alarma_${parsed.alarma.timestampEpoch}`,
+          texto: parsed.alarma.texto,
+          fechaISO,
+          timestampEpoch: parsed.alarma.timestampEpoch,
+          esTimer: true,
+          esAlarma: true,
+          creadoEn: Date.now(),
+        }).catch(() => {});
+        proximaAlarmaRef.current = parsed.alarma.timestampEpoch;
       }
 
       // ── RECUERDOS ──
@@ -1410,7 +1469,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
       telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
-      musicaActivaRef, enFlujoVozRef,
+      musicaActivaRef, enFlujoVozRef, proximaAlarmaRef,
       setEstado, hablar, iniciarSpeechRecognition,
       modoNoche, iniciarSilbido, detenerSilbido, flujoFoto,
     },

@@ -276,6 +276,9 @@ export default function Configuracion() {
   const [pinConfigurado, setPinConfigurado] = useState(false);
   const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
 
+  const [horaInicioNoche, setHoraInicioNoche] = useState(23);
+  const [horaFinNoche,    setHoraFinNoche]    = useState(9);
+
   // ── Domótica ──
   const [stVinculado, setStVinculado]       = useState(false);
   const [stDispositivos, setStDispositivos] = useState<Dispositivo[]>([]);
@@ -352,6 +355,8 @@ export default function Configuracion() {
         const [mm, dd] = p.fechaNacimiento.split('-');
         setFechaNacimiento(`${dd}/${mm}`);
       }
+      setHoraInicioNoche(p.horaInicioNoche ?? 23);
+      setHoraFinNoche(p.horaFinNoche ?? 9);
       setIdsActivos((p.telegramContactos || []).map(c => c.id));
       setContactos(p.telegramContactos || []);
     });
@@ -431,6 +436,8 @@ export default function Configuracion() {
       gustos:            gustos.split(',').map(s => s.trim()).filter(Boolean),
       medicamentos:      medicamentos.split(',').map(s => s.trim()).filter(Boolean),
       fechasImportantes: fechas.split(',').map(s => s.trim()).filter(Boolean),
+      horaInicioNoche,
+      horaFinNoche,
       recuerdos:         perfil?.recuerdos || [],
       fechaNacimiento:   (() => {
         const parts = fechaNacimiento.trim().replace(/\s/g, '').split('/');
@@ -524,6 +531,29 @@ export default function Configuracion() {
               </TouchableOpacity>
             ))}
           </View>
+        </Surface>
+
+        {/* ── Horario de descanso ── */}
+        <SectionLabel icon="moon-outline" label="Horario de descanso" />
+        <Surface style={{ marginTop: 4 }}>
+          {[
+            { label: 'Se duerme a las', icon: 'moon', value: horaInicioNoche, set: setHoraInicioNoche, min: 18, max: 23 },
+            { label: 'Se despierta a las', icon: 'sunny', value: horaFinNoche, set: setHoraFinNoche, min: 5, max: 12 },
+          ].map(({ label, icon, value, set, min, max }) => (
+            <View key={label} style={s.horarioRow}>
+              <Ionicons name={icon as any} size={18} color={M.onSurfaceVariant} />
+              <Text style={s.horarioLabel}>{label}</Text>
+              <View style={s.horarioControls}>
+                <TouchableOpacity onPress={() => set(v => Math.max(min, v - 1))} style={s.horarioBtn}>
+                  <Ionicons name="remove" size={18} color={M.onSurface} />
+                </TouchableOpacity>
+                <Text style={s.horarioValor}>{value} hs</Text>
+                <TouchableOpacity onPress={() => set(v => Math.min(max, v + 1))} style={s.horarioBtn}>
+                  <Ionicons name="add" size={18} color={M.onSurface} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
         </Surface>
 
         {/* ── Entorno ── */}
@@ -898,6 +928,13 @@ const s = StyleSheet.create({
   tagChipTxt:      { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   botBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: M.primary, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, borderRadius: 12 },
   botBtnText:  { fontSize: 14, fontWeight: '500', color: M.onPrimary },
+
+  // Horario de descanso
+  horarioRow:      { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14 },
+  horarioLabel:    { flex: 1, fontSize: 14, color: M.onSurface },
+  horarioControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  horarioBtn:      { width: 36, height: 36, borderRadius: 18, backgroundColor: M.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
+  horarioValor:    { width: 52, textAlign: 'center', fontSize: 15, fontWeight: '600', color: M.onSurface },
 
   // Domótica
   tuyaEstado:         { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },

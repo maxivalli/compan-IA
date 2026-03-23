@@ -1,7 +1,8 @@
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useState, useMemo } from 'react';
 
 const M = {
   primary:          '#0097b2',
@@ -208,12 +209,12 @@ const GRUPOS: Grupo[] = [
       },
       {
         icono: 'alarm-outline',
-        titulo: 'Timers y recordatorios',
-        descripcion: 'Podés pedir que te avise en un tiempo o que recuerde una fecha importante.',
+        titulo: 'Timers, recordatorios y alarmas',
+        descripcion: 'Podés pedir que te avise en un tiempo, que recuerde una fecha importante, o que te despierte a una hora exacta.',
         color: '#004785',
         bg: '#D3E4FF',
-        comandos: ['Avisame en 10 minutos', 'Poneme un timer de 30 segundos', 'Recordame el viernes que tengo turno'],
-        nota: 'Los recordatorios de fecha te avisan el día que corresponde.',
+        comandos: ['Avisame en 10 minutos', 'Poneme un timer de 30 segundos', 'Recordame el viernes que tengo turno', 'Despertame mañana a las 10'],
+        nota: 'Los recordatorios de fecha te avisan el día que corresponde. Las alarmas suenan a la hora exacta aunque Rosita esté en modo noche.',
       },
       {
         icono: 'alert-circle-outline',
@@ -299,7 +300,7 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'moon-outline',
         titulo: 'Modo noche',
-        descripcion: 'Después de las 23h Rosita baja el perfil y no inicia conversación. Se reactiva sola al día siguiente.',
+        descripcion: 'Después de las 23h Rosita baja el perfil y no inicia conversación. Se reactiva sola al día siguiente. El horario de descanso se puede personalizar desde Configuración.',
         color: '#3D1C6E',
         bg: '#E8D5FF',
         nota: 'Si hablás de noche ella igual te responde, solo no interrumpe.',
@@ -314,12 +315,12 @@ const GRUPOS: Grupo[] = [
       },
       {
         icono: 'home-outline',
-        titulo: 'Control del hogar (Smartlife)',
-        descripcion: 'Vinculá tu cuenta de Smartlife para que Rosita pueda controlar tus dispositivos del hogar: luces, enchufes, aires acondicionados y más.',
+        titulo: 'Control del hogar (SmartThings)',
+        descripcion: 'Vinculá tu cuenta de Samsung SmartThings para que Rosita pueda controlar tus dispositivos del hogar: luces, enchufes, aires acondicionados y más.',
         color: '#475569',
         bg: '#F1F5F9',
         comandos: ['Apagá la luz', 'Prendé el ventilador', '¿Qué dispositivos tengo?'],
-        nota: 'La vinculación se hace desde Configuración, escaneando el código QR con la cámara del celular e iniciando sesión con tu cuenta de Smartlife. Solo se hace una vez.',
+        nota: 'La vinculación se hace desde Configuración, pegando el token de SmartThings. Solo se hace una vez.',
       },
       {
         icono: 'lock-closed-outline',
@@ -333,23 +334,32 @@ const GRUPOS: Grupo[] = [
   },
 ];
 
+function normalizar(s: string) {
+  return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function Chip({ texto, color, bg }: { texto: string; color: string; bg: string }) {
   return (
-    <View style={[s.chip, { backgroundColor: bg }]}>
+    <View style={[st.chip, { backgroundColor: bg }]}>
       <Ionicons name="mic-outline" size={11} color={color} style={{ marginRight: 4 }} />
-      <Text style={[s.chipTexto, { color }]}>{texto}</Text>
+      <Text style={[st.chipTexto, { color }]}>{texto}</Text>
     </View>
   );
 }
 
-function TarjetaSeccion({ sec, color, bg }: { sec: Seccion; color: string; bg: string }) {
+function TarjetaSeccion({ sec, color, bg, grupoBadge }: { sec: Seccion; color: string; bg: string; grupoBadge?: string }) {
   return (
     <View style={card.wrap}>
       <View style={[card.iconBar, { backgroundColor: bg }]}>
         <View style={[card.iconCircle, { backgroundColor: color + '22' }]}>
           <Ionicons name={sec.icono as any} size={22} color={color} />
         </View>
-        <Text style={[card.titulo, { color }]}>{sec.titulo}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[card.titulo, { color }]}>{sec.titulo}</Text>
+          {grupoBadge && (
+            <Text style={[card.badge, { color }]}>{grupoBadge}</Text>
+          )}
+        </View>
       </View>
 
       <View style={card.body}>
@@ -374,13 +384,42 @@ function TarjetaSeccion({ sec, color, bg }: { sec: Seccion; color: string; bg: s
   );
 }
 
-function CabeceraGrupo({ grupo }: { grupo: Grupo }) {
+function GrupoColapsable({
+  grupo,
+  expandido,
+  onToggle,
+}: {
+  grupo: Grupo;
+  expandido: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <View style={[cab.wrap, { backgroundColor: grupo.bg, borderLeftColor: grupo.color }]}>
-      <View style={[cab.iconCircle, { backgroundColor: grupo.color + '20' }]}>
-        <Ionicons name={grupo.icono as any} size={16} color={grupo.color} />
-      </View>
-      <Text style={[cab.titulo, { color: grupo.color }]}>{grupo.titulo}</Text>
+    <View>
+      <Pressable
+        onPress={onToggle}
+        style={({ pressed }) => [cab.wrap, { backgroundColor: grupo.bg, borderLeftColor: grupo.color, opacity: pressed ? 0.75 : 1 }]}
+      >
+        <View style={[cab.iconCircle, { backgroundColor: grupo.color + '20' }]}>
+          <Ionicons name={grupo.icono as any} size={16} color={grupo.color} />
+        </View>
+        <Text style={[cab.titulo, { color: grupo.color, flex: 1 }]}>{grupo.titulo}</Text>
+        <View style={[cab.badge, { backgroundColor: grupo.color + '18' }]}>
+          <Text style={[cab.badgeTexto, { color: grupo.color }]}>{grupo.secciones.length}</Text>
+        </View>
+        <Ionicons
+          name={expandido ? 'chevron-up' : 'chevron-down'}
+          size={16}
+          color={grupo.color}
+          style={{ marginLeft: 6 }}
+        />
+      </Pressable>
+      {expandido && (
+        <View style={st.grupoCards}>
+          {grupo.secciones.map(sec => (
+            <TarjetaSeccion key={sec.titulo} sec={sec} color={grupo.color} bg={grupo.bg} />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -388,50 +427,118 @@ function CabeceraGrupo({ grupo }: { grupo: Grupo }) {
 export default function GuiaScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const [busqueda, setBusqueda] = useState('');
+  const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+
+  function toggleGrupo(titulo: string) {
+    setExpandidos(prev => ({ ...prev, [titulo]: !prev[titulo] }));
+  }
+
+  const resultados = useMemo(() => {
+    const q = normalizar(busqueda.trim());
+    if (!q) return null;
+    const out: { sec: Seccion; grupo: Grupo }[] = [];
+    for (const grupo of GRUPOS) {
+      for (const sec of grupo.secciones) {
+        const hayden = [
+          sec.titulo,
+          sec.descripcion,
+          sec.nota ?? '',
+          ...(sec.comandos ?? []),
+        ].some(t => normalizar(t).includes(q));
+        if (hayden) out.push({ sec, grupo });
+      }
+    }
+    return out;
+  }, [busqueda]);
 
   return (
     <View style={{ flex: 1, backgroundColor: M.surface }}>
       {/* Header */}
-      <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-        <Pressable onPress={() => router.back()} style={s.backBtn} hitSlop={12}>
+      <View style={[st.header, { paddingTop: insets.top + 16 }]}>
+        <Pressable onPress={() => router.back()} style={st.backBtn} hitSlop={12}>
           <Ionicons name="arrow-back" size={22} color={M.onPrimary} />
         </Pressable>
-        <View style={s.headerTextos}>
-          <Text style={s.headerEyebrow}>Cómo usar la app</Text>
-          <Text style={s.headerTitulo}>Guía de uso</Text>
+        <View style={st.headerTextos}>
+          <Text style={st.headerEyebrow}>Cómo usar la app</Text>
+          <Text style={st.headerTitulo}>Guía de uso</Text>
         </View>
-        <View style={s.headerIcono}>
+        <View style={st.headerIcono}>
           <Ionicons name="book-outline" size={28} color={M.onPrimary} style={{ opacity: 0.6 }} />
         </View>
       </View>
 
       {/* Intro */}
-      <View style={s.intro}>
+      <View style={st.intro}>
         <Ionicons name="mic-outline" size={16} color={M.primary} />
-        <Text style={s.introTexto}>Hablá con Rosita en voz alta o usá el botón del micrófono.</Text>
+        <Text style={st.introTexto}>Hablá con Rosita en voz alta o usá el botón del micrófono.</Text>
+      </View>
+
+      {/* Buscador */}
+      <View style={st.searchWrap}>
+        <Ionicons name="search-outline" size={17} color={M.onSurfaceVariant} style={st.searchIcon} />
+        <TextInput
+          style={st.searchInput}
+          placeholder="Buscar en la guía..."
+          placeholderTextColor={M.onSurfaceVariant}
+          value={busqueda}
+          onChangeText={setBusqueda}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
+          autoCorrect={false}
+        />
+        {busqueda.length > 0 && (
+          <Pressable onPress={() => setBusqueda('')} hitSlop={8} style={st.clearBtn}>
+            <Ionicons name="close-circle" size={17} color={M.onSurfaceVariant} />
+          </Pressable>
+        )}
       </View>
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={[s.lista, { paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[st.lista, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {GRUPOS.map((grupo, gi) => (
-          <View key={grupo.titulo} style={gi > 0 ? { marginTop: 8 } : undefined}>
-            <CabeceraGrupo grupo={grupo} />
-            <View style={s.grupoCards}>
-              {grupo.secciones.map(sec => (
-                <TarjetaSeccion key={sec.titulo} sec={sec} color={grupo.color} bg={grupo.bg} />
+        {resultados !== null ? (
+          // Vista de búsqueda — resultados planos
+          resultados.length === 0 ? (
+            <View style={st.sinResultados}>
+              <Ionicons name="search-outline" size={32} color={M.outlineVariant} />
+              <Text style={st.sinResultadosTexto}>Sin resultados para "{busqueda}"</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {resultados.map(({ sec, grupo }) => (
+                <TarjetaSeccion
+                  key={grupo.titulo + sec.titulo}
+                  sec={sec}
+                  color={grupo.color}
+                  bg={grupo.bg}
+                  grupoBadge={grupo.titulo}
+                />
               ))}
             </View>
+          )
+        ) : (
+          // Vista normal — grupos colapsables
+          <View style={{ gap: 8 }}>
+            {GRUPOS.map(grupo => (
+              <GrupoColapsable
+                key={grupo.titulo}
+                grupo={grupo}
+                expandido={!!expandidos[grupo.titulo]}
+                onToggle={() => toggleGrupo(grupo.titulo)}
+              />
+            ))}
           </View>
-        ))}
+        )}
       </ScrollView>
     </View>
   );
 }
 
-const s = StyleSheet.create({
+const st = StyleSheet.create({
   header: {
     backgroundColor: M.primary,
     paddingHorizontal: 20,
@@ -465,8 +572,26 @@ const s = StyleSheet.create({
   },
   introTexto: { fontSize: 13, color: M.onSurface, flex: 1, lineHeight: 18 },
 
-  lista:      { paddingHorizontal: 16, paddingTop: 16, gap: 0 },
-  grupoCards: { gap: 10, marginTop: 10, marginBottom: 6 },
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: M.outlineVariant,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: M.onSurface,
+    paddingVertical: 6,
+  },
+  clearBtn: { padding: 2, marginLeft: 4 },
+
+  lista: { paddingHorizontal: 16, paddingTop: 16 },
+  grupoCards: { gap: 10, marginTop: 10, marginBottom: 4 },
 
   chip: {
     flexDirection: 'row',
@@ -476,6 +601,18 @@ const s = StyleSheet.create({
     borderRadius: 100,
   },
   chipTexto: { fontSize: 12, fontWeight: '500', letterSpacing: 0.2 },
+
+  sinResultados: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 64,
+    gap: 12,
+  },
+  sinResultadosTexto: {
+    fontSize: 14,
+    color: M.onSurfaceVariant,
+    textAlign: 'center',
+  },
 });
 
 const cab = StyleSheet.create({
@@ -484,10 +621,9 @@ const cab = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: 12,
     borderLeftWidth: 4,
-    marginTop: 4,
   },
   iconCircle: {
     width: 30, height: 30, borderRadius: 15,
@@ -498,7 +634,15 @@ const cab = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
     textTransform: 'uppercase',
-    flex: 1,
+  },
+  badge: {
+    borderRadius: 10,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  badgeTexto: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
 
@@ -528,7 +672,12 @@ const card = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.1,
-    flex: 1,
+  },
+  badge: {
+    fontSize: 11,
+    fontWeight: '500',
+    opacity: 0.7,
+    marginTop: 1,
   },
   body: {
     paddingHorizontal: 16,

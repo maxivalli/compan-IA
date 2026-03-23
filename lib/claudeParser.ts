@@ -32,6 +32,7 @@ export type RespuestaParsed = {
   mensajeFamiliar?: { nombreDestino: string; texto: string };
   llamarFamilia?: string;          // motivo
   emergencia?: string;             // síntoma
+  alarma?: { timestampEpoch: number; texto: string };
   domotica?: {
     tipo: 'control' | 'estado' | 'todo';
     dispositivoNombre: string;
@@ -53,6 +54,27 @@ export function detectarGenero(tag: string): string {
 
   // Géneros musicales
   const mapa: [string, string[]][] = [
+    // Radios específicas — van antes que los géneros para evitar falsos positivos
+    ['convos',      ['convos', 'con vos', 'convo', 'radio con vos', '89.9', '899']],
+    ['cadena3',     ['cadena3', 'cadena 3']],
+    ['mitre',       ['mitre']],
+    ['continental', ['continental']],
+    ['rivadavia',   ['rivadavia']],
+    ['lared',       ['lared', 'la red']],
+    ['metro',       ['metro']],
+    ['aspen',       ['aspen']],
+    ['la100',       ['la100', 'la 100']],
+    ['folklorenac', ['folklorenac', 'nacional folklorica', 'folklorica nacional']],
+    ['rockpop',     ['rockpop', 'rock and pop', 'rock & pop']],
+    ['urbana',      ['urbana', 'urbana play']],
+    ['radio10',     ['radio10', 'radio 10']],
+    ['destape',     ['destape', 'el destape']],
+    ['mega',        ['mega', 'mega 98']],
+    ['vida',        ['vida', 'fm vida']],
+    ['lv3',         ['lv3', 'lv 3']],
+    ['delplata',    ['delplata', 'del plata', 'radio del plata']],
+    ['lt8',         ['lt8', 'lt 8']],
+    // Géneros
     ['tango',     ['tango', 'milonga', 'piazzolla']],
     ['bolero',    ['bolero', 'besame', 'trio']],
     ['folklore',  ['folklore', 'folclore', 'folklo', 'chacarera', 'zamba', 'chamame']],
@@ -233,6 +255,13 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '- PENSATIVA o reflexiona: acompañá con calma, hacé una pregunta suave si corresponde.',
     '- SORPRENDIDA: reaccioná con curiosidad.',
     '',
+    'CONSULTAS MÉDICAS (aplicá siempre que surja un tema de salud):',
+    'Ante cualquier síntoma, dolor, malestar, duda sobre medicación o condición médica, SIEMPRE recomendá consultar al médico. Hacelo de forma cálida y natural, nunca alarmista. Si la persona menciona que hace mucho no va al médico, que no quiere ir, o que evita las consultas, emitís [LLAMAR_FAMILIA: no va al médico] al final de la respuesta para que la familia esté al tanto. No lo menciones en voz — manejalo en silencio con el tag.',
+    '',
+    'SALUD Y BIENESTAR (aplicá solo cuando el tema surja naturalmente, nunca impongas ni sermones):',
+    'COMIDA: Si la persona menciona qué comió, qué va a comer, tiene hambre, habla de recetas o pide ideas de comida, podés sugerir opciones saludables y ricas pensadas para adultos mayores: verduras cocidas o sopas, legumbres (lentejas, garbanzos), pescado, pechuga, huevo, frutas de estación, lácteos descremados, poca sal. Mencioná las sugerencias de forma apetitosa y conversacional, no como una lista médica. Siempre validá lo que ya come antes de sugerir cambios. Si pregunta por una receta, dala simple y en pasos cortos.',
+    'EJERCICIO: Si la persona menciona que está sedentaria, que le duelen los huesos, que quiere moverse más, que está aburrida o pide ideas para activarse, podés proponer rutinas livianas para adultos mayores: caminata corta (10-15 min), estiramientos sentada o parada, ejercicios de respiración, movimiento de manos y pies para la circulación, equilibrio apoyada en una silla. Siempre empezá con "si el médico te lo permite" o similar para no asumir condición física. Describí el ejercicio de forma simple, motivadora y sin tecnicismos.',
+    '',
     'TAG PRINCIPAL (AL INICIO DE CADA RESPUESTA):',
     'Siempre incluí UNA de estas etiquetas al inicio:',
     '[FELIZ] — cuando hay algo positivo, alegre o cálido',
@@ -243,7 +272,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '[ENOJADA] — cuando expresa frustración o molestia',
     '[AVERGONZADA] — cuando dice algo confuso, gracioso sin querer, o se corrige',
     '[CANSADA] — cuando menciona que está cansada, con sueño o sin energía',
-    '[MUSICA: clave] — cuando piden música. Géneros: tango, bolero, folklore, romantica, clasica, jazz, pop. Radios: cadena3, lv3, mitre, continental, rivadavia, lared, metro, aspen, la100, folklorenac, rockpop, convos, urbana, radio10, destape, mega, vida, delplata, lt8. Avisale a la persona qué vas a poner. NUNCA uses nombre de canción ni artista.',
+    '[MUSICA: clave] — cuando piden música. Géneros: tango, bolero, folklore, romantica, clasica, jazz, pop. Radios (usá la clave exacta): cadena3, lv3, mitre, continental, rivadavia, lared, metro, aspen, la100, folklorenac, rockpop, convos, urbana, radio10, destape, mega, vida, delplata, lt8. Nombres hablados → clave: "Radio con Vos" o "con vos" → convos | "La Red" → lared | "Rock and Pop" → rockpop | "Del Plata" → delplata | "Nacional Folklórica" → folklorenac. Avisale a la persona qué vas a poner. NUNCA uses nombre de canción ni artista.',
     '[CUENTO] — cuando contás un cuento corto. Podés extenderte más.',
     '[JUEGO] — cuando iniciás una adivinanza, trivia, juego de memoria, cálculo mental o trabalenguas.',
     '[CHISTE] — cuando contás un chiste. Si hay un CHISTE CURADO en el contexto, contalo EXACTAMENTE como está escrito, sin modificarlo.',
@@ -252,8 +281,9 @@ export function construirSystemPromptEstable(p: Perfil): string {
     'TAGS SECUNDARIOS (AL FINAL DE LA RESPUESTA):',
     '[ANIMO_USUARIO: emocion] — OBLIGATORIO en cada respuesta. Refleja cómo se siente la PERSONA. Opciones: feliz, triste, sorprendida, pensativa, neutral. Si menciona accidente, caída, dolor o emergencia → siempre triste.',
     '[RECUERDO: resumen en 6-8 palabras] — Solo cuando la persona menciona: nombres propios (hijos, nietos, marido, hermanos, amigos, médicos), mascotas, lugares significativos, fechas importantes (bodas, nacimientos, muertes), datos de salud (médicos, medicamentos, operaciones), anécdotas personales concretas. NO para cosas genéricas como clima u hora.',
-    '[TIMER: segundos] — cuando piden aviso en minutos, horas o segundos. Ej: "en 10 minutos" = [TIMER: 600]. Confirmale el tiempo en palabras. NUNCA junto con [RECORDATORIO] para el mismo pedido.',
-    '[RECORDATORIO: YYYY-MM-DD | texto] — cuando piden recordar algo para un día futuro específico. NUNCA para pedidos en minutos o segundos.',
+    '[TIMER: segundos] — cuando piden aviso en minutos, horas o segundos. Ej: "en 10 minutos" = [TIMER: 600]. Confirmale el tiempo en palabras. NUNCA junto con [RECORDATORIO] ni [ALARMA] para el mismo pedido.',
+    '[RECORDATORIO: YYYY-MM-DD | texto] — cuando piden recordar algo para un día futuro específico sin hora exacta. NUNCA para pedidos en minutos/segundos ni cuando hay una hora específica del día.',
+    '[ALARMA: YYYY-MM-DDTHH:MM | texto] — cuando piden que las despierten o avisen a una hora específica del día ("despertame mañana a las 10", "avisame a las 8", "poneme una alarma para las 7 y media"). Calculá la fecha y hora exacta a partir de la fecha actual del contexto. El texto es el mensaje que se dirá en voz alta cuando suene. Ej: "despertame mañana a las 10" → [ALARMA: 2026-03-25T10:00 | ¡Buenos días! Son las 10, es hora de levantarse.]. Confirmá la alarma en tu respuesta.',
     '[MENSAJE_FAMILIAR: nombre | texto] — cuando piden mandar mensaje a un familiar. Texto breve y neutro. NO confirmes que ya se mandó.',
     '[LLAMAR_FAMILIA: motivo] — cuando la persona pide hablar con un familiar o expresa angustia emocional sostenida.',
     '[EMERGENCIA: síntoma] — cuando menciona síntomas graves. Decile con calma que ya estás avisando a su familia.',
@@ -276,6 +306,9 @@ export function construirContextoDinamico(p: Perfil, climaTexto: string, incluir
   })();
   const esNavidad   = ahora.getMonth() === 11 && ahora.getDate() === 25;
   const esAñoNuevo  = ahora.getMonth() === 0  && ahora.getDate() === 1;
+  // Estaciones para hemisferio sur (Argentina)
+  const mes = ahora.getMonth() + 1;
+  const estacion = (mes >= 12 || mes <= 2) ? 'verano' : (mes <= 5) ? 'otoño' : (mes <= 8) ? 'invierno' : 'primavera';
   const bloqueDispositivos = dispositivos.length > 0
     ? (
         '\nDOMOTICA — Dispositivos SmartThings vinculados:\n' +
@@ -301,7 +334,7 @@ export function construirContextoDinamico(p: Perfil, climaTexto: string, incluir
         '\nSolo usa estos tags con dispositivos vinculados. Si no reconoces el dispositivo, diselo amablemente.'
       )
     : '';
-  return `Fecha y hora actual: ${fecha}, ${hora}.
+  return `Fecha y hora actual: ${fecha}, ${hora}. Estación del año: ${estacion} (hemisferio sur).
 ${climaTexto}
 ${esCumple    ? `\n¡HOY ES EL CUMPLEAÑOS DE ${p.nombreAbuela.toUpperCase()}! Mencionar el cumpleaños con mucho cariño en la primera respuesta de la conversación.\n` : ''}
 ${esNavidad   ? `\n¡HOY ES NAVIDAD! Podés desearle Feliz Navidad con calidez si surge naturalmente en la conversación.\n` : ''}
@@ -326,6 +359,7 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[EMERGENCIA:[^\]]*\]?\s*/gi, '')
     .replace(/\[MENSAJE_FAMILIAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[RECORDATORIO:[^\]]*\]?\s*/gi, '')
+    .replace(/\[ALARMA:[^\]]*\]?\s*/gi, '')
     .replace(/\[TIMER:\s*\d+\]?\s*/gi, '')
     .replace(/\[LINTERNA\]\s*/gi, '')
     .replace(/\[DOMOTICA[^\]]*\]?\s*/gi, '')
@@ -454,6 +488,16 @@ export function parsearRespuesta(
     creadoEn: Date.now(),
   } : undefined;
 
+  // ── ALARMA ──
+  const alarmaMatch = raw.match(/\[ALARMA:\s*(.+?)\s*\|\s*(.+?)\]/i);
+  let alarma: { timestampEpoch: number; texto: string } | undefined;
+  if (alarmaMatch) {
+    const ts = Date.parse(alarmaMatch[1].trim());
+    if (!isNaN(ts) && ts > Date.now()) {
+      alarma = { timestampEpoch: ts, texto: alarmaMatch[2].trim() };
+    }
+  }
+
   // ── Tag de emoción principal ──
   const matchTag = raw.match(/^\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]\s*/i);
   const tagRaw = matchTag?.[1]?.toUpperCase() as TagPrincipal ?? 'NEUTRAL';
@@ -523,6 +567,7 @@ export function parsearRespuesta(
     recuerdos,
     timerSegundos,
     recordatorio,
+    alarma,
     mensajeFamiliar,
     llamarFamilia,
     emergencia,
