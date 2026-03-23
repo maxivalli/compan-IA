@@ -870,7 +870,7 @@ export function useRosita() {
     const p = perfilRef.current;
     const nombre = p?.nombreAbuela ?? '';
     await hablar(
-      `Bueno${nombre ? ` ${nombre}` : ''}, apuntá la cámara a lo que querés que vea. ` +
+      `Bueno${nombre ? ` ${nombre}` : ''}, apuntáme a lo que querés que vea. ` +
       `Cuando estés ${g('lista', 'listo')}, quedate ${g('quieta', 'quieto')} y esperá hasta que cuente tres. ` +
       `Yo te digo todo lo que vea.`
     );
