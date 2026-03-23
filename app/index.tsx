@@ -4,6 +4,7 @@ import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, StyleSh
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -20,11 +21,56 @@ import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
 
+function RelojNoche() {
+  const [fontsLoaded] = useFonts({ Poppins_700Bold });
+  const [tiempo, setTiempo] = React.useState(() => {
+    const now = new Date();
+    return {
+      hh: String(now.getHours()).padStart(2, '0'),
+      mm: String(now.getMinutes()).padStart(2, '0'),
+    };
+  });
+  const latido = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date();
+      setTiempo({
+        hh: String(now.getHours()).padStart(2, '0'),
+        mm: String(now.getMinutes()).padStart(2, '0'),
+      });
+    }, 10000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(latido, { toValue: 0.15, duration: 500, useNativeDriver: true }),
+        Animated.timing(latido, { toValue: 1,    duration: 500, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  const fontFamily = fontsLoaded ? 'Poppins_700Bold' : undefined;
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={[styles.relojNoche, { fontFamily }]}>{tiempo.hh}</Text>
+      <Animated.Text style={[styles.relojNoche, { fontFamily, opacity: latido, marginHorizontal: 2 }]}>:</Animated.Text>
+      <Text style={[styles.relojNoche, { fontFamily }]}>{tiempo.mm}</Text>
+    </View>
+  );
+}
+
 export default function Index() {
   const router = useRouter();
   const {
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
+    linternaActiva, apagarLinterna,
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
@@ -65,6 +111,7 @@ export default function Index() {
   const esAtardecerBg  = hora >= 17 && hora < 20;
   const esAmanecer     = hora >= 5  && hora < 8;
   const esFondoNoche   = hora >= 20 || hora < 5;
+  const esBotonesNoche = hora >= 23 || hora < 9;
   const esClimaOscuro  = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo/);
   
   // Tu color base original
@@ -251,7 +298,10 @@ export default function Index() {
   return (
     <Pressable
       style={{ flex: 1 }}
-      onPress={() => { if (musicaActiva) pararMusica(); }}
+      onPress={() => {
+        if (linternaActiva) { apagarLinterna(); return; }
+        if (musicaActiva) pararMusica();
+      }}
     >
     <LinearGradient 
       colors={degradadoCielo} 
@@ -337,6 +387,8 @@ export default function Index() {
       <View style={[styles.ecualizadorWrap, isTablet && { height: Math.round(90 * textScale) }]}>
         {musicaActiva
           ? <AnimacionMusica />
+          : modoNoche !== 'despierta'
+          ? <RelojNoche />
           : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
               <Text
                 style={[styles.hintText, textScale !== 1 && { fontSize: fs(27) * textScale, lineHeight: fs(35) * textScale }]}
@@ -381,7 +433,7 @@ export default function Index() {
                 activeOpacity={0.85}
                 disabled={botonDisabled && !musicaActiva}
               >
-                <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
+                <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
                   <View style={styles.btnInner}>
                     <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
                     <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151', width: Math.round(btnW * 0.68), textAlign: 'center' }]}>
@@ -396,7 +448,7 @@ export default function Index() {
           {/* Botón SOS */}
           <Animated.View style={{ transform: [{ scale: sosPulso }], alignItems: 'center' }}>
             <TouchableOpacity
-              style={[styles.botonSOS, sosPresionando && styles.botonSOSActivo, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+              style={[styles.botonSOS, sosPresionando && styles.botonSOSActivo, { width: btnW, height: btnH, borderRadius: btnH / 2 }, esBotonesNoche && !sosPresionando && { backgroundColor: '#6B1111', shadowOpacity: 0.15 }]}
               onPress={mostrarHintSOS}
               onPressIn={sosPresionado}
               onPressOut={sosSoltado}
@@ -553,6 +605,7 @@ const styles = StyleSheet.create({
   botonNoMolestarActivo: { backgroundColor: '#E85D24', borderColor: '#E85D24' },
   botonNoMolestarTexto:  { fontSize: fs(13), color: '#ffffffaa', fontWeight: '500' },
   hintText:           { fontSize: fs(27), fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontStyle: 'italic', color: '#ffffffdd', textAlign: 'center', paddingHorizontal: 32, lineHeight: fs(35) },
+  relojNoche:         { fontSize: fs(72), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
   onboardingOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 28 },
   onboardingCard:       { backgroundColor: '#f9fafb', borderRadius: 28, width: '100%', maxWidth: 340, overflow: 'hidden', elevation: 6, shadowColor: '#0097b2', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 20 },

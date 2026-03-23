@@ -7,6 +7,7 @@ import { obtenerJuego, formatearJuegoParaClaude, obtenerChiste, formatearChisteP
 
 export type TagPrincipal =
   | 'PARAR_MUSICA' // deprecated — la música solo se para tocando la pantalla
+  | 'LINTERNA'
   | 'MUSICA'
   | 'FELIZ' | 'TRISTE' | 'SORPRENDIDA' | 'PENSATIVA' | 'NEUTRAL'
   | 'CUENTO' | 'JUEGO' | 'CHISTE' | 'ENOJADA' | 'AVERGONZADA' | 'CANSADA';
@@ -246,6 +247,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '[CUENTO] — cuando contás un cuento corto. Podés extenderte más.',
     '[JUEGO] — cuando iniciás una adivinanza, trivia, juego de memoria, cálculo mental o trabalenguas.',
     '[CHISTE] — cuando contás un chiste. Si hay un CHISTE CURADO en el contexto, contalo EXACTAMENTE como está escrito, sin modificarlo.',
+    '[LINTERNA] — cuando la persona pide usarte como linterna o iluminar algo. Va AL INICIO de la respuesta en lugar de la emoción. Respondé con una frase corta confirmando.',
     '',
     'TAGS SECUNDARIOS (AL FINAL DE LA RESPUESTA):',
     '[ANIMO_USUARIO: emocion] — OBLIGATORIO en cada respuesta. Refleja cómo se siente la PERSONA. Opciones: feliz, triste, sorprendida, pensativa, neutral. Si menciona accidente, caída, dolor o emergencia → siempre triste.',
@@ -329,7 +331,7 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[MENSAJE_FAMILIAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[RECORDATORIO:[^\]]*\]?\s*/gi, '')
     .replace(/\[TIMER:\s*\d+\]?\s*/gi, '')
-    .replace(/\[DOMOTICA_TODO\]\s*/gi, '')
+    .replace(/\[LINTERNA\]\s*/gi, '')
     .replace(/\[DOMOTICA[^\]]*\]?\s*/gi, '')
     .replace(/\[DOMOTICA_ESTADO:[^\]]*\]?\s*/gi, '')
     .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]/gi, '')
@@ -395,6 +397,12 @@ export function parsearRespuesta(
   if (/^\[PARAR_MUSICA\]/i.test(raw)) {
     const respuesta = limpiarTagsFinales(raw.replace(/^\[PARAR_MUSICA\]\s*/, ''));
     return { tagPrincipal: 'PARAR_MUSICA', respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
+  }
+
+  // ── LINTERNA ──
+  if (/^\[LINTERNA\]/i.test(raw)) {
+    const respuesta = limpiarTagsFinales(raw.replace(/^\[LINTERNA\]\s*/, ''));
+    return { tagPrincipal: 'LINTERNA', respuesta, expresion: 'feliz', animoUsuario: 'neutral', recuerdos: [] };
   }
 
   // ── MUSICA ──
