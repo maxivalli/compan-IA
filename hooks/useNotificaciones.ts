@@ -503,7 +503,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         try {
           const frase = await llamarClaude({
             maxTokens: 80,
-            system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Generás UNA sola frase corta y cálida recordando una fecha especial. Respondé SOLO con la frase, sin etiquetas.`,
+            system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y cálida, sin etiquetas.`,
             messages: [{ role: 'user', content: `Hoy es: ${fecha}. Generá un recordatorio cálido para ${p.nombreAbuela}.` }],
           });
           if (frase && estadoRef.current === 'esperando') await hablar(frase);
@@ -539,7 +539,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         const frase = await llamarClaude({
           maxTokens: 120,
-          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Hoy es el cumpleaños de ${p.nombreAbuela}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. No menciones la edad que cumple. Sin etiquetas, solo la frase.`,
+          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva, sin etiquetas.`,
           messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${p.nombreAbuela} con mucho cariño.` }],
         });
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
@@ -562,15 +562,15 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const fecha = `${ahora.getDate()} de ${meses[ahora.getMonth()]}`;
       const esNavidad  = ahora.getMonth() === 11 && ahora.getDate() === 25;
       const esAñoNuevo = ahora.getMonth() === 0  && ahora.getDate() === 1;
-      const systemBase = `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)}`;
+      const systemBase = `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé en una sola frase corta y cálida, sin etiquetas.`;
       try {
         let frase: string | null;
         if (esNavidad) {
-          frase = await llamarClaude({ maxTokens: 120, system: `${systemBase} Generá UN saludo de Navidad breve, muy cálido y emotivo para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`, messages: [{ role: 'user', content: `Deseale Feliz Navidad a ${p.nombreAbuela} con mucho cariño.` }] });
+          frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es Navidad. Generá UN saludo de Navidad breve y emotivo para ${p.nombreAbuela}.` }] });
         } else if (esAñoNuevo) {
-          frase = await llamarClaude({ maxTokens: 120, system: `${systemBase} Generá UN saludo de Año Nuevo breve, muy cálido y esperanzador para ${p.nombreAbuela}. Sin etiquetas, solo la frase.`, messages: [{ role: 'user', content: `Deseale Feliz Año Nuevo a ${p.nombreAbuela} con mucho cariño.` }] });
+          frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es Año Nuevo. Generá UN saludo breve y esperanzador para ${p.nombreAbuela}.` }] });
         } else {
-          frase = await llamarClaude({ maxTokens: 100, system: `${systemBase} Generás UN saludo matutino breve y cálido que incluya el día, la fecha y una mención al clima. Respondé SOLO con la frase, sin etiquetas.`, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días.` }] });
+          frase = await llamarClaude({ maxTokens: 100, system: systemBase, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días, mencioná el día y el clima brevemente.` }] });
         }
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
       } catch {}
@@ -989,7 +989,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const nombre = p?.nombreAbuela ?? 'vos';
       const frase = await llamarClaude({
         maxTokens: 120,
-        system: `Sos ${p?.nombreAsistente ?? 'Rosita'}, ${p?.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${nombre}${p?.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p?.edad)} Hoy es el cumpleaños de ${nombre}. Generá UN saludo de cumpleaños breve, muy cálido y emotivo. No menciones la edad que cumple. Sin etiquetas, solo la frase.`,
+        system: `Sos ${p?.nombreAsistente ?? 'Rosita'}, ${p?.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${nombre}${p?.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p?.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva de cumpleaños, sin mencionar la edad. Sin etiquetas.`,
         messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${nombre} con mucho cariño.` }],
       });
       if (frase && estadoRef.current === 'esperando') await hablar(frase);

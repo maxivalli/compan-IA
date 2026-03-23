@@ -116,10 +116,6 @@ type Chiste = { setup: string; remate: string };
 
 const CHISTES: Chiste[] = [
   {
-    setup: 'Un argentino le cuenta a su amigo sobre su viaje al Vaticano: "¡Che, fíjate cómo será de grande mi fama, que salí al balcón y la gente abajo preguntaba:"',
-    remate: '"¿Quién es el señor de blanco que está al lado de nuestro compatriota?"',
-  },
-  {
     setup: '— ¿Cómo empieza un argentino una carta de amor?',
     remate: '"Ya sé que soy maravilloso, brillante y hermoso, pero vos tampoco estás tan mal..."',
   },
