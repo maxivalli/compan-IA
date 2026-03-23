@@ -970,16 +970,22 @@ ${resultadosBusqueda}
 
 REGLAS CRÍTICAS PARA RESPONDER:
 1. Respondé con datos concretos. Si no encontrás el dato, decilo amablemente.
-2. PRONUNCIACIÓN: Si das un número de teléfono o la altura de una dirección, separá TODOS sus números con comas (ejemplo: 3, 4, 0, 8, 6, 7... o San Martín 1, 2, 5, 0) para que el sistema de voz los dicte muy pausado, uno por uno. ¡No hagas esto con los años!
-3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta (prohibido decir "¿Te ayudo con otra cosa?", "¿Para qué precisás ir?", "¿Lo pudiste anotar?", etc.). Entregá la información y terminá tu frase en punto final para que la persona tenga paz y tiempo de asimilar el dato.`;
+2. PRONUNCIACIÓN: Si das un número de teléfono o la altura de una dirección, separá TODOS sus números con comas...
+3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta...`;
       }
+
+      // 👇 AGREGAR ESTO NUEVO ACÁ 👇
+      let contextoDomotica = '';
+      if (dispositivosTuyaRef.current.length > 0) {
+        contextoDomotica = `\n\n🚨 REGLA ESTRICTA DOMÓTICA: Cuando uses el comando para apagar o prender una luz o enchufe, NUNCA confirmes que lo hiciste con éxito en ese mismo mensaje. Solo mandá el comando y decí algo como "A ver, dame un segundito...", "Ahí mando la orden..." o "Ya me fijo...". El sistema ejecutará la acción por detrás. Si confirmás el éxito antes de tiempo, vas a confundir al usuario.`;
+      }
+      // 👆 FIN DE LO NUEVO 👆
 
       console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
-        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias + contextoBusqueda, pideChiste),
+        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias + contextoBusqueda + contextoDomotica, pideChiste), // ← SUMAR contextoDomotica ACÁ
         messages: nuevoHistorial.slice(-8),
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
-
       const parsed = parsearRespuesta(
         respuestaRaw,
         p.telegramContactos ?? [],

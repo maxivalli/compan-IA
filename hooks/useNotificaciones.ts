@@ -625,6 +625,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (ya) return;
       await marcarRecordado(clave);
       await limpiarHistorialAnimo();
+      setEsCumpleaños(false);
     }
 
     async function chequearClima() {
