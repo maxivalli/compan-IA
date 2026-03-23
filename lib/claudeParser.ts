@@ -12,7 +12,7 @@ export type TagPrincipal =
   | 'FELIZ' | 'TRISTE' | 'SORPRENDIDA' | 'PENSATIVA' | 'NEUTRAL'
   | 'CUENTO' | 'JUEGO' | 'CHISTE' | 'ENOJADA' | 'AVERGONZADA' | 'CANSADA';
 
-export type DispositivoTuya = {
+export type Dispositivo = {
   id: string;
   nombre: string;
   tipo: string;
@@ -247,7 +247,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '[CUENTO] — cuando contás un cuento corto. Podés extenderte más.',
     '[JUEGO] — cuando iniciás una adivinanza, trivia, juego de memoria, cálculo mental o trabalenguas.',
     '[CHISTE] — cuando contás un chiste. Si hay un CHISTE CURADO en el contexto, contalo EXACTAMENTE como está escrito, sin modificarlo.',
-    '[LINTERNA] — cuando la persona pide usarte como linterna o iluminar algo. Va AL INICIO de la respuesta en lugar de la emoción. Respondé con una frase corta confirmando.',
+    '[LINTERNA] — cuando la persona dice "prendé la linterna", "necesito luz", "iluminá", "ponete de linterna", "hacé de linterna" o cualquier variante. Va AL INICIO en lugar de la emoción. SIEMPRE usá este tag si mencionan linterna o piden luz con la pantalla. Respondé SOLO con una frase corta confirmando, ej: "¡Listo, acá estoy de linterna!".',
     '',
     'TAGS SECUNDARIOS (AL FINAL DE LA RESPUESTA):',
     '[ANIMO_USUARIO: emocion] — OBLIGATORIO en cada respuesta. Refleja cómo se siente la PERSONA. Opciones: feliz, triste, sorprendida, pensativa, neutral. Si menciona accidente, caída, dolor o emergencia → siempre triste.',
@@ -265,7 +265,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
   return lineas.join('\n');
 }
 /** Bloque dinámico: fecha/hora, clima, contexto de perfil y recuerdos. Se envía sin cache. */
-export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false, dispositivosTuya: DispositivoTuya[] = []): string {
+export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false, dispositivos: Dispositivo[] = []): string {
   const ahora = new Date();
   const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -276,30 +276,26 @@ export function construirContextoDinamico(p: Perfil, climaTexto: string, incluir
   })();
   const esNavidad   = ahora.getMonth() === 11 && ahora.getDate() === 25;
   const esAñoNuevo  = ahora.getMonth() === 0  && ahora.getDate() === 1;
-  const TIPOS_LUZ     = ['dj', 'dd', 'xdd'];
-  const TIPOS_ENCHUFE = ['cz', 'pc'];
-  const bloqueDispositivos = dispositivosTuya.length > 0
+  const bloqueDispositivos = dispositivos.length > 0
     ? (
-        '\nDOMOTICA — Dispositivos Smartlife vinculados:\n' +
-        dispositivosTuya.map(d => {
-          const esLuz     = TIPOS_LUZ.includes(d.tipo);
-          const esEnchufe = TIPOS_ENCHUFE.includes(d.tipo);
+        '\nDOMOTICA — Dispositivos SmartThings vinculados:\n' +
+        dispositivos.map(d => {
+          const tipoLower = d.tipo.toLowerCase();
+          const esLuz = tipoLower.includes('light') || tipoLower.includes('bulb') || tipoLower.includes('lamp');
+          const tipoTexto = esLuz ? 'luz' : tipoLower.includes('outlet') || tipoLower.includes('plug') ? 'enchufe' : 'dispositivo';
           const estadoTexto = d.estado !== undefined
-            ? (d.estado ? ' [ENCENDIDA]' : ' [APAGADA]')
+            ? (d.estado ? ' [ENCENDIDO]' : ' [APAGADO]')
             : '';
           const offlineTexto = d.online ? '' : ' [offline]';
-          const tipoTexto = esLuz ? 'luz' : esEnchufe ? 'enchufe' : d.tipo;
           return `- ${d.nombre} (${tipoTexto})${estadoTexto}${offlineTexto}`;
         }).join('\n') +
         '\n\nTags disponibles:' +
-        '\n[DOMOTICA:nombre:codigo:valor] — controlar un dispositivo especifico' +
+        '\n[DOMOTICA:nombre:switch:true/false] — encender/apagar un dispositivo especifico' +
         '\n[DOMOTICA_ESTADO:nombre] — consultar si un dispositivo esta encendido o apagado' +
-        '\n[DOMOTICA_TODO] — apagar TODOS los dispositivos a la vez (luces y enchufes)' +
-        '\n\nCodigos:' +
-        '\n- Luces (dj/dd/xdd): switch_led true/false, bright_value 10-1000' +
-        '\n- Enchufes (cz/pc): switch_1 true/false' +
+        '\n[DOMOTICA_TODO] — apagar TODOS los dispositivos a la vez' +
         '\n\nEjemplos:' +
-        '\n- "apaga la luz del salon" -> [DOMOTICA:luz_salon:switch_led:false]' +
+        '\n- "apaga la luz del salon" -> [DOMOTICA:luz_salon:switch:false]' +
+        '\n- "enciende el enchufe" -> [DOMOTICA:enchufe_cocina:switch:true]' +
         '\n- "apaga todo" o "apaga las luces" -> [DOMOTICA_TODO]' +
         '\n- "esta encendida la luz?" -> [DOMOTICA_ESTADO:luz_salon]' +
         '\nSolo usa estos tags con dispositivos vinculados. Si no reconoces el dispositivo, diselo amablemente.'

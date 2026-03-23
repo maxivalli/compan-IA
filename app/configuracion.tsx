@@ -16,7 +16,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
-import { obtenerEstadoTuya, actualizarDispositivos, desvincularSmartlife, Dispositivo } from '../lib/tuya';
+import { obtenerEstadoSmartThings, actualizarDispositivos, desvincularSmartThings, vincularPAT, Dispositivo } from '../lib/smartthings';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
@@ -277,9 +277,11 @@ export default function Configuracion() {
   const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
 
   // ── Domótica ──
-  const [tuyaVinculado, setTuyaVinculado]       = useState(false);
-  const [tuyaDispositivos, setTuyaDispositivos] = useState<Dispositivo[]>([]);
-  const [tuyaCargando, setTuyaCargando]         = useState(false);
+  const [stVinculado, setStVinculado]       = useState(false);
+  const [stDispositivos, setStDispositivos] = useState<Dispositivo[]>([]);
+  const [stCargando, setStCargando]         = useState(false);
+  const [stPat, setStPat]                   = useState('');
+  const [stError, setStError]               = useState('');
 
   useFocusEffect(useCallback(() => {
     obtenerPIN().then(p => {
@@ -290,23 +292,39 @@ export default function Configuracion() {
   }, []));
 
   useEffect(() => {
-    obtenerEstadoTuya().then(({ vinculado, dispositivos }) => {
-      setTuyaVinculado(vinculado);
-      setTuyaDispositivos(dispositivos);
+    obtenerEstadoSmartThings().then(({ vinculado, dispositivos }) => {
+      setStVinculado(vinculado);
+      setStDispositivos(dispositivos);
     });
   }, []);
 
-  async function desvinculnarTuya() {
-    await desvincularSmartlife();
-    setTuyaVinculado(false);
-    setTuyaDispositivos([]);
+  async function vincularSmartThings() {
+    if (!stPat.trim()) { setStError('Pegá tu token antes de vincular.'); return; }
+    setStCargando(true);
+    setStError('');
+    const result = await vincularPAT(stPat.trim());
+    if (result.ok) {
+      setStVinculado(true);
+      setStPat('');
+      const lista = await actualizarDispositivos();
+      setStDispositivos(lista);
+    } else {
+      setStError(result.error ?? 'No se pudo vincular.');
+    }
+    setStCargando(false);
   }
 
-  async function refrescarDispositivosTuya() {
-    setTuyaCargando(true);
+  async function desvincularST() {
+    await desvincularSmartThings();
+    setStVinculado(false);
+    setStDispositivos([]);
+  }
+
+  async function refrescarDispositivosST() {
+    setStCargando(true);
     const lista = await actualizarDispositivos();
-    setTuyaDispositivos(lista);
-    setTuyaCargando(false);
+    setStDispositivos(lista);
+    setStCargando(false);
   }
 
   useEffect(() => {
@@ -645,25 +663,25 @@ export default function Configuracion() {
           </TouchableOpacity>
         </Surface>
 
-        {/* ── Domótica Smartlife (Modo Conserje) ── */}
-        <SectionLabel icon="home-outline" label="Domótica Smartlife" />
+        {/* ── Domótica SmartThings ── */}
+        <SectionLabel icon="home-outline" label="Domótica SmartThings" />
         <Surface>
-          {tuyaVinculado ? (
+          {stVinculado ? (
             <>
               <View style={s.tuyaEstado}>
                 <Ionicons name="checkmark-circle" size={18} color="#2E7D32" />
-                <Text style={s.tuyaEstadoText}>Smartlife vinculado</Text>
+                <Text style={s.tuyaEstadoText}>SmartThings vinculado</Text>
               </View>
 
-              {tuyaDispositivos.length > 0 && (
+              {stDispositivos.length > 0 && (
                 <>
                   <View style={s.divisorThin} />
-                  {tuyaDispositivos.map((d, i) => (
+                  {stDispositivos.map((d, i) => (
                     <View key={d.id}>
                       {i > 0 && <View style={s.divisorThin} />}
                       <View style={s.dispositivoRow}>
                         <Ionicons
-                          name={d.tipo.startsWith('dj') || d.tipo.startsWith('dd') ? 'bulb-outline' : 'power-outline'}
+                          name={d.tipo.toLowerCase().includes('light') || d.tipo.toLowerCase().includes('bulb') ? 'bulb-outline' : 'power-outline'}
                           size={16}
                           color={d.online ? M.primary : M.outline}
                         />
@@ -680,8 +698,8 @@ export default function Configuracion() {
               )}
 
               <View style={s.divisorThin} />
-              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={refrescarDispositivosTuya} disabled={tuyaCargando}>
-                {tuyaCargando
+              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={refrescarDispositivosST} disabled={stCargando}>
+                {stCargando
                   ? <ActivityIndicator size="small" color={M.primary} />
                   : <Ionicons name="refresh-outline" size={18} color={M.primary} />
                 }
@@ -689,9 +707,9 @@ export default function Configuracion() {
               </TouchableOpacity>
 
               <View style={s.divisorThin} />
-              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvinculnarTuya}>
+              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvincularST}>
                 <Ionicons name="unlink-outline" size={18} color={M.error} />
-                <Text style={[s.buscarText, { color: M.error }]}>Desvincular Smartlife</Text>
+                <Text style={[s.buscarText, { color: M.error }]}>Desvincular SmartThings</Text>
               </TouchableOpacity>
             </>
           ) : (
@@ -699,19 +717,46 @@ export default function Configuracion() {
               <Ionicons name="bulb-outline" size={32} color={M.primary} style={{ marginBottom: 8 }} />
               <Text style={s.tuyaManualTitle}>Control de luces y enchufes</Text>
               <Text style={s.tuyaManualText}>
-                ¿Querés que {nombreAsistente || 'Rosita'} controle los dispositivos inteligentes de la casa?
+                Conectá {nombreAsistente || 'Rosita'} con tu cuenta de Samsung SmartThings.
               </Text>
               <Text style={s.tuyaManualText}>
-                Comunicate por WhatsApp para que hagamos la vinculación de forma manual y segura.
+                1. Abrí la web de SmartThings y generá un token de acceso personal (PAT).{'\n'}
+                2. Pegalo acá abajo y tocá Vincular.
               </Text>
 
               <TouchableOpacity
-                style={s.waBtn}
+                style={[s.waBtn, { backgroundColor: M.secondary ?? '#1565C0', marginBottom: 10 }]}
                 activeOpacity={0.7}
-                onPress={() => Linking.openURL(`https://wa.me/543408677294?text=Hola%20Maxi,%20quiero%20vincular%20las%20luces%20de%20la%20abuela%20a%20Compa%C3%B1IA.`)}
+                onPress={() => Linking.openURL('https://account.smartthings.com/tokens')}
               >
-                <Ionicons name="logo-whatsapp" size={18} color="#fff" />
-                <Text style={s.waBtnText}>Contactar a Soporte</Text>
+                <Ionicons name="open-outline" size={18} color="#fff" />
+                <Text style={s.waBtnText}>Generar token en SmartThings</Text>
+              </TouchableOpacity>
+
+              <TextInput
+                style={s.patInput}
+                placeholder="Pegá tu token aquí"
+                placeholderTextColor={M.outline}
+                value={stPat}
+                onChangeText={t => { setStPat(t); setStError(''); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                multiline={false}
+              />
+
+              {stError ? <Text style={s.patError}>{stError}</Text> : null}
+
+              <TouchableOpacity
+                style={[s.waBtn, { marginTop: 8 }]}
+                activeOpacity={0.7}
+                onPress={vincularSmartThings}
+                disabled={stCargando}
+              >
+                {stCargando
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Ionicons name="link-outline" size={18} color="#fff" />
+                }
+                <Text style={s.waBtnText}>Vincular</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -866,5 +911,8 @@ const s = StyleSheet.create({
   tuyaManualTitle: { fontSize: 16, fontWeight: '600', color: M.onSurface },
   tuyaManualText:  { fontSize: 13, color: M.onSurfaceVariant, textAlign: 'center', lineHeight: 18, marginBottom: 4 },
   waBtn:           { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#25D366', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, marginTop: 8 },
-  waBtnText:       { color: '#fff', fontSize: 15, fontWeight: '600' }
+  waBtnText:       { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  patInput:  { width: '100%', borderWidth: 1, borderColor: M.outline, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13, color: M.onSurface, backgroundColor: M.surface },
+  patError:  { fontSize: 12, color: M.error, textAlign: 'center' },
 });

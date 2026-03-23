@@ -25,7 +25,7 @@ import {
 } from '../lib/claudeParser';
 import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Brightness from 'expo-brightness';
-import { obtenerEstadoTuya, controlarDispositivo, controlarTodosLosTipos, obtenerEstadoDispositivo, Dispositivo } from '../lib/tuya';
+import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -73,7 +73,6 @@ export function useRosita() {
   const [musicaActiva,      setMusicaActiva]      = useState(false);
   const [silbando,          setSilbando]          = useState(false);
   const [linternaActiva,    setLinternaActiva]    = useState(false);
-  const brilloOriginalRef = useRef<number | null>(null);
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
   const [camaraSilenciosa,  setCamaraSilenciosa]  = useState(false);
@@ -95,6 +94,7 @@ export function useRosita() {
   const historialRef        = useRef<Mensaje[]>([]);
   const procesandoRef       = useRef(false);
   const srActivoRef         = useRef(false);
+  const procesandoDesdeRef  = useRef<number>(0);
   const charlaProactivaRef  = useRef(false);
   const ultimaAlertaRef     = useRef<number>(0);
   const nombreAsistenteRef  = useRef<string>('rosita');
@@ -149,23 +149,25 @@ export function useRosita() {
     if (musicaActiva) {
       setSilbando(true);
       ExpoSpeechRecognitionModule.stop();
-      // Si son las 23 o más, programar verificación tras 30 minutos
-      const h = new Date().getHours();
-      if (h >= 23) {
-        if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
-        musicaNocheTimerRef.current = setTimeout(async () => {
+      // Programar verificación nocturna: la música no debería quedar prendida de noche
+      if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
+      musicaNocheTimerRef.current = setTimeout(async () => {
+        if (!musicaActivaRef.current) return;
+        const hAhora = new Date().getHours();
+        // Solo actuar si es horario nocturno (23h–9h)
+        if (hAhora >= 9 && hAhora < 23) return;
+        const nombre = perfilRef.current?.nombreAbuela ?? '';
+        const tsAntes = ultimaCharlaRef.current;
+        try {
+          await hablar(`¿Seguís ahí, ${nombre}? Son las ${hAhora} y tenés la música puesta.`);
+        } catch {}
+        // Esperar 2 minutos para ver si responde
+        musicaNocheTimerRef.current = setTimeout(() => {
           if (!musicaActivaRef.current) return;
-          const nombre = perfilRef.current?.nombreAbuela ?? '';
-          const tsAntes = ultimaCharlaRef.current;
-          await hablar(`¿Seguís ahí, ${nombre}? Son las ${new Date().getHours()} y tenés la música puesta.`);
-          // Esperar 2 minutos para ver si responde
-          musicaNocheTimerRef.current = setTimeout(() => {
-            if (!musicaActivaRef.current) return;
-            if (ultimaCharlaRef.current > tsAntes + 5000) return; // respondió
-            pararMusica();
-          }, 2 * 60 * 1000);
-        }, 30 * 60 * 1000);
-      }
+          if (ultimaCharlaRef.current > tsAntes + 5000) return; // respondió
+          pararMusica();
+        }, 2 * 60 * 1000);
+      }, 30 * 60 * 1000);
     } else {
       setSilbando(false);
       if (musicaNocheTimerRef.current) {
@@ -296,10 +298,10 @@ export function useRosita() {
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
 
-    procesandoRef.current = true;
-    ExpoSpeechRecognitionModule.stop();
-
     try {
+      procesandoRef.current = true;
+      procesandoDesdeRef.current = Date.now();
+      ExpoSpeechRecognitionModule.stop();
       const esRepeticion = enConversacion
         && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
         && ultimoAudioUriRef.current !== null;
@@ -316,6 +318,7 @@ export function useRosita() {
     } finally {
       unduckMusica();
       procesandoRef.current = false;
+      procesandoDesdeRef.current = 0;
       iniciarSpeechRecognition();
     }
   });
@@ -354,10 +357,28 @@ export function useRosita() {
     const watchdog = setInterval(() => {
       if (enFlujoVozRef.current) return;
       if (!perfilRef.current?.nombreAbuela) return;
+
+      // Recuperar procesandoRef colgado (safetyTimeout de hablar es 45s, damos 60s)
+      if (procesandoRef.current && Date.now() - procesandoDesdeRef.current > 60000) {
+        console.log('[Watchdog] procesandoRef colgado — forzando reset');
+        procesandoRef.current = false;
+        procesandoDesdeRef.current = 0;
+      }
+
       if (estadoRef.current !== 'esperando' || procesandoRef.current) return;
-      const srZombie = srActivoRef.current && (Date.now() - ultimaActivacionSrRef.current) > 20000;
-      if (!srActivoRef.current || srZombie) {
-        if (srZombie) srActivoRef.current = false;
+
+      const ahora = Date.now();
+      const tiempoDesdeInicio = ahora - ultimaActivacionSrRef.current;
+      // Zombie: activo según ref pero sin resultado en 10s
+      const srZombie = srActivoRef.current && tiempoDesdeInicio > 10000;
+      // Reinicio proactivo: Android continuous puede silenciarse sin disparar 'end'
+      const srVencido = srActivoRef.current && tiempoDesdeInicio > 45000;
+
+      if (!srActivoRef.current || srZombie || srVencido) {
+        if (srZombie || srVencido) {
+          console.log('[Watchdog] SR', srVencido ? 'vencido (45s)' : 'zombie — reiniciando');
+          srActivoRef.current = false;
+        }
         iniciarSpeechRecognition();
       }
     }, 5000);
@@ -477,17 +498,15 @@ export function useRosita() {
       }
     }).catch(() => {});
 
-    obtenerEstadoTuya().then(async ({ vinculado, dispositivos }) => {
+    obtenerEstadoSmartThings().then(async ({ vinculado, dispositivos }) => {
       if (!vinculado) return;
       // Consultar estado real (encendido/apagado) de cada dispositivo online
-      const TIPOS_LUZ     = ['dj', 'dd', 'xdd'];
-      const TIPOS_ENCHUFE = ['cz', 'pc'];
       const conEstado = await Promise.all(
         dispositivos.map(async d => {
-          if (!d.online || !([...TIPOS_LUZ, ...TIPOS_ENCHUFE].includes(d.tipo))) return d;
+          if (!d.online) return d;
           try {
             const est = await obtenerEstadoDispositivo(d.id);
-            const encendido = est?.['switch_led'] ?? est?.['switch_1'];
+            const encendido = est?.['switch'];
             return { ...d, estado: typeof encendido === 'boolean' ? encendido : undefined };
           } catch { return d; }
         })
@@ -1017,11 +1036,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         setLinternaActiva(true);
         Animated.timing(flashAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
         try {
-          const { status } = await Brightness.requestPermissionsAsync();
-          if (status === 'granted') {
-            brilloOriginalRef.current = await Brightness.getBrightnessAsync();
-            await Brightness.setBrightnessAsync(1);
-          }
+          await Brightness.setBrightnessAsync(1);
         } catch {}
         await hablar(parsed.respuesta);
         return;
@@ -1112,19 +1127,16 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // ── DOMÓTICA ──
       if (parsed.domotica) {
-        const { tipo, dispositivoNombre, codigo, valor } = parsed.domotica;
+        const { tipo, dispositivoNombre, valor } = parsed.domotica;
         const dispositivos = dispositivosTuyaRef.current;
-        const TIPOS_LUZ     = ['dj', 'dd', 'xdd'];
-        const TIPOS_ENCHUFE = ['cz', 'pc'];
         if (!dispositivos.length) {
           // Sin dispositivos vinculados — Rosita ya habrá dicho algo amable
         } else if (tipo === 'todo') {
-          // Apagar todas las luces y enchufes online
-          await controlarTodosLosTipos(dispositivos, TIPOS_LUZ,     'switch_led', false).catch(() => {});
-          await controlarTodosLosTipos(dispositivos, TIPOS_ENCHUFE, 'switch_1',   false).catch(() => {});
+          // Apagar todos los dispositivos online
+          await controlarTodos(dispositivos, false).catch(() => {});
           // Actualizar estado local
           dispositivosTuyaRef.current = dispositivos.map(d =>
-            [...TIPOS_LUZ, ...TIPOS_ENCHUFE].includes(d.tipo) ? { ...d, estado: false } : d
+            d.online ? { ...d, estado: false } : d
           );
         } else if (tipo === 'control') {
           const dispositivo = dispositivos.find(d =>
@@ -1132,13 +1144,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
             dispositivoNombre.toLowerCase().includes(d.nombre.toLowerCase())
           );
           if (dispositivo) {
-            controlarDispositivo(dispositivo.id, codigo, valor!).catch(() => {});
-            // Actualizar estado local si es un switch
-            if (codigo === 'switch_led' || codigo === 'switch_1') {
-              dispositivosTuyaRef.current = dispositivos.map(d =>
-                d.id === dispositivo.id ? { ...d, estado: Boolean(valor) } : d
-              );
-            }
+            controlarDispositivo(dispositivo.id, Boolean(valor)).catch(() => {});
+            // Actualizar estado local
+            dispositivosTuyaRef.current = dispositivos.map(d =>
+              d.id === dispositivo.id ? { ...d, estado: Boolean(valor) } : d
+            );
           }
         } else if (tipo === 'estado') {
           // Consultar estado real y decírselo a la persona
@@ -1149,17 +1159,12 @@ REGLAS CRÍTICAS PARA RESPONDER:
           if (dispositivo) {
             const est = await obtenerEstadoDispositivo(dispositivo.id).catch(() => null);
             if (est) {
-              const encendida = est['switch_led'] ?? est['switch_1'];
-              const brillo    = est['bright_value'];
-              let descripcion = encendida === true
-                ? `La ${dispositivo.nombre} está encendida`
+              const encendida = est['switch'];
+              const descripcion = encendida === true
+                ? `La ${dispositivo.nombre} está encendida.`
                 : encendida === false
-                  ? `La ${dispositivo.nombre} está apagada`
-                  : `No pude determinar el estado de ${dispositivo.nombre}`;
-              if (encendida && brillo !== undefined) {
-                descripcion += ` al ${Math.round((brillo / 1000) * 100)}% de brillo`;
-              }
-              descripcion += '.';
+                  ? `La ${dispositivo.nombre} está apagada.`
+                  : `No pude determinar el estado de ${dispositivo.nombre}.`;
               dispositivosTuyaRef.current = dispositivos.map(d =>
                 d.id === dispositivo.id ? { ...d, estado: typeof encendida === 'boolean' ? encendida : d.estado } : d
               );
@@ -1391,10 +1396,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
     linternaActiva, apagarLinterna: () => {
       setLinternaActiva(false);
       Animated.timing(flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
-      if (brilloOriginalRef.current !== null) {
-        Brightness.setBrightnessAsync(brilloOriginalRef.current).catch(() => {});
-        brilloOriginalRef.current = null;
-      }
+      Brightness.useSystemBrightnessAsync().catch(() => {});
     },
     modoNoche, horaActual, climaObj, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS, forzarBostezo: () => {

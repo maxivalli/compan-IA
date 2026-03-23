@@ -2,7 +2,7 @@
 
 ## Qué es esto
 
-CompañIA es una app móvil (React Native / Expo SDK 54) con una asistente de voz llamada **Rosita**. Está pensada para cualquier persona que quiera una compañera de voz con IA — con tono adaptado según la edad configurada en el perfil. La app es de pago ($29 USD/mes).
+CompañIA es una app móvil (React Native / Expo SDK 54) con una asistente de voz llamada **Rosita**. Está pensada para cualquier persona que quiera una compañera de voz con IA — con tono adaptado según la edad configurada en el perfil. La app es de pago ($39 USD/mes).
 
 El objetivo es que Rosita sea una compañera cálida: charla, cuenta cuentos, pone música, hace juegos, registra el estado de ánimo y alerta a la familia en emergencias.
 
@@ -18,7 +18,7 @@ El objetivo es que Rosita sea una compañera cálida: charla, cuenta cuentos, po
 - **ElevenLabs Sound Generation** — efectos de sonido (silbido de inactividad), cacheados en `silbido.mp3`
 - **Claude API** — modelo `claude-haiku-4-5-20251001` (vía backend), max_tokens 180 (respuesta) / 120 (proactiva)
 - **OpenAI Whisper** — transcripción de audio cuando se usa el botón manual (vía backend)
-- **Open-Meteo** — clima sin API key (free)
+- **WeatherAPI** — clima + pronóstico 3 días con `lang=es` (API key en `EXPO_PUBLIC_WEATHERAPI_KEY`)
 - **expo-location** — GPS para contexto de clima
 - **AsyncStorage** — persistencia de perfil, historial, recuerdos, estado de ánimo
 - **EAS Build** — builds en la nube bajo cuenta `compan-ia` (no hay Android SDK local)
@@ -61,7 +61,8 @@ lib/
   memoria.ts         # AsyncStorage: perfil, historial, recuerdos, ánimo, recordatorios, PIN
   claudeParser.ts    # System prompt (estable + dinámico), tono por edad, parseo de respuestas
   musica.ts          # Búsqueda de radios vía radio-browser.info (sin fallbacks hardcodeados)
-  clima.ts           # Clima via Open-Meteo + expo-location
+  clima.ts           # Clima via WeatherAPI + expo-location
+  smartthings.ts     # Cliente HTTP para domótica SmartThings (vincular PAT, controlar)
   ai.ts              # Cliente HTTP para backend (Claude + Whisper + ElevenLabs sound)
   juegos.ts          # Lógica de juegos y adivinanzas
   telegram.ts        # Envío de alertas Telegram
@@ -78,6 +79,7 @@ docs/
 EXPO_PUBLIC_BACKEND_URL        # URL del backend en Railway
 EXPO_PUBLIC_APP_API_KEY        # Clave para autenticar con el backend
 EXPO_PUBLIC_ELEVENLABS_API_KEY # ElevenLabs (usado desde el backend)
+EXPO_PUBLIC_WEATHERAPI_KEY     # WeatherAPI (clima, usado desde la app directamente)
 ```
 
 Configuradas en el entorno `preview` de EAS bajo la cuenta `compan-ia`.
@@ -125,7 +127,11 @@ type Perfil = {
 6. Al terminar audio → SR se reinicia automáticamente
 7. Botón manual: graba audio → Whisper transcribe → mismo flujo desde paso 4
 
-**Watchdog**: cada 5 segundos verifica que SR esté activo. Si lleva >20s activo sin resultado, lo considera zombie y lo reinicia.
+**Watchdog SR**: cada 5 segundos verifica que SR esté activo. Comportamiento:
+- Si lleva >10s activo sin resultado → zombie → reinicia SR
+- Si SR lleva >45s activo en Android (modo continuo silent failure) → reinicia SR
+- Si `procesandoRef` lleva >60s en `true` → forzado a `false` (recovery de stuck state)
+- `procesandoRef.current = true` se setea dentro del try block (no antes), para garantizar que se limpie en finally aunque `stop()` lance error
 
 **Charla proactiva**: si pasan 120 min sin charla entre las 9h y 21h, Rosita inicia conversación.
 
@@ -241,6 +247,66 @@ Evaluado cada 10 segundos:
 - `despierta` — horario normal (9h–23h)
 - `soñolienta` — horario nocturno (23h–9h) con actividad reciente (< 1 min)
 - `durmiendo` — horario nocturno sin actividad por 1+ minuto
+
+---
+
+## SmartThings (domótica)
+
+Integración opcional con Samsung SmartThings via PAT (Personal Access Token). No hay OAuth ni HMAC.
+
+### Flujo de vinculación
+1. Usuario genera PAT en `https://account.smartthings.com/tokens`
+2. Pega el token en la pantalla de Configuración → Rosita valida llamando a `POST /smartthings/token`
+3. Backend llama a `GET /v1/devices` con el PAT para validar y guarda en tabla `smartthings_tokens`
+4. `GET /smartthings/estado` devuelve `{ vinculado: true, dispositivos: [...] }`
+
+### Control de dispositivos
+- Todos los dispositivos usan la capability `switch` (`on`/`off`)
+- Tipo detectado via `components[0].categories[0].name` (ej: `Light`, `Outlet`)
+- Claude emite `[DOMOTICA:nombre:switch:true/false]` → `controlarDispositivo(id, boolean)`
+- `controlarTodos()` apaga todos los dispositivos online sin filtrar por tipo
+- Estado inicial en `useRosita.ts`: `est?.['switch']` (boolean)
+
+### Endpoints backend (`/smartthings`)
+| Método | Path | Descripción |
+|--------|------|-------------|
+| POST | /token | Validar y guardar PAT |
+| GET | /estado | Estado cacheado de DB |
+| GET | /dispositivos | Sync en vivo con SmartThings API |
+| POST | /controlar | Encender/apagar dispositivo |
+| GET | /estado-dispositivo | Estado en vivo de un dispositivo |
+| DELETE | /token | Desvincular SmartThings |
+
+### Archivos clave
+- `AbuApp/lib/smartthings.ts` — cliente frontend
+- `AbuApp_Backend/src/smartthings.ts` — cliente API
+- `AbuApp_Backend/src/routes/smartthings.ts` — endpoints
+- `AbuApp_Backend/src/db.ts` — tabla `smartthings_tokens`
+
+---
+
+## Linterna (expo-brightness)
+
+- `setBrightnessAsync(1)` — sube el brillo **solo a nivel de app** (no afecta el sistema)
+- `useSystemBrightnessAsync()` — restaura el brillo del sistema al apagar la linterna
+- **No usar** `setSystemBrightnessAsync()` — desactiva el brillo automático del sistema permanentemente
+
+---
+
+## Timer de música nocturna
+
+El timer para apagar la música de noche se configura al iniciar y evalúa la hora **dentro del callback**, no como condición para setear el timer:
+
+```typescript
+// CORRECTO — timer siempre activo, check adentro
+setTimeout(() => {
+  const hAhora = new Date().getHours();
+  if (hAhora >= 9 && hAhora < 23) return; // no es de noche, no hacer nada
+  hablar('...').catch(() => {}).finally(() => setTimeout(() => pararMusica(), 60000));
+}, 30 * 60 * 1000);
+```
+
+El `try/catch` en `hablar()` garantiza que el segundo `setTimeout` (el que para la música) siempre corre aunque TTS falle.
 
 ---
 
