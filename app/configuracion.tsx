@@ -16,8 +16,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
-import QRCode from 'react-native-qrcode-svg';
-import { obtenerQRVinculacion, obtenerEstadoTuya, actualizarDispositivos, desvincularSmartlife, Dispositivo } from '../lib/tuya';
+import { obtenerEstadoTuya, actualizarDispositivos, desvincularSmartlife, Dispositivo } from '../lib/tuya';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
@@ -281,10 +280,6 @@ export default function Configuracion() {
   const [tuyaVinculado, setTuyaVinculado]       = useState(false);
   const [tuyaDispositivos, setTuyaDispositivos] = useState<Dispositivo[]>([]);
   const [tuyaCargando, setTuyaCargando]         = useState(false);
-  const [mostrarQR, setMostrarQR]               = useState(false);
-  const [qrData, setQrData]                     = useState<{ qrCode: string; expireTime: number } | null>(null);
-  const [esperandoVinculacion, setEsperandoVinculacion] = useState(false);
-  const pollingTuyaRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useFocusEffect(useCallback(() => {
     obtenerPIN().then(p => {
@@ -301,40 +296,7 @@ export default function Configuracion() {
     });
   }, []);
 
-  async function iniciarVinculacionTuya() {
-    setTuyaCargando(true);
-    const data = await obtenerQRVinculacion();
-    setTuyaCargando(false);
-    if (!data) return;
-    setQrData(data);
-    setMostrarQR(true);
-    setEsperandoVinculacion(true);
-
-    if (pollingTuyaRef.current) clearInterval(pollingTuyaRef.current);
-    pollingTuyaRef.current = setInterval(async () => {
-      const estado = await obtenerEstadoTuya();
-      if (estado.vinculado) {
-        clearInterval(pollingTuyaRef.current!);
-        pollingTuyaRef.current = null;
-        setTuyaVinculado(true);
-        setTuyaDispositivos(estado.dispositivos);
-        setMostrarQR(false);
-        setEsperandoVinculacion(false);
-        setQrData(null);
-      }
-    }, 5000);
-
-    setTimeout(() => {
-      if (pollingTuyaRef.current) {
-        clearInterval(pollingTuyaRef.current);
-        pollingTuyaRef.current = null;
-        setEsperandoVinculacion(false);
-        setMostrarQR(false);
-      }
-    }, 3 * 60_000);
-  }
-
-  async function desvincularTuya() {
+  async function desvinculnarTuya() {
     await desvincularSmartlife();
     setTuyaVinculado(false);
     setTuyaDispositivos([]);
@@ -348,6 +310,7 @@ export default function Configuracion() {
   }
 
   useEffect(() => {
+    cargarRecordatorios().then(setRecordatorios);
     obtenerCodigoRegistro().then(setCodigoRegistro);
     cargarPerfil().then(p => {
       setPerfil(p);
@@ -381,12 +344,8 @@ export default function Configuracion() {
     setBuscando(true);
     setErrorBusqueda('');
     try {
-      const familiaId = await obtenerFamiliaId();
-      if (!familiaId) {
-        setErrorBusqueda('Primero guardá el nombre para registrar el dispositivo.');
-        return;
-      }
-      const installId = await obtenerInstallId();
+      const familiaId   = await obtenerFamiliaId() ?? 'default';
+      const installId   = await obtenerInstallId();
       const res  = await fetchTimeout(`${BACKEND_URL}/telegram/contactos?familiaId=${familiaId}`, 10000, {
         headers: { 'x-api-key': API_KEY, 'x-install-id': installId },
       });
@@ -402,7 +361,6 @@ export default function Configuracion() {
         nombre: c.nombre,
       }));
 
-      // Merge sin duplicados
       setContactos(prev => {
         const existentes = new Set(prev.map(c => c.id));
         const sinDuplicados = nuevos.filter(c => !existentes.has(c.id));
@@ -419,7 +377,6 @@ export default function Configuracion() {
     const nombreTrimmed = nombre.trim();
     const contactosActivos = contactos.filter(c => idsActivos.includes(c.id));
 
-    // Registrar familia en el backend la primera vez (o si se cambió el nombre)
     if (nombreTrimmed && BACKEND_URL) {
       const familiaIdExistente = await obtenerFamiliaId();
       if (!familiaIdExistente) {
@@ -473,7 +430,6 @@ export default function Configuracion() {
     setTimeout(() => setGuardado(false), 2000);
   }
 
-  // Bloquear contenido hasta que el PIN sea verificado
   const bloqueado = pinConfigurado && !pinDesbloqueado;
 
   return (
@@ -510,7 +466,6 @@ export default function Configuracion() {
         <SectionLabel icon="person-outline" label="Identidad" />
         <M3Input label="Nombre" value={nombre} onChangeText={setNombre} placeholder="María" />
         
-        {/* 👇 ACÁ SE MOVIÓ EL SELECTOR DE GÉNERO 👇 */}
         <Surface style={{ marginTop: 4, marginBottom: 12 }}>
           <View style={s.vozRow}>
             {(['femenino', 'masculino'] as const).map(g => (
@@ -532,7 +487,6 @@ export default function Configuracion() {
         <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
         <M3Input label="Fecha de nacimiento" hint="DD/MM — para el saludo de cumpleaños" value={fechaNacimiento} onChangeText={t => setFechaNacimiento(t.replace(/[^0-9/]/g, '').slice(0, 5))} placeholder="19/03" />
         
-        {/* 👇 NUEVA SECCIÓN ASISTENTE 👇 */}
         <SectionLabel icon="chatbubble-ellipses-outline" label="Asistente" />
         <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
 
@@ -560,7 +514,7 @@ export default function Configuracion() {
         <M3Input label="Nietos"   hint="Separados por coma" value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
         <M3Input label="Hermanos" hint="Separados por coma" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
         <M3Input label="Mascotas" hint="Separados por coma" value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
-        {/* Tags rápidos de intereses */}
+        
         {(() => {
           const activos = gustos.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
           const toggleTag = (tag: string) => {
@@ -607,7 +561,6 @@ export default function Configuracion() {
         {/* ── Telegram ── */}
         <SectionLabel icon="paper-plane-outline" label="Alertas Telegram" />
 
-        {/* Código de registro */}
         {codigoRegistro && (
           <Surface style={{ marginBottom: 8 }}>
             <View style={s.codigoWrap}>
@@ -618,7 +571,6 @@ export default function Configuracion() {
           </Surface>
         )}
 
-        {/* Guía paso a paso cuando no hay contactos */}
         {contactos.length === 0 && (
           <Surface style={{ marginBottom: 8 }}>
             {[
@@ -693,7 +645,7 @@ export default function Configuracion() {
           </TouchableOpacity>
         </Surface>
 
-        {/* ── Domótica ── */}
+        {/* ── Domótica Smartlife (Modo Conserje) ── */}
         <SectionLabel icon="home-outline" label="Domótica Smartlife" />
         <Surface>
           {tuyaVinculado ? (
@@ -737,34 +689,31 @@ export default function Configuracion() {
               </TouchableOpacity>
 
               <View style={s.divisorThin} />
-              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvincularTuya}>
+              <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={desvinculnarTuya}>
                 <Ionicons name="unlink-outline" size={18} color={M.error} />
                 <Text style={[s.buscarText, { color: M.error }]}>Desvincular Smartlife</Text>
               </TouchableOpacity>
             </>
           ) : (
-            <>
-              {mostrarQR && qrData ? (
-                <View style={s.qrContainer}>
-                  <QRCode value={qrData.qrCode} size={180} />
-                  <Text style={s.qrInstruccion}>Escaneá con la cámara del celular e iniciá sesión con tu cuenta de Smartlife</Text>
-                  {esperandoVinculacion && (
-                    <View style={s.qrEsperando}>
-                      <ActivityIndicator size="small" color={M.primary} />
-                      <Text style={s.qrEsperandoText}>Esperando vinculación...</Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={iniciarVinculacionTuya} disabled={tuyaCargando}>
-                  {tuyaCargando
-                    ? <ActivityIndicator size="small" color={M.primary} />
-                    : <Ionicons name="link-outline" size={18} color={M.primary} />
-                  }
-                  <Text style={s.buscarText}>Vincular Smartlife</Text>
-                </TouchableOpacity>
-              )}
-            </>
+            <View style={s.tuyaManualWrap}>
+              <Ionicons name="bulb-outline" size={32} color={M.primary} style={{ marginBottom: 8 }} />
+              <Text style={s.tuyaManualTitle}>Control de luces y enchufes</Text>
+              <Text style={s.tuyaManualText}>
+                ¿Querés que {nombreAsistente || 'Rosita'} controle los dispositivos inteligentes de la casa?
+              </Text>
+              <Text style={s.tuyaManualText}>
+                Comunicate por WhatsApp para que hagamos la vinculación de forma manual y segura.
+              </Text>
+
+              <TouchableOpacity
+                style={s.waBtn}
+                activeOpacity={0.7}
+                onPress={() => Linking.openURL(`https://wa.me/543408677294?text=Hola%20Maxi,%20quiero%20vincular%20las%20luces%20de%20la%20abuela%20a%20Compa%C3%B1IA.`)}
+              >
+                <Ionicons name="logo-whatsapp" size={18} color="#fff" />
+                <Text style={s.waBtnText}>Contactar a Soporte</Text>
+              </TouchableOpacity>
+            </View>
           )}
         </Surface>
 
@@ -904,6 +853,7 @@ const s = StyleSheet.create({
   tagChipTxt:      { fontSize: 12, fontWeight: '600', textAlign: 'center' },
   botBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: M.primary, marginHorizontal: 16, marginBottom: 12, paddingVertical: 12, borderRadius: 12 },
   botBtnText:  { fontSize: 14, fontWeight: '500', color: M.onPrimary },
+
   // Domótica
   tuyaEstado:         { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 12 },
   tuyaEstadoText:     { fontSize: 14, fontWeight: '500', color: '#2E7D32' },
@@ -911,8 +861,10 @@ const s = StyleSheet.create({
   dispositivoNombre:  { flex: 1, fontSize: 14, color: M.onSurface },
   dispositivoBadge:   { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   dispositivoBadgeText: { fontSize: 11, fontWeight: '600' },
-  qrContainer:    { alignItems: 'center', paddingVertical: 20, paddingHorizontal: 16, gap: 12 },
-  qrInstruccion:  { fontSize: 13, color: M.onSurfaceVariant, textAlign: 'center' },
-  qrEsperando:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qrEsperandoText: { fontSize: 13, color: M.primary },
+  
+  tuyaManualWrap:  { alignItems: 'center', padding: 24, gap: 8 },
+  tuyaManualTitle: { fontSize: 16, fontWeight: '600', color: M.onSurface },
+  tuyaManualText:  { fontSize: 13, color: M.onSurfaceVariant, textAlign: 'center', lineHeight: 18, marginBottom: 4 },
+  waBtn:           { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#25D366', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24, marginTop: 8 },
+  waBtnText:       { color: '#fff', fontSize: 15, fontWeight: '600' }
 });

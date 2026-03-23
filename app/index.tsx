@@ -263,7 +263,6 @@ export default function Index() {
       <MenuFlotante oscuro />
 
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
-      {modoNoche === 'durmiendo' && <ZZZ />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara} facing={camaraFacing} silencioso={camaraSilenciosa} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
@@ -333,6 +332,7 @@ export default function Index() {
           esCumpleaños={esCumpleaños}
         />
       </View>
+      {modoNoche === 'durmiendo' && <ZZZ />}
 
       <View style={[styles.ecualizadorWrap, isTablet && { height: Math.round(90 * textScale) }]}>
         {musicaActiva
