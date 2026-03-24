@@ -13,6 +13,7 @@ import {
   Perfil, TelegramContacto, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, bienvenidaYaDada, marcarBienvenidaDada,
   registrarMusicaHoy,
+  Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { buscarRadio } from '../lib/musica';
@@ -80,6 +81,7 @@ export function useRosita() {
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
   const [climaObj,          setClimaObj]          = useState<{ temperatura: number; descripcion: string } | null>(null);
+  const [listas,            setListas]            = useState<Lista[]>([]);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const estadoRef           = useRef(estado);
@@ -105,6 +107,7 @@ export function useRosita() {
   const silbidoTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoActivoRef    = useRef(false);
   const musicaNocheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ultimaActivacionSrRef = useRef<number>(0);
   const climaRef            = useRef<string>('');
   const ciudadRef           = useRef<string>('');
   const coordRef            = useRef<{ lat: number; lon: number } | null>(null);
@@ -148,7 +151,6 @@ export function useRosita() {
   useEffect(() => {
     musicaActivaRef.current = musicaActiva;
     if (musicaActiva) {
-      setSilbando(true);
       ExpoSpeechRecognitionModule.stop();
       // Programar verificación nocturna: la música no debería quedar prendida de noche
       if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
@@ -179,6 +181,9 @@ export function useRosita() {
       }
       if (!enFlujoVozRef.current) iniciarSpeechRecognition();
     }
+    return () => {
+      if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
+    };
   }, [musicaActiva]);
   useEffect(() => { noMolestarRef.current  = noMolestar;  }, [noMolestar]);
 
@@ -193,16 +198,16 @@ export function useRosita() {
     if (__DEV__) return;
     const id = setTimeout(async () => {
       try {
-        console.log('[OTA] chequeando update...');
+        if (__DEV__) console.log('[OTA] chequeando update...');
         const check = await Updates.checkForUpdateAsync();
-        console.log('[OTA] isAvailable:', check.isAvailable);
+        if (__DEV__) console.log('[OTA] isAvailable:', check.isAvailable);
         if (!check.isAvailable) return;
-        console.log('[OTA] descargando...');
+        if (__DEV__) console.log('[OTA] descargando...');
         await Updates.fetchUpdateAsync();
-        console.log('[OTA] descargado, recargando...');
+        if (__DEV__) console.log('[OTA] descargado, recargando...');
         await Updates.reloadAsync();
       } catch (e: any) {
-        console.log('[OTA] error:', e?.message ?? e);
+        if (__DEV__) console.log('[OTA] error:', e?.message ?? e);
       }
     }, 5000);
     return () => clearTimeout(id);
@@ -277,7 +282,7 @@ export function useRosita() {
   // ── Speech recognition ──────────────────────────────────────────────────────
   useSpeechRecognitionEvent('result', async (event) => {
     const texto = event.results?.[0]?.transcript?.trim();
-    console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', estadoRef.current, '| asistente:', nombreAsistenteRef.current);
+    if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', estadoRef.current, '| asistente:', nombreAsistenteRef.current);
     if (procesandoRef.current) return;
     if (noMolestarRef.current) return;
     if (enFlujoVozRef.current) return;
@@ -299,7 +304,7 @@ export function useRosita() {
         : tiempoDesdeUltimaCharla < 60 * 1000;
 
     const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
-    console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
+    if (__DEV__) console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
 
@@ -341,8 +346,13 @@ export function useRosita() {
     }
   });
 
+  // Resetear timer del watchdog cada vez que el SR detecta sonido real
+  useSpeechRecognitionEvent('soundstart', () => {
+    ultimaActivacionSrRef.current = Date.now();
+  });
+
   useSpeechRecognitionEvent('error', (event) => {
-    console.log('[SR] error:', event.error);
+    if (__DEV__) console.log('[SR] error:', event.error);
     srActivoRef.current = false;
     if (enFlujoVozRef.current) return;
     if (!perfilRef.current?.nombreAbuela) return;
@@ -365,7 +375,7 @@ export function useRosita() {
 
       // Recuperar procesandoRef colgado (safetyTimeout de hablar es 45s, damos 60s)
       if (procesandoRef.current && Date.now() - procesandoDesdeRef.current > 60000) {
-        console.log('[Watchdog] procesandoRef colgado — forzando reset');
+        if (__DEV__) console.log('[Watchdog] procesandoRef colgado — forzando reset');
         procesandoRef.current = false;
         procesandoDesdeRef.current = 0;
       }
@@ -374,14 +384,14 @@ export function useRosita() {
 
       const ahora = Date.now();
       const tiempoDesdeInicio = ahora - ultimaActivacionSrRef.current;
-      // Zombie: activo según ref pero sin resultado en 10s
-      const srZombie = srActivoRef.current && tiempoDesdeInicio > 10000;
+      // Zombie: activo según ref pero sin resultado en 25s (margen para pausas naturales del usuario)
+      const srZombie = srActivoRef.current && tiempoDesdeInicio > 25000;
       // Reinicio proactivo: Android continuous puede silenciarse sin disparar 'end'
       const srVencido = srActivoRef.current && tiempoDesdeInicio > 45000;
 
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
-          console.log('[Watchdog] SR', srVencido ? 'vencido (45s)' : 'zombie — reiniciando');
+          if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (45s)' : 'zombie — reiniciando');
           srActivoRef.current = false;
         }
         iniciarSpeechRecognition();
@@ -471,11 +481,12 @@ export function useRosita() {
     try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
     limpiarCacheViejo().catch(() => {});
 
-    const [perfilGuardado, historialGuardado] = await Promise.all([
-      cargarPerfil(), cargarHistorial(),
+    const [perfilGuardado, historialGuardado, listasGuardadas] = await Promise.all([
+      cargarPerfil(), cargarHistorial(), cargarListas(),
     ]);
     perfilRef.current    = perfilGuardado;
     historialRef.current = historialGuardado as Mensaje[];
+    setListas(listasGuardadas);
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
 
     precachearMuletillas(perfilGuardado.vozId).catch(() => {});
@@ -490,8 +501,11 @@ export function useRosita() {
     const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
     if (backendUrl) {
       const pingCtrl = new AbortController();
-      setTimeout(() => pingCtrl.abort(), 30000);
-      fetch(`${backendUrl}/health`, { signal: pingCtrl.signal }).catch(() => {});
+      const pingId = setTimeout(() => { pingCtrl.abort(); sinConexionRef.current = true; }, 8000);
+      fetch(`${backendUrl}/health`, { signal: pingCtrl.signal })
+        .then(r => { sinConexionRef.current = !r.ok; })
+        .catch(() => { sinConexionRef.current = true; })
+        .finally(() => clearTimeout(pingId));
     }
 
     obtenerClima().then(clima => {
@@ -525,13 +539,13 @@ export function useRosita() {
   }
 
   // ── SR helpers ──────────────────────────────────────────────────────────────
-  const ultimaActivacionSrRef = useRef<number>(0);
 
   function iniciarSpeechRecognition() {
     if (enFlujoVozRef.current) return;
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
+      try { ExpoSpeechRecognitionModule.stop(); } catch {} // limpiar instancia previa si existía
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
       srActivoRef.current = true;
     } catch {
@@ -594,7 +608,10 @@ export function useRosita() {
     };
 
     const temas = temasPorMomento[momento];
-    const tema = temas[Math.floor(Math.random() * temas.length)];
+    const esFeriadoHoy = feriadosRef.current?.startsWith('Hoy es feriado') ?? false;
+    const tema = esFeriadoHoy
+      ? `el feriado nacional de hoy (${feriadosRef.current}) — mencionalo con entusiasmo y calidez`
+      : temas[Math.floor(Math.random() * temas.length)];
 
     try {
       const frase = await llamarClaude({
@@ -625,7 +642,14 @@ export function useRosita() {
       }
       player.replace({ uri: cacheUri });
       player.play();
-      await new Promise<void>(resolve => setTimeout(resolve, 4500));
+      // Poll en lugar de sleep fijo: abortar si música empieza o silbido se detiene
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 50));
+        if (!silbidoActivoRef.current || musicaActivaRef.current) {
+          try { player.pause(); } catch {}
+          return;
+        }
+      }
     } catch {}
   }
 
@@ -679,7 +703,7 @@ export function useRosita() {
   // ── TTS ─────────────────────────────────────────────────────────────────────
   async function hablar(texto: string) {
     ultimoTextoHabladoRef.current = texto;
-    console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
+    if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
     estadoRef.current = 'hablando';
@@ -710,12 +734,12 @@ export function useRosita() {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       let uri: string | null = info.exists ? cacheUri : null;
-      console.log('[TTS] cache:', info.exists ? 'HIT' : 'MISS');
+      if (__DEV__) console.log('[TTS] cache:', info.exists ? 'HIT' : 'MISS');
 
       if (!uri) {
         const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
         const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
-        console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
+        if (__DEV__) console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
         if (base64) {
           await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
           uri = cacheUri;
@@ -728,7 +752,7 @@ export function useRosita() {
         setEstado('hablando');
         estadoRef.current = 'hablando';
         player.play();
-        console.log('[TTS] play() llamado');
+        if (__DEV__) console.log('[TTS] play() llamado');
         await new Promise<void>(resolve => {
           let resolved = false;
           const done = (motivo: string) => {
@@ -738,7 +762,7 @@ export function useRosita() {
             if (durationTimer !== undefined) clearTimeout(durationTimer);
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
-            console.log('[TTS] fin de reproducción, motivo:', motivo);
+            if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
             resolve();
           };
 
@@ -759,7 +783,7 @@ export function useRosita() {
                 started = true;
                 lastPos = pos;
                 clearTimeout(noStartTimer);
-                console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
+                if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
                 if (!isNaN(dur) && dur > 0) {
                   durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
                 }
@@ -770,14 +794,14 @@ export function useRosita() {
                 if (nearEnd) {
                   done('near-end');
                 } else if (pos === lastPos && !isNaN(dur) && dur > 0 && pos < dur - 0.3) {
-                  console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
+                  if (__DEV__) console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
                   player.play();
                   silenceCount = 0;
                 } else if (pos !== lastPos) {
                   silenceCount = 0;
                 } else {
                   silenceCount++;
-                  console.log('[TTS] poll silencio', silenceCount, '| pos:', pos?.toFixed(2), '| dur:', dur?.toFixed(2));
+                  if (__DEV__) console.log('[TTS] poll silencio', silenceCount, '| pos:', pos?.toFixed(2), '| dur:', dur?.toFixed(2));
                   if (silenceCount >= 15) done('silence-15-polls');
                 }
               } else {
@@ -788,7 +812,7 @@ export function useRosita() {
           }, 150);
         });
       } else {
-        console.log('[TTS] fallback a Speech.speak (ElevenLabs falló)');
+        if (__DEV__) console.log('[TTS] fallback a Speech.speak (ElevenLabs falló)');
         setEstado('hablando');
         estadoRef.current = 'hablando';
         await new Promise<void>((resolve) => {
@@ -796,9 +820,9 @@ export function useRosita() {
         });
       }
     } catch (e: any) {
-      console.log('[TTS] CATCH en hablar:', e?.message ?? e);
+      if (__DEV__) console.log('[TTS] CATCH en hablar:', e?.message ?? e);
       try {
-        console.log('[TTS] fallback a Speech.speak (catch)');
+        if (__DEV__) console.log('[TTS] fallback a Speech.speak (catch)');
         setEstado('hablando');
         estadoRef.current = 'hablando';
         await new Promise<void>((resolve) => {
@@ -856,13 +880,13 @@ export function useRosita() {
     estadoRef.current = 'pensando';
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as any).size ?? '?');
+      if (__DEV__) console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as any).size ?? '?');
       const texto = await transcribirAudio(uri);
-      console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
+      if (__DEV__) console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
       if (!texto.trim()) { await hablar('No te escuché bien, ¿podés repetir?'); return; }
       await responderConClaude(texto);
     } catch (e: any) {
-      console.log('[AUDIO] CATCH:', e?.message ?? e);
+      if (__DEV__) console.log('[AUDIO] CATCH:', e?.message ?? e);
       setEstado('esperando');
       estadoRef.current = 'esperando';
     } finally {
@@ -979,9 +1003,20 @@ export function useRosita() {
 
   // ── Responder con Claude ────────────────────────────────────────────────────
   async function responderConClaude(textoUsuario: string) {
-    console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
+    if (__DEV__) console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = perfilRef.current;
     if (!p) { console.log('[RC] sin perfil, saliendo'); return; }
+
+    // Gate offline: evita esperar el timeout de red si ya sabemos que no hay conexión
+    if (sinConexionRef.current) {
+      const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+      const respLocal = respuestaOffline(textoUsuario, p.nombreAbuela, p.nombreAsistente ?? 'Rosita', climaRef.current, pararMusica, chatIds, enviarAlertaTelegram, p.vozGenero ?? 'femenina');
+      setEstado('esperando');
+      estadoRef.current = 'esperando';
+      await hablar(respLocal ?? 'No tengo conexión ahora. Cuando vuelva la señal seguimos.');
+      return;
+    }
+
     detenerSilbido();
     setEstado('pensando');
     estadoRef.current = 'pensando';
@@ -999,6 +1034,7 @@ export function useRosita() {
       const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
         || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
             && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
+      const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
 
       const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
       const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
@@ -1040,10 +1076,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
 3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta (prohibido decir "¿Te ayudo con otra cosa?", "¿Para qué precisás ir?", "¿Lo pudiste anotar?", etc.). Entregá la información y terminá tu frase en punto final para que la persona tenga paz y tiempo de asimilar el dato.`;
       }
 
-      console.log('[RC] llamando a Claude...');
+      if (__DEV__) console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
         system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias + contextoBusqueda, pideChiste),
         messages: nuevoHistorial.slice(-8),
+        maxTokens: (pideCuento || pideJuego || pideChiste) ? 700 : undefined,
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
 
       const parsed = parsearRespuesta(
@@ -1099,6 +1136,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
             playerMusica.replace({ uri: urlStream });
             playerMusica.volume = 0.70;
             playerMusica.play();
+            musicaActivaRef.current = true; // actualización inmediata: evita race condition con silbido
+            detenerSilbido();               // detener silbido inmediatamente si está en curso
             setMusicaActiva(true);
             registrarMusicaHoy().catch(() => {});
             setEstado('esperando');
@@ -1233,6 +1272,16 @@ REGLAS CRÍTICAS PARA RESPONDER:
         }
       }
 
+      // ── LISTAS ──
+      if (parsed.listaNueva) {
+        const nueva: Lista = { id: Date.now().toString(), nombre: parsed.listaNueva.nombre, items: parsed.listaNueva.items, creadaEn: Date.now() };
+        guardarLista(nueva).then(() => cargarListas().then(setListas)).catch(() => {});
+      } else if (parsed.listaAgregar) {
+        agregarItemLista(parsed.listaAgregar.nombre, parsed.listaAgregar.item).then(() => cargarListas().then(setListas)).catch(() => {});
+      } else if (parsed.listaBorrar) {
+        borrarLista(parsed.listaBorrar).then(() => cargarListas().then(setListas)).catch(() => {});
+      }
+
       // ── Alertas Telegram: EMERGENCIA > LLAMAR_FAMILIA > MENSAJE_FAMILIAR ──
       if (parsed.emergencia) {
         const chatIds     = (p.telegramContactos ?? []).map(c => c.id);
@@ -1300,7 +1349,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }, 8000);
 
     } catch (e: any) {
-      console.log('[RC] CATCH error:', e?.message ?? e);
+      if (__DEV__) console.log('[RC] CATCH error:', e?.message ?? e);
       const chatIds  = (perfilRef.current?.telegramContactos ?? []).map(c => c.id);
       const respLocal = respuestaOffline(
         textoUsuario,
@@ -1407,8 +1456,14 @@ REGLAS CRÍTICAS PARA RESPONDER:
     let conteo = 0;
     let timerReset: ReturnType<typeof setTimeout> | null = null;
 
-    Accelerometer.setUpdateInterval(100);
+    // 300ms: 3× menos CPU que 100ms, sigue siendo suficiente para caídas y sacudidas
+    // En modo durmiendo baja a 1000ms para ahorrar más batería
+    const intervalo = modoNocheRef.current === 'durmiendo' ? 1000 : 300;
+    Accelerometer.setUpdateInterval(intervalo);
     const sub = Accelerometer.addListener(({ x, y, z }) => {
+      // Actualizar intervalo dinámicamente si cambió el modo noche
+      const nuevoIntervalo = modoNocheRef.current === 'durmiendo' ? 1000 : 300;
+      if (nuevoIntervalo !== intervalo) Accelerometer.setUpdateInterval(nuevoIntervalo);
       const magnitud = Math.sqrt(x * x + y * y + z * z);
 
       if (magnitud < UMBRAL_CAIDA_LIBRE && !enCaidaLibre) {
@@ -1423,7 +1478,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const ahora = Date.now();
         if (ahora - ultimaCaida > COOLDOWN_CAIDA) {
           ultimaCaida = ahora;
-          console.log('[CAIDA] caída detectada, magnitud impacto:', magnitud.toFixed(2));
+          if (__DEV__) console.log('[CAIDA] caída detectada, magnitud impacto:', magnitud.toFixed(2));
           dispararSOSCaida();
         }
         return;
@@ -1452,6 +1507,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
   return {
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
+    listas,
+    borrarListaVoz: (nombre: string) => borrarLista(nombre).then(() => cargarListas().then(setListas)).catch(() => {}),
     linternaActiva, apagarLinterna: () => {
       setLinternaActiva(false);
       Animated.timing(flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();

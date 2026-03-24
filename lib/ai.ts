@@ -125,10 +125,10 @@ export async function buscarWeb(query: string): Promise<string | null> {
     if (data.answer) partes.push(data.answer);
     if (results?.length) partes.push(results.map(r => `• ${r.title}: ${r.description}`).join('\n'));
     const resultado = partes.join('\n\n');
-    console.log('[TAVILY] resultado:', resultado.slice(0, 300));
+    if (__DEV__) console.log('[TAVILY] resultado:', resultado.slice(0, 300));
     return resultado;
   } catch (e: any) {
-    console.log('[TAVILY] error:', e?.name ?? 'unknown');
+    if (__DEV__) console.log('[TAVILY] error:', e?.name ?? 'unknown');
     return null;
   }
 }

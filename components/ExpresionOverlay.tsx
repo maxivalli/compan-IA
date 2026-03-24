@@ -40,8 +40,8 @@ export default function ExpresionOverlay({
   const { width: screenW } = useWindowDimensions();
   const faceScale = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1;
 
-  const hora      = new Date().getHours();
-  const esNoche   = hora >= 20 || hora < 7;
+  const horaActual = new Date().getHours();
+  const esNoche    = horaActual >= 20 || horaActual < 5;
   const esLluvia  = !!condicion?.toLowerCase().match(/lluvia|lloviendo|tormenta/);
   const esTormenta= !!condicion?.toLowerCase().match(/tormenta/);
   const esNieve   = !!condicion?.toLowerCase().match(/nieve|nevad|granizo/) || (temperatura !== undefined && temperatura <= 1);
@@ -78,8 +78,7 @@ export default function ExpresionOverlay({
 
       <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
         <View
-          onLayout={(e) => console.log('EfectosLayout:', JSON.stringify(e.nativeEvent.layout))}
-          style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: 'visible' }}
+style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: 'visible' }}
         >
           {/* Accesorios estacionales — van por encima de todo */}
           {accesorio === 'bonete' && <Bonete />}

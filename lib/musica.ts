@@ -113,11 +113,11 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
         );
 
         if (streamValido) {
-          console.log(`📡 Stream encontrado en API para ${termino}:`, streamValido.url_resolved);
+          if (__DEV__) console.log(`📡 Stream encontrado en API para ${termino}:`, streamValido.url_resolved);
           return streamValido.url_resolved as string;
         }
       } catch (error) {
-        console.warn(`Fallo al buscar en ${servidor}:`, error);
+        if (__DEV__) console.warn(`Fallo al buscar en ${servidor}:`, error);
       }
     }
   }
@@ -131,7 +131,7 @@ export async function buscarRadio(genero: string): Promise<string | null> {
   const urlAPI = await buscarEnAPI(key, esArgentina ? 'AR' : undefined);
   if (urlAPI) return urlAPI;
 
-  console.log(`⚠️ API falló o no encontró HTTPS para ${key}. Usando fallback...`);
+  if (__DEV__) console.log(`⚠️ API falló o no encontró HTTPS para ${key}. Usando fallback...`);
   const fallbacks = STREAMS_GENERO[key];
   if (fallbacks?.length) return fallbacks[0];
 

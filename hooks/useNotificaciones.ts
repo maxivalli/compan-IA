@@ -11,6 +11,7 @@ import {
   yaRecordo,
   marcarRecordado,
   cargarRecordatorios,
+  borrarRecordatorio,
   borrarRecordatoriosViejos,
   cargarEntradasAnimo,
   cargarHistorial,
@@ -617,6 +618,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         if (ya) { disparados.add(clave); continue; }
         disparados.add(clave);
         await marcarRecordado(clave);
+        borrarRecordatorio(r.id).catch(() => {}); // borra inmediatamente para evitar re-disparo si marcarRecordado falla
         const nombre = perfilRef.current?.nombreAbuela ?? '';
         if (r.esTimer) { await hablar(r.texto); } else { await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`); }
         break;
