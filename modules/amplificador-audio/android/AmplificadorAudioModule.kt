@@ -42,49 +42,34 @@ class AmplificadorAudioModule : Module() {
     }
 
     Function("hayAuriculares") {
-      val am = appContext.reactContext
-        ?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-      // GET_DEVICES_ALL cubre input + output: algunos auriculares BT solo aparecen
-      // como dispositivo de entrada hasta que el audio se enruta activamente
-      am?.getDevices(AudioManager.GET_DEVICES_ALL)?.any { device ->
-        when (device.type) {
-          AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
-          AudioDeviceInfo.TYPE_WIRED_HEADSET,
-          AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-          AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
-          else -> {
-            val s = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            val isBle = s && (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                              device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
-            val isBroadcast = Build.VERSION.SDK_INT >= 33 &&
-                              device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST
-            isBle || isBroadcast
-          }
-        }
-      } ?: false
+      val am = getAudioManager() ?: return@Function false
+      // Primario: getDevices() API (Android 6+)
+      val outputDevices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+      if (outputDevices.any { esDispositivoAuricular(it) }) return@Function true
+      // Fallback: APIs legacy por si getDevices() falla silenciosamente en algún OEM
+      @Suppress("DEPRECATION")
+      am.isBluetoothA2dpOn || am.isBluetoothScoOn || am.isWiredHeadsetOn
     }
 
     Function("esAuricularesBluetooth") {
-      val am = appContext.reactContext
-        ?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-      am?.getDevices(AudioManager.GET_DEVICES_ALL)?.any { device ->
-        when (device.type) {
-          AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
-          AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
-          else -> {
-            val s = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-            val isBle = s && (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-                              device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
-            val isBroadcast = Build.VERSION.SDK_INT >= 33 &&
-                              device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST
-            isBle || isBroadcast
-          }
-        }
-      } ?: false
+      val am = getAudioManager() ?: return@Function false
+      val outputDevices = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+      if (outputDevices.any { esDispositivoBluetooth(it) }) return@Function true
+      // Fallback legacy
+      @Suppress("DEPRECATION")
+      am.isBluetoothA2dpOn || am.isBluetoothScoOn
     }
   }
 
   // ── Lógica privada ────────────────────────────────────────────────────────
+
+  /** Obtiene el AudioManager con fallback de contexto para máxima compatibilidad. */
+  private fun getAudioManager(): AudioManager? {
+    val ctx = appContext.reactContext
+      ?: appContext.currentActivity?.applicationContext
+      ?: return null
+    return ctx.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+  }
 
   private fun iniciar(ganancia: Float) {
     detener() // limpiar sesión anterior
@@ -180,5 +165,46 @@ class AmplificadorAudioModule : Module() {
     audioTrack?.stop()
     audioTrack?.release()
     audioTrack = null
+  }
+
+  /**
+   * Devuelve true si el dispositivo es cualquier tipo de auricular o headset
+   * (con cable o Bluetooth). Cubre Android 6 → 16 (API 23 → 36).
+   */
+  private fun esDispositivoAuricular(device: AudioDeviceInfo): Boolean {
+    return when (device.type) {
+      AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+      AudioDeviceInfo.TYPE_WIRED_HEADSET,
+      AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+      AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
+      else -> esDispositivoBluetooth(device)
+    }
+  }
+
+  /**
+   * Devuelve true si el dispositivo es Bluetooth (clásico o BLE).
+   * - TYPE_BLE_HEADSET / TYPE_BLE_SPEAKER: API 31+ (Android 12 / S)
+   * - TYPE_BLE_BROADCAST: API 33+ (Android 13 / Tiramisu)
+   * No se necesitan guards adicionales para Android 16 (API 36):
+   * Google no agregó nuevos tipos de audio BT en API 34–36.
+   */
+  private fun esDispositivoBluetooth(device: AudioDeviceInfo): Boolean {
+    return when (device.type) {
+      AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+      AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
+      else -> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+          when (device.type) {
+            AudioDeviceInfo.TYPE_BLE_HEADSET,
+            AudioDeviceInfo.TYPE_BLE_SPEAKER -> return true
+            else -> {}
+          }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+          if (device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST) return true
+        }
+        false
+      }
+    }
   }
 }
