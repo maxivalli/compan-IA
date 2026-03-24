@@ -861,8 +861,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!familiaId) return;
       const comandos = await obtenerComandosPendientes(familiaId);
       for (const cmd of comandos) {
-        if (cmd === 'informe') {
-          const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+        if (cmd === 'informe' || cmd.startsWith('informe:')) {
+          // informe:chatId → solo al que lo pidió; informe → a todos los contactos
+          const chatIds = cmd.includes(':')
+            ? [cmd.split(':')[1]]
+            : (p.telegramContactos ?? []).map(c => c.id);
           if (!chatIds.length) continue;
           try {
             const mensaje = await generarMensajeResumen(p);

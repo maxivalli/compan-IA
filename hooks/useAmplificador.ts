@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PermissionsAndroid, Platform } from 'react-native';
 import {
   iniciar, detener, hayAuriculares, esAuricularesBluetooth,
+  moduloNativoCargado, errorCargaModulo,
 } from '../modules/amplificador-audio/src';
 
 // Niveles de ganancia disponibles: 1.5× → 2× → 3× → apagado
@@ -18,19 +19,30 @@ export function useAmplificador() {
   // Detectar auriculares cada 2 segundos
   useEffect(() => {
     let id: ReturnType<typeof setInterval>;
+    let mounted = true;
 
     async function iniciarDeteccion() {
-      // BLUETOOTH_CONNECT es runtime permission en Android 12+ (API 31+)
-      // Sin esto, getDevices() devuelve lista vacía silenciosamente para BT
+      // BLUETOOTH_CONNECT + BLUETOOTH_SCAN son runtime permissions en Android 12+ (API 31+).
+      // Sin ellos, AudioManager.getDevices() devuelve lista vacía silenciosamente para BT.
+      // IMPORTANTE: esto requiere una build nativa — no funciona vía OTA update.
       if (Platform.OS === 'android' && Platform.Version >= 31) {
-        await PermissionsAndroid.request(
+        // Solicitar ambos permisos. En Android 12+ ambos son necesarios para
+        // que AudioManager.getDevices() incluya dispositivos Bluetooth.
+        await PermissionsAndroid.requestMultiple([
           PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        );
+          // BLUETOOTH_SCAN puede no estar en el enum de RN, usar string literal
+          'android.permission.BLUETOOTH_SCAN' as any,
+        ]);
+        // No bloqueamos si se deniegan: el módulo nativo devolverá false en ese caso.
+        // El intervalo igual corre para detectar auriculares con cable.
       }
+
+      if (!mounted) return;
 
       function detectar() {
         const hay = hayAuriculares();
         const bt  = hay ? esAuricularesBluetooth() : false;
+        console.log(`[AMP] modulo=${moduloNativoCargado} error="${errorCargaModulo}" hay=${hay} bt=${bt}`);
         setAuriculares(hay);
         setEsBluetooth(bt);
 
@@ -43,11 +55,14 @@ export function useAmplificador() {
       }
 
       detectar(); // check inmediato al obtener el permiso
-      id = setInterval(detectar, 2000);
+      id = setInterval(detectar, 15000);
     }
 
     iniciarDeteccion();
-    return () => clearInterval(id);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   // Reiniciar amplificador cuando cambia el nivel de ganancia
@@ -92,5 +107,7 @@ export function useAmplificador() {
     toggleActivo,
     siguienteNivel,
     etiquetaGanancia: `${NIVELES[nivelIdx]}×`,
+    // DEBUG — remover cuando BT funcione
+    _debug: `mod=${moduloNativoCargado ? 'OK' : 'FAIL'} hay=${auriculares} bt=${esBluetooth}${errorCargaModulo ? ' err:' + errorCargaModulo.slice(0, 40) : ''}`,
   };
 }

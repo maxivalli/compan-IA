@@ -84,6 +84,7 @@ export default function Index() {
   const {
     activo: ampActivo, auriculares, esBluetooth,
     etiquetaGanancia, toggleActivo, siguienteNivel,
+    _debug: ampDebug,
   } = useAmplificador();
 
   const prevNoMolestarRef = useRef(false);
@@ -481,6 +482,9 @@ export default function Index() {
 
         {/* Fila superior: Hablar + SOS */}
         <View style={[styles.botonesFilaPrincipal, isTablet && { flexDirection: 'row', gap: 32 }]}>
+
+          {/* DEBUG BT — remover cuando funcione */}
+          <Text style={{ fontSize: 11, color: '#fff', backgroundColor: '#0008', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginBottom: 8, textAlign: 'center' }}>{ampDebug}</Text>
 
           {/* Botón Hablar */}
           <View style={[styles.botonContenedor, { position: 'relative' }]}>

@@ -11,9 +11,13 @@ let Mod: {
   esAuricularesBluetooth(): boolean;
 };
 
+let _moduloNativo = false;
+let _errorCarga = '';
 try {
   Mod = requireNativeModule('AmplificadorAudio');
-} catch {
+  _moduloNativo = true;
+} catch (e: any) {
+  _errorCarga = String(e?.message ?? e);
   Mod = {
     iniciar:               noop,
     detener:               noop,
@@ -21,6 +25,11 @@ try {
     esAuricularesBluetooth: noopFalse,
   };
 }
+
+/** true si el módulo nativo cargó correctamente. */
+export const moduloNativoCargado = _moduloNativo;
+/** Mensaje de error si el módulo no cargó. */
+export const errorCargaModulo = _errorCarga;
 
 /** Inicia el amplificador con la ganancia dada (1.0 = sin amplificación, 4.0 = máximo). */
 export function iniciar(ganancia: number): void {
