@@ -552,6 +552,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const p = perfilRef.current;
       if (!p || noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
+      // Si una alarma (u otra charla) acaba de sonar en los últimos 10 minutos, no saludar
+      if (Date.now() - ultimaCharlaRef.current < 10 * 60 * 1000) return;
       const ahora = new Date();
       if (ahora.getHours() !== 9 || ahora.getMinutes() > 5) return;
       const clave = `saludo_${ahora.toISOString().slice(0, 10)}`;
@@ -572,7 +574,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         } else if (esAñoNuevo) {
           frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es Año Nuevo. Generá UN saludo breve y esperanzador para ${p.nombreAbuela}.` }] });
         } else {
-          frase = await llamarClaude({ maxTokens: 100, system: systemBase, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días, mencioná el día y el clima brevemente.` }] });
+          frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días, mencioná el día y el clima brevemente, con calidez y buen humor. Cerrá con una pregunta corta y cálida que invite a charlar, por ejemplo sobre cómo amaneció o qué tiene pensado hacer hoy.` }] });
         }
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
       } catch {}
