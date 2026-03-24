@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { PermissionsAndroid, Platform } from 'react-native';
 import {
   iniciar, detener, hayAuriculares, esAuricularesBluetooth,
 } from '../modules/amplificador-audio/src';
@@ -16,22 +17,36 @@ export function useAmplificador() {
 
   // Detectar auriculares cada 2 segundos
   useEffect(() => {
-    function detectar() {
-      const hay = hayAuriculares();
-      const bt  = hay ? esAuricularesBluetooth() : false;
-      setAuriculares(hay);
-      setEsBluetooth(bt);
+    let id: ReturnType<typeof setInterval>;
 
-      // Si sacaron los auriculares y el amplificador está activo, apagarlo
-      if (!hay && activoRef.current) {
-        activoRef.current = false;
-        setActivo(false);
-        detener();
+    async function iniciarDeteccion() {
+      // BLUETOOTH_CONNECT es runtime permission en Android 12+ (API 31+)
+      // Sin esto, getDevices() devuelve lista vacía silenciosamente para BT
+      if (Platform.OS === 'android' && Platform.Version >= 31) {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        );
       }
+
+      function detectar() {
+        const hay = hayAuriculares();
+        const bt  = hay ? esAuricularesBluetooth() : false;
+        setAuriculares(hay);
+        setEsBluetooth(bt);
+
+        // Si sacaron los auriculares y el amplificador está activo, apagarlo
+        if (!hay && activoRef.current) {
+          activoRef.current = false;
+          setActivo(false);
+          detener();
+        }
+      }
+
+      detectar(); // check inmediato al obtener el permiso
+      id = setInterval(detectar, 2000);
     }
 
-    detectar(); // check inmediato al montar
-    const id = setInterval(detectar, 2000);
+    iniciarDeteccion();
     return () => clearInterval(id);
   }, []);
 
