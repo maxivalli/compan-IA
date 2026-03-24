@@ -301,7 +301,8 @@ export default function Index() {
   const icoBtn    = Math.round(btnH * 0.46);
   const icoSOS    = Math.round(btnH * 0.50);
   const icoNM     = isTablet ? 28 : 18;
-  const btnFont   = isTablet ? fs(43) : fs(18);
+  const btnFont   = isTablet ? fs(26) : fs(18);
+  const sosFontTablet = fs(43);
   const nmFont    = isTablet ? fs(24) : fs(13);
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
 
@@ -516,8 +517,8 @@ export default function Index() {
               >
                 <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
                   <View style={[styles.btnInner, { width: btnW }]}>
-                    <Animated.View style={[styles.statusDot, { position: 'absolute', left: 12, backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
-                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * 0.68), textAlign: 'center' }]}>
+                    <Animated.View style={[styles.statusDot, { position: 'absolute', left: Math.round(btnW * 0.08), backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
                       {btnLabel}
                     </Text>
                   </View>
@@ -537,7 +538,7 @@ export default function Index() {
               delayLongPress={2000}
               activeOpacity={1}
             >
-              <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? btnFont : Math.round(btnFont * 1.2) }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
+              <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.2) }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
             </TouchableOpacity>
             {sosPresionando && (
               <View style={styles.sosBarra}>

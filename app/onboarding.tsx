@@ -4,6 +4,7 @@ import {
   Animated,
   Dimensions,
   Keyboard,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -65,7 +66,8 @@ export default function Onboarding() {
   const [hermanos,        setHermanos]        = useState('');
   const [mascotas,        setMascotas]        = useState('');
 
-  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [aceptaTerminos,  setAceptaTerminos]  = useState(false);
+  const [modalTerminos,   setModalTerminos]   = useState(false);
   const [, requestCameraPermission] = useCameraPermissions();
   const fadeAnim      = useRef(new Animated.Value(1)).current;
   const slideAnim     = useRef(new Animated.Value(0)).current;
@@ -190,6 +192,7 @@ export default function Onboarding() {
             <StepContent
               paso={paso}
               aceptaTerminos={aceptaTerminos}   setAceptaTerminos={setAceptaTerminos}
+              onVerTerminos={() => setModalTerminos(true)}
               nombreAbuela={nombreAbuela}       setNombreAbuela={setNombreAbuela}
               generoUsuario={generoUsuario}     setGeneroUsuario={setGeneroUsuario}
               edad={edad}                       setEdad={setEdad}
@@ -224,6 +227,42 @@ export default function Onboarding() {
             </TouchableOpacity>
           </View>
         </View>
+
+      {/* Modal términos completos */}
+      <Modal visible={modalTerminos} animationType="slide" onRequestClose={() => setModalTerminos(false)}>
+        <View style={{ flex: 1, backgroundColor: '#f5fafb' }}>
+          <View style={{ backgroundColor: '#0097b2', paddingTop: insets.top + 12, paddingBottom: 16, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <TouchableOpacity onPress={() => setModalTerminos(false)} style={{ padding: 12 }} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={{ fontSize: 20, fontWeight: '400', color: '#fff' }}>Términos y privacidad</Text>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+            <Text style={mt.fecha}>Última actualización: marzo 2026</Text>
+            <Text style={mt.seccion}>TÉRMINOS Y CONDICIONES DE USO</Text>
+            <Text style={mt.titulo}>1. Naturaleza del servicio</Text>
+            <Text style={mt.parrafo}>CompañIA es una aplicación de asistencia y compañía por voz basada en inteligencia artificial. <Text style={mt.negrita}>No es un dispositivo médico certificado</Text> y no reemplaza la atención, el diagnóstico ni el consejo de profesionales de la salud.</Text>
+            <Text style={mt.titulo}>2. Limitación de responsabilidad</Text>
+            <Text style={mt.parrafo}>• Las alertas SOS y de emergencia son herramientas de asistencia. No se garantiza su recepción inmediata ni la respuesta de los destinatarios.{'\n'}• Los recordatorios de medicación son avisos de ayuda. La responsabilidad del seguimiento médico corresponde al usuario y a sus familiares o cuidadores.{'\n'}• CompañIA no es responsable por decisiones médicas tomadas en base a las interacciones con la asistente.{'\n'}• En caso de emergencia médica activa, llamar al 107 (SAME) o al número de emergencias local.</Text>
+            <Text style={mt.titulo}>3. Consentimiento de datos y monitoreo</Text>
+            <Text style={mt.parrafo}>Al usar la aplicación, el usuario consiente que:{'\n'}• Sus conversaciones pueden ser resumidas y compartidas con los contactos familiares configurados.{'\n'}• Su estado de ánimo registrado puede ser visible para dichos contactos.{'\n'}• Su audio de voz es procesado por servicios de terceros (Anthropic, OpenAI, ElevenLabs) para el funcionamiento del servicio.</Text>
+            <Text style={mt.titulo}>4. Uso previsto</Text>
+            <Text style={mt.parrafo}>La aplicación está diseñada para uso personal como herramienta de compañía, entretenimiento y asistencia en tareas del día a día. No está diseñada para contextos de atención médica profesional.</Text>
+            <Text style={mt.titulo}>5. Servicio de pago y cancelación</Text>
+            <Text style={mt.parrafo}>CompañIA es un servicio de suscripción. La cancelación puede realizarse en cualquier momento desde la tienda de aplicaciones. No se realizan reembolsos por períodos parciales salvo lo que establezca la legislación aplicable.</Text>
+            <Text style={mt.titulo}>6. Ley aplicable</Text>
+            <Text style={mt.parrafo}>Estos términos se rigen por las leyes de la República Argentina. En caso de conflicto, serán competentes los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires.</Text>
+            <Text style={[mt.seccion, { marginTop: 32 }]}>POLÍTICA DE PRIVACIDAD</Text>
+            <Text style={mt.titulo}>Datos que recopilamos</Text>
+            <Text style={mt.parrafo}><Text style={mt.negrita}>Voz y audio:</Text> Procesados por OpenAI Whisper y ElevenLabs exclusivamente para transcripción y síntesis de voz. No se almacenan en servidores.{'\n\n'}<Text style={mt.negrita}>Ubicación:</Text> Usada solo para el pronóstico del tiempo. No se comparte ni almacena.{'\n\n'}<Text style={mt.negrita}>Perfil y conversaciones:</Text> Guardados únicamente en el dispositivo (AsyncStorage). No se almacenan en servidores.{'\n\n'}<Text style={mt.negrita}>Identificador de dispositivo:</Text> UUID anónimo para asociar el dispositivo con la familia en el servidor. No contiene información personal.</Text>
+            <Text style={mt.titulo}>Datos que no recopilamos</Text>
+            <Text style={mt.parrafo}>No recopilamos nombre, correo, edad, teléfono ni datos de identificación personal. No tenemos cuentas de usuario. No vendemos ni compartimos datos con terceros para publicidad.</Text>
+            <Text style={mt.titulo}>Derechos (Ley 25.326)</Text>
+            <Text style={mt.parrafo}>Podés borrar todos tus datos desinstalando la app y contactándonos para eliminar el registro de tu dispositivo.</Text>
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        </View>
+      </Modal>
 
     </View>
   );
@@ -459,8 +498,7 @@ const sv = StyleSheet.create({
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, aceptaTerminos, setAceptaTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
-  const router = useRouter();
+function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
@@ -495,7 +533,7 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, nombreAbuela, se
             Al continuar, consentís que tus conversaciones y estado de ánimo puedan ser compartidos con los <Text style={ct.tcBold}>familiares que configurés</Text> en la app.{'\n\n'}
             En emergencias médicas activas, llamar al <Text style={ct.tcBold}>107 (SAME)</Text> u otro servicio de emergencias local.
           </Text>
-          <TouchableOpacity onPress={() => router.push('/privacidad' as any)} activeOpacity={0.7} style={{ marginTop: 8, marginBottom: 16 }}>
+          <TouchableOpacity onPress={onVerTerminos} activeOpacity={0.7} style={{ marginTop: 8, marginBottom: 16 }}>
             <Text style={ct.tcLink}>Ver términos completos y política de privacidad →</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -676,4 +714,12 @@ const ct = StyleSheet.create({
   btnGeneroActivo: { backgroundColor: '#7C9EFF', borderColor: '#7C9EFF' },
   btnGeneroTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#8a9699' },
   btnGeneroTxtActivo: { color: '#fff' },
+});
+
+const mt = StyleSheet.create({
+  fecha:   { fontSize: 12, color: '#3f484a', marginBottom: 16 },
+  seccion: { fontSize: 13, fontWeight: '700', color: '#0097b2', letterSpacing: 1.2, marginTop: 8, marginBottom: 4 },
+  titulo:  { fontSize: 15, fontWeight: '600', color: '#171d1e', marginTop: 18, marginBottom: 6 },
+  parrafo: { fontSize: 13, color: '#3a4548', lineHeight: 21 },
+  negrita: { fontWeight: '600', color: '#171d1e' },
 });

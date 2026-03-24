@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   Linking,
   ScrollView,
   StyleSheet,
@@ -294,6 +295,17 @@ export default function Configuracion() {
     cargarRecordatorios().then(setRecordatorios);
   }, []));
 
+  useFocusEffect(useCallback(() => {
+    let sub: ReturnType<typeof BackHandler.addEventListener> | null = null;
+    // setTimeout(0) asegura que nuestro handler se registre DESPUÉS del de expo-router
+    const id = setTimeout(() => {
+      sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        router.replace('/');
+        return true;
+      });
+    }, 0);
+    return () => { clearTimeout(id); sub?.remove(); };
+  }, [router]));
 
   useEffect(() => {
     obtenerEstadoSmartThings().then(({ vinculado, dispositivos }) => {
