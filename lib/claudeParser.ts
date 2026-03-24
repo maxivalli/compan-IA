@@ -97,9 +97,6 @@ export function respuestaOffline(
   nombreAbuela: string,
   nombreAsistente: string,
   climaTexto: string,
-  onPararMusica: () => void,
-  chatIds: string[],
-  enviarAlerta: (ids: string[], msg: string, asistente: string) => void,
   vozGenero: 'femenina' | 'masculina' = 'femenina',
 ): string | null {
   const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -115,20 +112,14 @@ export function respuestaOffline(
     return climaTexto
       ? `Según la última consulta: ${climaTexto}`
       : `No tengo información del clima en este momento, ${nombreAbuela}.`;
-  if (/\b(musica|pone|toca|cancion|radio)\b/.test(t))
-    return `Necesito conexión para poner música, ${nombreAbuela}. Probá en un ratito.`;
-  if (/\b(para|para la musica|silencio|apaga)\b/.test(t)) {
-    onPararMusica();
-    return 'Listo, apagué la música.';
-  }
+  if (/\b(musica|pone|toca|cancion|radio|para|para la musica|silencio|apaga)\b/.test(t))
+    return `Necesito conexión para eso, ${nombreAbuela}. Probá en un ratito.`;
   if (/\b(bien|mal|cansad|dolor|siento)\b/.test(t))
     return `Gracias por contarme, ${nombreAbuela}. En cuanto tenga conexión podemos charlar mejor.`;
   if (/\b(chiste|cuento|historia)\b/.test(t))
     return `Me encantaría contarte algo, pero necesito conexión para pensar bien. ¡Preguntame cuando vuelva la señal!`;
-  if (/\b(ayuda|auxilio|emergencia|me cai|me duele|no puedo)\b/.test(t)) {
-    if (chatIds.length) enviarAlerta(chatIds, `⚠️ ${nombreAbuela} puede necesitar ayuda. ${nombreAsistente} está sin conexión.`, nombreAsistente);
-    return `${nombreAbuela}, ya avisé a tu familia. Si es urgente, pedile a alguien que te ayude.`;
-  }
+  if (/\b(ayuda|auxilio|emergencia|me cai|me duele|no puedo)\b/.test(t))
+    return `${nombreAbuela}, ahora mismo no tengo señal y no puedo avisar a tu familia. Pedile ayuda a alguien que tengas cerca.`;
   if (/\b(gracias|graci)\b/.test(t))
     return `De nada, ${nombreAbuela}. Acá estoy siempre.`;
   if (/\b(adios|chau|hasta luego|nos vemos)\b/.test(t))
