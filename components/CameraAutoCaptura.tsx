@@ -21,7 +21,9 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   useEffect(() => {
     if (!visible) { setCuenta(3); capturedRef.current = false; cuentaArrancoRef.current = false; return; }
     if (!permission?.granted) { onCancelar(); return; }
-    setCuenta(silencioso ? 0 : 3);
+    // Silencioso: arrancar en 1 (no 0) para esperar a que la cámara esté lista.
+    // onCameraReady lo bajará a 0, disparando la captura recién cuando hay feed.
+    setCuenta(silencioso ? 1 : 3);
     capturedRef.current = false;
     cuentaArrancoRef.current = false;
   }, [visible, permission?.granted]);
@@ -29,7 +31,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   function onCameraReady() {
     if (cuentaArrancoRef.current) return;
     cuentaArrancoRef.current = true;
-    if (silencioso) return; // captura inmediata vía useEffect de cuenta=0
+    if (silencioso) { setCuenta(0); return; } // cámara lista → disparar captura
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       setCuenta(prev => {
