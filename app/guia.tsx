@@ -257,6 +257,20 @@ const GRUPOS: Grupo[] = [
         nota: 'Los recuerdos se guardan automáticamente. También podés verlos y editarlos desde el perfil.',
       },
       {
+        icono: 'clipboard-outline',
+        titulo: 'Listas y post-its',
+        descripcion: 'Pedile a Rosita que cree listas de compras, tareas pendientes o lo que necesites. Las listas aparecen como post-its apilados en la pantalla principal y podés verlas o borrarlas cuando quieras.',
+        color: '#78350F',
+        bg: '#FEF3C7',
+        comandos: [
+          'Hacé una lista del super con leche, pan y huevos',
+          'Agregá azúcar a la lista del super',
+          'Borrá la lista del super',
+          '¿Qué tengo en la lista del super?',
+        ],
+        nota: 'Si hay listas guardadas, aparecen como post-its amarillos en la pantalla. Tocá los post-its para ver los detalles.',
+      },
+      {
         icono: 'gift-outline',
         titulo: 'Saludos especiales',
         descripcion: 'El día de tu cumpleaños, Rosita te saluda con un mensaje especial a las 9 de la mañana y la pantalla se llena de globos. También tiene saludos únicos para Navidad y Año Nuevo.',
@@ -321,6 +335,14 @@ const GRUPOS: Grupo[] = [
         bg: '#F1F5F9',
         comandos: ['Apagá la luz', 'Prendé el ventilador', '¿Qué dispositivos tengo?'],
         nota: 'La vinculación se hace desde Configuración, pegando el token de SmartThings. Solo se hace una vez.',
+      },
+      {
+        icono: 'ear-outline',
+        titulo: 'Amplificador de audio',
+        descripcion: 'Si tenés dificultad para escuchar, enchufá unos auriculares y el botón principal se convierte en amplificador. El teléfono capta las voces con el micrófono y las envía con más volumen a los auriculares, como un pocket talker.',
+        color: '#0369A1',
+        bg: '#E0F2FE',
+        nota: 'Funciona con auriculares de cable y Bluetooth. Mientras está activo, Rosita no interrumpe. Tocá la pastilla de ganancia (1.5×, 2×, 3×) para ajustar el volumen.',
       },
       {
         icono: 'lock-closed-outline',

@@ -276,6 +276,59 @@ export async function borrarRecordatorio(id: string): Promise<void> {
   } catch {}
 }
 
+// ── Listas ────────────────────────────────────────────────────────────────────
+
+export type Lista = {
+  id: string;
+  nombre: string;      // "super", "tareas", "medicamentos", etc.
+  items: string[];
+  creadaEn: number;
+};
+
+const CLAVE_LISTAS = 'rosa_listas';
+
+export async function cargarListas(): Promise<Lista[]> {
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_LISTAS);
+    return data ? JSON.parse(data) : [];
+  } catch { return []; }
+}
+
+export async function guardarLista(lista: Lista): Promise<void> {
+  try {
+    const todas = await cargarListas();
+    // Reemplazar si ya existe una con el mismo nombre (case-insensitive)
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const idx = todas.findIndex(l => norm(l.nombre) === norm(lista.nombre));
+    if (idx >= 0) todas[idx] = lista; else todas.push(lista);
+    await AsyncStorage.setItem(CLAVE_LISTAS, JSON.stringify(todas));
+  } catch {}
+}
+
+export async function agregarItemLista(nombreLista: string, item: string): Promise<void> {
+  try {
+    const todas = await cargarListas();
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const lista = todas.find(l => norm(l.nombre) === norm(nombreLista));
+    if (lista) {
+      lista.items.push(item);
+    } else {
+      // Crear la lista si no existía
+      todas.push({ id: Date.now().toString(), nombre: nombreLista, items: [item], creadaEn: Date.now() });
+    }
+    await AsyncStorage.setItem(CLAVE_LISTAS, JSON.stringify(todas));
+  } catch {}
+}
+
+export async function borrarLista(nombreLista: string): Promise<void> {
+  try {
+    const todas = await cargarListas();
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    const nueva = todas.filter(l => norm(l.nombre) !== norm(nombreLista));
+    await AsyncStorage.setItem(CLAVE_LISTAS, JSON.stringify(nueva));
+  } catch {}
+}
+
 // ── Música escuchada hoy ─────────────────────────────────────────────────────
 
 const CLAVE_MUSICA_HOY = 'rosa_musica_hoy';

@@ -39,6 +39,9 @@ export type RespuestaParsed = {
     codigo: string;
     valor?: boolean | number;
   };
+  listaNueva?: { nombre: string; items: string[] };
+  listaAgregar?: { nombre: string; item: string };
+  listaBorrar?: string;
 };
 
 // ── Helpers públicos ──────────────────────────────────────────────────────────
@@ -86,7 +89,7 @@ export function detectarGenero(tag: string): string {
   for (const [genero, palabras] of mapa) {
     if (palabras.some(p => t.includes(p))) return genero;
   }
-  return t;
+  return ''; // sin match: buscarRadio recibirá string vacío y fallará limpiamente
 }
 
 export function respuestaOffline(
@@ -273,7 +276,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '[AVERGONZADA] — cuando dice algo confuso, gracioso sin querer, o se corrige',
     '[CANSADA] — cuando menciona que está cansada, con sueño o sin energía',
     '[MUSICA: clave] — cuando piden música. Géneros: tango, bolero, folklore, romantica, clasica, jazz, pop. Radios (usá la clave exacta): cadena3, lv3, mitre, continental, rivadavia, lared, metro, aspen, la100, folklorenac, rockpop, convos, urbana, radio10, destape, mega, vida, delplata, lt8. Nombres hablados → clave: "Radio con Vos" o "con vos" → convos | "La Red" → lared | "Rock and Pop" → rockpop | "Del Plata" → delplata | "Nacional Folklórica" → folklorenac. Avisale a la persona qué vas a poner. NUNCA uses nombre de canción ni artista.',
-    '[CUENTO] — cuando contás un cuento corto. Podés extenderte más.',
+    '[CUENTO] — cuando contás un cuento, historia o cualquier narrativa. Usá este tag SIEMPRE que el usuario pida que cuentes algo libre, una historia, un cuento, o diga "contame lo que quieras / lo que se te ocurra". Con este tag podés extenderte hasta 150 palabras.',
     '[JUEGO] — cuando iniciás una adivinanza, trivia, juego de memoria, cálculo mental o trabalenguas.',
     '[CHISTE] — cuando contás un chiste. Si hay un CHISTE CURADO en el contexto, contalo EXACTAMENTE como está escrito, sin modificarlo.',
     '[LINTERNA] — cuando la persona dice "prendé la linterna", "necesito luz", "iluminá", "ponete de linterna", "hacé de linterna" o cualquier variante. Va AL INICIO en lugar de la emoción. SIEMPRE usá este tag si mencionan linterna o piden luz con la pantalla. Respondé SOLO con una frase corta confirmando, ej: "¡Listo, acá estoy de linterna!".',
@@ -290,6 +293,9 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '[DOMOTICA: dispositivo : codigo : valor] — para controlar dispositivos. Solo si hay dispositivos vinculados en el contexto.',
     '[DOMOTICA_ESTADO: dispositivo] — para consultar el estado de un dispositivo.',
     '[DOMOTICA_TODO] — para apagar TODOS los dispositivos a la vez.',
+    '[LISTA_NUEVA: nombre | item1; item2; item3] — cuando la persona pide crear una lista (ej: "hacé una lista del super", "anotá estas cosas"). El nombre es breve (ej: "super", "tareas", "medicamentos"). Los ítems separados por ";". Si no hay ítems aún, dejá la lista vacía: [LISTA_NUEVA: nombre |].',
+    '[LISTA_AGREGAR: nombre | item] — cuando piden agregar UN ítem a una lista existente.',
+    '[LISTA_BORRAR: nombre] — cuando piden borrar o eliminar una lista completa.',
   ].filter(l => l !== undefined && l !== null);
 
   return lineas.join('\n');
@@ -333,7 +339,7 @@ export function construirContextoDinamico(p: Perfil, climaTexto: string, incluir
         '\n- "esta encendida la luz?" -> [DOMOTICA_ESTADO:luz_salon]' +
         '\nSolo usa estos tags con dispositivos vinculados. Si no reconoces el dispositivo, diselo amablemente.'
       )
-    : '';
+    : '\nSIN DOMÓTICA: No hay dispositivos SmartThings vinculados. NUNCA uses los tags [DOMOTICA], [DOMOTICA_ESTADO] ni [DOMOTICA_TODO]. Si la persona pide controlar luces, enchufes u otros dispositivos, respondé amablemente que no hay dispositivos conectados todavía y que se puede configurar en Ajustes.';
   return `Fecha y hora actual: ${fecha}, ${hora}. Estación del año: ${estacion} (hemisferio sur).
 ${climaTexto}
 ${esCumple    ? `\n¡HOY ES EL CUMPLEAÑOS DE ${p.nombreAbuela.toUpperCase()}! Mencionar el cumpleaños con mucho cariño en la primera respuesta de la conversación.\n` : ''}
@@ -364,6 +370,9 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[LINTERNA\]\s*/gi, '')
     .replace(/\[DOMOTICA[^\]]*\]?\s*/gi, '')
     .replace(/\[DOMOTICA_ESTADO:[^\]]*\]?\s*/gi, '')
+    .replace(/\[LISTA_NUEVA:[^\]]*\]?\s*/gi, '')
+    .replace(/\[LISTA_AGREGAR:[^\]]*\]?\s*/gi, '')
+    .replace(/\[LISTA_BORRAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]/gi, '')
     .trim();
 }
@@ -473,6 +482,22 @@ export function parsearRespuesta(
     };
   }
 
+  // ── LISTAS ──
+  const listaNuevaMatch  = raw.match(/\[LISTA_NUEVA:\s*(.+?)\s*\|\s*(.*?)\]/i);
+  const listaAgregarMatch = raw.match(/\[LISTA_AGREGAR:\s*(.+?)\s*\|\s*(.+?)\]/i);
+  const listaBorrarMatch  = raw.match(/\[LISTA_BORRAR:\s*([^\]]+)\]/i);
+  const listaNueva = listaNuevaMatch ? {
+    nombre: listaNuevaMatch[1].trim(),
+    items: listaNuevaMatch[2].trim()
+      ? listaNuevaMatch[2].split(';').map(s => s.trim()).filter(Boolean)
+      : [],
+  } : undefined;
+  const listaAgregar = listaAgregarMatch ? {
+    nombre: listaAgregarMatch[1].trim(),
+    item: listaAgregarMatch[2].trim(),
+  } : undefined;
+  const listaBorrar = listaBorrarMatch ? listaBorrarMatch[1].trim() : undefined;
+
   // ── RECORDATORIO ──
   const recordatorioMatch = raw.match(/\[RECORDATORIO:\s*(.+?)\s*\|\s*(.+?)\]/i);
   const recordatorioFechaRaw = recordatorioMatch?.[1]?.trim() ?? '';
@@ -572,5 +597,8 @@ export function parsearRespuesta(
     llamarFamilia,
     emergencia,
     domotica,
+    listaNueva,
+    listaAgregar,
+    listaBorrar,
   };
 }

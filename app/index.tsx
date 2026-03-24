@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -20,6 +20,8 @@ import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
+import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
+import { useAmplificador } from '../hooks/useAmplificador';
 
 function RelojNoche() {
   const [fontsLoaded] = useFonts({ Poppins_700Bold });
@@ -76,7 +78,33 @@ export default function Index() {
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada,
     refs, player,
+    listas, borrarListaVoz,
   } = useRosita();
+
+  const {
+    activo: ampActivo, auriculares, esBluetooth,
+    etiquetaGanancia, toggleActivo, siguienteNivel,
+  } = useAmplificador();
+
+  const prevNoMolestarRef = useRef(false);
+
+  function toggleAmplificador() {
+    if (ampActivo) {
+      toggleActivo();
+      const prev = prevNoMolestarRef.current;
+      setNoMolestar(prev);
+      if (!prev) {
+        refs.iniciarSpeechRecognition();
+        chequearPendientesAlActivar();
+      }
+    } else {
+      prevNoMolestarRef.current = noMolestar;
+      setNoMolestar(true);
+      ExpoSpeechRecognitionModule.stop();
+      detenerSilbido();
+      toggleActivo();
+    }
+  }
 
   const panCaricia = useRef(PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dy) < 40,
@@ -111,7 +139,7 @@ export default function Index() {
   const esAtardecerBg  = hora >= 17 && hora < 20;
   const esAmanecer     = hora >= 5  && hora < 8;
   const esFondoNoche   = hora >= 20 || hora < 5;
-  const esBotonesNoche = hora >= 23 || hora < 9;
+  const esBotonesNoche = esFondoNoche; // sincronizado con el estado de noche del perfil
   const esClimaOscuro  = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo/);
   
   // Tu color base original
@@ -188,6 +216,7 @@ export default function Index() {
 
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
+  const [mostrarListas,  setMostrarListas]  = useState(false);
   const sosPulso   = useRef(new Animated.Value(1)).current;   
   const sosProgreso = useRef(new Animated.Value(0)).current;  
   const sosPulsoRef    = useRef<Animated.CompositeAnimation | null>(null);
@@ -277,17 +306,23 @@ export default function Index() {
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
 
   // ── Color del dot / borde / glow según estado ───────────────────────────────
-  const btnDotColor = musicaActiva        ? '#E8392A'
+  const btnDotColor = auriculares && ampActivo  ? '#10B981'
+    : auriculares             ? '#10B981'
+    : musicaActiva            ? '#E8392A'
     : estado === 'escuchando' ? '#E85D24'
     : estado === 'pensando'   ? '#3b82f6'
     : estado === 'hablando'   ? '#22c55e'
-    : '#ef4444'; 
-  const btnGradient: [string, string] = musicaActiva        ? ['#fca5a5', '#E8392A']
+    : '#ef4444';
+  const btnGradient: [string, string] = auriculares && ampActivo  ? ['#6EE7B7', '#10B981']
+    : auriculares             ? ['#A7F3D0', '#10B981']
+    : musicaActiva            ? ['#fca5a5', '#E8392A']
     : estado === 'escuchando' ? ['#fdba74', '#E85D24']
     : estado === 'pensando'   ? ['#93c5fd', '#3b82f6']
     : estado === 'hablando'   ? ['#86efac', '#22c55e']
     : ['#fca5a5', '#ef4444'];
-  const btnLabel = musicaActiva ? 'Parar'
+  const btnLabel = auriculares && ampActivo  ? 'Amplificando'
+    : auriculares             ? 'Amplificar'
+    : musicaActiva            ? 'Parar'
     : estado === 'escuchando' ? 'Escuchando'
     : estado === 'pensando'   ? 'Pensando...'
     : estado === 'hablando'   ? 'Hablando'
@@ -296,6 +331,7 @@ export default function Index() {
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
   return (
+    <>
     <Pressable
       style={{ flex: 1 }}
       onPress={() => {
@@ -349,7 +385,6 @@ export default function Index() {
     styles.ojoContenedor,
     { marginTop: isTablet ? Math.round(screenH * 0.06) : 180 },
   ]}
-  onLayout={(e) => console.log('W:', e.nativeEvent.layout.width, 'X:', e.nativeEvent.layout.x)}
   {...panCaricia.panHandlers}
 >
         <ExpresionOverlay
@@ -384,8 +419,44 @@ export default function Index() {
       </View>
       {modoNoche === 'durmiendo' && <ZZZ />}
 
-      <View style={[styles.ecualizadorWrap, isTablet && { height: Math.round(90 * textScale) }]}>
-        {musicaActiva
+      <View style={[styles.ecualizadorWrap, isTablet && { height: Math.round(90 * textScale) }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
+        {listas.length > 0
+          ? (() => {
+              const PEEK = 20;
+              const POST_H = 80;
+              const stackH = POST_H + (listas.length - 1) * PEEK;
+              return (
+                <TouchableOpacity onPress={() => setMostrarListas(true)} activeOpacity={0.85}>
+                  <View style={{ width: 280, height: stackH }}>
+                    {[...listas].reverse().map((lista, i) => {
+                      const listaIdx = listas.length - 1 - i;
+                      const c = POSTIT_COLORES[listaIdx % POSTIT_COLORES.length];
+                      return (
+                        <View
+                          key={lista.id}
+                          style={[styles.postIt, {
+                            position: 'absolute',
+                            top: listaIdx * PEEK,
+                            zIndex: i + 1,
+                            backgroundColor: c.bg,
+                            transform: [{ rotate: listaIdx % 2 === 0 ? '-1.5deg' : '1.2deg' }],
+                          }]}
+                        >
+                          <View style={[styles.postItLinea, { backgroundColor: c.linea }]} />
+                          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 18 }}>
+                            <Text style={[styles.postItTitulo, { color: c.text }]} numberOfLines={1}>
+                              {lista.nombre}
+                            </Text>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </TouchableOpacity>
+              );
+            })()
+
+          : musicaActiva
           ? <AnimacionMusica />
           : modoNoche !== 'despierta'
           ? <RelojNoche />
@@ -411,7 +482,17 @@ export default function Index() {
         <View style={[styles.botonesFilaPrincipal, isTablet && { flexDirection: 'row', gap: 32 }]}>
 
           {/* Botón Hablar */}
-          <View style={styles.botonContenedor}>
+          <View style={[styles.botonContenedor, { position: 'relative' }]}>
+            {/* Pastilla de ganancia — a la izquierda del botón */}
+            {auriculares && ampActivo && (
+              <TouchableOpacity
+                onPress={siguienteNivel}
+                activeOpacity={0.75}
+                style={{ position: 'absolute', left: -58, top: '50%', marginTop: -16, backgroundColor: '#10B98133', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#10B98155', zIndex: 10 }}
+              >
+                <Text style={{ fontSize: fs(14), fontWeight: '700', color: '#6EE7B7' }}>{etiquetaGanancia}</Text>
+              </TouchableOpacity>
+            )}
             {(() => { const gW = btnW + 90; const gH = btnH + 70; return (
               <Animated.View style={[styles.btnGlow, { opacity: glowOpacity, top: -(gH - btnH) / 2, left: -(gW - btnW) / 2 }]}>
                 <Svg width={gW} height={gH}>
@@ -429,7 +510,7 @@ export default function Index() {
             <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
               <TouchableOpacity
                 style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
-                onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+                onPress={auriculares ? toggleAmplificador : musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
                 activeOpacity={0.85}
                 disabled={botonDisabled && !musicaActiva}
               >
@@ -571,6 +652,14 @@ export default function Index() {
 
     </LinearGradient>
     </Pressable>
+
+    <PostItViewer
+      visible={mostrarListas}
+      listas={listas}
+      onBorrar={(nombre) => { borrarListaVoz(nombre); }}
+      onClose={() => setMostrarListas(false)}
+    />
+    </>
   );
 }
 
@@ -584,6 +673,9 @@ const styles = StyleSheet.create({
   botonesFilaPrincipal: { alignItems: 'center', justifyContent: 'center', gap: 12 },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center' },
+  postIt:             { borderRadius: 6, width: 280, height: 80, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.22, shadowRadius: 6, elevation: 5 },
+  postItLinea:        { height: 5, width: '100%' },
+  postItTitulo:       { fontSize: fs(28), fontWeight: '800', textTransform: 'capitalize' },
   btnGlow:            { position: 'absolute' },
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },

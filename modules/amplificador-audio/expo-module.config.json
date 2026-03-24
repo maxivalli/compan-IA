@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["AmplificadorAudioModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.amplificadoraudio.AmplificadorAudioModule"]
+  }
+}

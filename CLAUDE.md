@@ -186,6 +186,9 @@ Tags opcionales al **final** de la respuesta:
 - `[LLAMAR_FAMILIA: motivo]` — alerta de angustia emocional; también se emite silenciosamente si la persona evita ir al médico ante una consulta médica
 - `[EMERGENCIA: síntoma]` — alerta urgente a todos los contactos
 - `[ALARMA: YYYY-MM-DDTHH:MM | texto]` — programa una alarma con fecha y hora exacta (ver sección Alarmas)
+- `[LISTA_NUEVA: nombre | item1; item2; item3]` — crea lista nueva o reemplaza existente; ítems separados por ";"
+- `[LISTA_AGREGAR: nombre | item]` — agrega un ítem a una lista existente por nombre
+- `[LISTA_BORRAR: nombre]` — elimina la lista completa
 
 Claves de música válidas — géneros: `tango`, `bolero`, `folklore`, `romantica`, `clasica`, `jazz`, `pop` — radios: `cadena3`, `mitre`, `continental`, `rivadavia`, `nacional`, `lared`, `metro`
 
@@ -316,6 +319,33 @@ Integración opcional con Samsung SmartThings via PAT (Personal Access Token). N
 
 ---
 
+## Listas y post-its
+
+El usuario puede crear listas de compras, tareas u otras agrupaciones de ítems por voz. Rosita las guarda en AsyncStorage y las muestra como post-its apilados en la pantalla principal.
+
+### Tipos (`lib/memoria.ts`)
+```typescript
+type Lista = { id: string; nombre: string; items: string[]; creadaEn: number; };
+```
+
+### Storage
+- Clave: `rosa_listas`
+- Funciones: `cargarListas()`, `guardarLista(lista)` (upsert por nombre), `agregarItemLista(nombre, item)`, `borrarLista(nombre)`
+
+### Tags
+- `[LISTA_NUEVA: super | leche; pan; huevos]` — crea o reemplaza lista "super" con esos ítems
+- `[LISTA_AGREGAR: super | azúcar]` — agrega "azúcar" a la lista "super"
+- `[LISTA_BORRAR: super]` — elimina la lista "super"
+
+### UI en `app/index.tsx`
+- Cuando `listas.length > 0`, los post-its reemplazan la animación de música y el carrusel de frases
+- Stack físico: `position: absolute`, `top: idx * 20`, `zIndex: i + 1`, rotación alterna ±1.5°
+- Tamaño del post-it: 280×80px, fondo `#FEF3C7`, título en `fs(28)` bold
+- Al tocar los post-its se abre `ListasModal` (bottom sheet)
+- `ListasModal` tiene tabs para múltiples listas y botón de borrar por lista
+
+---
+
 ## Linterna (expo-brightness)
 
 - `setBrightnessAsync(1)` — sube el brillo **solo a nivel de app** (no afecta el sistema)
@@ -363,6 +393,7 @@ Crítico: **no mezclar** `useNativeDriver: true` con `useNativeDriver: false` en
 | `rosa_recordatorios_personal` | Recordatorios futuros creados por la usuaria |
 | `compania_install_id` | UUID del dispositivo |
 | `compania_familia_id` | ID de familia en el backend |
+| `rosa_listas` | Array de `Lista[]` con nombre, ítems y timestamp |
 | `compania_pin` | PIN de configuración |
 
 ---
