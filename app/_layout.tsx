@@ -18,7 +18,7 @@ export default function Layout() {
   useEffect(() => { chequearActualizacion(); }, []);
 
   return (
-    <Tabs screenOptions={{ headerShown: false, tabBarStyle: { display: 'none' } }}>
+    <Tabs backBehavior="initialRoute" screenOptions={{ headerShown: false, tabBarStyle: { display: 'none' } }}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="configuracion" />
       <Tabs.Screen name="animo" />

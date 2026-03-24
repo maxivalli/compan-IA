@@ -13,11 +13,53 @@ export default function Privacidad() {
         <TouchableOpacity onPress={() => router.back()} style={s.btnBack} activeOpacity={0.7}>
           <Ionicons name="arrow-back" size={24} color={M.onPrimary} />
         </TouchableOpacity>
-        <Text style={s.topTitle}>Política de privacidad</Text>
+        <Text style={s.topTitle}>Términos y privacidad</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
         <Text style={s.fecha}>Última actualización: marzo 2026</Text>
+
+        {/* ── TÉRMINOS Y CONDICIONES ── */}
+        <Text style={s.seccion}>TÉRMINOS Y CONDICIONES DE USO</Text>
+
+        <Text style={s.titulo}>1. Naturaleza del servicio</Text>
+        <Text style={s.parrafo}>
+          CompañIA es una aplicación de asistencia y compañía por voz basada en inteligencia artificial. <Text style={s.negrita}>No es un dispositivo médico certificado</Text> y no reemplaza la atención, el diagnóstico ni el consejo de profesionales de la salud.
+        </Text>
+
+        <Text style={s.titulo}>2. Limitación de responsabilidad</Text>
+        <Text style={s.parrafo}>
+          • Las alertas SOS y de emergencia son herramientas de asistencia. No se garantiza su recepción inmediata ni la respuesta de los destinatarios.{'\n'}
+          • Los recordatorios de medicación son avisos de ayuda. La responsabilidad del seguimiento médico corresponde al usuario y a sus familiares o cuidadores.{'\n'}
+          • CompañIA no es responsable por decisiones médicas, de salud o de seguridad tomadas en base a las interacciones con la asistente.{'\n'}
+          • En caso de emergencia médica activa, llamar al 107 (SAME) o al número de emergencias local.
+        </Text>
+
+        <Text style={s.titulo}>3. Consentimiento de datos y monitoreo</Text>
+        <Text style={s.parrafo}>
+          Al usar la aplicación, el usuario consiente expresamente que:{'\n'}
+          • Sus conversaciones pueden ser resumidas y compartidas con los contactos familiares que configure en la app.{'\n'}
+          • Su estado de ánimo registrado por la asistente puede ser visible para dichos contactos.{'\n'}
+          • Su audio de voz es procesado por servicios de terceros (Anthropic, OpenAI, ElevenLabs) exclusivamente para el funcionamiento del servicio.
+        </Text>
+
+        <Text style={s.titulo}>4. Uso previsto</Text>
+        <Text style={s.parrafo}>
+          La aplicación está diseñada para uso personal como herramienta de compañía, entretenimiento y asistencia en tareas del día a día. No está diseñada para contextos de atención médica profesional.
+        </Text>
+
+        <Text style={s.titulo}>5. Servicio de pago y cancelación</Text>
+        <Text style={s.parrafo}>
+          CompañIA es un servicio de suscripción. La cancelación puede realizarse en cualquier momento desde la tienda de aplicaciones. No se realizan reembolsos por períodos parciales salvo lo que establezca la legislación aplicable.
+        </Text>
+
+        <Text style={s.titulo}>6. Ley aplicable</Text>
+        <Text style={s.parrafo}>
+          Estos términos se rigen por las leyes de la República Argentina. En caso de conflicto, serán competentes los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires.
+        </Text>
+
+        {/* ── POLÍTICA DE PRIVACIDAD ── */}
+        <Text style={[s.seccion, { marginTop: 32 }]}>POLÍTICA DE PRIVACIDAD</Text>
 
         <Text style={s.titulo}>¿Qué es CompañIA?</Text>
         <Text style={s.parrafo}>
@@ -78,6 +120,7 @@ const s = StyleSheet.create({
   topBar:    { backgroundColor: M.primary, paddingTop: 52, paddingBottom: 16, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 4 },
   btnBack:   { padding: 12, borderRadius: 24 },
   topTitle:  { fontSize: 20, fontWeight: '400', color: M.onPrimary },
+  seccion:   { fontSize: 13, fontWeight: '700', color: M.primary, letterSpacing: 1.2, marginTop: 8, marginBottom: 4 },
   contenido: { padding: 20 },
   fecha:     { fontSize: 12, color: M.onSurfaceVariant, marginBottom: 20 },
   titulo:    { fontSize: 16, fontWeight: '600', color: M.onSurface, marginTop: 20, marginBottom: 6 },

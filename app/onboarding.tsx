@@ -39,6 +39,7 @@ const SIDE_PAD = PEEK + CARD_GAP;
 
 const STEP_COLORS = [
   '#0097b2', // bienvenida
+  '#0097b2', // términos
   '#7C9EFF', // nombre
   '#FF8FAB', // edad
   '#57CC99', // asistente
@@ -46,7 +47,7 @@ const STEP_COLORS = [
   '#0097b2', // listo
 ];
 
-const TOTAL = 6;
+const TOTAL = 7;
 
 export default function Onboarding() {
   const router  = useRouter();
@@ -64,6 +65,7 @@ export default function Onboarding() {
   const [hermanos,        setHermanos]        = useState('');
   const [mascotas,        setMascotas]        = useState('');
 
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [, requestCameraPermission] = useCameraPermissions();
   const fadeAnim      = useRef(new Animated.Value(1)).current;
   const slideAnim     = useRef(new Animated.Value(0)).current;
@@ -172,7 +174,7 @@ export default function Onboarding() {
               <View style={s.iconoCirculo}>
                 <View style={s.iconoInner}>
                   <Ionicons
-                    name={(['person','calendar','chatbubble','people','checkmark-circle'] as const)[paso - 1]}
+                    name={(['document-text','person','calendar','chatbubble','people','checkmark-circle'] as const)[paso - 1]}
                     size={78}
                     color="#fff"
                   />
@@ -187,8 +189,9 @@ export default function Onboarding() {
           <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
             <StepContent
               paso={paso}
+              aceptaTerminos={aceptaTerminos}   setAceptaTerminos={setAceptaTerminos}
               nombreAbuela={nombreAbuela}       setNombreAbuela={setNombreAbuela}
-              generoUsuario={generoUsuario}     setGeneroUsuario={setGeneroUsuario} // Pasamos el prop
+              generoUsuario={generoUsuario}     setGeneroUsuario={setGeneroUsuario}
               edad={edad}                       setEdad={setEdad}
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
               vozId={vozId}                     setVozId={setVozId}
@@ -211,7 +214,8 @@ export default function Onboarding() {
               style={[s.fabBtn, { backgroundColor: color }]}
               onPress={() => {
                 if (esUltimo) { finalizar(); return; }
-                if (paso === 1 && !nombreAbuela.trim()) return;
+                if (paso === 1 && !aceptaTerminos) return;
+                if (paso === 2 && !nombreAbuela.trim()) return;
                 irAPaso(paso + 1);
               }}
               activeOpacity={0.85}
@@ -455,13 +459,15 @@ const sv = StyleSheet.create({
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, aceptaTerminos, setAceptaTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+  const router = useRouter();
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
-    { titulo: '¿Cómo te llamas?',            sub: 'Decime tu nombre y cómo preferís que te trate.' }, // Ajusté un poco el copy para que sea más claro
+    { titulo: 'Antes de continuar',           sub: 'Leé y aceptá nuestros términos para seguir.' },
+    { titulo: '¿Cómo te llamas?',            sub: 'Decime tu nombre y cómo preferís que te trate.' },
     { titulo: '¿Cuántos años tenés?',        sub: 'La asistente adapta su forma de hablar según la edad. Podés saltear este paso.' },
-    { titulo: '¿Cómo la vas a llamar?',      sub: `El nombre con el que llamarás a la asistente.` },
+    { titulo: '¿Cómo la vas a llamar?',      sub: 'El nombre con el que llamarás a la asistente.' },
     { titulo: 'Tu familia',                  sub: '¿Quiénes son tus familiares cercanos? Podés completarlo después.' },
     { titulo: `¡Todo listo${nombreAbuela ? ', ' + nombreAbuela : ''}!`, sub: `${nombreAsistente || 'Rosita'} ya sabe quién sos y está ${vozSeleccionada.genero === 'masculina' ? 'listo' : 'lista'} para acompañarte.` },
   ];
@@ -477,7 +483,37 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, generoUsuario, setGe
     );
   }
 
-  if (paso === 3) {
+  if (paso === 1) {
+    return (
+      <View style={{ flex: 1, paddingTop: 24, paddingHorizontal: 28 }}>
+        <Text style={ct.titulo}>{titulo}</Text>
+        <ScrollView style={{ flex: 1, marginTop: 12 }} showsVerticalScrollIndicator={false}>
+          <Text style={ct.tcTexto}>
+            <Text style={ct.tcBold}>CompañIA no es un dispositivo médico</Text> ni reemplaza la atención profesional de salud.{'\n\n'}
+            Las <Text style={ct.tcBold}>alertas SOS</Text> son herramientas de asistencia; no se garantiza su recepción inmediata.{'\n\n'}
+            Los <Text style={ct.tcBold}>recordatorios de medicación</Text> son avisos de ayuda. La responsabilidad del seguimiento médico corresponde al usuario y sus familiares.{'\n\n'}
+            Al continuar, consentís que tus conversaciones y estado de ánimo puedan ser compartidos con los <Text style={ct.tcBold}>familiares que configurés</Text> en la app.{'\n\n'}
+            En emergencias médicas activas, llamar al <Text style={ct.tcBold}>107 (SAME)</Text> u otro servicio de emergencias local.
+          </Text>
+          <TouchableOpacity onPress={() => router.push('/privacidad' as any)} activeOpacity={0.7} style={{ marginTop: 8, marginBottom: 16 }}>
+            <Text style={ct.tcLink}>Ver términos completos y política de privacidad →</Text>
+          </TouchableOpacity>
+        </ScrollView>
+        <TouchableOpacity
+          onPress={() => setAceptaTerminos(!aceptaTerminos)}
+          activeOpacity={0.7}
+          style={ct.checkRow}
+        >
+          <View style={[ct.checkbox, aceptaTerminos && ct.checkboxActivo]}>
+            {aceptaTerminos && <Ionicons name="checkmark" size={14} color="#fff" />}
+          </View>
+          <Text style={ct.checkLabel}>Leí y acepto los términos y condiciones</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (paso === 4) {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrapScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <Text style={ct.titulo}>{titulo}</Text>
@@ -490,7 +526,7 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, generoUsuario, setGe
     );
   }
 
-  if (paso === 4) {
+  if (paso === 5) {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrapScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <Text style={ct.titulo}>{titulo}</Text>
@@ -510,8 +546,7 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, generoUsuario, setGe
       <Text style={ct.titulo}>{titulo}</Text>
       <Text style={ct.sub}>{sub}</Text>
 
-      {/* 👇 ACÁ INTEGRAMOS EL SELECTOR DE GÉNERO EN EL PASO 1 */}
-      {paso === 1 && (
+      {paso === 2 && (
         <View style={{ gap: 20 }}>
           <TextInput style={[ct.input, { marginTop: 0 }]} value={nombreAbuela} onChangeText={setNombreAbuela}
             placeholder="Ej: Negrita, María, Abuela" placeholderTextColor="#b0b8ba" />
@@ -541,12 +576,12 @@ function StepContent({ paso, nombreAbuela, setNombreAbuela, generoUsuario, setGe
         </View>
       )}
 
-      {paso === 2 && (
+      {paso === 3 && (
         <TextInput style={ct.input} value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))}
           placeholder="Ej: 75" placeholderTextColor="#b0b8ba" keyboardType="numeric" maxLength={3} />
       )}
 
-      {paso === 5 && (
+      {paso === 6 && (
         <>
           <View style={ct.resumen}>
             {[
@@ -628,7 +663,14 @@ const ct = StyleSheet.create({
   hintTxt:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#1a4a54', lineHeight: 19, flex: 1 },
   hintNegrita:{ fontFamily: 'Poppins_600SemiBold', color: '#0097b2' },
 
-  // 👇 ACÁ ESTÁN LOS ESTILOS NUEVOS DE LOS BOTONES DE GÉNERO
+  tcTexto:    { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#3a4548', lineHeight: 21 },
+  tcBold:     { fontFamily: 'Poppins_600SemiBold', color: '#171d1e' },
+  tcLink:     { fontFamily: 'Poppins_600SemiBold', fontSize: 13, color: '#0097b2', textDecorationLine: 'underline' },
+  checkRow:   { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, borderTopWidth: 1, borderTopColor: '#e8eef0' },
+  checkbox:   { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: '#ccd3d5', alignItems: 'center', justifyContent: 'center' },
+  checkboxActivo: { backgroundColor: '#0097b2', borderColor: '#0097b2' },
+  checkLabel: { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#3a4548', flex: 1, lineHeight: 19 },
+
   rowBotones: { flexDirection: 'row', gap: 10 },
   btnGenero:  { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#f4f6f7', borderRadius: 12, paddingVertical: 14, borderWidth: 1.5, borderColor: '#e0e6e8' },
   btnGeneroActivo: { backgroundColor: '#7C9EFF', borderColor: '#7C9EFF' },
