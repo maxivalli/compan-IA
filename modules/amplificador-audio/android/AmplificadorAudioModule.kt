@@ -2,6 +2,7 @@ package expo.modules.amplificadoraudio
 
 import android.content.Context
 import android.media.*
+import android.os.Build
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinitionBuilder
 import kotlin.math.PI
@@ -43,22 +44,42 @@ class AmplificadorAudioModule : Module() {
     Function("hayAuriculares") {
       val am = appContext.reactContext
         ?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-      // getDevices lista todos los dispositivos conectados independientemente de si
-      // el audio está activamente enrutado por ellos (a diferencia de isBluetoothA2dpOn)
-      am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.any {
-        it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-        it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET    ||
-        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP   ||
-        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+      // GET_DEVICES_ALL cubre input + output: algunos auriculares BT solo aparecen
+      // como dispositivo de entrada hasta que el audio se enruta activamente
+      am?.getDevices(AudioManager.GET_DEVICES_ALL)?.any { device ->
+        when (device.type) {
+          AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
+          AudioDeviceInfo.TYPE_WIRED_HEADSET,
+          AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+          AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
+          else -> {
+            val s = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            val isBle = s && (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                              device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
+            val isBroadcast = Build.VERSION.SDK_INT >= 33 &&
+                              device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST
+            isBle || isBroadcast
+          }
+        }
       } ?: false
     }
 
     Function("esAuricularesBluetooth") {
       val am = appContext.reactContext
         ?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-      am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)?.any {
-        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-        it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+      am?.getDevices(AudioManager.GET_DEVICES_ALL)?.any { device ->
+        when (device.type) {
+          AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+          AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> true
+          else -> {
+            val s = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+            val isBle = s && (device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
+                              device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
+            val isBroadcast = Build.VERSION.SDK_INT >= 33 &&
+                              device.type == AudioDeviceInfo.TYPE_BLE_BROADCAST
+            isBle || isBroadcast
+          }
+        }
       } ?: false
     }
   }

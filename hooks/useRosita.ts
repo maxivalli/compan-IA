@@ -213,7 +213,7 @@ export function useRosita() {
     return () => clearTimeout(id);
   }, []);
 
-  // ── Monitor de conectividad (cada 3 min) ────────────────────────────────────
+  // ── Monitor de conectividad (cada 60s) ─────────────────────────────────────
   useEffect(() => {
     const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
     if (!BACKEND_URL) return;
@@ -225,23 +225,23 @@ export function useRosita() {
         const res = await fetch(`${BACKEND_URL}/health`, { signal: ctrl.signal }).finally(() => clearTimeout(ctrlId));
         const habia = sinConexionRef.current;
         sinConexionRef.current = !res.ok;
-        if (habia && res.ok && estadoRef.current === 'esperando' && !noMolestarRef.current) {
-          await hablar(`${perfilRef.current?.nombreAbuela ?? ''}, ya volví a estar ${perfilRef.current?.vozGenero === 'masculina' ? 'conectado' : 'conectada'}.`);
+        if (habia && res.ok && !noMolestarRef.current) {
+          await hablar(`¡Listo, ya tengo señal de nuevo!`);
         }
       } catch {
         const habia = sinConexionRef.current;
         sinConexionRef.current = true;
-        if (!habia && estadoRef.current === 'esperando' && !noMolestarRef.current) {
+        if (!habia && !noMolestarRef.current) {
           const p = perfilRef.current;
-          if (p?.nombreAbuela) {
-            await hablar(`${p.nombreAbuela}, por ahora no tengo señal. Seguí hablándome y te respondo con lo que pueda.`);
-          }
+          await hablar(`${p?.nombreAbuela ? p.nombreAbuela + ', ' : ''}por ahora no tengo señal. Seguí hablándome y te respondo con lo que pueda.`);
         }
       }
     }
 
-    const id = setInterval(chequearConexion, 3 * 60 * 1000);
-    return () => clearInterval(id);
+    // Chequear al arrancar (con pequeño delay para no solaparse con el saludo)
+    const initId = setTimeout(chequearConexion, 5000);
+    const id = setInterval(chequearConexion, 60 * 1000);
+    return () => { clearTimeout(initId); clearInterval(id); };
   }, []);
 
   // ── Back handler de Android ─────────────────────────────────────────────────
@@ -498,16 +498,6 @@ export function useRosita() {
       iniciarSpeechRecognition();
     }
 
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
-    if (backendUrl) {
-      const pingCtrl = new AbortController();
-      const pingId = setTimeout(() => { pingCtrl.abort(); sinConexionRef.current = true; }, 8000);
-      fetch(`${backendUrl}/health`, { signal: pingCtrl.signal })
-        .then(r => { sinConexionRef.current = !r.ok; })
-        .catch(() => { sinConexionRef.current = true; })
-        .finally(() => clearTimeout(pingId));
-    }
-
     obtenerClima().then(clima => {
       if (clima) {
         climaRef.current  = climaATexto(clima);
@@ -583,6 +573,8 @@ export function useRosita() {
         'algo relacionado con el clima de hoy y cómo afecta el día',
         'una comida o desayuno, si ya tomó algo rico',
         'un recuerdo o anécdota relacionada con las mañanas',
+        'si soñó algo anoche — preguntalo con curiosidad y calidez, como quien comparte un momento íntimo de la mañana',
+        'contale un sueño inventado y gracioso o tierno que "tuviste" anoche (inventalo vos, sé creativa), y después preguntale si ella también suele soñar o si recuerda los sueños',
       ],
       'la hora del almuerzo': [
         'qué va a comer o ya comió, o sugerirle algo rico y saludable',
@@ -1010,7 +1002,7 @@ export function useRosita() {
     // Gate offline: evita esperar el timeout de red si ya sabemos que no hay conexión
     if (sinConexionRef.current) {
       const chatIds = (p.telegramContactos ?? []).map(c => c.id);
-      const respLocal = respuestaOffline(textoUsuario, p.nombreAbuela, p.nombreAsistente ?? 'Rosita', climaRef.current, pararMusica, chatIds, enviarAlertaTelegram, p.vozGenero ?? 'femenina');
+      const respLocal = respuestaOffline(textoUsuario, p.nombreAbuela, p.nombreAsistente ?? 'Rosita', climaRef.current, p.vozGenero ?? 'femenina');
       setEstado('esperando');
       estadoRef.current = 'esperando';
       await hablar(respLocal ?? 'No tengo conexión ahora. Cuando vuelva la señal seguimos.');
@@ -1198,7 +1190,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
 
       // ── RECORDATORIO ──
-      if (parsed.recordatorio) {
+      // Si hay alarma, no guardar recordatorio por el mismo pedido (evita duplicados)
+      if (parsed.recordatorio && !parsed.alarma) {
         await guardarRecordatorio(parsed.recordatorio);
       }
 
@@ -1356,9 +1349,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
         p.nombreAbuela,
         p.nombreAsistente ?? 'Rosita',
         climaRef.current,
-        pararMusica,
-        chatIds,
-        enviarAlertaTelegram,
         p.vozGenero ?? 'femenina',
       );
       await hablar(respLocal ?? 'No pude conectarme ahora. ¿Podés intentar de nuevo en un momento?');

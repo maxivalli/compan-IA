@@ -250,7 +250,7 @@ export async function guardarRecordatorio(r: Recordatorio): Promise<void> {
     const norm = (s: string) => s.toLowerCase().replace(/[^a-záéíóúñ0-9]/g, ' ').replace(/\s+/g, ' ').trim();
     const textoNorm = norm(r.texto);
     const yaExiste = lista.some(
-      x => x.fechaISO === r.fechaISO && norm(x.texto) === textoNorm,
+      x => x.id === r.id || (x.fechaISO === r.fechaISO && norm(x.texto) === textoNorm),
     );
     if (yaExiste) return;
     lista.push(r);

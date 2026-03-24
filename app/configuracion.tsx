@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   Linking,
   ScrollView,
   StyleSheet,
@@ -293,6 +294,14 @@ export default function Configuracion() {
     });
     cargarRecordatorios().then(setRecordatorios);
   }, []));
+
+  useFocusEffect(useCallback(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/');
+      return true;
+    });
+    return () => sub.remove();
+  }, [router]));
 
   useEffect(() => {
     obtenerEstadoSmartThings().then(({ vinculado, dispositivos }) => {

@@ -515,9 +515,9 @@ export default function Index() {
                 disabled={botonDisabled && !musicaActiva}
               >
                 <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
-                  <View style={styles.btnInner}>
-                    <Animated.View style={[styles.statusDot, { backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
-                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: '#374151', width: Math.round(btnW * 0.68), textAlign: 'center' }]}>
+                  <View style={[styles.btnInner, { width: btnW }]}>
+                    <Animated.View style={[styles.statusDot, { position: 'absolute', left: 12, backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
+                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * 0.68), textAlign: 'center' }]}>
                       {btnLabel}
                     </Text>
                   </View>
@@ -679,7 +679,7 @@ const styles = StyleSheet.create({
   btnGlow:            { position: 'absolute' },
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
-  btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 12, overflow: 'hidden' },
+  btnInner:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12, overflow: 'hidden' },
   statusDot:          { width: 13, height: 13, borderRadius: 7 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
   botonDeshabilitado: { opacity: 0.55 },
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   botonNoMolestarActivo: { backgroundColor: '#E85D24', borderColor: '#E85D24' },
   botonNoMolestarTexto:  { fontSize: fs(13), color: '#ffffffaa', fontWeight: '500' },
   hintText:           { fontSize: fs(27), fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontStyle: 'italic', color: '#ffffffdd', textAlign: 'center', paddingHorizontal: 32, lineHeight: fs(35) },
-  relojNoche:         { fontSize: fs(72), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
+  relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
   onboardingOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 28 },
   onboardingCard:       { backgroundColor: '#f9fafb', borderRadius: 28, width: '100%', maxWidth: 340, overflow: 'hidden', elevation: 6, shadowColor: '#0097b2', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 20 },

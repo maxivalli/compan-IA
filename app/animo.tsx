@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
@@ -95,6 +95,14 @@ export default function Animo() {
       }
     });
   }, []));
+
+  useFocusEffect(useCallback(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/');
+      return true;
+    });
+    return () => sub.remove();
+  }, [router]));
 
   useEffect(() => {
     if (desbloqueado) cargar();
