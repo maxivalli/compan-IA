@@ -16,7 +16,7 @@ import {
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
-import { buscarRadio } from '../lib/musica';
+import { buscarRadio, getFallbackUrl } from '../lib/musica';
 import { obtenerClima, climaATexto } from '../lib/clima';
 import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
@@ -1137,12 +1137,31 @@ REGLAS CRÍTICAS PARA RESPONDER:
             iniciarSpeechRecognition();
             if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
             expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 5000);
-            // Health check: si a los 5s el stream no arrancó, avisamos y paramos
+            // Health check: si a los 5s el stream no arrancó, reintentamos con fallback
             setTimeout(async () => {
               if (!musicaActivaRef.current) return; // ya se detuvo manualmente
-              if (playerMusica.currentTime < 0.5) {
+              if (playerMusica.currentTime >= 0.5) return; // está sonando, todo bien
+              // Intento con fallback hardcodeado
+              const fallbackUrl = getFallbackUrl(parsed.generoMusica!);
+              if (fallbackUrl && fallbackUrl !== urlStream) {
+                try {
+                  playerMusica.replace({ uri: fallbackUrl });
+                  playerMusica.play();
+                  // Segundo check: si tampoco arranca en 5s, nos rendimos
+                  setTimeout(async () => {
+                    if (!musicaActivaRef.current) return;
+                    if (playerMusica.currentTime < 0.5) {
+                      pararMusica();
+                      await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
+                    }
+                  }, 5000);
+                } catch {
+                  pararMusica();
+                  await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
+                }
+              } else {
                 pararMusica();
-                await hablar('La radio no está respondiendo, ¿querés que intente con otra?');
+                await hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
               }
             }, 5000);
           } catch {

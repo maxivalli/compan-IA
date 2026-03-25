@@ -124,6 +124,12 @@ async function buscarEnAPI(termino: string, pais?: string): Promise<string | nul
   return null;
 }
 
+/** Devuelve la URL de fallback hardcodeada para un género/radio, sin llamar a la API. */
+export function getFallbackUrl(genero: string): string | null {
+  const key = genero.toLowerCase().trim();
+  return STREAMS_GENERO[key]?.[0] ?? null;
+}
+
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
 
