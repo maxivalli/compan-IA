@@ -35,29 +35,45 @@ const HORA_FIN           = 21;
 
 type Mensaje = { role: 'user' | 'assistant'; content: string };
 
-// ── Muletillas por género ─────────────────────────────────────────────────────
+// ── Muletillas por categoría y género ────────────────────────────────────────
 
-const MULETILLAS_FEMENINA = [
-  'A ver...',
-  'Mmm...',
-  'Dejame pensar...',
-  '¿Sabés qué?...',
-  'Uy, buena pregunta...',
-];
+type CategoriaMuletilla = 'reflexion' | 'positivo' | 'empatico' | 'comando' | 'default';
 
-const MULETILLAS_MASCULINO = [
-  'A ver...',
-  'Mmm...',
-  'Déjame pensar...',
-  '¿Sabés qué?...',
-  'Uy, buena pregunta...',
-];
+const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
+  reflexion: {
+    femenina:  ['Mmm...', 'A ver...', 'Dejame pensar...', 'Buena pregunta...', 'Veamos...'],
+    masculina: ['Mmm...', 'A ver...', 'Déjame pensar...', 'Buena pregunta...', 'Veamos...'],
+  },
+  positivo: {
+    femenina:  ['¡Qué lindo!', '¡Uy, qué bueno!', '¡Ay, qué alegría!', '¡Qué rico!', '¡Qué lindo eso!'],
+    masculina: ['¡Qué lindo!', '¡Uy, qué bueno!', '¡Ah, qué bueno!', '¡Qué genial!', '¡Qué lindo eso!'],
+  },
+  empatico: {
+    femenina:  ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Pobrecita...'],
+    masculina: ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Vaya...'],
+  },
+  comando: {
+    femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!', '¡Ya lo hago!'],
+    masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!', '¡Ya lo hago!'],
+  },
+  default: {
+    femenina:  ['Mmm...', 'A ver...', 'Claro...', 'Sí...'],
+    masculina: ['Mmm...', 'A ver...', 'Claro...', 'Sí...'],
+  },
+};
 
-// Solo se usa muletilla cuando la pregunta genuinamente requiere reflexión
-const REQUIERE_MULETILLA = /\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] es|cont[aá]me|explic[aá]me|qu[eé] pens[aá]s|qu[eé] opin[aá]s|me recomend[aá]s|qu[eé] hago|ayud[aá]me|qu[eé] ten[ií]a|cu[aá]l|cu[aá]nto|qu[eé] pas[oó])\b/i;
+const PATRON_EMPATICO  = /\b(me duele|me duelen|estoy (mal|triste|cansad|preocupad)|me preocupa|me siento (mal|triste|cansad|sol[oa])|no puedo|me cansé|tengo miedo|me asusta|qué triste|qué feo|extraño|falleci[oó]|se me fue)\b/i;
+const PATRON_POSITIVO  = /\b(voy a|vamos|fuimos|sal[ií]|pasé|me divertí|me alegr[oó]|feliz|contento|alegre|pasear|visitar|junt[aá]rse|celebrar|cumplea[ñn]os|fiesta|de paseo|a caminar|al parque|con mi[s]? (perr|gat|hij|niet|fami))\b/i;
+const PATRON_COMANDO   = /\b(pon[eé]me|poneme|apag[aá]|encend[eé]|sub[ií]me|baj[aá]me|música|radio|timer|recorda[rí]me|despert[aá]rme|abrí|cerr[aá])\b/i;
+const PATRON_REFLEXION = /\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] es|qu[eé] significa|explic[aá]me|qu[eé] pens[aá]s|qu[eé] opin[aá]s|me recomend[aá]s|qu[eé] hago|ayud[aá]me|cu[aá]l|cu[aá]nto|qu[eé] pas[oó]|qu[eé] ten[ií]a)\b/i;
 
-function debeUsarMuletilla(texto: string): boolean {
-  return REQUIERE_MULETILLA.test(texto) && texto.length > 20;
+function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
+  if (texto.length < 10) return null;
+  if (PATRON_EMPATICO.test(texto))  return 'empatico';
+  if (PATRON_POSITIVO.test(texto))  return 'positivo';
+  if (PATRON_COMANDO.test(texto))   return 'comando';
+  if (PATRON_REFLEXION.test(texto)) return 'reflexion';
+  return 'default';
 }
 
 export function useRosita() {
@@ -281,6 +297,16 @@ export function useRosita() {
     return () => clearInterval(id);
   }, []);
 
+  // ── Brillo modo noche ───────────────────────────────────────────────────────
+  useEffect(() => {
+    if (linternaActiva) return; // la linterna maneja su propio brillo
+    if (modoNoche !== 'despierta') {
+      Brightness.setBrightnessAsync(0.5).catch(() => {});
+    } else {
+      Brightness.useSystemBrightnessAsync().catch(() => {});
+    }
+  }, [modoNoche, linternaActiva]);
+
   // ── Speech recognition ──────────────────────────────────────────────────────
   useSpeechRecognitionEvent('result', async (event) => {
     const texto = event.results?.[0]?.transcript?.trim();
@@ -436,27 +462,31 @@ export function useRosita() {
 
   async function precachearMuletillas(voiceId?: string) {
     const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
-    const lista = vozGenero === 'masculina' ? MULETILLAS_MASCULINO : MULETILLAS_FEMENINA;
-    for (let i = 0; i < lista.length; i++) {
-      const uri = FileSystem.cacheDirectory + `muletilla_${i}.mp3`;
-      const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
-      if (info.exists) continue;
-      const base64 = await sintetizarVoz(lista[i], voiceId).catch(() => null);
-      if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
+    const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+    for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
+      const lista = variantes[genero];
+      for (let i = 0; i < lista.length; i++) {
+        const uri = FileSystem.cacheDirectory + `muletilla_${cat}_${i}.mp3`;
+        const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
+        if (info.exists) continue;
+        const base64 = await sintetizarVoz(lista[i], voiceId).catch(() => null);
+        if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
+      }
     }
   }
 
-  const ultimaMuletillaRef = useRef(0);
+  const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
 
-  async function reproducirMuletilla() {
+  async function reproducirMuletilla(categoria: CategoriaMuletilla) {
     try {
       const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
-      const lista = vozGenero === 'masculina' ? MULETILLAS_MASCULINO : MULETILLAS_FEMENINA;
-      // Índice aleatorio, evitando repetir la última
+      const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+      const lista = MULETILLAS[categoria][genero];
+      const ultimo = ultimaMuletillaRef.current[categoria] ?? -1;
       let idx: number;
-      do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimaMuletillaRef.current && lista.length > 1);
-      ultimaMuletillaRef.current = idx;
-      const uri = FileSystem.cacheDirectory + `muletilla_${idx}.mp3`;
+      do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
+      ultimaMuletillaRef.current[categoria] = idx;
+      const uri = FileSystem.cacheDirectory + `muletilla_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return;
       player.replace({ uri });
@@ -553,7 +583,15 @@ export function useRosita() {
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
       try { ExpoSpeechRecognitionModule.stop(); } catch {} // limpiar instancia previa si existía
-      ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: true, interimResults: false });
+      ExpoSpeechRecognitionModule.start({
+        lang: 'es-AR',
+        continuous: true,
+        interimResults: false,
+        androidIntentOptions: {
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 1500,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 700,
+        },
+      });
       srActivoRef.current = true;
     } catch {
       srActivoRef.current = false;
@@ -1030,10 +1068,8 @@ export function useRosita() {
     setEstado('pensando');
     estadoRef.current = 'pensando';
 
-    // Muletilla solo cuando la pregunta genuinamente lo requiere
-    if (debeUsarMuletilla(textoUsuario)) {
-      reproducirMuletilla();
-    }
+    const catMuletilla = categorizarMuletilla(textoUsuario);
+    if (catMuletilla) reproducirMuletilla(catMuletilla);
 
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
 

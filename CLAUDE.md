@@ -33,6 +33,10 @@ La app envía:
 - `x-api-key` — clave de app para autenticar
 - `x-install-id` — UUID del dispositivo, vinculado a una familia en la DB
 
+**Rate limiting** (`AbuApp_Backend/src/routes/ai.ts`):
+- `CHAT_BURST_MS = 1000` — mínimo 1s entre llamadas a `/ai/chat` por dispositivo (antes era 5s)
+- `CHAT_DAILY_MAX = 300` — máximo diario por dispositivo
+
 ---
 
 ## Estructura de archivos
@@ -127,6 +131,8 @@ type Perfil = {
 6. Al terminar audio → SR se reinicia automáticamente
 7. Botón manual: graba audio → Whisper transcribe → mismo flujo desde paso 4
 
+**SR en Android**: se pasan `androidIntentOptions` con `EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 1500` y `EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 700` para reducir el tiempo de detección de fin de habla (el default del sistema es 3-5s). iOS ignora estos parámetros.
+
 **Watchdog SR**: cada 5 segundos verifica que SR esté activo. Comportamiento:
 - Si lleva >10s activo sin resultado → zombie → reinicia SR
 - Si SR lleva >45s activo en Android (modo continuo silent failure) → reinicia SR
@@ -208,6 +214,29 @@ Generado por `construirContextoDinamico(p, climaTexto, incluirJuego, extra)`. Co
 
 ---
 
+## Muletillas (useRosita.ts)
+
+Frases cortas que Rosita dice mientras se genera la respuesta de Claude, para cubrir la latencia de 3-4s. Se pre-cachean al inicio como archivos `muletilla_{categoria}_{idx}.mp3`.
+
+### Categorías y detección
+
+| Categoría | Cuándo se usa | Ejemplos |
+|-----------|--------------|---------|
+| `empatico` | Dolor, tristeza, miedo, preocupación | "Ay...", "Entiendo...", "Te escucho..." |
+| `positivo` | Buenas noticias, planes, salidas | "¡Qué lindo!", "¡Uy, qué bueno!", "¡Ay, qué alegría!" |
+| `comando` | Música, luces, timers, pedidos | "¡Dale!", "¡Ahora mismo!", "¡Claro!" |
+| `reflexion` | Preguntas complejas, explicaciones | "Mmm...", "A ver...", "Buena pregunta..." |
+| `default` | Cualquier otro mensaje > 10 chars | "Mmm...", "A ver...", "Claro..." |
+
+La detección usa regexes (`PATRON_EMPATICO`, `PATRON_POSITIVO`, `PATRON_COMANDO`, `PATRON_REFLEXION`) evaluadas en ese orden de prioridad. Si el texto tiene menos de 10 caracteres, no se usa muletilla.
+
+### Caching
+- Archivo: `muletilla_{categoria}_{idx}.mp3` en `FileSystem.cacheDirectory`
+- Pre-cacheadas en `precachearMuletillas()` al iniciar la app
+- Se evita repetir la última muletilla usada por categoría (`ultimaMuletillaRef: Record<CategoriaMuletilla, number>`)
+
+---
+
 ## TTS y detección de fin de audio
 
 `hablar()` en `useRosita.ts`:
@@ -282,6 +311,8 @@ Los mismos horarios se usan para:
 - Decidir si iniciar charla proactiva (entre `horaFinNoche` y `horaInicioNoche`)
 - Timer de música nocturna (apaga la música dentro del horario nocturno)
 
+**Brillo en modo noche**: al entrar en `soñolienta` o `durmiendo`, la app baja el brillo al 50% con `setBrightnessAsync(0.5)`. Al volver a `despierta`, restaura con `useSystemBrightnessAsync()`. Si la linterna está activa, no se toca el brillo (la linterna lo maneja). Implementado como `useEffect([modoNoche, linternaActiva])` en `useRosita.ts`.
+
 ---
 
 ## SmartThings (domótica)
@@ -346,10 +377,10 @@ type Lista = { id: string; nombre: string; items: string[]; creadaEn: number; };
 
 ---
 
-## Linterna (expo-brightness)
+## Linterna y brillo (expo-brightness)
 
-- `setBrightnessAsync(1)` — sube el brillo **solo a nivel de app** (no afecta el sistema)
-- `useSystemBrightnessAsync()` — restaura el brillo del sistema al apagar la linterna
+- `setBrightnessAsync(n)` — cambia el brillo **solo a nivel de app** (no afecta el sistema). Valores: `1` para linterna, `0.5` para modo noche.
+- `useSystemBrightnessAsync()` — restaura el brillo del sistema (al apagar la linterna o al salir del modo noche)
 - **No usar** `setSystemBrightnessAsync()` — desactiva el brillo automático del sistema permanentemente
 
 ---
