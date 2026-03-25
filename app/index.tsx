@@ -258,13 +258,21 @@ export default function Index() {
   const glowOpacity = useRef(new Animated.Value(0.30)).current;
   const detectRing  = useRef(new Animated.Value(0)).current;
 
-  // Ring de feedback: aparece cuando el SR detecta sonido en modo esperando
+  // Feedback visual cuando el SR detecta sonido: ring + spike de glow
   useEffect(() => {
+    const activo = detectandoSonido && estado === 'esperando';
     Animated.timing(detectRing, {
-      toValue: detectandoSonido && estado === 'esperando' ? 1 : 0,
-      duration: detectandoSonido ? 80 : 600,
+      toValue: activo ? 1 : 0,
+      duration: activo ? 80 : 500,
       useNativeDriver: true,
     }).start();
+    // También sube el glow de fondo para que sea visible en modo noche
+    glowOpacity.stopAnimation();
+    if (activo) {
+      Animated.timing(glowOpacity, { toValue: 0.9, duration: 100, useNativeDriver: true }).start();
+    } else {
+      Animated.timing(glowOpacity, { toValue: 0.30, duration: 400, useNativeDriver: true }).start();
+    }
   }, [detectandoSonido, estado]);
 
   useEffect(() => {
@@ -527,10 +535,11 @@ export default function Index() {
             {/* Ring de detección de voz */}
             <Animated.View pointerEvents="none" style={{
               position: 'absolute',
-              width: btnW + 12, height: btnH + 12,
-              borderRadius: (btnH + 12) / 2,
-              borderWidth: 3, borderColor: '#ef4444',
-              top: -6, left: -6,
+              width: btnW + 16, height: btnH + 16,
+              borderRadius: (btnH + 16) / 2,
+              borderWidth: 4,
+              borderColor: esBotonesNoche ? '#ffffff' : '#ef4444',
+              top: -8, left: -8,
               opacity: detectRing,
             }} />
             <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
