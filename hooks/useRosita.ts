@@ -38,24 +38,12 @@ type Mensaje = { role: 'user' | 'assistant'; content: string };
 
 // ── Muletillas por categoría y género ────────────────────────────────────────
 
-type CategoriaMuletilla = 'reflexion' | 'positivo' | 'empatico' | 'comando' | 'default';
+type CategoriaMuletilla = 'empatico' | 'default';
 
 const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
-  reflexion: {
-    femenina:  ['Mmm...', 'A ver...', 'Dejame pensar...', 'Buena pregunta...', 'Veamos...'],
-    masculina: ['Mmm...', 'A ver...', 'Déjame pensar...', 'Buena pregunta...', 'Veamos...'],
-  },
-  positivo: {
-    femenina:  ['¡Qué lindo!', '¡Uy, qué bueno!', '¡Ay, qué alegría!', '¡Qué rico!', '¡Qué lindo eso!'],
-    masculina: ['¡Qué lindo!', '¡Uy, qué bueno!', '¡Ah, qué bueno!', '¡Qué genial!', '¡Qué lindo eso!'],
-  },
   empatico: {
     femenina:  ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Pobrecita...'],
     masculina: ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Vaya...'],
-  },
-  comando: {
-    femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!', '¡Ya lo hago!'],
-    masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!', '¡Ya lo hago!'],
   },
   default: {
     femenina:  ['Mmm...', 'A ver...', 'Claro...', 'Sí...'],
@@ -63,17 +51,11 @@ const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: st
   },
 };
 
-const PATRON_EMPATICO  = /\b(me duele|me duelen|estoy (mal|triste|cansad|preocupad)|me preocupa|me siento (mal|triste|cansad|sol[oa])|no puedo|me cansé|tengo miedo|me asusta|qué triste|qué feo|extraño|falleci[oó]|se me fue)\b/i;
-const PATRON_POSITIVO  = /\b(voy a|vamos|fuimos|sal[ií]|pasé|me divertí|me alegr[oó]|feliz|contento|alegre|pasear|visitar|junt[aá]rse|celebrar|cumplea[ñn]os|fiesta|de paseo|a caminar|al parque|con mi[s]? (perr|gat|hij|niet|fami))\b/i;
-const PATRON_COMANDO   = /\b(pon[eé]me|poneme|apag[aá]|encend[eé]|sub[ií]me|baj[aá]me|música|radio|timer|recorda[rí]me|despert[aá]rme|abrí|cerr[aá])\b/i;
-const PATRON_REFLEXION = /\b(por qu[eé]|c[oó]mo|cu[aá]ndo|d[oó]nde|qui[eé]n|qu[eé] es|qu[eé] significa|explic[aá]me|qu[eé] pens[aá]s|qu[eé] opin[aá]s|me recomend[aá]s|qu[eé] hago|ayud[aá]me|cu[aá]l|cu[aá]nto|qu[eé] pas[oó]|qu[eé] ten[ií]a)\b/i;
+const PATRON_EMPATICO = /\b(me duele|me duelen|estoy (mal|triste|cansad|preocupad)|me preocupa|me siento (mal|triste|cansad|sol[oa])|no puedo|me cansé|tengo miedo|me asusta|qué triste|qué feo|extraño|falleci[oó]|se me fue|murió|muri[oó])\b/i;
 
 function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (texto.length < 10) return null;
-  if (PATRON_EMPATICO.test(texto))  return 'empatico';
-  if (PATRON_POSITIVO.test(texto))  return 'positivo';
-  if (PATRON_COMANDO.test(texto))   return 'comando';
-  if (PATRON_REFLEXION.test(texto)) return 'reflexion';
+  if (PATRON_EMPATICO.test(texto)) return 'empatico';
   return 'default';
 }
 
@@ -481,7 +463,7 @@ export function useRosita() {
 
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
 
-  async function reproducirMuletilla(categoria: CategoriaMuletilla) {
+  async function reproducirMuletilla(categoria: CategoriaMuletilla): Promise<string> {
     try {
       const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
       const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
@@ -490,12 +472,15 @@ export function useRosita() {
       let idx: number;
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
+      const texto = lista[idx];
       const uri = FileSystem.cacheDirectory + `muletilla_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) return;
+      if (!info.exists) return texto;
       player.replace({ uri });
       player.play();
+      return texto;
     } catch {}
+    return '';
   }
 
   // ── Activar post-onboarding ─────────────────────────────────────────────────
@@ -1074,7 +1059,7 @@ export function useRosita() {
     estadoRef.current = 'pensando';
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
-    if (catMuletilla) reproducirMuletilla(catMuletilla);
+    const textoMuletilla = catMuletilla ? await reproducirMuletilla(catMuletilla) : null;
 
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
 
@@ -1132,6 +1117,17 @@ REGLAS CRÍTICAS PARA RESPONDER:
         messages: nuevoHistorial.slice(-8),
         maxTokens: (pideCuento || pideJuego || pideChiste) ? 700 : undefined,
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
+
+      // ── Log de debug (solo si debugChatId configurado) ──
+      const debugChatId = p.debugChatId;
+      if (debugChatId) {
+        const lineas = [
+          `👤 <b>${textoUsuario}</b>`,
+          `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
+          `🤖 Claude: ${respuestaRaw.slice(0, 300)}`,
+        ];
+        enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
+      }
 
       const parsed = parsearRespuesta(
         respuestaRaw,

@@ -77,6 +77,7 @@ export type Perfil = {
   horaFinNoche?: number;            // hora en que termina el modo noche / arrancan charlas (default 9)
   telegramChatIds: string[];        // legacy — se migra automáticamente
   telegramContactos: TelegramContacto[];
+  debugChatId?: string;             // chat ID de Telegram para logs de debug (temporal)
 };
 
 export const perfilInicial: Perfil = {
