@@ -125,6 +125,15 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     return /\bno\b|nop|ahora no|dejá|deja|no quiero/.test(texto);
   }
 
+  // Extrae el mensaje incluido en la respuesta afirmativa, si lo hay
+  // Ej: "sí, decile que lo quiero mucho" → "decile que lo quiero mucho"
+  function extraerMensajeDeRespuesta(texto: string): string {
+    const limpio = texto
+      .replace(/^(sí|si|dale|bueno|claro|ok|obvio|por supuesto|quiero contestar)[,\s]*/i, '')
+      .trim();
+    return limpio;
+  }
+
   // ── Grabar y transcribir respuesta para mandar por Telegram ──────────────────
   async function grabarYMandarRespuesta(chatId: string, nombreContacto: string, nombreAbuela: string): Promise<void> {
     await hablar('Dale, te escucho. Hablá cuando quieras.');
@@ -247,7 +256,16 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const respuestaContestar = await escucharRespuesta();
 
       if (esAfirmativo(respuestaContestar)) {
-        await grabarYMandarRespuesta(chatId, nombre, nombreAbuela);
+        const mensajeInline = extraerMensajeDeRespuesta(respuestaContestar);
+        if (mensajeInline.length > 3) {
+          // Ya dijo el mensaje junto con el "sí" — mandarlo directamente sin pedir de nuevo
+          const chatIds = [chatId];
+          const nombre_ = perfilRef.current?.nombreAbuela ?? '';
+          await enviarAlertaTelegram(chatIds, `Mensaje de ${nombre_}: "${mensajeInline}"`, perfilRef.current?.nombreAsistente);
+          await hablar(`Listo, le mandé tu mensaje a ${nombre}.`);
+        } else {
+          await grabarYMandarRespuesta(chatId, nombre, nombreAbuela);
+        }
       } else {
         await hablar('Bueno, cuando quieras contestarle me avisás.');
       }
@@ -338,7 +356,14 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const respuestaContestar = await escucharRespuesta();
 
       if (esAfirmativo(respuestaContestar)) {
-        await grabarYMandarRespuesta(msg.chatId, msg.fromName, nombreAbuela);
+        const mensajeInline = extraerMensajeDeRespuesta(respuestaContestar);
+        if (mensajeInline.length > 3) {
+          const chatIds = [msg.chatId];
+          await enviarAlertaTelegram(chatIds, `Mensaje de ${nombreAbuela}: "${mensajeInline}"`, perfilRef.current?.nombreAsistente);
+          await hablar(`Listo, le mandé tu mensaje a ${msg.fromName}.`);
+        } else {
+          await grabarYMandarRespuesta(msg.chatId, msg.fromName, nombreAbuela);
+        }
       } else {
         await hablar('Bueno, cuando quieras contestarle me avisás.');
       }
