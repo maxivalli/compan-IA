@@ -81,6 +81,24 @@ export async function recibirMensajesFoto(chatIds: string[] = []): Promise<Mensa
   }
 }
 
+export type MensajeTexto = {
+  fromName: string;
+  chatId:   string;
+  texto:    string;
+};
+
+export async function recibirMensajesTexto(chatIds: string[] = []): Promise<MensajeTexto[]> {
+  if (!chatIds.length) return [];
+  try {
+    const params = new URLSearchParams({ chatIds: chatIds.join(',') });
+    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-texto?${params}`, { headers: await h() });
+    const data = await res.json();
+    return data.mensajes ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function enviarMensajeTelegram(chatIds: string[], texto: string): Promise<void> {
   if (!chatIds.length) return;
   try {

@@ -20,7 +20,7 @@ import {
   fechaLocal,
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
-import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, recibirMensajesFoto, obtenerUrlArchivo, MensajeVoz, MensajeFoto } from '../lib/telegram';
+import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, recibirMensajesFoto, recibirMensajesTexto, obtenerUrlArchivo, MensajeVoz, MensajeFoto, MensajeTexto } from '../lib/telegram';
 import { obtenerClima, climaATexto, CODIGOS_ADVERSOS } from '../lib/clima';
 
 import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
@@ -293,6 +293,55 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await new Promise(resolve => setTimeout(resolve, 600));
       await hablar(msg.descripcion);
 
+      resultado = 'respondido';
+    } catch {
+    } finally {
+      enFlujoVozRef.current = false;
+      setEstado('esperando');
+      estadoRef.current = 'esperando';
+      iniciarSpeechRecognition();
+    }
+    return resultado;
+  }
+
+  // ── Flujo completo de mensaje de texto entrante de Telegram ──────────────────
+  async function manejarMensajeTexto(
+    msg: MensajeTexto,
+    nombreAbuela: string,
+  ): Promise<'respondido' | 'rechazado' | 'ignorado'> {
+    enFlujoVozRef.current = true;
+    ExpoSpeechRecognitionModule.stop();
+
+    const habiaMusica = musicaActivaRef.current;
+    if (habiaMusica) pararMusica();
+
+    let resultado: 'respondido' | 'rechazado' | 'ignorado' = 'ignorado';
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // 1. Verificar presencia
+      await hablar(`¿Estás por ahí, ${nombreAbuela}? ${msg.fromName} te mandó un mensaje.`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const respuestaPresencia = await escucharRespuesta();
+
+      if (esNegativo(respuestaPresencia)) return 'rechazado';
+      if (!respuestaPresencia) return 'ignorado';
+
+      // 2. Leer el mensaje en voz alta
+      const textoSeguro = msg.texto.slice(0, 300); // límite de seguridad
+      await hablar(`${msg.fromName} te dice: ${textoSeguro}`);
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // 3. Ofrecer contestar
+      await hablar(`¿Querés contestarle a ${msg.fromName}?`);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const respuestaContestar = await escucharRespuesta();
+
+      if (esAfirmativo(respuestaContestar)) {
+        await grabarYMandarRespuesta(msg.chatId, msg.fromName, nombreAbuela);
+      } else {
+        await hablar('Bueno, cuando quieras contestarle me avisás.');
+      }
       resultado = 'respondido';
     } catch {
     } finally {
@@ -950,6 +999,39 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       return estado !== 'ignorado';
     }
 
+    async function chequearMensajesTexto() {
+      const estadoActual = estadoRef.current as string;
+      if (estadoActual === 'hablando' || estadoActual === 'pensando') return;
+
+      const p = perfilRef.current;
+      if (!p) return;
+
+      const chatIds = (p.telegramContactos ?? []).map(c => c.id);
+      if (!chatIds.length) return;
+
+      const hora = new Date().getHours();
+      const horarioNocturno = hora >= 22 || hora < 9;
+      const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
+      if (horarioNocturno || dormida || noMolestarRef.current) return;
+
+      const nuevos = await recibirMensajesTexto(chatIds);
+      if (!nuevos.length) return;
+
+      // Procesar de a uno — igual que voz y foto
+      for (const msg of nuevos) {
+        if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
+          await new Promise<void>(resolve => {
+            const timeout = setTimeout(resolve, 15000);
+            const check = setInterval(() => {
+              if (estadoRef.current === 'esperando') { clearInterval(check); clearTimeout(timeout); resolve(); }
+            }, 500);
+          });
+        }
+        await manejarMensajeTexto(msg, p.nombreAbuela);
+        break; // de a uno por vez
+      }
+    }
+
     async function chequearMensajesFoto() {
       const estadoActual = estadoRef.current as string;
       if (estadoActual === 'hablando' || estadoActual === 'pensando') return;
@@ -999,13 +1081,15 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     // Polling serializado via cola FIFO — evita race conditions entre handlers
-    const idPolling  = setInterval(() => encolar(chequearMensajesVoz),  3 * 60 * 1000);
-    const idFotos    = setInterval(() => encolar(chequearMensajesFoto), 3 * 60 * 1000);
-    const idComandos = setInterval(() => encolar(chequearComandos),     15 * 1000);
-    const idReintento = setInterval(() => encolar(reintentar),          INTERVALO_REINTENTO);
+    const idPolling  = setInterval(() => encolar(chequearMensajesVoz),   3 * 60 * 1000);
+    const idTextos   = setInterval(() => encolar(chequearMensajesTexto), 3 * 60 * 1000);
+    const idFotos    = setInterval(() => encolar(chequearMensajesFoto),  3 * 60 * 1000);
+    const idComandos = setInterval(() => encolar(chequearComandos),      15 * 1000);
+    const idReintento = setInterval(() => encolar(reintentar),           INTERVALO_REINTENTO);
 
     return () => {
       clearInterval(idPolling);
+      clearInterval(idTextos);
       clearInterval(idFotos);
       clearInterval(idComandos);
       clearInterval(idReintento);
