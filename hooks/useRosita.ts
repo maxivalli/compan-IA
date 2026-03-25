@@ -1137,6 +1137,14 @@ REGLAS CRÍTICAS PARA RESPONDER:
             iniciarSpeechRecognition();
             if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
             expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 5000);
+            // Health check: si a los 5s el stream no arrancó, avisamos y paramos
+            setTimeout(async () => {
+              if (!musicaActivaRef.current) return; // ya se detuvo manualmente
+              if (playerMusica.currentTime < 0.5) {
+                pararMusica();
+                await hablar('La radio no está respondiendo, ¿querés que intente con otra?');
+              }
+            }, 5000);
           } catch {
             setMusicaActiva(false);
             await hablar('No pude conectar con la radio, perdoname.');
