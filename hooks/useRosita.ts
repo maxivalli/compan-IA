@@ -77,6 +77,8 @@ export function useRosita() {
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
   const [camaraSilenciosa,  setCamaraSilenciosa]  = useState(false);
+  const [detectandoSonido,  setDetectandoSonido]  = useState(false);
+  const detectandoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [noMolestar,        setNoMolestar]        = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
@@ -346,9 +348,14 @@ export function useRosita() {
     }
   });
 
-  // Resetear timer del watchdog cada vez que el SR detecta sonido real
+  // Resetear timer del watchdog + feedback visual cuando el SR detecta sonido
   useSpeechRecognitionEvent('soundstart', () => {
     ultimaActivacionSrRef.current = Date.now();
+    if (estadoRef.current === 'esperando') {
+      setDetectandoSonido(true);
+      if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
+      detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 1500);
+    }
   });
 
   useSpeechRecognitionEvent('error', (event) => {
@@ -1522,7 +1529,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
   // ── Interfaz pública del hook ───────────────────────────────────────────────
   return {
-    estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
+    estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding, detectandoSonido,
     musicaActiva, silbando, noMolestar, setNoMolestar,
     listas,
     borrarListaVoz: (nombre: string) => borrarLista(nombre).then(() => cargarListas().then(setListas)).catch(() => {}),

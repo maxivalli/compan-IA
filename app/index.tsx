@@ -79,6 +79,7 @@ export default function Index() {
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada,
     refs, player,
     listas, borrarListaVoz,
+    detectandoSonido,
   } = useRosita();
 
   const {
@@ -253,8 +254,19 @@ export default function Index() {
   // ── Animación del botón (dot pulsante + glow respirando) ────────────────────
   const escuchando    = estado === 'escuchando';
   const botonDisabled = estado === 'pensando' || estado === 'hablando';
-  const pulso     = useRef(new Animated.Value(1)).current;
+  const pulso       = useRef(new Animated.Value(1)).current;
   const glowOpacity = useRef(new Animated.Value(0.30)).current;
+  const detectRing  = useRef(new Animated.Value(0)).current;
+
+  // Ring de feedback: aparece cuando el SR detecta sonido en modo esperando
+  useEffect(() => {
+    Animated.timing(detectRing, {
+      toValue: detectandoSonido && estado === 'esperando' ? 1 : 0,
+      duration: detectandoSonido ? 80 : 600,
+      useNativeDriver: true,
+    }).start();
+  }, [detectandoSonido, estado]);
+
   useEffect(() => {
     dotPulseAnim.current?.stop();
     pulso.setValue(1);
@@ -512,6 +524,15 @@ export default function Index() {
                 </Svg>
               </Animated.View>
             ); })()}
+            {/* Ring de detección de voz */}
+            <Animated.View pointerEvents="none" style={{
+              position: 'absolute',
+              width: btnW + 12, height: btnH + 12,
+              borderRadius: (btnH + 12) / 2,
+              borderWidth: 3, borderColor: '#ef4444',
+              top: -6, left: -6,
+              opacity: detectRing,
+            }} />
             <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
               <TouchableOpacity
                 style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
