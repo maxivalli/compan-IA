@@ -82,7 +82,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   async function escucharRespuesta(): Promise<string> {
     try {
       ExpoSpeechRecognitionModule.stop();
-      await new Promise(resolve => setTimeout(resolve, 400));
+      await new Promise(resolve => setTimeout(resolve, 200));
 
       setEstado('escuchando');
       estadoRef.current = 'escuchando';
@@ -90,12 +90,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await recorderResp.prepareToRecordAsync();
       recorderResp.record();
 
-      // Esperar hasta 8 segundos, pero cortar antes si el recorder ya terminó
+      // Esperar hasta 6 segundos (suficiente para un sí/no, sin pausas innecesarias)
       await new Promise<void>(resolve => {
         let elapsed = 0;
         const check = setInterval(() => {
           elapsed += 300;
-          if (elapsed >= 8000) { clearInterval(check); resolve(); }
+          if (elapsed >= 6000) { clearInterval(check); resolve(); }
         }, 300);
       });
 
@@ -208,12 +208,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
       // 2. Anunciar el mensaje
       await hablar(`Te llegó un mensaje de voz de ${nombre}.`);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       // 3. Reproducir el audio
       try {
         player.replace({ uri: urlAudio });
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 400));
         player.play();
 
         await new Promise<void>(resolve => {
@@ -241,9 +241,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       } catch {}
 
       // 4. Ofrecer contestar
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 300));
       await hablar(`¿Querés contestarle a ${nombre}?`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 200));
       const respuestaContestar = await escucharRespuesta();
 
       if (esAfirmativo(respuestaContestar)) {
