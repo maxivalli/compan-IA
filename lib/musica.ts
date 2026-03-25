@@ -4,8 +4,8 @@ const SERVIDORES = [
   'https://at1.api.radio-browser.info',
 ];
 
-// Streams HTTPS curados para géneros y radios — fallback si la API falla
-const STREAMS_GENERO: Record<string, string[]> = {
+// Streams HTTPS curados para géneros y radios — fuente primaria (inmediata)
+export const STREAMS_GENERO: Record<string, string[]> = {
   // Radios argentinas — solo fallbacks verificados
   cadena3:    ['https://liveradio.mediainbox.net/radio3.mp3', 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO3_SC'],
   lv3:        ['https://liveradio.mediainbox.net/radio3.mp3', 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO3_SC'],
@@ -17,7 +17,7 @@ const STREAMS_GENERO: Record<string, string[]> = {
   aspen:      ['https://playerservices.streamtheworld.com/api/livestream-redirect/ASPEN.mp3'],
   la100:      ['https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3'],
   folklorenac: ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad38'],
-  convos:     ['https://server1.stweb.tv/rcvos/live/playlist.m3u8'],
+  convos:     ['https://server1.stweb.tv/rcvos/live/playlist.m3u8', 'https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_CON_VOS.mp3'],
   urbana:     ['https://cdn.instream.audio:9660/stream'],
   radio10:    ['https://radio10.stweb.tv/radio10/live/playlist.m3u8'],
   destape:    ['https://ipanel.instream.audio/8004/stream'],
@@ -133,13 +133,12 @@ export function getFallbackUrl(genero: string): string | null {
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
 
-  const esArgentina = key in ALIAS_BUSQUEDA;
-  const urlAPI = await buscarEnAPI(key, esArgentina ? 'AR' : undefined);
-  if (urlAPI) return urlAPI;
-
-  if (__DEV__) console.log(`⚠️ API falló o no encontró HTTPS para ${key}. Usando fallback...`);
+  // Priorizar URLs hardcodeadas: son inmediatas y verificadas.
+  // La API solo se consulta si no hay fallback (extensibilidad futura).
   const fallbacks = STREAMS_GENERO[key];
   if (fallbacks?.length) return fallbacks[0];
 
-  return null;
+  if (__DEV__) console.log(`🔍 Sin fallback para "${key}", buscando en API...`);
+  const esArgentina = key in ALIAS_BUSQUEDA;
+  return buscarEnAPI(key, esArgentina ? 'AR' : undefined);
 }

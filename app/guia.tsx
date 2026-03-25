@@ -337,14 +337,6 @@ const GRUPOS: Grupo[] = [
         nota: 'La vinculación se hace desde Configuración, pegando el token de SmartThings. Solo se hace una vez.',
       },
       {
-        icono: 'ear-outline',
-        titulo: 'Amplificador de audio',
-        descripcion: 'Si tenés dificultad para escuchar, enchufá unos auriculares y el botón principal se convierte en amplificador. El teléfono capta las voces con el micrófono y las envía con más volumen a los auriculares, como un pocket talker.',
-        color: '#0369A1',
-        bg: '#E0F2FE',
-        nota: 'Funciona con auriculares de cable y Bluetooth. Mientras está activo, Rosita no interrumpe. Tocá la pastilla de ganancia (1.5×, 2×, 3×) para ajustar el volumen.',
-      },
-      {
         icono: 'lock-closed-outline',
         titulo: 'PIN de configuración',
         descripcion: 'La sección de configuración está protegida con un PIN para que solo los familiares autorizados puedan hacer cambios.',

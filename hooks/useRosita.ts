@@ -16,7 +16,7 @@ import {
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
-import { buscarRadio, getFallbackUrl } from '../lib/musica';
+import { buscarRadio, getFallbackUrl, STREAMS_GENERO } from '../lib/musica';
 import { obtenerClima, climaATexto } from '../lib/clima';
 import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
@@ -303,9 +303,16 @@ export function useRosita() {
       ? false
       : esNoche
         ? tiempoDesdeUltimaCharla < 30 * 1000
-        : tiempoDesdeUltimaCharla < 60 * 1000;
+        : tiempoDesdeUltimaCharla < 30 * 1000;
 
-    const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : /^(que|qué|como|cómo|cuando|cuándo|donde|dónde|quien|quién|cuanto|cuánto|cual|cuál|por que|por qué|pone|pon|conta|cuenta|deci|decí|avisá|avisa|recorda|acordate|para|podes|podés)\b/.test(textoNorm);
+    // esPreguntaDirecta: activa Rosita sin necesidad de nombrarla.
+    // No usa la primera palabra sola (demasiado genérico cuando hay visitas),
+    // sino tres bloques con patrones que casi exclusivamente van dirigidos a un asistente.
+    // textoNorm ya está en minúsculas y sin tildes (ej: "poné" → "pone", "avisá" → "avisa").
+    const _imp    = /^(pone|pon|avisa(me)?|recorda(me)?|acordate|apaga|prende|encende|enciende|llama|manda|busca)\b/.test(textoNorm);
+    const _info   = /(que hora|que dia|que fecha|que tiempo (hace|va|esta)|va a llover|que temperatura|cuanto (es|son|vale|valen))/.test(textoNorm);
+    const _entret = /^(contame (un|una)|cantame|jugamos)\b/.test(textoNorm) || /\b(un chiste|una adivinanza)\b/.test(textoNorm);
+    const esPreguntaDirecta = (musicaActivaRef.current || esNoche) ? false : (_imp || _info || _entret);
     if (__DEV__) console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
@@ -348,15 +355,18 @@ export function useRosita() {
     }
   });
 
-  // Resetear timer del watchdog + feedback visual cuando el SR detecta sonido
-  useSpeechRecognitionEvent('soundstart', () => {
+  // Feedback visual cuando el SR detecta sonido — soundstart + speechstart como respaldo
+  // En algunos Android speechstart es más confiable que soundstart
+  function activarFeedbackSonido() {
     ultimaActivacionSrRef.current = Date.now();
     if (estadoRef.current === 'esperando') {
       setDetectandoSonido(true);
       if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
       detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 1500);
     }
-  });
+  }
+  useSpeechRecognitionEvent('soundstart',  activarFeedbackSonido);
+  useSpeechRecognitionEvent('speechstart', activarFeedbackSonido);
 
   useSpeechRecognitionEvent('error', (event) => {
     if (__DEV__) console.log('[SR] error:', event.error);
@@ -1144,24 +1154,26 @@ REGLAS CRÍTICAS PARA RESPONDER:
             iniciarSpeechRecognition();
             if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
             expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 5000);
-            // Health check: si a los 5s el stream no arrancó, reintentamos con fallback
+            // Health check: si a los 12s el stream no arrancó, reintentamos con fallback.
+            // Se usa 12s (no 5s) porque los streams de radio en vivo necesitan tiempo de buffering
+            // y currentTime puede estar en 0 mientras bufferean aunque estén funcionando.
             setTimeout(async () => {
               if (!musicaActivaRef.current) return; // ya se detuvo manualmente
-              if (playerMusica.currentTime >= 0.5) return; // está sonando, todo bien
-              // Intento con fallback hardcodeado
-              const fallbackUrl = getFallbackUrl(parsed.generoMusica!);
+              if (playerMusica.playing || playerMusica.currentTime >= 0.5) return; // está sonando
+              // Intento con segundo fallback hardcodeado
+              const fallbackUrl = STREAMS_GENERO[parsed.generoMusica!]?.[1] ?? null;
               if (fallbackUrl && fallbackUrl !== urlStream) {
                 try {
                   playerMusica.replace({ uri: fallbackUrl });
                   playerMusica.play();
-                  // Segundo check: si tampoco arranca en 5s, nos rendimos
+                  // Segundo check a los 10s: si tampoco arranca, nos rendimos
                   setTimeout(async () => {
                     if (!musicaActivaRef.current) return;
-                    if (playerMusica.currentTime < 0.5) {
+                    if (!playerMusica.playing && playerMusica.currentTime < 0.5) {
                       pararMusica();
                       await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
                     }
-                  }, 5000);
+                  }, 10000);
                 } catch {
                   pararMusica();
                   await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
@@ -1170,7 +1182,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
                 pararMusica();
                 await hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
               }
-            }, 5000);
+            }, 12000);
           } catch {
             setMusicaActiva(false);
             await hablar('No pude conectar con la radio, perdoname.');

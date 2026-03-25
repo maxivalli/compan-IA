@@ -1,7 +1,0 @@
-{
-  "name": "amplificador-audio",
-  "version": "1.0.0",
-  "description": "Módulo nativo para amplificación de audio en tiempo real (audífono de bolsillo)",
-  "main": "src/index.ts",
-  "files": ["src", "ios", "android", "expo-module.config.json"]
-}

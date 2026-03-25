@@ -436,10 +436,15 @@ export function parsearRespuesta(
   }
 
   // ── MUSICA ──
-  const matchMusica = raw.match(/^\[MUSICA:\s*(.+?)\]/i);
+  // Busca [MUSICA:] en cualquier posición: Claude a veces antepone un tag de emoción
+  // como [FELIZ] antes de [MUSICA: clave] en lugar de usarlo como único tag principal.
+  const matchMusica = raw.match(/\[MUSICA:\s*(.+?)\]/i);
   if (matchMusica) {
     const generoMusica = detectarGenero(matchMusica[1].trim().toLowerCase());
-    const respuesta = limpiarTagsFinales(raw.replace(/^\[MUSICA:[^\]]+\]\s*/, ''));
+    // Quitar el tag de emoción inicial (si lo hay) y el tag MUSICA del texto hablado
+    const respuesta = limpiarTagsFinales(
+      raw.replace(/^\[[^\]]+\]\s*/, '').replace(/\[MUSICA:[^\]]+\]\s*/gi, '')
+    );
     return { tagPrincipal: 'MUSICA', generoMusica, respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
   }
 

@@ -716,20 +716,66 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // ── Alerta de inactividad ───────────────────────────────────────────────────
   useEffect(() => {
     const HORAS_INACTIVIDAD = 4;
+
+    // Cuenta solo los minutos que caen fuera del horario nocturno configurado
+    function minutosActivosTranscurridos(
+      desde: number,
+      hasta: number,
+      horaInicioNoche: number,
+      horaFinNoche: number
+    ): number {
+      let activos = 0;
+      let t = desde;
+      while (t < hasta) {
+        const horaActual = new Date(t).getHours();
+        // El horario nocturno cruza medianoche (ej: 23 → 9)
+        const esNoche = horaInicioNoche > horaFinNoche
+          ? (horaActual >= horaInicioNoche || horaActual < horaFinNoche)
+          : (horaActual >= horaInicioNoche && horaActual < horaFinNoche);
+        if (!esNoche) {
+          const sigHora = new Date(t);
+          sigHora.setMinutes(0, 0, 0);
+          sigHora.setHours(sigHora.getHours() + 1);
+          activos += (Math.min(sigHora.getTime(), hasta) - t) / 1000 / 60;
+        }
+        // Avanzar al inicio de la próxima hora
+        const next = new Date(t);
+        next.setMinutes(0, 0, 0);
+        next.setHours(next.getHours() + 1);
+        t = next.getTime();
+      }
+      return activos;
+    }
+
     async function chequearInactividad() {
       if (noMolestarRef.current) return;
-      const hora = new Date().getHours();
-      if (hora < 9 || hora >= 21) return;
-      const minutosInactiva = (Date.now() - ultimaActividadRef.current) / 1000 / 60;
-      if (minutosInactiva < HORAS_INACTIVIDAD * 60) return;
-      if (Date.now() - alertaInactividadRef.current < 2 * 60 * 60 * 1000) return;
-      alertaInactividadRef.current = Date.now();
       const p = perfilRef.current;
       if (!p) return;
+
+      const horaInicioNoche = p.horaInicioNoche ?? 23;
+      const horaFinNoche    = p.horaFinNoche    ?? 9;
+
+      // No chequear durante el horario nocturno configurado
+      const hora = new Date().getHours();
+      const esNocheAhora = horaInicioNoche > horaFinNoche
+        ? (hora >= horaInicioNoche || hora < horaFinNoche)
+        : (hora >= horaInicioNoche && hora < horaFinNoche);
+      if (esNocheAhora) return;
+
+      // Calcular solo los minutos activos (diurnos) sin interacción
+      const minutosActivos = minutosActivosTranscurridos(
+        ultimaActividadRef.current,
+        Date.now(),
+        horaInicioNoche,
+        horaFinNoche
+      );
+      if (minutosActivos < HORAS_INACTIVIDAD * 60) return;
+      if (Date.now() - alertaInactividadRef.current < 2 * 60 * 60 * 1000) return;
+      alertaInactividadRef.current = Date.now();
       const chatIds = (p.telegramContactos ?? []).map(c => c.id);
       if (!chatIds.length) return;
       const nombre = p.nombreAbuela ?? 'Tu abuela';
-      const horas  = Math.floor(minutosInactiva / 60);
+      const horas  = Math.floor(minutosActivos / 60);
       enviarAlertaTelegram(chatIds, `ℹ️ ${nombre} no interactuó con ${p.nombreAsistente ?? 'Rosita'} hace más de ${horas} horas.`, p.nombreAsistente);
     }
 

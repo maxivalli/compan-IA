@@ -21,7 +21,6 @@ import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
-import { useAmplificador } from '../hooks/useAmplificador';
 
 function RelojNoche() {
   const [fontsLoaded] = useFonts({ Poppins_700Bold });
@@ -82,31 +81,6 @@ export default function Index() {
     detectandoSonido,
   } = useRosita();
 
-  const {
-    activo: ampActivo, auriculares, esBluetooth,
-    etiquetaGanancia, toggleActivo, siguienteNivel,
-    _debug: ampDebug,
-  } = useAmplificador();
-
-  const prevNoMolestarRef = useRef(false);
-
-  function toggleAmplificador() {
-    if (ampActivo) {
-      toggleActivo();
-      const prev = prevNoMolestarRef.current;
-      setNoMolestar(prev);
-      if (!prev) {
-        refs.iniciarSpeechRecognition();
-        chequearPendientesAlActivar();
-      }
-    } else {
-      prevNoMolestarRef.current = noMolestar;
-      setNoMolestar(true);
-      ExpoSpeechRecognitionModule.stop();
-      detenerSilbido();
-      toggleActivo();
-    }
-  }
 
   const panCaricia = useRef(PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dy) < 40,
@@ -253,27 +227,33 @@ export default function Index() {
 
   // ── Animación del botón (dot pulsante + glow respirando) ────────────────────
   const escuchando    = estado === 'escuchando';
-  const botonDisabled = estado === 'pensando' || estado === 'hablando';
+  const botonDisabled = estado === 'pensando' || estado === 'hablando' || noMolestar;
   const pulso       = useRef(new Animated.Value(1)).current;
   const glowOpacity = useRef(new Animated.Value(0.30)).current;
   const detectRing  = useRef(new Animated.Value(0)).current;
+  const detectScale = useRef(new Animated.Value(1)).current;
 
-  // Feedback visual cuando el SR detecta sonido: ring + spike de glow
+  // Feedback visual cuando el SR detecta sonido: ring + pulso de escala en el botón
   useEffect(() => {
-    const activo = detectandoSonido && estado === 'esperando';
+    const activo = detectandoSonido && estado === 'esperando' && !noMolestar;
     Animated.timing(detectRing, {
       toValue: activo ? 1 : 0,
       duration: activo ? 80 : 500,
       useNativeDriver: true,
     }).start();
-    // También sube el glow de fondo para que sea visible en modo noche
-    glowOpacity.stopAnimation();
     if (activo) {
-      Animated.timing(glowOpacity, { toValue: 0.9, duration: 100, useNativeDriver: true }).start();
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(detectScale, { toValue: 1.03, duration: 200, useNativeDriver: true }),
+          Animated.timing(detectScale, { toValue: 1.0,  duration: 200, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
     } else {
-      Animated.timing(glowOpacity, { toValue: 0.30, duration: 400, useNativeDriver: true }).start();
+      detectScale.stopAnimation();
+      detectScale.setValue(1);
     }
-  }, [detectandoSonido, estado]);
+  }, [detectandoSonido, estado, noMolestar]);
 
   useEffect(() => {
     dotPulseAnim.current?.stop();
@@ -328,23 +308,17 @@ export default function Index() {
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
 
   // ── Color del dot / borde / glow según estado ───────────────────────────────
-  const btnDotColor = auriculares && ampActivo  ? '#10B981'
-    : auriculares             ? '#10B981'
-    : musicaActiva            ? '#E8392A'
+  const btnDotColor = musicaActiva            ? '#E8392A'
     : estado === 'escuchando' ? '#E85D24'
     : estado === 'pensando'   ? '#3b82f6'
     : estado === 'hablando'   ? '#22c55e'
     : '#ef4444';
-  const btnGradient: [string, string] = auriculares && ampActivo  ? ['#6EE7B7', '#10B981']
-    : auriculares             ? ['#A7F3D0', '#10B981']
-    : musicaActiva            ? ['#fca5a5', '#E8392A']
+  const btnGradient: [string, string] = musicaActiva            ? ['#fca5a5', '#E8392A']
     : estado === 'escuchando' ? ['#fdba74', '#E85D24']
     : estado === 'pensando'   ? ['#93c5fd', '#3b82f6']
     : estado === 'hablando'   ? ['#86efac', '#22c55e']
     : ['#fca5a5', '#ef4444'];
-  const btnLabel = auriculares && ampActivo  ? 'Amplificando'
-    : auriculares             ? 'Amplificar'
-    : musicaActiva            ? 'Parar'
+  const btnLabel = musicaActiva            ? 'Parar'
     : estado === 'escuchando' ? 'Escuchando'
     : estado === 'pensando'   ? 'Pensando...'
     : estado === 'hablando'   ? 'Hablando'
@@ -503,22 +477,9 @@ export default function Index() {
         {/* Fila superior: Hablar + SOS */}
         <View style={[styles.botonesFilaPrincipal, isTablet && { flexDirection: 'row', gap: 32 }]}>
 
-          {/* DEBUG BT — remover cuando funcione */}
-          <Text style={{ fontSize: 11, color: '#fff', backgroundColor: '#0008', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, marginBottom: 8, textAlign: 'center' }}>{ampDebug}</Text>
-
           {/* Botón Hablar */}
           <View style={[styles.botonContenedor, { position: 'relative' }]}>
-            {/* Pastilla de ganancia — a la izquierda del botón */}
-            {auriculares && ampActivo && (
-              <TouchableOpacity
-                onPress={siguienteNivel}
-                activeOpacity={0.75}
-                style={{ position: 'absolute', left: -58, top: '50%', marginTop: -16, backgroundColor: '#10B98133', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, borderWidth: 1, borderColor: '#10B98155', zIndex: 10 }}
-              >
-                <Text style={{ fontSize: fs(14), fontWeight: '700', color: '#6EE7B7' }}>{etiquetaGanancia}</Text>
-              </TouchableOpacity>
-            )}
-            {(() => { const gW = btnW + 90; const gH = btnH + 70; return (
+            {!noMolestar && (() => { const gW = btnW + 90; const gH = btnH + 70; return (
               <Animated.View style={[styles.btnGlow, { opacity: glowOpacity, top: -(gH - btnH) / 2, left: -(gW - btnW) / 2 }]}>
                 <Svg width={gW} height={gH}>
                   <Defs>
@@ -531,34 +492,40 @@ export default function Index() {
                   <Ellipse cx={gW / 2} cy={gH / 2} rx={gW / 2} ry={gH / 2} fill="url(#btnGlow)" />
                 </Svg>
               </Animated.View>
-            ); })()}
-            {/* Ring de detección de voz */}
+            ); })() }
+            {/* Ring de detección de voz — pulsa con detectScale */}
             <Animated.View pointerEvents="none" style={{
               position: 'absolute',
               width: btnW + 16, height: btnH + 16,
               borderRadius: (btnH + 16) / 2,
-              borderWidth: 4,
-              borderColor: esBotonesNoche ? '#ffffff' : '#ef4444',
+              borderWidth: 2,
+              borderColor: btnDotColor,
               top: -8, left: -8,
               opacity: detectRing,
+              transform: [{ scale: detectScale }],
             }} />
-            <View style={[styles.btnShadow, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: btnDotColor }]}>
+            <Animated.View style={{ width: btnW, height: btnH, borderRadius: btnH / 2 }}>
               <TouchableOpacity
                 style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
-                onPress={auriculares ? toggleAmplificador : musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+                onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
                 activeOpacity={0.85}
                 disabled={botonDisabled && !musicaActiva}
               >
                 <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
                   <View style={[styles.btnInner, { width: btnW }]}>
-                    <Animated.View style={[styles.statusDot, { position: 'absolute', left: Math.round(btnW * 0.08), backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
-                    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
-                      {btnLabel}
-                    </Text>
+                    {!noMolestar && (
+                      <Animated.View style={[styles.statusDot, { position: 'absolute', left: Math.round(btnW * 0.08), backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
+                    )}
+                    {noMolestar && !musicaActiva
+                      ? <Ionicons name="mic-off-outline" size={Math.round(btnFont * 1.4)} color={esBotonesNoche ? '#4b5563' : '#9ca3af'} />
+                      : <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
+                          {btnLabel}
+                        </Text>
+                    }
                   </View>
                 </View>
               </TouchableOpacity>
-            </View>
+            </Animated.View>
           </View>
 
           {/* Botón SOS */}
@@ -705,7 +672,7 @@ const styles = StyleSheet.create({
   ecualizadorWrap:    { height: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   botonesZona:        { alignItems: 'center', gap: 12 },
   botonesZonaTablet:  { alignItems: 'center', gap: 16 },
-  botonesFilaPrincipal: { alignItems: 'center', justifyContent: 'center', gap: 12 },
+  botonesFilaPrincipal: { alignItems: 'center', justifyContent: 'center', gap: 24 },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center' },
   postIt:             { borderRadius: 6, width: 280, height: 80, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.22, shadowRadius: 6, elevation: 5 },
