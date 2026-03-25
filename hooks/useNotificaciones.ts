@@ -60,6 +60,9 @@ export type NotificacionesRefs = {
 export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<typeof useAudioPlayer>) {
   // Cola FIFO — serializa los handlers de Telegram para evitar race conditions
   const colaRef = useRef<Promise<void>>(Promise.resolve());
+
+  // Blacklist de recordatorios/alarmas ya disparados: useRef para sobrevivir remounts del componente
+  const disparadosRef = useRef(new Set<string>());
   function encolar(fn: () => Promise<void>): void {
     colaRef.current = colaRef.current.then(fn).catch(() => {});
   }
@@ -463,16 +466,13 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       return { dia: parseInt(m[1], 10), mes };
     }
 
-    // Blacklist en RAM: evita duplicados aunque AsyncStorage tarde
-    const disparados = new Set<string>();
-
     async function chequearMedicamentos() {
       const p = perfilRef.current;
       if (!p || noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
       const horaActualVal = new Date().getHours();
       const minActual = new Date().getMinutes();
-      if (minActual > 5) return;
+      if (minActual > 15) return;
       for (const med of p.medicamentos) {
         const hora = parsearHoraMed(med);
         if (hora === null || hora !== horaActualVal) continue;
@@ -508,7 +508,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
             system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y cálida, sin etiquetas.`,
             messages: [{ role: 'user', content: `Hoy es: ${fecha}. Generá un recordatorio cálido para ${p.nombreAbuela}.` }],
           });
-          if (frase && estadoRef.current === 'esperando') await hablar(frase);
+          if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
         } catch {}
         break;
       }
@@ -544,7 +544,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva, sin etiquetas.`,
           messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${p.nombreAbuela} con mucho cariño.` }],
         });
-        if (frase && estadoRef.current === 'esperando') await hablar(frase);
+        if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
       } catch {}
     }
 
@@ -587,10 +587,10 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const alarmas = todos.filter(r => r.esAlarma && r.timestampEpoch && ahora >= r.timestampEpoch);
       for (const alarma of alarmas) {
         const clave = `alarma_${alarma.id}`;
-        if (disparados.has(clave)) continue;
+        if (disparadosRef.current.has(clave)) continue;
         const ya = await yaRecordo(clave);
-        if (ya) { disparados.add(clave); continue; }
-        disparados.add(clave);
+        if (ya) { disparadosRef.current.add(clave); continue; }
+        disparadosRef.current.add(clave);
         await marcarRecordado(clave);
         await borrarRecordatorio(alarma.id);
         proximaAlarmaRef.current = 0;
@@ -615,10 +615,10 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       });
       for (const r of pendientes) {
         const clave = `recordatorio_${r.id}`;
-        if (disparados.has(clave)) continue;
+        if (disparadosRef.current.has(clave)) continue;
         const ya = await yaRecordo(clave);
-        if (ya) { disparados.add(clave); continue; }
-        disparados.add(clave);
+        if (ya) { disparadosRef.current.add(clave); continue; }
+        disparadosRef.current.add(clave);
         await marcarRecordado(clave);
         borrarRecordatorio(r.id).catch(() => {}); // borra inmediatamente para evitar re-disparo si marcarRecordado falla
         const nombre = perfilRef.current?.nombreAbuela ?? '';

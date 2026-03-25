@@ -354,6 +354,18 @@ export async function musicaEscuchadaHoy(): Promise<boolean> {
   }
 }
 
+// ── Última radio reproducida ─────────────────────────────────────────────────
+
+const CLAVE_ULTIMA_RADIO = 'rosa_ultima_radio';
+
+export async function guardarUltimaRadio(clave: string): Promise<void> {
+  try { await AsyncStorage.setItem(CLAVE_ULTIMA_RADIO, clave); } catch {}
+}
+
+export async function cargarUltimaRadio(): Promise<string | null> {
+  try { return await AsyncStorage.getItem(CLAVE_ULTIMA_RADIO); } catch { return null; }
+}
+
 // ── PIN de configuración ──────────────────────────────────────────────────────
 
 const CLAVE_PIN = 'compania_pin';

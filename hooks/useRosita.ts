@@ -12,7 +12,8 @@ import {
   cargarPerfil, cargarHistorial, guardarHistorial,
   Perfil, TelegramContacto, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, bienvenidaYaDada, marcarBienvenidaDada,
-  registrarMusicaHoy,
+  registrarMusicaHoy, guardarUltimaRadio, cargarUltimaRadio,
+  borrarRecordatorio,
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
@@ -143,6 +144,9 @@ export function useRosita() {
 
   // ── Dispositivos Tuya/Smartlife ───────────────────────────────────────────────
   const dispositivosTuyaRef = useRef<Dispositivo[]>([]);
+
+  // ── Última radio reproducida ──────────────────────────────────────────────────
+  const ultimaRadioRef = useRef<string | null>(null);
 
   // ── System prompt en dos bloques: estable (cacheable) + dinámico ─────────────
   const systemEstableRef = useRef<{ key: string; text: string } | null>(null);
@@ -528,9 +532,10 @@ export function useRosita() {
     try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
     limpiarCacheViejo().catch(() => {});
 
-    const [perfilGuardado, historialGuardado, listasGuardadas] = await Promise.all([
-      cargarPerfil(), cargarHistorial(), cargarListas(),
+    const [perfilGuardado, historialGuardado, listasGuardadas, ultimaRadio] = await Promise.all([
+      cargarPerfil(), cargarHistorial(), cargarListas(), cargarUltimaRadio(),
     ]);
+    ultimaRadioRef.current = ultimaRadio;
     perfilRef.current    = perfilGuardado;
     historialRef.current = historialGuardado as Mensaje[];
     setListas(listasGuardadas);
@@ -1123,7 +1128,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       if (__DEV__) console.log('[RC] llamando a Claude...');
       const respuestaRaw = await llamarClaude({
-        system: getSystemBlocks(p, climaRef.current, pideJuego, contextoNoticias + contextoBusqueda, pideChiste),
+        system: getSystemBlocks(p, climaRef.current, pideJuego, (ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '') + contextoNoticias + contextoBusqueda, pideChiste),
         messages: nuevoHistorial.slice(-8),
         maxTokens: (pideCuento || pideJuego || pideChiste) ? 700 : undefined,
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
@@ -1185,6 +1190,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
             detenerSilbido();               // detener silbido inmediatamente si está en curso
             setMusicaActiva(true);
             registrarMusicaHoy().catch(() => {});
+            ultimaRadioRef.current = parsed.generoMusica!;
+            guardarUltimaRadio(parsed.generoMusica!).catch(() => {});
             setEstado('esperando');
             estadoRef.current = 'esperando';
             iniciarSpeechRecognition();
@@ -1195,7 +1202,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
             // y currentTime puede estar en 0 mientras bufferean aunque estén funcionando.
             setTimeout(async () => {
               if (!musicaActivaRef.current) return; // ya se detuvo manualmente
-              if (playerMusica.playing || playerMusica.currentTime >= 0.5) return; // está sonando
+              if (playerMusica.currentTime >= 0.5) return; // está sonando (no usar .playing — poco confiable en Android)
               // Intento con segundo fallback hardcodeado
               const fallbackUrl = STREAMS_GENERO[parsed.generoMusica!]?.[1] ?? null;
               if (fallbackUrl && fallbackUrl !== urlStream) {
@@ -1205,7 +1212,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
                   // Segundo check a los 10s: si tampoco arranca, nos rendimos
                   setTimeout(async () => {
                     if (!musicaActivaRef.current) return;
-                    if (!playerMusica.playing && playerMusica.currentTime < 0.5) {
+                    if (playerMusica.currentTime < 0.5) {
                       pararMusica();
                       await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
                     }
@@ -1247,20 +1254,26 @@ REGLAS CRÍTICAS PARA RESPONDER:
         };
         const mensaje = `${nombre}, ya pasaron los ${formatearTiempo(segundos)}.`.trimStart();
 
-        if (segundos > 3600) {
-          const targetMs = Date.now() + segundos * 1000;
-          const targetDate = new Date(targetMs).toISOString().slice(0, 10);
-          guardarRecordatorio({
-            id: `timer_${Date.now()}`,
-            texto: mensaje,
-            fechaISO: targetDate,
-            timestampEpoch: targetMs,
-            esTimer: true,
-            creadoEn: Date.now(),
-          }).catch(() => {});
-        } else {
+        // Siempre persistir como alarma para sobrevivir al background (iOS suspende JS)
+        const timerId = `timer_${Date.now()}`;
+        const targetMs = Date.now() + segundos * 1000;
+        const targetDate = new Date(targetMs).toISOString().slice(0, 10);
+        guardarRecordatorio({
+          id: timerId,
+          texto: mensaje,
+          fechaISO: targetDate,
+          timestampEpoch: targetMs,
+          esTimer: true,
+          esAlarma: true, // chequearAlarmas lo dispara sin restricción de horario
+          creadoEn: Date.now(),
+        }).catch(() => {});
+
+        if (segundos <= 3600) {
+          // Fast-path: setTimeout cuando la app está en primer plano
           if (timerVozRef.current) clearTimeout(timerVozRef.current);
           timerVozRef.current = setTimeout(async () => {
+            // Borrar la alarma persistida para evitar doble disparo
+            borrarRecordatorio(timerId).catch(() => {});
             if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
               await new Promise<void>(resolve => {
                 const check = setInterval(() => { if (estadoRef.current === 'esperando') { clearInterval(check); resolve(); } }, 500);
