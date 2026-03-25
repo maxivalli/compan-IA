@@ -8,3 +8,7 @@ android {
     versionName "1.0.0"
   }
 }
+
+dependencies {
+  compileOnly project(':expo-modules-core')
+}
