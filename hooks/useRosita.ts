@@ -464,6 +464,26 @@ export function useRosita() {
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
   const debugTimingsRef    = useRef<{ t0: number; t2: number } | null>(null);
 
+  function extraerPrimeraFrase(texto: string): { primera: string; resto: string } {
+    const match = texto.match(/^.{20,}?[.!?](?:\s+|$)/);
+    if (!match) return { primera: texto, resto: '' };
+    const primera = match[0].trimEnd();
+    const resto   = texto.slice(match[0].length).trim();
+    if (resto.length < 10) return { primera: texto, resto: '' };
+    return { primera, resto };
+  }
+
+  async function presintetizarTexto(texto: string): Promise<void> {
+    try {
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
+      const info = await FileSystem.getInfoAsync(cacheUri);
+      if (info.exists) return;
+      const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+      const base64  = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
+      if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+    } catch {}
+  }
+
   async function reproducirMuletilla(categoria: CategoriaMuletilla): Promise<string> {
     try {
       const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
@@ -1434,7 +1454,14 @@ REGLAS CRÍTICAS PARA RESPONDER:
       await guardarHistorial(nuevoHist);
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
-      await hablar(parsed.respuesta);
+      const { primera, resto } = extraerPrimeraFrase(parsed.respuesta);
+      if (resto) {
+        presintetizarTexto(resto).catch(() => {}); // sintetiza el resto en background
+        await hablar(primera);
+        await hablar(resto);
+      } else {
+        await hablar(parsed.respuesta);
+      }
 
       // ── Recordatorio de medicamento pendiente ──
       try {
