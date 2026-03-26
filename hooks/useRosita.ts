@@ -46,8 +46,8 @@ const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: st
     masculina: ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Vaya...'],
   },
   default: {
-    femenina:  ['Mmm...', 'A ver...', 'Claro...', 'Sí...'],
-    masculina: ['Mmm...', 'A ver...', 'Claro...', 'Sí...'],
+    femenina:  ['Claro...', 'Sí...', 'Ajá...'],
+    masculina: ['Claro...', 'Sí...', 'Ajá...'],
   },
 };
 
