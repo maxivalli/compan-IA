@@ -291,7 +291,7 @@ export function useRosita() {
   useEffect(() => {
     if (linternaActiva) return; // la linterna maneja su propio brillo
     if (modoNoche !== 'despierta') {
-      Brightness.setBrightnessAsync(0.5).catch(() => {});
+      Brightness.setBrightnessAsync(0).catch(() => {});
     } else {
       Brightness.useSystemBrightnessAsync().catch(() => {});
     }
