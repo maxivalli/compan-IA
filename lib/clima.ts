@@ -36,16 +36,21 @@ export const CODIGOS_ADVERSOS = new Set([
 export async function obtenerClima(): Promise<DatosClima | null> {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
+    if (__DEV__) console.log('[CLIMA] permiso ubicación:', status);
     if (status !== 'granted') return null;
 
     const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
     const { latitude, longitude } = loc.coords;
+    if (__DEV__) console.log('[CLIMA] coords:', latitude, longitude);
 
     // Clima actual + pronóstico 3 días (hoy + 2), descripciones en español
+    const keyPreview = WEATHERAPI_KEY ? WEATHERAPI_KEY.slice(0, 6) + '…' : 'FALTA';
+    if (__DEV__) console.log('[CLIMA] key:', keyPreview);
     const url = `https://api.weatherapi.com/v1/forecast.json?key=${WEATHERAPI_KEY}&q=${latitude},${longitude}&days=3&aqi=no&alerts=no&lang=es`;
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timeoutId));
+    if (__DEV__) console.log('[CLIMA] WeatherAPI status:', res.status);
     if (!res.ok) return null;
 
     const data = await res.json();
@@ -53,7 +58,27 @@ export async function obtenerClima(): Promise<DatosClima | null> {
     const temp        = Math.round(data.current.temp_c);
     const codigo      = data.current.condition.code as number;
     const descripcion = (data.current.condition.text as string).toLowerCase();
-    const ciudad      = (data.location.name as string) || undefined;
+
+    // WeatherAPI puede devolver nombre de barrio o zona en vez de ciudad;
+    // intentamos en orden: name → region → reverse geocoding nativo
+    // Combinamos ciudad + provincia para mejorar las búsquedas locales
+    let ciudadNombre: string | undefined = (data.location.name as string) || undefined;
+    const regionNombre: string | undefined = (data.location.region as string) || undefined;
+    if (__DEV__) console.log('[CLIMA] ciudad WeatherAPI:', data.location.name, '| region:', data.location.region);
+    if (!ciudadNombre) {
+      try {
+        const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
+        ciudadNombre = geo[0]?.city || geo[0]?.subregion || undefined;
+        if (__DEV__) console.log('[CLIMA] ciudad reverse geocoding:', ciudadNombre);
+      } catch {}
+    }
+    // "San Cristóbal, Santa Fe" — más preciso para búsquedas locales
+    let ciudad: string | undefined = ciudadNombre;
+    if (ciudadNombre && regionNombre && !ciudadNombre.includes(regionNombre)) {
+      ciudad = `${ciudadNombre}, ${regionNombre}`;
+    } else if (!ciudad) {
+      ciudad = regionNombre;
+    }
 
     // Pronóstico — forecastday[0] = hoy, tomamos [1] y [2]
     const pronostico: PronosticoDia[] = [];
@@ -72,7 +97,8 @@ export async function obtenerClima(): Promise<DatosClima | null> {
     }
 
     return { temperatura: temp, descripcion, codigoActual: codigo, ciudad, latitud: latitude, longitud: longitude, pronostico };
-  } catch {
+  } catch (e: any) {
+    if (__DEV__) console.log('[CLIMA] error:', e?.message ?? e);
     return null;
   }
 }
