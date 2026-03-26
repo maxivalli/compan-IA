@@ -462,6 +462,7 @@ export function useRosita() {
   }
 
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
+  const debugTimingsRef    = useRef<{ t0: number; t2: number } | null>(null);
 
   async function reproducirMuletilla(categoria: CategoriaMuletilla): Promise<string> {
     try {
@@ -788,6 +789,22 @@ export function useRosita() {
         player.replace({ uri });
         setEstado('hablando');
         estadoRef.current = 'hablando';
+        // ── Debug timing: ElevenLabs + total ──
+        const dt = debugTimingsRef.current;
+        if (dt) {
+          const elevenlabsMs = Date.now() - dt.t2;
+          const totalMs      = Date.now() - dt.t0;
+          const cacheHit     = info.exists;
+          const chatId       = perfilRef.current?.debugChatId;
+          if (chatId) {
+            enviarAlertaTelegram(
+              [chatId],
+              `⏱ elevenlabs: ${elevenlabsMs}ms (${cacheHit ? 'cache HIT' : 'MISS'}) | total hasta play: ${totalMs}ms`,
+              perfilRef.current?.nombreAsistente,
+            ).catch(() => {});
+          }
+          debugTimingsRef.current = null;
+        }
         player.play();
         if (__DEV__) console.log('[TTS] play() llamado');
         await new Promise<void>(resolve => {
@@ -1120,6 +1137,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         maxTokens: (pideCuento || pideJuego || pideChiste) ? 700 : undefined,
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
       const t2 = Date.now();
+      if (p.debugChatId) debugTimingsRef.current = { t0, t2 };
 
       // ── Log de debug (solo si debugChatId configurado) ──
       const debugChatId = p.debugChatId;
@@ -1127,7 +1145,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,
           `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
-          `⏱ muletilla: ${t1 - t0}ms | claude: ${t2 - t1}ms | total: ${t2 - t0}ms`,
+          `⏱ muletilla: ${t1 - t0}ms | claude: ${t2 - t1}ms`,
           `🤖 Claude: ${respuestaRaw.slice(0, 300)}`,
         ];
         enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
