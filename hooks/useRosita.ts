@@ -25,7 +25,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
 
@@ -116,6 +116,7 @@ export function useRosita() {
   const climaRef            = useRef<string>('');
   const ciudadRef           = useRef<string>('');
   const coordRef            = useRef<{ lat: number; lon: number } | null>(null);
+  const climaTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const feriadosRef         = useRef<string>('');
   const duckTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerVozRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -430,7 +431,7 @@ export function useRosita() {
         iniciarSpeechRecognition();
       }
     }, 5000);
-    return () => { ExpoSpeechRecognitionModule.stop(); clearInterval(watchdog); };
+    return () => { ExpoSpeechRecognitionModule.stop(); clearInterval(watchdog); if (climaTimerRef.current) clearTimeout(climaTimerRef.current); };
   }, []);
 
   async function limpiarCacheViejo() {
@@ -560,14 +561,28 @@ export function useRosita() {
       iniciarSpeechRecognition();
     }
 
-    obtenerClima().then(clima => {
-      if (clima) {
-        climaRef.current  = climaATexto(clima);
-        ciudadRef.current = clima.ciudad ?? '';
-        if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
-        setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
+    // Retry loop: intenta obtener clima/ubicación hasta lograrlo.
+    // Si falla, reintenta cada 30s. Una vez obtenido, refresca cada 60 min.
+    async function intentarClima() {
+      try {
+        const clima = await obtenerClima();
+        if (clima) {
+          climaRef.current  = climaATexto(clima);
+          ciudadRef.current = clima.ciudad ?? '';
+          if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
+          setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
+          if (__DEV__) console.log('[CLIMA] OK —', climaRef.current.slice(0, 80));
+          climaTimerRef.current = setTimeout(intentarClima, 60 * 60 * 1000); // refrescar en 1h
+        } else {
+          if (__DEV__) console.log('[CLIMA] sin resultado — reintentando en 30s');
+          climaTimerRef.current = setTimeout(intentarClima, 30 * 1000);
+        }
+      } catch (e: any) {
+        if (__DEV__) console.log('[CLIMA] error — reintentando en 30s:', e?.message);
+        climaTimerRef.current = setTimeout(intentarClima, 30 * 1000);
       }
-    }).catch(() => {});
+    }
+    intentarClima();
 
     obtenerEstadoSmartThings().then(async ({ vinculado, dispositivos }) => {
       if (!vinculado) return;
@@ -1099,52 +1114,87 @@ export function useRosita() {
     setEstado('pensando');
     estadoRef.current = 'pensando';
 
+    // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
+    const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
+    const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
+    const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
+      || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
+          && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
+    const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
+    const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
+    const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
+    const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|heladeria|heladerias|restaurant|restaurante|pizzeria|panaderia|carniceria|verduleria|ferreteria|peluqueria|gimnasio|kiosco|confiteria|cafe|bar|veterinaria|optica|zapateria|ropa|tienda|negocio|local|comercio|donde puedo|donde compro|donde venden)\b/.test(textoNorm);
+
+    let queryBusqueda = textoUsuario;
+    if (pideBusqueda) {
+      const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
+      const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay|en mi ciudad|en la ciudad/.test(textoNorm);
+      const esHorario  = esConsultaHorario || /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
+      const ciudad     = ciudadRef.current;
+      if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
+      else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
+      else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`;
+      else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
+    }
+
     const catMuletilla = categorizarMuletilla(textoUsuario);
     const t0 = Date.now();
-    const textoMuletilla = catMuletilla ? await reproducirMuletilla(catMuletilla) : null;
-    const t1 = Date.now();
 
-    const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
+    // ── Estado de streaming ───────────────────────────────────────────────────
+    let primeraFraseCacheada: string | null = null;
+    let primeraFraseTTSPromise: Promise<void> | null = null;
+    let primeraFraseReproducida = false;
+    let tagDetectadoStreaming = 'NEUTRAL';
+    let tPrimeraDetectada = 0;
+    const onPrimeraFrase = (primera: string, tag: string) => {
+      tPrimeraDetectada = Date.now();
+      tagDetectadoStreaming = tag;
+      primeraFraseCacheada = primera;
+      primeraFraseTTSPromise = presintetizarTexto(primera);
+    };
+    const extraBase  = ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '';
+    const maxTokBase = (pideCuento || pideJuego || pideChiste) ? 700 : undefined;
 
     try {
-      const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
-      const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
-        || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
-            && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
-      const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
+      let resultadosBusqueda: string | null = null;
+      let claudePromise: Promise<string>;
 
-      const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
-      const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
-      const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo)\b/.test(textoNorm);
+      // Muletilla arranca de inmediato — los callbacks XHR del streaming
+      // se disparan entre los ticks del setInterval interno de hablar().
+      const muletillaPromise = catMuletilla ? reproducirMuletilla(catMuletilla) : Promise.resolve(null);
 
-      let queryBusqueda = textoUsuario;
-      if (pideBusqueda) {
-        const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
-        const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay/.test(textoNorm);
-        const esHorario  = esConsultaHorario || /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
-        const ciudad     = ciudadRef.current;
-        if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
-        else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
-        else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`;
-        else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
-      }
-
-      const [titulosNoticias, resultadosBusqueda] = await Promise.all([
-        pideNoticias ? buscarNoticias(textoUsuario) : Promise.resolve(null),
-        pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
-      ]);
-
-      const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
-
-      let contextoNoticias = '';
-      if (noticiasFinales) {
-        contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${noticiasFinales}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
-      }
-
-      let contextoBusqueda = '';
-      if (resultadosBusqueda) {
-        contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 80 palabras.
+      if (!pideNoticias && !pideBusqueda) {
+        // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
+        claudePromise = llamarClaudeConStreaming({
+          system:     getSystemBlocks(p, climaRef.current, pideJuego, extraBase, pideChiste),
+          messages:   nuevoHistorial.slice(-8),
+          maxTokens:  maxTokBase,
+          onPrimeraFrase,
+        }).catch(async () => {
+          if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
+          primeraFraseCacheada = null;
+          return await llamarClaude({
+            system:    getSystemBlocks(p, climaRef.current, pideJuego, extraBase, pideChiste),
+            messages:  nuevoHistorial.slice(-8),
+            maxTokens: maxTokBase,
+          }) || '';
+        });
+      } else {
+        // ── Slow path: esperar resultados (muletilla corre durante la búsqueda) ─
+        const [titulosNoticias, busquedaResult] = await Promise.all([
+          pideNoticias ? buscarNoticias(textoUsuario) : Promise.resolve(null),
+          pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
+        ]);
+        resultadosBusqueda = busquedaResult;
+        const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
+        let contextoNoticias = '';
+        if (noticiasFinales) {
+          contextoNoticias = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Para esta respuesta podés usar hasta 60 palabras para resumir los titulares con claridad.\nNoticias recientes relacionadas con la consulta (fuente: Google News, ${new Date().toLocaleDateString('es-AR')}):\n${noticiasFinales}\nResumí los titulares más relevantes en lenguaje simple y cálido.`;
+        }
+        let contextoBusqueda = '';
+        if (resultadosBusqueda) {
+          contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 80 palabras.
 Resultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):
 ${resultadosBusqueda}
 
@@ -1152,14 +1202,40 @@ REGLAS CRÍTICAS PARA RESPONDER:
 1. Respondé con datos concretos. Si no encontrás el dato, decilo amablemente.
 2. PRONUNCIACIÓN: Si das un número de teléfono o la altura de una dirección, separá TODOS sus números con comas (ejemplo: 3, 4, 0, 8, 6, 7... o San Martín 1, 2, 5, 0) para que el sistema de voz los dicte muy pausado, uno por uno. ¡No hagas esto con los años!
 3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta (prohibido decir "¿Te ayudo con otra cosa?", "¿Para qué precisás ir?", "¿Lo pudiste anotar?", etc.). Entregá la información y terminá tu frase en punto final para que la persona tenga paz y tiempo de asimilar el dato.`;
+        }
+        const systemFull = getSystemBlocks(p, climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda, pideChiste);
+        const msgSlice   = nuevoHistorial.slice(-8);
+        claudePromise = llamarClaudeConStreaming({
+          system: systemFull, messages: msgSlice, maxTokens: maxTokBase, onPrimeraFrase,
+        }).catch(async () => {
+          primeraFraseCacheada = null;
+          return await llamarClaude({ system: systemFull, messages: msgSlice, maxTokens: maxTokBase }) || '';
+        });
       }
 
-      if (__DEV__) console.log('[RC] llamando a Claude...');
-      const respuestaRaw = await llamarClaude({
-        system: getSystemBlocks(p, climaRef.current, pideJuego, (ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '') + contextoNoticias + contextoBusqueda, pideChiste),
-        messages: nuevoHistorial.slice(-8),
-        maxTokens: (pideCuento || pideJuego || pideChiste) ? 700 : undefined,
-      }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
+      // Esperar muletilla (los eventos XHR del streaming siguen llegando durante esto)
+      const textoMuletilla = await muletillaPromise;
+      const t1 = Date.now();
+
+      // Si el streaming ya detectó la primera frase, esperar que su TTS esté cacheado
+      if (primeraFraseTTSPromise) await primeraFraseTTSPromise;
+
+      // Reproducir primera frase inmediatamente (cache HIT → sin espera extra)
+      if (primeraFraseCacheada) {
+        const EXPR: Record<string, Expresion> = {
+          FELIZ: 'feliz', TRISTE: 'triste', SORPRENDIDA: 'sorprendida',
+          PENSATIVA: 'pensativa', NEUTRAL: 'neutral', CUENTO: 'feliz',
+          JUEGO: 'pensativa', CHISTE: 'feliz', ENOJADA: 'triste',
+          AVERGONZADA: 'neutral', CANSADA: 'pensativa',
+        };
+        setExpresion(EXPR[tagDetectadoStreaming] ?? 'neutral');
+        await hablar(primeraFraseCacheada);
+        primeraFraseReproducida = true;
+      }
+
+      // Obtener respuesta completa de Claude (streaming puede ya haber terminado)
+      if (__DEV__) console.log('[RC] esperando respuesta completa de Claude...');
+      const respuestaRaw = (await claudePromise) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
       const t2 = Date.now();
       if (p.debugChatId) debugTimingsRef.current = { t0, t2 };
 
@@ -1169,7 +1245,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,
           `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
-          `⏱ muletilla: ${t1 - t0}ms | claude: ${t2 - t1}ms`,
+          `⏱ muletilla: ${t1 - t0}ms | claude total: ${t2 - t0}ms${tPrimeraDetectada ? ` 🚀primera@${tPrimeraDetectada - t0}ms` : ''}`,
           `🤖 Claude: ${respuestaRaw.slice(0, 300)}`,
         ];
         enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
@@ -1458,13 +1534,27 @@ REGLAS CRÍTICAS PARA RESPONDER:
       await guardarHistorial(nuevoHist);
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
-      const { primera, resto } = extraerPrimeraFrase(parsed.respuesta);
-      if (resto) {
-        presintetizarTexto(resto).catch(() => {}); // sintetiza el resto en background
-        await hablar(primera);
-        await hablar(resto);
+      if (primeraFraseReproducida) {
+        // Primera ya reproducida — solo falta el resto si lo hay
+        const { resto } = extraerPrimeraFrase(parsed.respuesta);
+        if (resto) {
+          presintetizarTexto(resto).catch(() => {});
+          await hablar(resto);
+        }
       } else {
-        await hablar(parsed.respuesta);
+        const { primera, resto } = extraerPrimeraFrase(parsed.respuesta);
+        // Si el streaming pre-cacheó exactamente esta primera frase, esperamos que
+        // termine (tiene ventaja de 0-460ms). Siempre es mejor o igual que TTS fresco.
+        if (primeraFraseTTSPromise && primeraFraseCacheada === primera) {
+          await primeraFraseTTSPromise;
+        }
+        if (resto) {
+          presintetizarTexto(resto).catch(() => {});
+          await hablar(primera);
+          await hablar(resto);
+        } else {
+          await hablar(parsed.respuesta);
+        }
       }
 
       // ── Recordatorio de medicamento pendiente ──
