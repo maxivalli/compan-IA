@@ -1059,7 +1059,9 @@ export function useRosita() {
     estadoRef.current = 'pensando';
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
+    const t0 = Date.now();
     const textoMuletilla = catMuletilla ? await reproducirMuletilla(catMuletilla) : null;
+    const t1 = Date.now();
 
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
 
@@ -1117,6 +1119,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         messages: nuevoHistorial.slice(-8),
         maxTokens: (pideCuento || pideJuego || pideChiste) ? 700 : undefined,
       }) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
+      const t2 = Date.now();
 
       // ── Log de debug (solo si debugChatId configurado) ──
       const debugChatId = p.debugChatId;
@@ -1124,6 +1127,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,
           `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
+          `⏱ muletilla: ${t1 - t0}ms | claude: ${t2 - t1}ms | total: ${t2 - t0}ms`,
           `🤖 Claude: ${respuestaRaw.slice(0, 300)}`,
         ];
         enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
