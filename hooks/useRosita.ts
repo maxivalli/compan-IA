@@ -25,7 +25,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, urlTTSStream, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
 
@@ -800,12 +800,9 @@ export function useRosita() {
 
       if (!uri) {
         const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
-        if (__DEV__) console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
-        if (base64) {
-          await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-          uri = cacheUri;
-        }
+        const speed   = velocidadSegunEdad(perfilRef.current?.edad);
+        uri = urlTTSStream(texto, voiceId, speed);
+        if (__DEV__) console.log('[TTS] streaming URL construida');
       }
 
       if (uri) {
@@ -818,12 +815,12 @@ export function useRosita() {
         if (dt) {
           const elevenlabsMs = Date.now() - dt.t2;
           const totalMs      = Date.now() - dt.t0;
-          const cacheHit     = info.exists;
+          const modo         = info.exists ? 'cache HIT' : 'stream';
           const chatId       = perfilRef.current?.debugChatId;
           if (chatId) {
             enviarAlertaTelegram(
               [chatId],
-              `⏱ elevenlabs: ${elevenlabsMs}ms (${cacheHit ? 'cache HIT' : 'MISS'}) | total hasta play: ${totalMs}ms`,
+              `⏱ elevenlabs: ${elevenlabsMs}ms (${modo}) | total hasta play: ${totalMs}ms`,
               perfilRef.current?.nombreAsistente,
             ).catch(() => {});
           }
