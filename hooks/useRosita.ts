@@ -46,16 +46,20 @@ const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: st
     masculina: ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Vaya...'],
   },
   default: {
-    femenina:  ['Claro...', 'Sí...', 'Ajá...'],
-    masculina: ['Claro...', 'Sí...', 'Ajá...'],
+    femenina:  ['Claro...', 'Sí...'],
+    masculina: ['Claro...', 'Sí...'],
   },
 };
 
 const PATRON_EMPATICO = /\b(me duele|me duelen|estoy (mal|triste|cansad|preocupad)|me preocupa|me siento (mal|triste|cansad|sol[oa])|no puedo|me cansé|tengo miedo|me asusta|qué triste|qué feo|extraño|falleci[oó]|se me fue|murió|muri[oó])\b/i;
+// Saludos y despedidas — solo aplica si el mensaje es corto (< 45 chars)
+// para no filtrar mensajes largos que empiezan con "hola"
+const PATRON_SALUDO   = /\b(hola|buenas?( noches?| tardes?| d[ií]as?)?|buenos? d[ií]as?|chau|chao|hasta (luego|mañana|pronto)|gracias)\b/i;
 
 function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (texto.length < 10) return null;
   if (PATRON_EMPATICO.test(texto)) return 'empatico';
+  if (texto.length < 45 && PATRON_SALUDO.test(texto)) return null;
   return 'default';
 }
 
