@@ -1039,7 +1039,8 @@ export function useRosita() {
                   // Fallback para streaming WAV: ExoPlayer puede quedarse en playing=true
                   // avanzando pos hacia el silencio indefinidamente. Estimamos la duración
                   // basándonos en la longitud del texto (~80ms/char) + 2s de margen.
-                  const estimatedMs = Math.max(3000, texto.length * 80 + 2000);
+                  // ~70ms/char basado en velocidad de la voz + 500ms de margen
+                  const estimatedMs = Math.max(2000, texto.length * 70);
                   if (__DEV__) console.log('[TTS] estimatedPlaybackTimer:', estimatedMs, 'ms (', texto.length, 'chars)');
                   estimatedPlaybackTimer = setTimeout(() => done('estimated-playback'), estimatedMs);
                 }
@@ -1465,7 +1466,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
           `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
           `⏱ t0→primera: ${tPrimeraDetectada ? `${tPrimeraDetectada - t0}ms` : 'n/a'} | t0→winner: ${tWinner - t0}ms (${winner.kind}) | t0→claude: ${t2 - t0}ms`,
           ttsLinea,
-          `🤖 Claude: ${respuestaRaw.slice(0, 300)}`,
+          `🤖 Claude: ${respuestaRaw.slice(0, 500)}`,
         ].filter(Boolean);
         enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
         debugTimingsRef.current = null;
