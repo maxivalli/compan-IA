@@ -977,7 +977,9 @@ export function useRosita() {
       if (uri) {
         ultimoAudioUriRef.current = uri;
         player.replace({ uri });
-        setEstado('hablando');
+        // estadoRef en 'hablando' ya — suprime el watchdog de SR.
+        // setEstado visual se hace en el poll cuando playing=true (audio realmente arrancó),
+        // para no animar la boca durante el buffering de Cartesia streaming.
         estadoRef.current = 'hablando';
         // ── Guardar timing TTS para el log consolidado de responderConClaude ──
         if (debugTimingsRef.current) {
@@ -1009,7 +1011,8 @@ export function useRosita() {
           let estimatedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
           let lastPos = -1;
 
-          const noStartTimer = setTimeout(() => { if (!started) done('no-start-4s'); }, 4000);
+          // Streaming: Cartesia puede tardar más en bufferear el primer chunk
+          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, isStream ? 10000 : 4000);
 
           const pollInterval = setInterval(() => {
             const playing = player.playing;
@@ -1027,6 +1030,8 @@ export function useRosita() {
                 started = true;
                 lastPos = pos;
                 clearTimeout(noStartTimer);
+                // Animación de boca sincronizada con el audio real (no con play())
+                setEstado('hablando');
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
                 if (durKnown) {
                   durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
