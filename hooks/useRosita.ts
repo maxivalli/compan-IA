@@ -25,7 +25,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, urlCartesiaStream, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
@@ -178,7 +178,6 @@ export function useRosita() {
   const fotoResolverRef     = useRef<((base64: string | null) => void) | null>(null);
   const ultimoAudioUriRef   = useRef<string | null>(null);
   const ultimoTextoHabladoRef = useRef<string | null>(null);
-  const primeraFraseSintRef = useRef<{ cacheUri: string; promise: Promise<void> } | null>(null);
 
   // ── Flag para bloquear SR durante flujo de mensajes de voz ──────────────────
   const enFlujoVozRef    = useRef(false);
@@ -559,20 +558,6 @@ export function useRosita() {
   }
 
 
-  function presintetizarTexto(texto: string, emotion?: string): void {
-    if (USAR_TTS_NATIVO) return;
-    const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
-    const promise = (async () => {
-      try {
-        const info = await FileSystem.getInfoAsync(cacheUri);
-        if (info.exists) return;
-        const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-        const base64  = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
-        if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-      } catch {}
-    })();
-    primeraFraseSintRef.current = { cacheUri, promise };
-  }
 
   async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }): Promise<string> {
     try {
@@ -980,28 +965,14 @@ export function useRosita() {
     }
 
     try {
-      // ── TTS (Google Cloud Chirp3-HD) ─────────────────────────────────────────
+      // ── TTS — cache disco o streaming Cartesia ────────────────────────────────
       const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
-      // Si presintetizarTexto ya está sintetizando este mismo texto, esperar a que termine
-      if (primeraFraseSintRef.current?.cacheUri === cacheUri) {
-        await primeraFraseSintRef.current.promise;
-        primeraFraseSintRef.current = null;
-      }
       const info = await FileSystem.getInfoAsync(cacheUri);
-      let uri: string | null = info.exists ? cacheUri : null;
-
-      let tTTSReq = 0, tTTSResp = 0;
-      if (!uri) {
-        const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-        tTTSReq = Date.now();
-        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
-        tTTSResp = Date.now();
-        if (__DEV__) console.log('[TTS] response:', base64 ? `len=${base64.length} | ${tTTSResp - tTTSReq}ms` : 'NULL');
-        if (base64) {
-          await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-          uri = cacheUri;
-        }
-      }
+      const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+      const isStream = !info.exists;
+      const uri: string = info.exists
+        ? cacheUri
+        : urlCartesiaStream(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
 
       if (uri) {
         ultimoAudioUriRef.current = uri;
@@ -1010,10 +981,8 @@ export function useRosita() {
         estadoRef.current = 'hablando';
         // ── Guardar timing TTS para el log consolidado de responderConClaude ──
         if (debugTimingsRef.current) {
-          (debugTimingsRef.current as any).tPlay   = Date.now();
-          (debugTimingsRef.current as any).cacheHit = info.exists;
-          (debugTimingsRef.current as any).tTTSReq  = tTTSReq;
-          (debugTimingsRef.current as any).tTTSResp  = tTTSResp;
+          (debugTimingsRef.current as any).tPlay    = Date.now();
+          (debugTimingsRef.current as any).cacheHit = isStream ? 'stream' : true;
         }
         player.play();
         if (__DEV__) console.log('[TTS] play() llamado');
@@ -1351,7 +1320,6 @@ export function useRosita() {
       tPrimeraDetectada = Date.now();
       tagDetectadoStreaming = tag.toLowerCase();
       primeraFraseResolver?.(primera);
-      presintetizarTexto(primera, tagDetectadoStreaming);
     };
     const extraBase  = ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '';
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
@@ -1462,9 +1430,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (debugChatId) {
         const dt = debugTimingsRef.current as any;
         const ttsLinea = dt?.tPlay
-          ? (dt.cacheHit
+          ? (dt.cacheHit === true
             ? `🎵 TTS: cache HIT | t0→play: ${dt.tPlay - t0}ms`
-            : `🎵 TTS: ${dt.tTTSResp - dt.tTTSReq}ms | t0→play: ${dt.tPlay - t0}ms`)
+            : dt.cacheHit === 'stream'
+              ? `🎵 TTS: stream | t0→play: ${dt.tPlay - t0}ms`
+              : `🎵 TTS: ${dt.tTTSResp - dt.tTTSReq}ms | t0→play: ${dt.tPlay - t0}ms`)
           : '';
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,

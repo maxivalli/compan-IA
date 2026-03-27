@@ -160,12 +160,13 @@ export function urlTTSStream(texto: string, voiceId: string, speed?: number): st
 }
 
 /** Construye la URL del endpoint de streaming de TTS — Cartesia Sonic (baja latencia). */
-export function urlCartesiaStream(texto: string, voiceId: string, speed?: number): string {
+export function urlCartesiaStream(texto: string, voiceId: string, speed?: number, emotion?: string): string {
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
     speed:   String(speed ?? 0.92),
     k:       API_KEY,
+    ...(emotion ? { emotion } : {}),
   });
   return `${BACKEND_URL}/ai/tts-cartesia-stream?${params}`;
 }
