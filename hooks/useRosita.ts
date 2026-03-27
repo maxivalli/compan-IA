@@ -536,7 +536,7 @@ export function useRosita() {
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v6_${cat}_${i}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v7_${cat}_${i}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
         const base64 = await sintetizarVoz(lista[i], effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
@@ -561,7 +561,7 @@ export function useRosita() {
   async function presintetizarTexto(texto: string): Promise<void> {
     if (USAR_TTS_NATIVO) return;
     try {
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v3_' + hashTexto(texto) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       if (info.exists) return;
       const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
@@ -580,7 +580,7 @@ export function useRosita() {
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
       const texto = lista[idx];
-      const uri = FileSystem.cacheDirectory + `muletilla_v6_${categoria}_${idx}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_v7_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
       if (abort?.current) return texto; // race ya resolvió, no reproducir
@@ -894,7 +894,7 @@ export function useRosita() {
   }
 
   // ── TTS ─────────────────────────────────────────────────────────────────────
-  async function hablar(texto: string) {
+  async function hablar(texto: string, emotion?: string) {
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     ExpoSpeechRecognitionModule.stop();
@@ -977,7 +977,7 @@ export function useRosita() {
 
     try {
       // ── TTS (Google Cloud Chirp3-HD) ─────────────────────────────────────────
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v3_' + hashTexto(texto) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       let uri: string | null = info.exists ? cacheUri : null;
 
@@ -985,7 +985,7 @@ export function useRosita() {
       if (!uri) {
         const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
         tTTSReq = Date.now();
-        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
+        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
         tTTSResp = Date.now();
         if (__DEV__) console.log('[TTS] response:', base64 ? `len=${base64.length} | ${tTTSResp - tTTSReq}ms` : 'NULL');
         if (base64) {
@@ -1334,11 +1334,13 @@ export function useRosita() {
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
+    let tagDetectadoStreaming = 'neutral';
     let tPrimeraDetectada = 0;
     let primeraFraseResolver: ((txt: string) => void) | null = null;
     const primeraFraseDisparada = new Promise<string>(resolve => { primeraFraseResolver = resolve; });
-    const onPrimeraFrase = (primera: string, _tag: string) => {
+    const onPrimeraFrase = (primera: string, tag: string) => {
       tPrimeraDetectada = Date.now();
+      tagDetectadoStreaming = tag.toLowerCase();
       primeraFraseResolver?.(primera);
       presintetizarTexto(primera).catch(() => {});
     };
@@ -1433,7 +1435,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (winner.kind === 'primera') {
         // Primera frase lista — reproducirla mientras Claude termina de streamear
         primeraFraseReproducida = true;
-        await Promise.all([hablar(winner.t), claudePromise]);
+        await Promise.all([hablar(winner.t, tagDetectadoStreaming), claudePromise]);
       }
 
       // Para debug log (resuelve rápido, abort ya está activo)
@@ -1753,9 +1755,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (primeraFraseReproducida) {
         // Primera ya reproducida — reproducir el resto como bloque único
         const { resto } = extraerPrimeraFrase(parsed.respuesta);
-        if (resto) await hablar(resto);
+        if (resto) await hablar(resto, parsed.expresion);
       } else {
-        await hablar(parsed.respuesta);
+        await hablar(parsed.respuesta, parsed.expresion);
       }
 
       // ── Recordatorio de medicamento pendiente ──
