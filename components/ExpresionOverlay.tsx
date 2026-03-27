@@ -42,12 +42,13 @@ export default function ExpresionOverlay({
 
   const horaActual = new Date().getHours();
   const esNoche    = horaActual >= 20 || horaActual < 5;
-  const esLluvia  = !!condicion?.toLowerCase().match(/lluvia|lloviendo|tormenta/);
+  const esLluvia  = !!condicion?.toLowerCase().match(/lluvia|lloviendo|llovizna|chaparrón|tormenta/);
   const esTormenta= !!condicion?.toLowerCase().match(/tormenta/);
   const esNieve   = !!condicion?.toLowerCase().match(/nieve|nevad|granizo/) || (temperatura !== undefined && temperatura <= 1);
   const esViento  = !!condicion?.toLowerCase().match(/viento|ventoso|ráfaga|rafaga/);
   const esCalor   = !esLluvia && !esNieve && (temperatura !== undefined && temperatura > 35);
-  const esNublado = !!condicion?.toLowerCase().match(/nublado|nuboso|cubierto|parcial|algunas nubes/);
+  const esNublado  = !!condicion?.toLowerCase().match(/nublado|nuboso|cubierto|parcial|algunas nubes/);
+  const esSoleado  = !!condicion?.toLowerCase().match(/soleado|despejado|sol con|cielo claro/);
 
   // Accesorio: cumpleaños tiene prioridad sobre Navidad
   const accesorioFallback = detectarAccesorio();
@@ -68,7 +69,7 @@ export default function ExpresionOverlay({
       {esViento                                                           && <Viento />}
       {esCalor                                                            && <CalorEfecto />}
       {esNublado && !esLluvia                                             && <Nubes />}
-      {!esNoche && !musicaActiva && !esLluvia && !esNublado && !esNieve && !esViento && <Sol />}
+      {!esNoche && !musicaActiva && !esLluvia && !esNublado && !esNieve && !esViento && esSoleado && <Sol />}
     </View>
   );
 

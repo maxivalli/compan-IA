@@ -483,7 +483,7 @@ function Ojo({
             y={Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1)) as any}
             width={EYE_W}
             height={lowerLid as any}
-            fill={lidBg}
+            fill="#C4996A"
           />
           <AnimatedRect
             x={0}
@@ -535,7 +535,7 @@ const FACE_W = EYE_W * 2 + 32;
 const FACE_H = EYE_H + 120;
 
 export default function RosaOjos({
-  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1,
+  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false,
 }: {
   estado: Estado;
   expresion: Expresion;
@@ -545,6 +545,7 @@ export default function RosaOjos({
   noMolestar?: boolean;
   onOjoPicado?: () => void;
   scale?: number;
+  amaneciendo?: boolean;
 }) {
   const pxL      = useRef(new Animated.Value(0)).current;
   const pxR      = useRef(new Animated.Value(0)).current;
@@ -574,7 +575,8 @@ export default function RosaOjos({
       breathingAnim.current?.stop();
       running.current = false;
       Animated.timing(upperLid,  { toValue: EYE_H, duration: 1800, useNativeDriver: false }).start();
-      Animated.timing(nightAnim, { toValue: 1,      duration: 1800, useNativeDriver: false }).start();
+      // Si está amaneciendo, no oscurecer los párpados aunque esté durmiendo
+      Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1800, useNativeDriver: false }).start();
       Animated.parallel([
         Animated.timing(scaleY,  { toValue: 1, duration: 1200, useNativeDriver: true }),
         Animated.timing(pxL,     { toValue: 0, duration: 800,  useNativeDriver: true }),
@@ -611,6 +613,13 @@ export default function RosaOjos({
       ]).start();
     }
   }, [modoNoche]);
+
+  // Si cambia amaneciendo mientras ya está durmiendo, actualizar el tinte
+  useEffect(() => {
+    if (modoNoche === 'durmiendo') {
+      Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1200, useNativeDriver: false }).start();
+    }
+  }, [amaneciendo]);
 
   // ── No molestar ─────────────────────────────────────────────────────────────
   useEffect(() => {

@@ -132,13 +132,20 @@ export function getFallbackUrl(genero: string): string | null {
 
 export async function buscarRadio(genero: string): Promise<string | null> {
   const key = genero.toLowerCase().trim();
-
-  // Priorizar URLs hardcodeadas: son inmediatas y verificadas.
-  // La API solo se consulta si no hay fallback (extensibilidad futura).
   const fallbacks = STREAMS_GENERO[key];
+
+  // Priorizar URLs hardcodeadas — el player nativo las maneja mejor que fetch
   if (fallbacks?.length) return fallbacks[0];
 
+  // Sin hardcodeados → buscar en API
   if (__DEV__) console.log(`🔍 Sin fallback para "${key}", buscando en API...`);
   const esArgentina = key in ALIAS_BUSQUEDA;
   return buscarEnAPI(key, esArgentina ? 'AR' : undefined);
+}
+
+/** Devuelve el segundo fallback hardcodeado para reintentar si el primero falló. */
+export function getFallbackAlt(genero: string, urlActual: string): string | null {
+  const key = genero.toLowerCase().trim();
+  const lista = STREAMS_GENERO[key] ?? [];
+  return lista.find(u => u !== urlActual) ?? null;
 }

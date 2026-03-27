@@ -23,10 +23,8 @@ import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId, guarda
 import { sintetizarVozMuestra } from '../lib/ai';
 
 const VOCES = [
-  { id: 'r3lotmx3BZETVvcKm6R6', label: 'Tucumana y enérgica',    genero: 'femenina'  as const, icono: 'woman' as const },
-  { id: 'smHMxLX7gVgXrrfD70xq', label: 'Cálida y formal',        genero: 'femenina'  as const, icono: 'woman' as const },
-  { id: 'vgekQLm3GYiKMHUnPVvY', label: 'Santafesino y divertido', genero: 'masculina' as const, icono: 'man'   as const },
-  { id: 'L7pBVwjueW3IPcQt4Ej9', label: 'Tranquilo y formal',     genero: 'masculina' as const, icono: 'man'   as const },
+  { id: 'r3lotmx3BZETVvcKm6R6', label: 'Voz femenina',  genero: 'femenina'  as const, icono: 'woman' as const },
+  { id: 'QK4xDwo9ESPHA4JNUpX3', label: 'Voz masculina', genero: 'masculina' as const, icono: 'man'   as const },
 ];
 import RosaOjos from '../components/RosaOjos';
 
@@ -433,10 +431,10 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
   return (
     <View style={sv.grid}>
       {VOCES.map(voz => {
-        const activa   = vozId === voz.id;
+        const activa       = vozId === voz.id;
         const cargandoEsta = cargando === voz.id;
-        const color    = voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
-        const colorBg  = voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
+        const color        = voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
+        const colorBg      = voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
         return (
           <TouchableOpacity
             key={voz.id}
@@ -444,35 +442,32 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
             onPress={() => setVozId(voz.id)}
             activeOpacity={0.8}
           >
-            {/* Indicador selección */}
-            <View style={[sv.radio, activa && { backgroundColor: color, borderColor: color }]}>
-              {activa && <View style={sv.radioDot} />}
+            {/* Ícono grande */}
+            <View style={[sv.iconCircle, { backgroundColor: color + '22' }]}>
+              <Ionicons name={voz.icono === 'woman' ? 'woman' : 'man'} size={28} color={color} />
             </View>
 
-            {/* Ícono género + label */}
-            <View style={sv.info}>
-              <View style={[sv.genderChip, { backgroundColor: color + '22' }]}>
-                <Ionicons name={voz.icono} size={12} color={color} />
-                <Text style={[sv.genderTxt, { color }]}>
-                  {voz.genero === 'femenina' ? 'Fem' : 'Masc'}
-                </Text>
-              </View>
-              <Text style={[sv.label, activa && { color: '#171d1e', fontFamily: 'Poppins_600SemiBold' }]}>
-                {voz.label}
-              </Text>
-            </View>
+            {/* Label */}
+            <Text style={[sv.label, activa && { color: '#171d1e', fontFamily: 'Poppins_600SemiBold' }]}>
+              {voz.label}
+            </Text>
 
             {/* Botón play */}
             <TouchableOpacity
               style={[sv.playBtn, { backgroundColor: color }]}
               onPress={() => reproducir(voz.id)}
               activeOpacity={0.75}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               {cargandoEsta
-                ? <ActivityIndicator size={14} color="#fff" />
-                : <Ionicons name="play" size={14} color="#fff" />}
+                ? <ActivityIndicator size={16} color="#fff" />
+                : <Ionicons name="play" size={16} color="#fff" />}
             </TouchableOpacity>
+
+            {/* Check seleccionado */}
+            {activa && (
+              <Ionicons name="checkmark-circle" size={22} color={color} style={{ marginLeft: 4 }} />
+            )}
           </TouchableOpacity>
         );
       })}
@@ -481,20 +476,16 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
 }
 
 const sv = StyleSheet.create({
-  grid:      { gap: 10, marginTop: 4 },
+  grid:       { gap: 12, marginTop: 4 },
   card: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: '#f4f6f7', borderRadius: 16,
-    paddingVertical: 12, paddingHorizontal: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: '#f4f6f7', borderRadius: 18,
+    paddingVertical: 16, paddingHorizontal: 16,
     borderWidth: 1.5, borderColor: '#e0e6e8',
   },
-  radio:     { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#ccd3d5', alignItems: 'center', justifyContent: 'center' },
-  radioDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
-  info:      { flex: 1, gap: 4 },
-  genderChip:{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 100 },
-  genderTxt: { fontFamily: 'Poppins_600SemiBold', fontSize: 10, letterSpacing: 0.3 },
-  label:     { fontFamily: 'Poppins_400Regular', fontSize: 13, color: '#3a4548', lineHeight: 18 },
-  playBtn:   { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  iconCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
+  label:      { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#3a4548' },
+  playBtn:    { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────

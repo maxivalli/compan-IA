@@ -17,7 +17,7 @@ import { useNotificaciones } from '../hooks/useNotificaciones';
 import RosaOjos, { BG } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
 import ExpresionOverlay from '../components/ExpresionOverlay';
-import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
+import { AnimacionMusica, ZZZ, CieloNoche, WaveformDetectando } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
@@ -72,7 +72,7 @@ export default function Index() {
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
     linternaActiva, apagarLinterna,
-    modoNoche, horaActual, climaObj, flashAnim,
+    modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada,
@@ -116,10 +116,12 @@ export default function Index() {
   const esAmanecer     = hora >= 5  && hora < 8;
   const esFondoNoche   = hora >= 20 || hora < 5;
   const esBotonesNoche = esFondoNoche; // sincronizado con el estado de noche del perfil
-  const esClimaOscuro  = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo/);
-  
+  const esClimaOscuro  = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo|chaparrón|nevada/);
+
   // Tu color base original
-  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#6B7280' : esAmanecer ? '#87CEEB' : esAtardecerBg ? '#FFBD59' : '#38B6FF';
+  const bgActual    = esFondoNoche ? BG : esClimaOscuro ? '#6B7280' : esAmanecer ? '#87CEEB' : esAtardecerBg ? '#FFBD59' : '#38B6FF';
+  // Párpados de piel normal si el cielo ya aclaró pero Rosita aún duerme (ej: 5-9h)
+  const amaneciendo = !esFondoNoche && modoNoche === 'durmiendo';
 
   // Degradados para el cielo
   const degradadoCielo: readonly [string, string, string] | readonly [string, string, string, string] = esFondoNoche
@@ -129,12 +131,12 @@ export default function Index() {
     : esAmanecer
     ? ['#87CEEB', '#FF8C00', '#CC2200'] // celeste arriba → naranja → rojo abajo
     : esAtardecerBg
-    ? ['#2B1055', '#FF416C', '#FF4B2B', bgActual] // 4 colores: Violeta -> Rosa -> Naranja -> Fondo
+    ? ['#2B1055', '#FF416C', '#FF4B2B', bgActual] // 4 colores: Violeta -> Rosa → Naranja -> Fondo
     : ['#0052D4', '#4364F7', bgActual];
 
   const desc        = climaObj?.descripcion?.toLowerCase() ?? '';
   const cieloTapado = /\bnublado\b/.test(desc) && !/parcial|algunas nubes/.test(desc)
-    || /nuboso|cubierto|lluvia|lloviendo|llovizna|tormenta|nevada|nieve|granizo|niebla/.test(desc);
+    || /nuboso|cubierto|lluvia|lloviendo|llovizna|tormenta|nevada|nieve|granizo|niebla|chaparrón/.test(desc);
 
   // ── Hints rotativos en modo espera ──────────────────────────────────────────
   const HINTS = [
@@ -293,7 +295,7 @@ export default function Index() {
   }, [mostrarOnboarding]);
 
   const { width: screenW, height: screenH } = useWindowDimensions();
-  const { bottom: safeBottom } = useSafeAreaInsets();
+  const { bottom: safeBottom, top: safeTop } = useSafeAreaInsets();
   const isTablet  = screenW >= 600;
   const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : 1;
   const textScale = faceScale; 
@@ -400,6 +402,7 @@ export default function Index() {
           noMolestar={noMolestar}
           onOjoPicado={onOjoPicado}
           scale={faceScale}
+          amaneciendo={amaneciendo}
         />
         <ExpresionOverlay
           capa="frente"
@@ -518,9 +521,11 @@ export default function Index() {
                     )}
                     {noMolestar && !musicaActiva
                       ? <Ionicons name="mic-off-outline" size={Math.round(btnFont * 1.4)} color={esBotonesNoche ? '#4b5563' : '#9ca3af'} />
-                      : <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
-                          {btnLabel}
-                        </Text>
+                      : detectandoSonido && estado === 'esperando' && !musicaActiva
+                        ? <WaveformDetectando />
+                        : <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
+                            {btnLabel}
+                          </Text>
                     }
                   </View>
                 </View>
@@ -652,6 +657,11 @@ export default function Index() {
         </TouchableOpacity>
       </Modal>
 
+      {!!climaObj && (
+        <Text style={{ position: 'absolute', top: safeTop + 10, left: 0, right: 0, textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.75)', letterSpacing: 0.5 }}>
+          📍 {ciudadDetectada || `${climaObj.temperatura}°C`}
+        </Text>
+      )}
     </LinearGradient>
     </Pressable>
 

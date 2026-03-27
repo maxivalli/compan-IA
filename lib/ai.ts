@@ -44,6 +44,92 @@ export async function llamarClaude(options: {
   return data.content?.[0]?.text ?? '';
 }
 
+// ── Claude streaming ──────────────────────────────────────────────────────────
+
+const STREAMING_SAFE_TAGS = new Set([
+  'FELIZ','TRISTE','SORPRENDIDA','PENSATIVA','NEUTRAL',
+  'CUENTO','JUEGO','CHISTE','ENOJADA','AVERGONZADA','CANSADA',
+]);
+
+export async function llamarClaudeConStreaming(options: {
+  system: string | SystemBlock[];
+  messages: Mensaje[];
+  maxTokens?: number;
+  onPrimeraFrase?: (primera: string, tag: string) => void;
+}): Promise<string> {
+  const headers = await jsonHeaders();
+
+  return new Promise<string>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BACKEND_URL}/ai/chat-stream`);
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.timeout = 30000;
+
+    let fullText = '';
+    let processedLength = 0;
+    let sseBuffer = '';
+    let primeraFired = false;
+    let tagDetected = '';
+    let resolved = false;
+
+    const resolveOnce = (text: string) => { if (!resolved) { resolved = true; resolve(text); } };
+    const rejectOnce  = (e: Error)      => { if (!resolved) { resolved = true; reject(e); } };
+
+    const processLine = (line: string) => {
+      if (!line.startsWith('data: ')) return;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') { resolveOnce(fullText); return; }
+      try {
+        const chunk = JSON.parse(raw) as any;
+        if (chunk.error) { rejectOnce(new Error(chunk.error)); return; }
+        if (!chunk.text) return;
+
+        fullText += chunk.text;
+
+        if (!tagDetected) {
+          const m = fullText.match(/^\[([A-Z_]+)/);
+          if (m) tagDetected = m[1];
+        }
+
+        if (!primeraFired && tagDetected && STREAMING_SAFE_TAGS.has(tagDetected)) {
+          const sinTag = fullText.replace(/^\[[^\]]+\]\s*/, '');
+          if (sinTag.length >= 20) {
+            const m = sinTag.match(/^.{15,}?[.!?](?:\s+|$)/);
+            if (m && sinTag.length > m[0].length) {
+              primeraFired = true;
+              options.onPrimeraFrase?.(m[0].trimEnd(), tagDetected);
+            }
+          }
+        }
+      } catch {}
+    };
+
+    xhr.onprogress = () => {
+      const newChunk = xhr.responseText.slice(processedLength);
+      processedLength = xhr.responseText.length;
+      sseBuffer += newChunk;
+      const lines = sseBuffer.split('\n');
+      sseBuffer = lines.pop() ?? '';
+      lines.forEach(processLine);
+    };
+
+    xhr.onload = () => {
+      if (sseBuffer.trim()) processLine(sseBuffer);
+      if (xhr.status >= 200 && xhr.status < 300) resolveOnce(fullText);
+      else rejectOnce(new Error(`Stream ${xhr.status}`));
+    };
+
+    xhr.onerror   = () => rejectOnce(new Error('Stream network error'));
+    xhr.ontimeout = () => rejectOnce(new Error('Stream timeout'));
+
+    xhr.send(JSON.stringify({
+      max_tokens: options.maxTokens ?? 140,
+      system: options.system,
+      messages: options.messages,
+    }));
+  });
+}
+
 // ── Whisper ───────────────────────────────────────────────────────────────────
 
 export async function transcribirAudio(uri: string): Promise<string> {
@@ -117,6 +203,25 @@ export async function obtenerComandosPendientes(familiaId: string): Promise<stri
     return data.comandos ?? [];
   } catch {
     return [];
+  }
+}
+
+/** Busca lugares físicos cercanos via OpenStreetMap Overpass API. */
+export async function buscarLugares(lat: number, lon: number, tipo: string, radioMetros = 3000): Promise<string | null> {
+  try {
+    const params = new URLSearchParams({ lat: String(lat), lon: String(lon), tipo, radio: String(radioMetros) });
+    const res = await fetchConTimeout(
+      `${BACKEND_URL}/ai/places?${params}`,
+      { headers: await jsonHeaders() },
+      15000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const places = data.places as string[] | undefined;
+    if (!places?.length) return `No encontré ${data.tipo ?? tipo} en un radio de ${radioMetros / 1000}km.`;
+    return `${data.tipo ?? tipo} cercanos (radio ${radioMetros / 1000}km):\n${places.map((p: string) => `• ${p}`).join('\n')}`;
+  } catch {
+    return null;
   }
 }
 

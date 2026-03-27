@@ -629,7 +629,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // Si una alarma (u otra charla) acaba de sonar en los últimos 10 minutos, no saludar
       if (Date.now() - ultimaCharlaRef.current < 10 * 60 * 1000) return;
       const ahora = new Date();
-      if (ahora.getHours() !== 9 || ahora.getMinutes() > 5) return;
+      // Respetar horaFinNoche del perfil (default 9) y dar ventana de 30 minutos
+      const horaDespertar = p.horaFinNoche ?? 9;
+      const horaActual = ahora.getHours();
+      const minActual  = ahora.getMinutes();
+      const minutosDesdeDespertar = (horaActual - horaDespertar) * 60 + minActual;
+      if (minutosDesdeDespertar < 0 || minutosDesdeDespertar > 30) return;
       const clave = `saludo_${ahora.toISOString().slice(0, 10)}`;
       const ya = await yaRecordo(clave);
       if (ya) return;

@@ -17,7 +17,7 @@ import {
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
-import { buscarRadio, getFallbackUrl, STREAMS_GENERO } from '../lib/musica';
+import { buscarRadio, getFallbackUrl, getFallbackAlt } from '../lib/musica';
 import { obtenerClima, climaATexto } from '../lib/clima';
 import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
@@ -25,9 +25,13 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
+
+// ── Flag de testing: true = usa TTS nativo del sistema en lugar de ElevenLabs ──
+const USAR_TTS_NATIVO = false;
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -38,28 +42,64 @@ type Mensaje = { role: 'user' | 'assistant'; content: string };
 
 // ── Muletillas por categoría y género ────────────────────────────────────────
 
-type CategoriaMuletilla = 'empatico' | 'default';
+type CategoriaMuletilla = 'empatico' | 'busqueda' | 'nostalgia' | 'comando' | 'default';
 
 const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Pobrecita...'],
-    masculina: ['Ay...', 'Entiendo...', 'Te escucho...', 'Claro...', 'Vaya...'],
+    femenina:  ['Ay, corazón... estoy acá, contame.', 'Uy... te escucho, decime.', 'Ay, tranquila... acá estoy.'],
+    masculina: ['Ay, amigo... estoy acá, contame.', 'Uy... te escucho, decime.', 'Tranquilo... acá estoy.'],
+  },
+  busqueda: {
+    femenina:  ['A ver, dame un segundito que me fijo acá...', 'Aguantame un cachito que ya te lo busco...', 'Esperame un ratito que reviso bien...'],
+    masculina: ['A ver, dame un segundito que me fijo acá...', 'Aguantame un cachito que ya te lo busco...', 'Esperame un ratito que reviso bien...'],
+  },
+  nostalgia: {
+    femenina:  ['Mirá vos... a ver, contame.', 'Ay, qué lindo... decime.', 'Qué bárbaro, te escucho.'],
+    masculina: ['Mirá vos... a ver, contame.', 'Qué interesante... decime.', 'Qué bárbaro, te escucho.'],
+  },
+  comando: {
+    femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
+    masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
   },
   default: {
-    femenina:  ['Claro...', 'Sí...'],
-    masculina: ['Claro...', 'Sí...'],
+    femenina:  ['A ver, dejame pensar un cachito...', 'Mmm... a ver...', 'Dejame acomodar las ideas...'],
+    masculina: ['A ver, dejame pensar un cachito...', 'Mmm... a ver...', 'Dejame acomodar las ideas...'],
   },
 };
 
-const PATRON_EMPATICO = /\b(me duele|me duelen|estoy (mal|triste|cansad|preocupad)|me preocupa|me siento (mal|triste|cansad|sol[oa])|no puedo|me cansé|tengo miedo|me asusta|qué triste|qué feo|extraño|falleci[oó]|se me fue|murió|muri[oó])\b/i;
-// Saludos y despedidas — solo aplica si el mensaje es corto (< 45 chars)
-// para no filtrar mensajes largos que empiezan con "hola"
-const PATRON_SALUDO   = /\b(hola|buenas?( noches?| tardes?| d[ií]as?)?|buenos? d[ií]as?|chau|chao|hasta (luego|mañana|pronto)|gracias)\b/i;
+// Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
+const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s|va|viene)|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
+const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo/i;
+const PATRON_BUSQUEDA  = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|calor|frío|farmacia|hospital|heladeria|restaurant|hotel|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
+
+// Mapeo de texto del usuario → tipo OSM (para Overpass API)
+const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
+  { patron: /farmacia/,                                              tipo: 'farmacia' },
+  { patron: /hospital|guardia/,                                     tipo: 'hospital' },
+  { patron: /cl[ií]nica/,                                           tipo: 'clinica' },
+  { patron: /m[eé]dic[ao]|odontologo|dentista|consultorio/,         tipo: 'medico' },
+  { patron: /banco/,                                                tipo: 'banco' },
+  { patron: /correo|correoargentino/,                               tipo: 'correo' },
+  { patron: /supermercado/,                                         tipo: 'supermercado' },
+  { patron: /nafta|combustible|ypf|shell|axion|surtidor|estaci[oó]n.{0,5}servicio/, tipo: 'nafta' },
+  { patron: /heladeria|helado/,                                     tipo: 'heladeria' },
+  { patron: /panaderia/,                                            tipo: 'panaderia' },
+  { patron: /veterinaria/,                                          tipo: 'veterinaria' },
+  { patron: /restaurant|restaurante|pizzeria/,                      tipo: 'restaurant' },
+  { patron: /polici[aá]|comisari[aá]/,                              tipo: 'policia' },
+  { patron: /municipalidad|municipio|intendencia/,                   tipo: 'municipalidad' },
+  { patron: /hotel|hostal|hospedaje/,                               tipo: 'hotel' },
+];
+const PATRON_NOSTALGIA = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
+const PATRON_COMANDO   = /pon[eé]|apag[aá]|sub[ií]|baj[aá]|prend[eé]|par[aá]\b|música|la radio|una canción|las luces?|la luz|una alarma|un recordatorio|un timer|despertame/i;
 
 function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (texto.length < 10) return null;
-  if (PATRON_EMPATICO.test(texto)) return 'empatico';
-  if (texto.length < 45 && PATRON_SALUDO.test(texto)) return null;
+  if (PATRON_SKIP.test(texto))      return null;
+  if (PATRON_EMPATICO.test(texto))  return 'empatico';
+  if (PATRON_BUSQUEDA.test(texto))  return 'busqueda';
+  if (PATRON_NOSTALGIA.test(texto)) return 'nostalgia';
+  if (PATRON_COMANDO.test(texto))   return 'comando';
   return 'default';
 }
 
@@ -86,6 +126,8 @@ export function useRosita() {
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
   const [climaObj,          setClimaObj]          = useState<{ temperatura: number; descripcion: string } | null>(null);
+  const [ciudadDetectada,   setCiudadDetectada]   = useState('');
+  const [debugGPS,          setDebugGPS]          = useState('');
   const [listas,            setListas]            = useState<Lista[]>([]);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
@@ -303,8 +345,18 @@ export function useRosita() {
     const texto = event.results?.[0]?.transcript?.trim();
     if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', estadoRef.current, '| asistente:', nombreAsistenteRef.current);
     if (procesandoRef.current) return;
-    if (noMolestarRef.current) return;
     if (enFlujoVozRef.current) return;
+
+    // Comando de reactivación: funciona incluso con no molestar activo
+    if (noMolestarRef.current) {
+      const nombreNormNM  = nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const textoNormNM   = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const mencionaNombreNM = new RegExp('(^|\\s)' + nombreNormNM.slice(0, 5), 'i').test(textoNormNM);
+      if (mencionaNombreNM && /\b(podes hablar|podes volver|volvé|vuelve|ya podes|despierta|activa(te)?|estoy aca|hola)\b/.test(textoNormNM)) {
+        setNoMolestar(false);
+      }
+      return;
+    }
     if (estadoRef.current === 'pensando' || estadoRef.current === 'hablando') return;
     if (!texto || texto.length < 2) return;
 
@@ -333,6 +385,13 @@ export function useRosita() {
     if (__DEV__) console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
+
+    // Comando de silencio: "[nombre] hacé silencio" → activa modo no molestar
+    if (mencionaNombre && /\b(silencio|callate|calla(te)?|no molestes|no hables|modo silencio|no molestar)\b/.test(textoNorm)) {
+      unduckMusica();
+      setNoMolestar(true);
+      return;
+    }
 
     try {
       procesandoRef.current = true;
@@ -378,12 +437,19 @@ export function useRosita() {
     ultimaActivacionSrRef.current = Date.now();
     if (estadoRef.current === 'esperando') {
       setDetectandoSonido(true);
+      // Safety timeout: si soundend/speechend nunca llegan (quirk Android), apagar a los 4s
       if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
-      detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 1500);
+      detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 4000);
     }
+  }
+  function desactivarFeedbackSonido() {
+    if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
+    setDetectandoSonido(false);
   }
   useSpeechRecognitionEvent('soundstart',  activarFeedbackSonido);
   useSpeechRecognitionEvent('speechstart', activarFeedbackSonido);
+  useSpeechRecognitionEvent('soundend',    desactivarFeedbackSonido);
+  useSpeechRecognitionEvent('speechend',   desactivarFeedbackSonido);
 
   useSpeechRecognitionEvent('error', (event) => {
     if (__DEV__) console.log('[SR] error:', event.error);
@@ -452,22 +518,24 @@ export function useRosita() {
   // ── Muletillas ──────────────────────────────────────────────────────────────
 
   async function precachearMuletillas(voiceId?: string) {
+    if (USAR_TTS_NATIVO) return;
     const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
     const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+    const effectiveVoiceId = voiceId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_${cat}_${i}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v4_${cat}_${i}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
-        const base64 = await sintetizarVoz(lista[i], voiceId).catch(() => null);
+        const base64 = await sintetizarVoz(lista[i], effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
       }
     }
   }
 
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
-  const debugTimingsRef    = useRef<{ t0: number; t2: number } | null>(null);
+  const debugTimingsRef    = useRef<{ t0: number; t1: number; t2: number; tPrimeraDetectada: number; tWinner: number; winnerKind: string } | null>(null);
 
   function extraerPrimeraFrase(texto: string): { primera: string; resto: string } {
     const match = texto.match(/^.{20,}?[.!?](?:\s+|$)/);
@@ -478,7 +546,20 @@ export function useRosita() {
     return { primera, resto };
   }
 
+  function extraerOraciones(texto: string): string[] {
+    const result: string[] = [];
+    let remaining = texto.trim();
+    while (remaining.length >= 10) {
+      const m = remaining.match(/^.{15,}?[.!?](?:\s+|$)/);
+      if (!m) { result.push(remaining); break; }
+      result.push(m[0].trimEnd());
+      remaining = remaining.slice(m[0].length).trim();
+    }
+    return result.filter(o => o.length > 0);
+  }
+
   async function presintetizarTexto(texto: string): Promise<void> {
+    if (USAR_TTS_NATIVO) return;
     try {
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
@@ -499,11 +580,25 @@ export function useRosita() {
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
       const texto = lista[idx];
-      const uri = FileSystem.cacheDirectory + `muletilla_${categoria}_${idx}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_v4_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
       player.replace({ uri });
       player.play();
+      // Esperar que el audio termine — así el race con primera/claude arranca sin pausa
+      await new Promise<void>(resolve => {
+        const safety = setTimeout(() => resolve(), 3000);
+        const poll = setInterval(() => {
+          const dur = (player as any).duration as number;
+          const pos = (player as any).currentTime as number;
+          if (dur > 0 && pos >= dur - 0.15) {
+            clearTimeout(safety);
+            clearInterval(poll);
+            player.pause(); // limpiar estado antes de ceder el player a hablar()
+            resolve();
+          }
+        }, 80);
+      });
       return texto;
     } catch {}
     return '';
@@ -565,20 +660,39 @@ export function useRosita() {
     // Si falla, reintenta cada 30s. Una vez obtenido, refresca cada 60 min.
     async function intentarClima() {
       try {
-        const clima = await obtenerClima();
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }
+        const serviciosOn = await Location.hasServicesEnabledAsync().catch(() => false);
+        if (!serviciosOn) { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }
+        // 1) Posición en caché (instantáneo)
+        let loc = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000, requiredAccuracy: 5000 }).catch(() => null);
+        // 2) Balanced: red + GPS (~1-3s en interiores)
+        if (!loc) {
+          loc = await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+            new Promise<null>(r => setTimeout(() => r(null), 15000)),
+          ]);
+        }
+        // 3) Low: solo red celular (muy rápido pero menos preciso)
+        if (!loc) {
+          loc = await Promise.race([
+            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
+            new Promise<null>(r => setTimeout(() => r(null), 10000)),
+          ]);
+        }
+        if (!loc) { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }
+        const clima = await obtenerClima(loc.coords.latitude, loc.coords.longitude).catch(() => null);
         if (clima) {
           climaRef.current  = climaATexto(clima);
           ciudadRef.current = clima.ciudad ?? '';
+          setCiudadDetectada(clima.ciudad ?? '');
           if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
           setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
-          if (__DEV__) console.log('[CLIMA] OK —', climaRef.current.slice(0, 80));
           climaTimerRef.current = setTimeout(intentarClima, 60 * 60 * 1000); // refrescar en 1h
         } else {
-          if (__DEV__) console.log('[CLIMA] sin resultado — reintentando en 30s');
           climaTimerRef.current = setTimeout(intentarClima, 30 * 1000);
         }
       } catch (e: any) {
-        if (__DEV__) console.log('[CLIMA] error — reintentando en 30s:', e?.message);
         climaTimerRef.current = setTimeout(intentarClima, 30 * 1000);
       }
     }
@@ -805,18 +919,73 @@ export function useRosita() {
       .replace(/\*(.+?)\*/g,          '$1')
       .replace(/#+\s/g,               '')
       .replace(/[_~`]/g,              '')
-      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', '));
+      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', '))
+      // Alturas de dirección: número 2-4 dígitos precedido por palabra propia (nombre de calle)
+      .replace(/([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\.?)\s+(\d{2,4})\b/g, (m, word, num) => {
+        const n = parseInt(num);
+        if (n >= 1800 && n <= 2099) return m; // excluir años
+        return `${word} ${num.split('').join(', ')}`;
+      });
+
+    // ── TTS nativo (testing) ──────────────────────────────────────────────────
+    if (USAR_TTS_NATIVO) {
+      setEstado('hablando');
+      estadoRef.current = 'hablando';
+      await new Promise<void>(resolve => {
+        let resolved = false;
+        let started = false;
+        let pollInterval: ReturnType<typeof setInterval>;
+        const done = () => {
+          if (resolved) return;
+          resolved = true;
+          clearInterval(pollInterval);
+          clearTimeout(safety);
+          resolve();
+        };
+        // Safety: palabras × ~400ms + 3s margen, máximo 20s
+        const estimado = Math.min(texto.split(' ').length * 400 + 3000, 20000);
+        const safety = setTimeout(done, estimado);
+        Speech.speak(texto, {
+          language: 'es-AR',
+          rate: velocidadSegunEdad(perfilRef.current?.edad),
+          onDone:    () => done(),
+          onError:   () => done(),
+          onStopped: () => done(),
+        });
+        // Poll isSpeakingAsync: detecta inicio y fin aunque los callbacks fallen
+        pollInterval = setInterval(async () => {
+          try {
+            const speaking = await Speech.isSpeakingAsync();
+            if (!started && speaking) { started = true; }
+            else if (started && !speaking) { done(); }
+            else if (!started && !speaking) {
+              // Nunca arrancó — si pasaron 3s sin empezar, asumir fallo silencioso
+            }
+          } catch { done(); }
+        }, 300);
+        // Si nunca arrancó en 3s, resolver
+        setTimeout(() => { if (!started) done(); }, 3000);
+      });
+      unduckMusica();
+      setEstado('esperando');
+      estadoRef.current = 'esperando';
+      if (!enFlujoVozRef.current) iniciarSpeechRecognition();
+      return;
+    }
 
     try {
+      // ── TTS (Google Cloud Chirp3-HD) ─────────────────────────────────────────
       const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       let uri: string | null = info.exists ? cacheUri : null;
-      if (__DEV__) console.log('[TTS] cache:', info.exists ? 'HIT' : 'MISS');
 
+      let tTTSReq = 0, tTTSResp = 0;
       if (!uri) {
         const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+        tTTSReq = Date.now();
         const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
-        if (__DEV__) console.log('[TTS] ElevenLabs response:', base64 ? `base64 len=${base64.length}` : 'NULL');
+        tTTSResp = Date.now();
+        if (__DEV__) console.log('[TTS] response:', base64 ? `len=${base64.length} | ${tTTSResp - tTTSReq}ms` : 'NULL');
         if (base64) {
           await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
           uri = cacheUri;
@@ -828,21 +997,12 @@ export function useRosita() {
         player.replace({ uri });
         setEstado('hablando');
         estadoRef.current = 'hablando';
-        // ── Debug timing: ElevenLabs + total ──
-        const dt = debugTimingsRef.current;
-        if (dt) {
-          const elevenlabsMs = Date.now() - dt.t2;
-          const totalMs      = Date.now() - dt.t0;
-          const modo         = info.exists ? 'cache HIT' : 'stream';
-          const chatId       = perfilRef.current?.debugChatId;
-          if (chatId) {
-            enviarAlertaTelegram(
-              [chatId],
-              `⏱ elevenlabs: ${elevenlabsMs}ms (${modo}) | total hasta play: ${totalMs}ms`,
-              perfilRef.current?.nombreAsistente,
-            ).catch(() => {});
-          }
-          debugTimingsRef.current = null;
+        // ── Guardar timing TTS para el log consolidado de responderConClaude ──
+        if (debugTimingsRef.current) {
+          (debugTimingsRef.current as any).tPlay   = Date.now();
+          (debugTimingsRef.current as any).cacheHit = info.exists;
+          (debugTimingsRef.current as any).tTTSReq  = tTTSReq;
+          (debugTimingsRef.current as any).tTTSResp  = tTTSResp;
         }
         player.play();
         if (__DEV__) console.log('[TTS] play() llamado');
@@ -871,22 +1031,29 @@ export function useRosita() {
             const playing = player.playing;
             const dur = (player as any).duration as number;
             const pos = (player as any).currentTime as number;
+            const durKnown = !isNaN(dur) && dur > 0;
+
+            // Lazy: setear duration timer si no se pudo al arrancar (streaming sin Content-Length)
+            if (started && durationTimer === undefined && durKnown) {
+              durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
+            }
+
             if (!started) {
               if (playing) {
                 started = true;
                 lastPos = pos;
                 clearTimeout(noStartTimer);
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
-                if (!isNaN(dur) && dur > 0) {
+                if (durKnown) {
                   durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
                 }
               }
             } else {
               if (!playing) {
-                const nearEnd = !isNaN(dur) && dur > 0 && pos >= dur - 0.3;
+                const nearEnd = durKnown && pos >= dur - 0.3;
                 if (nearEnd) {
                   done('near-end');
-                } else if (pos === lastPos && !isNaN(dur) && dur > 0 && pos < dur - 0.3) {
+                } else if (pos === lastPos && durKnown && pos < dur - 0.3) {
                   if (__DEV__) console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
                   player.play();
                   silenceCount = 0;
@@ -894,8 +1061,10 @@ export function useRosita() {
                   silenceCount = 0;
                 } else {
                   silenceCount++;
+                  // Streaming sin duration: detectar fin más rápido una vez que el audio progresó
+                  const thresh = durKnown ? 15 : (pos > 0.3 ? 5 : 15);
                   if (__DEV__) console.log('[TTS] poll silencio', silenceCount, '| pos:', pos?.toFixed(2), '| dur:', dur?.toFixed(2));
-                  if (silenceCount >= 15) done('silence-15-polls');
+                  if (silenceCount >= thresh) done('silence-polls');
                 }
               } else {
                 silenceCount = 0;
@@ -974,7 +1143,10 @@ export function useRosita() {
     try {
       const info = await FileSystem.getInfoAsync(uri);
       if (__DEV__) console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as any).size ?? '?');
+      // Muletilla default en paralelo con Whisper — cubre la latencia de red + STT
+      const muletillaPromise = reproducirMuletilla('default');
       const texto = await transcribirAudio(uri);
+      await muletillaPromise; // esperar que termine antes de ceder el player
       if (__DEV__) console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
       if (!texto.trim()) { await hablar('No te escuché bien, ¿podés repetir?'); return; }
       await responderConClaude(texto);
@@ -1124,9 +1296,10 @@ export function useRosita() {
     const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
     const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
     const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
-    const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|heladeria|heladerias|restaurant|restaurante|pizzeria|panaderia|carniceria|verduleria|ferreteria|peluqueria|gimnasio|kiosco|confiteria|cafe|bar|veterinaria|optica|zapateria|ropa|tienda|negocio|local|comercio|donde puedo|donde compro|donde venden)\b/.test(textoNorm);
+    const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|heladeria|heladerias|restaurant|restaurante|pizzeria|panaderia|carniceria|verduleria|ferreteria|peluqueria|gimnasio|kiosco|confiteria|cafe|bar|veterinaria|optica|zapateria|ropa|tienda|negocio|local|comercio|donde puedo|donde compro|donde venden|estacion.{0,5}servicio|nafta|combustible|surtidor|ypf|shell|axion|hay .{3,30} en|intendente|municipio)\b/.test(textoNorm);
 
     let queryBusqueda = textoUsuario;
+    let tipoLugar: string | null = null;
     if (pideBusqueda) {
       const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
       const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay|en mi ciudad|en la ciudad/.test(textoNorm);
@@ -1136,25 +1309,42 @@ export function useRosita() {
       else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
       else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`;
       else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
+
+      // Detectar tipo de lugar físico para usar Overpass en vez de Serper
+      for (const { patron, tipo } of LUGAR_TIPOS) {
+        if (patron.test(textoNorm)) { tipoLugar = tipo; break; }
+      }
     }
+    // Si hay tipo de lugar pero no tenemos coords todavía, intentar con el caché del OS (instantáneo)
+    if (tipoLugar && !coordRef.current) {
+      try {
+        const { status } = await Location.getForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const pos = await Location.getLastKnownPositionAsync();
+          if (pos) coordRef.current = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+        }
+      } catch {}
+    }
+    const esLugarLocal = !!tipoLugar && !!coordRef.current;
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
     const t0 = Date.now();
 
     // ── Estado de streaming ───────────────────────────────────────────────────
-    let primeraFraseCacheada: string | null = null;
-    let primeraFraseTTSPromise: Promise<void> | null = null;
     let primeraFraseReproducida = false;
     let tagDetectadoStreaming = 'NEUTRAL';
     let tPrimeraDetectada = 0;
+    let primeraFraseResolver: ((txt: string) => void) | null = null;
+    const primeraFraseDisparada = new Promise<string>(resolve => { primeraFraseResolver = resolve; });
     const onPrimeraFrase = (primera: string, tag: string) => {
       tPrimeraDetectada = Date.now();
       tagDetectadoStreaming = tag;
-      primeraFraseCacheada = primera;
-      primeraFraseTTSPromise = presintetizarTexto(primera);
+      primeraFraseResolver?.(primera);
+      presintetizarTexto(primera).catch(() => {});
     };
     const extraBase  = ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '';
-    const maxTokBase = (pideCuento || pideJuego || pideChiste) ? 700 : undefined;
+    const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
+    const maxTokBase = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
 
     try {
       let resultadosBusqueda: string | null = null;
@@ -1173,7 +1363,6 @@ export function useRosita() {
           onPrimeraFrase,
         }).catch(async () => {
           if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
-          primeraFraseCacheada = null;
           return await llamarClaude({
             system:    getSystemBlocks(p, climaRef.current, pideJuego, extraBase, pideChiste),
             messages:  nuevoHistorial.slice(-8),
@@ -1183,8 +1372,14 @@ export function useRosita() {
       } else {
         // ── Slow path: esperar resultados (muletilla corre durante la búsqueda) ─
         const [titulosNoticias, busquedaResult] = await Promise.all([
-          pideNoticias ? buscarNoticias(textoUsuario) : Promise.resolve(null),
-          pideBusqueda ? buscarWeb(queryBusqueda)     : Promise.resolve(null),
+          pideNoticias ? buscarNoticias(textoUsuario).then(r => r ?? buscarWeb(textoUsuario)) : Promise.resolve(null),
+          pideBusqueda
+            ? (esLugarLocal
+                // Overpass: datos reales de OSM por GPS. Si falla (null), cae a Serper.
+                ? buscarLugares(coordRef.current!.lat, coordRef.current!.lon, tipoLugar!)
+                    .then(r => r !== null ? r : buscarWeb(queryBusqueda))
+                : buscarWeb(queryBusqueda))
+            : Promise.resolve(null),
         ]);
         resultadosBusqueda = busquedaResult;
         const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
@@ -1195,41 +1390,54 @@ export function useRosita() {
         let contextoBusqueda = '';
         if (resultadosBusqueda) {
           contextoBusqueda = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 80 palabras.
-Resultados de búsqueda web (Tavily, ${new Date().toLocaleDateString('es-AR')}):
+Resultados de búsqueda web (Google, ${new Date().toLocaleDateString('es-AR')}):
 ${resultadosBusqueda}
 
 REGLAS CRÍTICAS PARA RESPONDER:
-1. Respondé con datos concretos. Si no encontrás el dato, decilo amablemente.
-2. PRONUNCIACIÓN: Si das un número de teléfono o la altura de una dirección, separá TODOS sus números con comas (ejemplo: 3, 4, 0, 8, 6, 7... o San Martín 1, 2, 5, 0) para que el sistema de voz los dicte muy pausado, uno por uno. ¡No hagas esto con los años!
-3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta (prohibido decir "¿Te ayudo con otra cosa?", "¿Para qué precisás ir?", "¿Lo pudiste anotar?", etc.). Entregá la información y terminá tu frase en punto final para que la persona tenga paz y tiempo de asimilar el dato.`;
+1. Usá SOLO los datos que aparecen en los resultados. NUNCA inventes nombres de lugares, direcciones, teléfonos ni personas. Si el dato no está en los resultados, decí claramente "No tengo ese dato ahora mismo" o "No lo encontré".
+2. PRONUNCIACIÓN OBLIGATORIA: Cualquier número que sea altura de dirección o teléfono, escribilo separando CADA dígito con coma y espacio. Ejemplos: "Yrigoyen 7, 6, 2" — "Colón 1, 2, 5, 0" — "3, 4, 0, 8, 6, 7, 7". Sin excepción. No hagas esto con años (1990, 2024).
+3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta. Entregá la información y terminá en punto final.`;
         }
         const systemFull = getSystemBlocks(p, climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda, pideChiste);
         const msgSlice   = nuevoHistorial.slice(-8);
         claudePromise = llamarClaudeConStreaming({
           system: systemFull, messages: msgSlice, maxTokens: maxTokBase, onPrimeraFrase,
         }).catch(async () => {
-          primeraFraseCacheada = null;
           return await llamarClaude({ system: systemFull, messages: msgSlice, maxTokens: maxTokBase }) || '';
         });
       }
 
-      // Esperar muletilla (los eventos XHR del streaming siguen llegando durante esto)
+      // Esperar que la muletilla termine de sonar (ahora resuelve al fin del audio)
       const textoMuletilla = await muletillaPromise;
       const t1 = Date.now();
 
-      // Si el streaming ya detectó la primera frase, esperar que su TTS esté cacheado
-      if (primeraFraseTTSPromise) await primeraFraseTTSPromise;
+      // Race: primera frase detectada por streaming vs respuesta completa de Claude.
+      // Sin Railway fix → primera llega ~600ms antes que claude → respuesta inmediata.
+      // Con Railway     → llegan casi juntas (~0-460ms de diferencia) → igual sin pausa.
+      const EXPR_MAP: Record<string, Expresion> = {
+        FELIZ: 'feliz', TRISTE: 'triste', SORPRENDIDA: 'sorprendida',
+        PENSATIVA: 'pensativa', NEUTRAL: 'neutral', CUENTO: 'feliz',
+        JUEGO: 'pensativa', CHISTE: 'feliz', ENOJADA: 'triste',
+        AVERGONZADA: 'neutral', CANSADA: 'pensativa',
+      };
+      // Inicializar debug ref antes del race para que primera-case también lo vea
+      if (p.debugChatId) {
+        debugTimingsRef.current = { t0, t1, t2: 0, tPrimeraDetectada: 0, tWinner: 0, winnerKind: '' };
+      }
 
-      // Reproducir primera frase inmediatamente (cache HIT → sin espera extra)
-      if (primeraFraseCacheada) {
-        const EXPR: Record<string, Expresion> = {
-          FELIZ: 'feliz', TRISTE: 'triste', SORPRENDIDA: 'sorprendida',
-          PENSATIVA: 'pensativa', NEUTRAL: 'neutral', CUENTO: 'feliz',
-          JUEGO: 'pensativa', CHISTE: 'feliz', ENOJADA: 'triste',
-          AVERGONZADA: 'neutral', CANSADA: 'pensativa',
-        };
-        setExpresion(EXPR[tagDetectadoStreaming] ?? 'neutral');
-        await hablar(primeraFraseCacheada);
+      const winner = await Promise.race([
+        primeraFraseDisparada.then(t => ({ kind: 'primera' as const, t })),
+        claudePromise.then(t => ({ kind: 'claude' as const, t })),
+      ]);
+      const tWinner = Date.now();
+      if (debugTimingsRef.current) {
+        debugTimingsRef.current.tWinner = tWinner;
+        debugTimingsRef.current.tPrimeraDetectada = tPrimeraDetectada;
+        debugTimingsRef.current.winnerKind = winner.kind;
+      }
+      if (winner.kind === 'primera') {
+        setExpresion(EXPR_MAP[tagDetectadoStreaming] ?? 'neutral');
+        await hablar(winner.t);
         primeraFraseReproducida = true;
       }
 
@@ -1237,18 +1445,27 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (__DEV__) console.log('[RC] esperando respuesta completa de Claude...');
       const respuestaRaw = (await claudePromise) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
       const t2 = Date.now();
-      if (p.debugChatId) debugTimingsRef.current = { t0, t2 };
+      // Actualizar t2 en el ref si no fue consumido aún (caso claude ganó el race)
+      if (debugTimingsRef.current) debugTimingsRef.current.t2 = t2;
 
       // ── Log de debug (solo si debugChatId configurado) ──
       const debugChatId = p.debugChatId;
       if (debugChatId) {
+        const dt = debugTimingsRef.current as any;
+        const ttsLinea = dt?.tPlay
+          ? (dt.cacheHit
+            ? `🎵 TTS: cache HIT | t0→play: ${dt.tPlay - t0}ms`
+            : `🎵 TTS: el: ${dt.tTTSResp - dt.tTTSReq}ms | t0→play: ${dt.tPlay - t0}ms`)
+          : '';
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,
           `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
-          `⏱ muletilla: ${t1 - t0}ms | claude total: ${t2 - t0}ms${tPrimeraDetectada ? ` 🚀primera@${tPrimeraDetectada - t0}ms` : ''}`,
+          `⏱ t0→primera: ${tPrimeraDetectada ? `${tPrimeraDetectada - t0}ms` : 'n/a'} | t0→winner: ${tWinner - t0}ms (${winner.kind}) | t0→claude: ${t2 - t0}ms`,
+          ttsLinea,
           `🤖 Claude: ${respuestaRaw.slice(0, 300)}`,
-        ];
+        ].filter(Boolean);
         enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
+        debugTimingsRef.current = null;
       }
 
       const parsed = parsearRespuesta(
@@ -1294,11 +1511,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── MUSICA ──
       if (parsed.tagPrincipal === 'MUSICA' && parsed.generoMusica) {
         setExpresion('neutral');
+        // Iniciar la búsqueda/probe del stream en paralelo con el TTS para no agregar latencia
+        const streamPromise = buscarRadio(parsed.generoMusica);
         await hablar(parsed.respuesta + ` Para pararla, tocá la pantalla.`);
         setEstado('pensando');
         estadoRef.current = 'pensando';
         ExpoSpeechRecognitionModule.stop();
-        const urlStream = await buscarRadio(parsed.generoMusica);
+        const urlStream = await streamPromise; // probablemente ya resuelto mientras hablaba
         if (urlStream) {
           try {
             playerMusica.replace({ uri: urlStream });
@@ -1315,26 +1534,25 @@ REGLAS CRÍTICAS PARA RESPONDER:
             iniciarSpeechRecognition();
             if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
             expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 5000);
-            // Health check: si a los 12s el stream no arrancó, reintentamos con fallback.
-            // Se usa 12s (no 5s) porque los streams de radio en vivo necesitan tiempo de buffering
-            // y currentTime puede estar en 0 mientras bufferean aunque estén funcionando.
+            // Health check: si a los 10s el stream no arrancó, intenta URL alternativa.
+            // currentTime >= 0.5 es señal confiable de que el audio está reproduciéndose.
             setTimeout(async () => {
-              if (!musicaActivaRef.current) return; // ya se detuvo manualmente
-              if (playerMusica.currentTime >= 0.5) return; // está sonando (no usar .playing — poco confiable en Android)
-              // Intento con segundo fallback hardcodeado
-              const fallbackUrl = STREAMS_GENERO[parsed.generoMusica!]?.[1] ?? null;
-              if (fallbackUrl && fallbackUrl !== urlStream) {
+              if (!musicaActivaRef.current) return;
+              if (playerMusica.currentTime >= 0.5) return;
+              // Intentar URL alternativa del mismo género
+              const altUrl = getFallbackAlt(parsed.generoMusica!, urlStream);
+              if (altUrl) {
                 try {
-                  playerMusica.replace({ uri: fallbackUrl });
+                  playerMusica.replace({ uri: altUrl });
                   playerMusica.play();
-                  // Segundo check a los 10s: si tampoco arranca, nos rendimos
+                  // Segundo check a los 8s
                   setTimeout(async () => {
                     if (!musicaActivaRef.current) return;
                     if (playerMusica.currentTime < 0.5) {
                       pararMusica();
                       await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
                     }
-                  }, 10000);
+                  }, 8000);
                 } catch {
                   pararMusica();
                   await hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
@@ -1343,7 +1561,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
                 pararMusica();
                 await hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
               }
-            }, 12000);
+            }, 10000);
           } catch {
             setMusicaActiva(false);
             await hablar('No pude conectar con la radio, perdoname.');
@@ -1535,23 +1753,26 @@ REGLAS CRÍTICAS PARA RESPONDER:
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
       if (primeraFraseReproducida) {
-        // Primera ya reproducida — solo falta el resto si lo hay
+        // Primera ya reproducida — pipeline de oraciones para el resto
         const { resto } = extraerPrimeraFrase(parsed.respuesta);
         if (resto) {
-          presintetizarTexto(resto).catch(() => {});
-          await hablar(resto);
+          const oraciones = extraerOraciones(resto);
+          // Arrancar todas las síntesis en paralelo mientras primera sigue sonando
+          oraciones.forEach(o => presintetizarTexto(o).catch(() => {}));
+          for (const oracion of oraciones) {
+            await hablar(oracion);
+          }
         }
       } else {
         const { primera, resto } = extraerPrimeraFrase(parsed.respuesta);
-        // Si el streaming pre-cacheó exactamente esta primera frase, esperamos que
-        // termine (tiene ventaja de 0-460ms). Siempre es mejor o igual que TTS fresco.
-        if (primeraFraseTTSPromise && primeraFraseCacheada === primera) {
-          await primeraFraseTTSPromise;
-        }
         if (resto) {
-          presintetizarTexto(resto).catch(() => {});
+          const oraciones = extraerOraciones(resto);
+          // Arrancar síntesis de todas las oraciones en paralelo
+          [primera, ...oraciones].forEach(o => presintetizarTexto(o).catch(() => {}));
           await hablar(primera);
-          await hablar(resto);
+          for (const oracion of oraciones) {
+            await hablar(oracion);
+          }
         } else {
           await hablar(parsed.respuesta);
         }
@@ -1738,7 +1959,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       Animated.timing(flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
       Brightness.useSystemBrightnessAsync().catch(() => {});
     },
-    modoNoche, horaActual, climaObj, flashAnim,
+    modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS, forzarBostezo: () => {
       ultimoBostezRef.current = Date.now();
       setExpresion('bostezando');

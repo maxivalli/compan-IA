@@ -2,6 +2,34 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Path, Circle } from 'react-native-svg';
 
+// ── Waveform SR — aparece en el botón cuando el micrófono detecta sonido ──────
+
+export function WaveformDetectando() {
+  const alturas = useRef([0.3, 0.7, 0.5, 1.0, 0.4, 0.8, 0.6, 0.9, 0.35].map(v => new Animated.Value(v))).current;
+
+  useEffect(() => {
+    const anims = alturas.map((bar, i) => {
+      const anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(bar, { toValue: 0.12, duration: 200 + i * 45, useNativeDriver: true }),
+          Animated.timing(bar, { toValue: 1,    duration: 200 + i * 45, useNativeDriver: true }),
+        ])
+      );
+      anim.start();
+      return anim;
+    });
+    return () => anims.forEach(a => a.stop());
+  }, []);
+
+  return (
+    <View style={s.waveform}>
+      {alturas.map((bar, i) => (
+        <Animated.View key={i} style={[s.waveBar, { transform: [{ scaleY: bar }] }]} />
+      ))}
+    </View>
+  );
+}
+
 // ── Ecualizador de música ─────────────────────────────────────────────────────
 
 export function AnimacionMusica() {
@@ -290,6 +318,8 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
 const s = StyleSheet.create({
   ecualizador: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 60 },
   barra:       { width: 7, height: 60, borderRadius: 4, backgroundColor: '#5DCAA5' },
+  waveform:    { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26 },
+  waveBar:     { width: 5, height: 26, borderRadius: 3, backgroundColor: '#ef4444' },
 });
 
 const sz = StyleSheet.create({

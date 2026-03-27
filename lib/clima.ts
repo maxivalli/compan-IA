@@ -1,16 +1,30 @@
 import * as Location from 'expo-location';
 
-const WEATHERAPI_KEY = process.env.EXPO_PUBLIC_WEATHERAPI_KEY!;
-
 const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
+// Descripciones en español para códigos WMO de Open-Meteo
+const WMO_DESC: Record<number, string> = {
+  0:  'despejado',
+  1:  'mayormente despejado', 2: 'parcialmente nublado', 3: 'nublado',
+  45: 'niebla', 48: 'niebla helada',
+  51: 'llovizna leve', 53: 'llovizna moderada', 55: 'llovizna intensa',
+  56: 'llovizna helada leve', 57: 'llovizna helada intensa',
+  61: 'lluvia leve', 63: 'lluvia moderada', 65: 'lluvia intensa',
+  66: 'lluvia helada leve', 67: 'lluvia helada intensa',
+  71: 'nevada leve', 73: 'nevada moderada', 75: 'nevada intensa',
+  77: 'granizo',
+  80: 'chaparrón leve', 81: 'chaparrón moderado', 82: 'chaparrón violento',
+  85: 'nevada con chaparrón leve', 86: 'nevada con chaparrón intensa',
+  95: 'tormenta', 96: 'tormenta con granizo', 99: 'tormenta con granizo intenso',
+};
+
 export type PronosticoDia = {
-  fecha: string;       // 'YYYY-MM-DD'
-  diaSemana: string;   // 'lunes', 'martes', etc.
+  fecha: string;
+  diaSemana: string;
   tempMax: number;
   tempMin: number;
   descripcion: string;
-  codigo: number;      // condition code de WeatherAPI — para detectar mal tiempo
+  codigo: number;
 };
 
 export type DatosClima = {
@@ -23,83 +37,78 @@ export type DatosClima = {
   pronostico: PronosticoDia[];
 };
 
-// Códigos WeatherAPI que justifican avisar: lluvia fuerte, chaparrones, tormentas, nieve fuerte
+// Códigos WMO adversos: lluvia/nieve intensa, tormentas, granizo
 export const CODIGOS_ADVERSOS = new Set([
-  1192, 1195,  // lluvia fuerte
-  1243, 1246,  // chaparrón fuerte / torrencial
-  1273, 1276,  // tormenta con lluvia
-  1279, 1282,  // tormenta con nieve
-  1222, 1225,  // nevada fuerte
-  1117,        // ventisca
+  65, 67,        // lluvia intensa / helada intensa
+  75,            // nevada intensa
+  82,            // chaparrón violento
+  86,            // nevada con chaparrón intensa
+  95, 96, 99,   // tormentas
 ]);
 
-export async function obtenerClima(): Promise<DatosClima | null> {
+export async function obtenerClima(latitud?: number, longitud?: number): Promise<DatosClima | null> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (__DEV__) console.log('[CLIMA] permiso ubicación:', status);
-    if (status !== 'granted') return null;
+    let latitude: number;
+    let longitude: number;
 
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-    const { latitude, longitude } = loc.coords;
-    if (__DEV__) console.log('[CLIMA] coords:', latitude, longitude);
+    if (latitud !== undefined && longitud !== undefined) {
+      latitude = latitud;
+      longitude = longitud;
+    } else {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return null;
+      const gpsPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+      const timeout    = new Promise<null>(r => setTimeout(() => r(null), 10000));
+      const loc = await Promise.race([gpsPromise, timeout]);
+      if (!loc) return null;
+      latitude  = loc.coords.latitude;
+      longitude = loc.coords.longitude;
+    }
 
-    // Clima actual + pronóstico 3 días (hoy + 2), descripciones en español
-    const keyPreview = WEATHERAPI_KEY ? WEATHERAPI_KEY.slice(0, 6) + '…' : 'FALTA';
-    if (__DEV__) console.log('[CLIMA] key:', keyPreview);
-    const url = `https://api.weatherapi.com/v1/forecast.json?key=${WEATHERAPI_KEY}&q=${latitude},${longitude}&days=3&aqi=no&alerts=no&lang=es`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,weather_code&forecast_days=4&timezone=auto`;
     const ctrl = new AbortController();
     const timeoutId = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timeoutId));
-    if (__DEV__) console.log('[CLIMA] WeatherAPI status:', res.status);
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`HTTP${res.status}`);
 
     const data = await res.json();
 
-    const temp        = Math.round(data.current.temp_c);
-    const codigo      = data.current.condition.code as number;
-    const descripcion = (data.current.condition.text as string).toLowerCase();
+    const temp        = Math.round(data.current.temperature_2m);
+    const codigo      = data.current.weather_code as number;
+    const descripcion = WMO_DESC[codigo] ?? 'variable';
 
-    // WeatherAPI puede devolver nombre de barrio o zona en vez de ciudad;
-    // intentamos en orden: name → region → reverse geocoding nativo
-    // Combinamos ciudad + provincia para mejorar las búsquedas locales
-    let ciudadNombre: string | undefined = (data.location.name as string) || undefined;
-    const regionNombre: string | undefined = (data.location.region as string) || undefined;
-    if (__DEV__) console.log('[CLIMA] ciudad WeatherAPI:', data.location.name, '| region:', data.location.region);
-    if (!ciudadNombre) {
-      try {
-        const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
-        ciudadNombre = geo[0]?.city || geo[0]?.subregion || undefined;
-        if (__DEV__) console.log('[CLIMA] ciudad reverse geocoding:', ciudadNombre);
-      } catch {}
-    }
-    // "San Cristóbal, Santa Fe" — más preciso para búsquedas locales
-    let ciudad: string | undefined = ciudadNombre;
-    if (ciudadNombre && regionNombre && !ciudadNombre.includes(regionNombre)) {
-      ciudad = `${ciudadNombre}, ${regionNombre}`;
-    } else if (!ciudad) {
-      ciudad = regionNombre;
-    }
+    // Reverse geocoding para nombre de ciudad
+    let ciudad: string | undefined;
+    try {
+      const geo = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const city   = geo[0]?.city || geo[0]?.subregion;
+      const region = geo[0]?.region;
+      if (city && region && !city.includes(region)) {
+        ciudad = `${city}, ${region}`;
+      } else {
+        ciudad = city || region || undefined;
+      }
+    } catch {}
 
-    // Pronóstico — forecastday[0] = hoy, tomamos [1] y [2]
+    // Pronóstico: días 1-3 (saltear hoy = índice 0)
     const pronostico: PronosticoDia[] = [];
-    const days: any[] = data.forecast.forecastday;
-    for (let i = 1; i < days.length; i++) {
-      const d     = days[i];
-      const fecha = new Date(d.date + 'T12:00:00');
+    const fechas: string[] = data.daily.time;
+    for (let i = 1; i < Math.min(4, fechas.length); i++) {
+      const fecha = fechas[i];
+      const cod   = data.daily.weather_code[i] as number;
       pronostico.push({
-        fecha:       d.date,
-        diaSemana:   DIAS_SEMANA[fecha.getDay()],
-        tempMax:     Math.round(d.day.maxtemp_c),
-        tempMin:     Math.round(d.day.mintemp_c),
-        descripcion: (d.day.condition.text as string).toLowerCase(),
-        codigo:      d.day.condition.code as number,
+        fecha,
+        diaSemana:   DIAS_SEMANA[new Date(fecha + 'T12:00:00').getDay()],
+        tempMax:     Math.round(data.daily.temperature_2m_max[i]),
+        tempMin:     Math.round(data.daily.temperature_2m_min[i]),
+        descripcion: WMO_DESC[cod] ?? 'variable',
+        codigo:      cod,
       });
     }
 
     return { temperatura: temp, descripcion, codigoActual: codigo, ciudad, latitud: latitude, longitud: longitude, pronostico };
   } catch (e: any) {
-    if (__DEV__) console.log('[CLIMA] error:', e?.message ?? e);
-    return null;
+    throw e;
   }
 }
 
