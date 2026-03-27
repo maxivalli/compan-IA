@@ -25,13 +25,23 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, generarSonido, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
 
 // ── Flag de testing: true = usa TTS nativo del sistema en lugar de ElevenLabs ──
 const USAR_TTS_NATIVO = false;
+
+// ── Silbidos locales (assets pre-generados) ───────────────────────────────────
+const SILBIDOS_ASSETS = [
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../assets/audio/a_gentle_cheerful_wh_#1-1774615322853.mp3'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../assets/audio/a_gentle_cheerful_wh_#1-1774615343390.mp3'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require('../assets/audio/a_gentle_cheerful_wh_#1-1774615356858.mp3'),
+];
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -153,6 +163,7 @@ export function useRosita() {
   const ojoPicadoTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoActivoRef    = useRef(false);
+  const silbidoIndexRef     = useRef(0);
   const musicaNocheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ultimaActivacionSrRef = useRef<number>(0);
   const climaRef            = useRef<string>('');
@@ -525,7 +536,7 @@ export function useRosita() {
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v4_${cat}_${i}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v5_${cat}_${i}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
         const base64 = await sintetizarVoz(lista[i], effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
@@ -546,22 +557,11 @@ export function useRosita() {
     return { primera, resto };
   }
 
-  function extraerOraciones(texto: string): string[] {
-    const result: string[] = [];
-    let remaining = texto.trim();
-    while (remaining.length >= 10) {
-      const m = remaining.match(/^.{15,}?[.!?](?:\s+|$)/);
-      if (!m) { result.push(remaining); break; }
-      result.push(m[0].trimEnd());
-      remaining = remaining.slice(m[0].length).trim();
-    }
-    return result.filter(o => o.length > 0);
-  }
 
   async function presintetizarTexto(texto: string): Promise<void> {
     if (USAR_TTS_NATIVO) return;
     try {
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v3_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       if (info.exists) return;
       const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
@@ -580,7 +580,7 @@ export function useRosita() {
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
       const texto = lista[idx];
-      const uri = FileSystem.cacheDirectory + `muletilla_v4_${categoria}_${idx}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_v5_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
       player.replace({ uri });
@@ -824,14 +824,9 @@ export function useRosita() {
     if (estadoRef.current !== 'esperando') return;
     if (musicaActivaRef.current) return;
     try {
-      const cacheUri = FileSystem.cacheDirectory + 'silbido.mp3';
-      const cached = await FileSystem.getInfoAsync(cacheUri);
-      if (!cached.exists) {
-        const base64 = await generarSonido('a gentle cheerful whistle melody, friendly and warm', 4, 0.3);
-        if (!base64) return;
-        await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-      }
-      player.replace({ uri: cacheUri });
+      const asset = SILBIDOS_ASSETS[silbidoIndexRef.current];
+      silbidoIndexRef.current = (silbidoIndexRef.current + 1) % SILBIDOS_ASSETS.length;
+      player.replace(asset);
       player.play();
       // Poll en lugar de sleep fijo: abortar si música empieza o silbido se detiene
       for (let i = 0; i < 90; i++) {
@@ -975,7 +970,7 @@ export function useRosita() {
 
     try {
       // ── TTS (Google Cloud Chirp3-HD) ─────────────────────────────────────────
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v2_' + hashTexto(texto) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v3_' + hashTexto(texto) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       let uri: string | null = info.exists ? cacheUri : null;
 
@@ -1332,13 +1327,11 @@ export function useRosita() {
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
-    let tagDetectadoStreaming = 'NEUTRAL';
     let tPrimeraDetectada = 0;
     let primeraFraseResolver: ((txt: string) => void) | null = null;
     const primeraFraseDisparada = new Promise<string>(resolve => { primeraFraseResolver = resolve; });
-    const onPrimeraFrase = (primera: string, tag: string) => {
+    const onPrimeraFrase = (primera: string, _tag: string) => {
       tPrimeraDetectada = Date.now();
-      tagDetectadoStreaming = tag;
       primeraFraseResolver?.(primera);
       presintetizarTexto(primera).catch(() => {});
     };
@@ -1411,15 +1404,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
       const textoMuletilla = await muletillaPromise;
       const t1 = Date.now();
 
-      // Race: primera frase detectada por streaming vs respuesta completa de Claude.
-      // Sin Railway fix → primera llega ~600ms antes que claude → respuesta inmediata.
-      // Con Railway     → llegan casi juntas (~0-460ms de diferencia) → igual sin pausa.
-      const EXPR_MAP: Record<string, Expresion> = {
-        FELIZ: 'feliz', TRISTE: 'triste', SORPRENDIDA: 'sorprendida',
-        PENSATIVA: 'pensativa', NEUTRAL: 'neutral', CUENTO: 'feliz',
-        JUEGO: 'pensativa', CHISTE: 'feliz', ENOJADA: 'triste',
-        AVERGONZADA: 'neutral', CANSADA: 'pensativa',
-      };
       // Inicializar debug ref antes del race para que primera-case también lo vea
       if (p.debugChatId) {
         debugTimingsRef.current = { t0, t1, t2: 0, tPrimeraDetectada: 0, tWinner: 0, winnerKind: '' };
@@ -1435,11 +1419,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
         debugTimingsRef.current.tPrimeraDetectada = tPrimeraDetectada;
         debugTimingsRef.current.winnerKind = winner.kind;
       }
-      if (winner.kind === 'primera') {
-        setExpresion(EXPR_MAP[tagDetectadoStreaming] ?? 'neutral');
-        await hablar(winner.t);
-        primeraFraseReproducida = true;
-      }
+      // Primera frase deshabilitada: Azure tiene latencia alta y genera bloques audibles.
+      // Se espera la respuesta completa y se reproduce en una sola request TTS.
+      void winner;
 
       // Obtener respuesta completa de Claude (streaming puede ya haber terminado)
       if (__DEV__) console.log('[RC] esperando respuesta completa de Claude...');
@@ -1753,29 +1735,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
       if (primeraFraseReproducida) {
-        // Primera ya reproducida — pipeline de oraciones para el resto
+        // Primera ya reproducida — reproducir el resto como bloque único
         const { resto } = extraerPrimeraFrase(parsed.respuesta);
-        if (resto) {
-          const oraciones = extraerOraciones(resto);
-          // Arrancar todas las síntesis en paralelo mientras primera sigue sonando
-          oraciones.forEach(o => presintetizarTexto(o).catch(() => {}));
-          for (const oracion of oraciones) {
-            await hablar(oracion);
-          }
-        }
+        if (resto) await hablar(resto);
       } else {
-        const { primera, resto } = extraerPrimeraFrase(parsed.respuesta);
-        if (resto) {
-          const oraciones = extraerOraciones(resto);
-          // Arrancar síntesis de todas las oraciones en paralelo
-          [primera, ...oraciones].forEach(o => presintetizarTexto(o).catch(() => {}));
-          await hablar(primera);
-          for (const oracion of oraciones) {
-            await hablar(oracion);
-          }
-        } else {
-          await hablar(parsed.respuesta);
-        }
+        await hablar(parsed.respuesta);
       }
 
       // ── Recordatorio de medicamento pendiente ──
