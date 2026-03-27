@@ -536,7 +536,7 @@ export function useRosita() {
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v5_${cat}_${i}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v6_${cat}_${i}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
         const base64 = await sintetizarVoz(lista[i], effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
@@ -580,7 +580,7 @@ export function useRosita() {
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
       const texto = lista[idx];
-      const uri = FileSystem.cacheDirectory + `muletilla_v5_${categoria}_${idx}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_v6_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
       player.replace({ uri });
