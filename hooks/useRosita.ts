@@ -536,7 +536,7 @@ export function useRosita() {
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v7_${cat}_${i}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v8_${cat}_${i}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
         const base64 = await sintetizarVoz(lista[i], effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
@@ -569,7 +569,7 @@ export function useRosita() {
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
       const texto = lista[idx];
-      const uri = FileSystem.cacheDirectory + `muletilla_v7_${categoria}_${idx}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_v8_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
       if (abort?.current) return texto; // race ya resolvió, no reproducir
@@ -1432,17 +1432,15 @@ REGLAS CRÍTICAS PARA RESPONDER:
         debugTimingsRef.current.winnerKind = winner.kind;
       }
 
-      // Abortar muletilla si todavía está sonando — hablar() toma el player directamente
+      // Señalar abort y esperar que la muletilla ceda el player (poll cada 80ms → max 80ms de espera)
       muletillaAbort.current = true;
+      const textoMuletilla = await muletillaPromise;
 
       if (winner.kind === 'primera') {
         // Primera frase lista — reproducirla mientras Claude termina de streamear
         primeraFraseReproducida = true;
         await Promise.all([hablar(winner.t, tagDetectadoStreaming), claudePromise]);
       }
-
-      // Para debug log (resuelve rápido, abort ya está activo)
-      const textoMuletilla = await muletillaPromise;
 
       // Obtener respuesta completa de Claude (ya resuelta si primera ganó el race)
       if (__DEV__) console.log('[RC] esperando respuesta completa de Claude...');
