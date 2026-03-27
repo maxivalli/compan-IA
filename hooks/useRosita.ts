@@ -1011,7 +1011,7 @@ export function useRosita() {
             const playing = player.playing;
             const dur = (player as any).duration as number;
             const pos = (player as any).currentTime as number;
-            const durKnown = !isNaN(dur) && dur > 0;
+            const durKnown = !isNaN(dur) && dur > 0 && isFinite(dur) && dur < 7200;
 
             // Lazy: setear duration timer si no se pudo al arrancar (streaming sin Content-Length)
             if (started && durationTimer === undefined && durKnown) {
