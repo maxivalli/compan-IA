@@ -994,6 +994,7 @@ export function useRosita() {
             clearInterval(pollInterval);
             if (durationTimer !== undefined) clearTimeout(durationTimer);
             if (posStableTimer !== undefined) clearTimeout(posStableTimer);
+            if (estimatedPlaybackTimer !== undefined) clearTimeout(estimatedPlaybackTimer);
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
             if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
@@ -1005,6 +1006,7 @@ export function useRosita() {
           let silenceCount = 0;
           let durationTimer: ReturnType<typeof setTimeout> | undefined;
           let posStableTimer: ReturnType<typeof setTimeout> | undefined;
+          let estimatedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
           let lastPos = -1;
 
           const noStartTimer = setTimeout(() => { if (!started) done('no-start-4s'); }, 4000);
@@ -1028,6 +1030,13 @@ export function useRosita() {
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
                 if (durKnown) {
                   durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
+                } else if (isStream) {
+                  // Fallback para streaming WAV: ExoPlayer puede quedarse en playing=true
+                  // avanzando pos hacia el silencio indefinidamente. Estimamos la duración
+                  // basándonos en la longitud del texto (~80ms/char) + 2s de margen.
+                  const estimatedMs = Math.max(3000, texto.length * 80 + 2000);
+                  if (__DEV__) console.log('[TTS] estimatedPlaybackTimer:', estimatedMs, 'ms (', texto.length, 'chars)');
+                  estimatedPlaybackTimer = setTimeout(() => done('estimated-playback'), estimatedMs);
                 }
               }
             } else {
