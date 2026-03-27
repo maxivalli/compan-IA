@@ -148,7 +148,7 @@ export async function transcribirAudio(uri: string): Promise<string> {
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
-/** Construye la URL del endpoint de streaming de TTS (para expo-audio directo). */
+/** Construye la URL del endpoint de streaming de TTS — ElevenLabs (para expo-audio directo). */
 export function urlTTSStream(texto: string, voiceId: string, speed?: number): string {
   const params = new URLSearchParams({
     text:    texto,
@@ -157,6 +157,17 @@ export function urlTTSStream(texto: string, voiceId: string, speed?: number): st
     k:       API_KEY,
   });
   return `${BACKEND_URL}/ai/tts-stream?${params}`;
+}
+
+/** Construye la URL del endpoint de streaming de TTS — Cartesia Sonic (baja latencia). */
+export function urlCartesiaStream(texto: string, voiceId: string, speed?: number): string {
+  const params = new URLSearchParams({
+    text:    texto,
+    voiceId,
+    speed:   String(speed ?? 0.92),
+    k:       API_KEY,
+  });
+  return `${BACKEND_URL}/ai/tts-cartesia-stream?${params}`;
 }
 
 /** Devuelve el audio sintetizado como string base64, o null si falla. */

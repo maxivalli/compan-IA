@@ -72,8 +72,8 @@ const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: st
     masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
   },
   default: {
-    femenina:  ['A ver, dejame pensar un cachito...', 'Mmm... a ver...', 'Dejame acomodar las ideas...'],
-    masculina: ['A ver, dejame pensar un cachito...', 'Mmm... a ver...', 'Dejame acomodar las ideas...'],
+    femenina:  ['Mmm...', 'Mmm... a ver...', 'A ver...'],
+    masculina: ['Mmm...', 'Mmm... a ver...', 'A ver...'],
   },
 };
 
@@ -570,7 +570,7 @@ export function useRosita() {
     } catch {}
   }
 
-  async function reproducirMuletilla(categoria: CategoriaMuletilla): Promise<string> {
+  async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }): Promise<string> {
     try {
       const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
       const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
@@ -583,12 +583,19 @@ export function useRosita() {
       const uri = FileSystem.cacheDirectory + `muletilla_v6_${categoria}_${idx}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
+      if (abort?.current) return texto; // race ya resolvió, no reproducir
       player.replace({ uri });
       player.play();
-      // Esperar que el audio termine — así el race con primera/claude arranca sin pausa
+      // Esperar que el audio termine — o que el race aborte para ceder el player a hablar()
       await new Promise<void>(resolve => {
         const safety = setTimeout(() => resolve(), 3000);
         const poll = setInterval(() => {
+          if (abort?.current) {
+            clearTimeout(safety);
+            clearInterval(poll);
+            resolve(); // sin pause — hablar() toma el player directamente
+            return;
+          }
           const dur = (player as any).duration as number;
           const pos = (player as any).currentTime as number;
           if (dur > 0 && pos >= dur - 0.15) {
@@ -1345,7 +1352,8 @@ export function useRosita() {
 
       // Muletilla arranca de inmediato — los callbacks XHR del streaming
       // se disparan entre los ticks del setInterval interno de hablar().
-      const muletillaPromise = catMuletilla ? reproducirMuletilla(catMuletilla) : Promise.resolve(null);
+      const muletillaAbort = { current: false };
+      const muletillaPromise = catMuletilla ? reproducirMuletilla(catMuletilla, muletillaAbort) : Promise.resolve(null);
 
       if (!pideNoticias && !pideBusqueda) {
         // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
@@ -1400,8 +1408,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         });
       }
 
-      // Esperar que la muletilla termine de sonar (ahora resuelve al fin del audio)
-      const textoMuletilla = await muletillaPromise;
+      // Race arranca de inmediato — sin esperar que la muletilla termine
       const t1 = Date.now();
 
       // Inicializar debug ref antes del race para que primera-case también lo vea
@@ -1419,11 +1426,20 @@ REGLAS CRÍTICAS PARA RESPONDER:
         debugTimingsRef.current.tPrimeraDetectada = tPrimeraDetectada;
         debugTimingsRef.current.winnerKind = winner.kind;
       }
-      // Primera frase deshabilitada: Azure tiene latencia alta y genera bloques audibles.
-      // Se espera la respuesta completa y se reproduce en una sola request TTS.
-      void winner;
 
-      // Obtener respuesta completa de Claude (streaming puede ya haber terminado)
+      // Abortar muletilla si todavía está sonando — hablar() toma el player directamente
+      muletillaAbort.current = true;
+
+      if (winner.kind === 'primera') {
+        // Primera frase lista — reproducirla mientras Claude termina de streamear
+        primeraFraseReproducida = true;
+        await Promise.all([hablar(winner.t), claudePromise]);
+      }
+
+      // Para debug log (resuelve rápido, abort ya está activo)
+      const textoMuletilla = await muletillaPromise;
+
+      // Obtener respuesta completa de Claude (ya resuelta si primera ganó el race)
       if (__DEV__) console.log('[RC] esperando respuesta completa de Claude...');
       const respuestaRaw = (await claudePromise) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
       const t2 = Date.now();
@@ -1437,7 +1453,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const ttsLinea = dt?.tPlay
           ? (dt.cacheHit
             ? `🎵 TTS: cache HIT | t0→play: ${dt.tPlay - t0}ms`
-            : `🎵 TTS: el: ${dt.tTTSResp - dt.tTTSReq}ms | t0→play: ${dt.tPlay - t0}ms`)
+            : `🎵 TTS: ${dt.tTTSResp - dt.tTTSReq}ms | t0→play: ${dt.tPlay - t0}ms`)
           : '';
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,
