@@ -558,14 +558,14 @@ export function useRosita() {
   }
 
 
-  async function presintetizarTexto(texto: string): Promise<void> {
+  async function presintetizarTexto(texto: string, emotion?: string): Promise<void> {
     if (USAR_TTS_NATIVO) return;
     try {
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       if (info.exists) return;
       const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-      const base64  = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad));
+      const base64  = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
       if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
     } catch {}
   }
@@ -1342,7 +1342,7 @@ export function useRosita() {
       tPrimeraDetectada = Date.now();
       tagDetectadoStreaming = tag.toLowerCase();
       primeraFraseResolver?.(primera);
-      presintetizarTexto(primera).catch(() => {});
+      presintetizarTexto(primera, tagDetectadoStreaming).catch(() => {});
     };
     const extraBase  = ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '';
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
