@@ -993,6 +993,7 @@ export function useRosita() {
             resolved = true;
             clearInterval(pollInterval);
             if (durationTimer !== undefined) clearTimeout(durationTimer);
+            if (posStableTimer !== undefined) clearTimeout(posStableTimer);
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
             if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
@@ -1003,6 +1004,7 @@ export function useRosita() {
           let started = false;
           let silenceCount = 0;
           let durationTimer: ReturnType<typeof setTimeout> | undefined;
+          let posStableTimer: ReturnType<typeof setTimeout> | undefined;
           let lastPos = -1;
 
           const noStartTimer = setTimeout(() => { if (!started) done('no-start-4s'); }, 4000);
@@ -1039,15 +1041,19 @@ export function useRosita() {
                   silenceCount = 0;
                 } else if (pos !== lastPos) {
                   silenceCount = 0;
+                  if (posStableTimer !== undefined) { clearTimeout(posStableTimer); posStableTimer = undefined; }
                 } else {
+                  // Streaming (durKnown=false): timer independiente de playing (oscila en Android)
+                  if (!durKnown && pos > 0.1 && posStableTimer === undefined) {
+                    posStableTimer = setTimeout(() => done('pos-stable'), 1500);
+                  }
                   silenceCount++;
-                  // Streaming sin duration: detectar fin más rápido una vez que el audio progresó
                   const thresh = durKnown ? 15 : (pos > 0.3 ? 5 : 15);
                   if (__DEV__) console.log('[TTS] poll silencio', silenceCount, '| pos:', pos?.toFixed(2), '| dur:', dur?.toFixed(2));
                   if (silenceCount >= thresh) done('silence-polls');
                 }
               } else {
-                silenceCount = 0;
+                if (pos !== lastPos) silenceCount = 0;
               }
               lastPos = pos;
             }
