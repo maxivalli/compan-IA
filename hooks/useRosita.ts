@@ -1053,7 +1053,13 @@ export function useRosita() {
                   if (silenceCount >= thresh) done('silence-polls');
                 }
               } else {
-                if (pos !== lastPos) silenceCount = 0;
+                // playing=true: ExoPlayer puede quedarse esperando más datos del WAV streaming
+                if (pos !== lastPos) {
+                  silenceCount = 0;
+                  if (posStableTimer !== undefined) { clearTimeout(posStableTimer); posStableTimer = undefined; }
+                } else if (!durKnown && pos > 0.1 && posStableTimer === undefined) {
+                  posStableTimer = setTimeout(() => done('pos-stable'), 1500);
+                }
               }
               lastPos = pos;
             }
