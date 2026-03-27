@@ -1045,7 +1045,7 @@ export function useRosita() {
                 } else {
                   // Streaming (durKnown=false): timer independiente de playing (oscila en Android)
                   if (!durKnown && pos > 0.1 && posStableTimer === undefined) {
-                    posStableTimer = setTimeout(() => done('pos-stable'), 1500);
+                    posStableTimer = setTimeout(() => done('pos-stable'), 600);
                   }
                   silenceCount++;
                   const thresh = durKnown ? 15 : (pos > 0.3 ? 5 : 15);
@@ -1058,7 +1058,7 @@ export function useRosita() {
                   silenceCount = 0;
                   if (posStableTimer !== undefined) { clearTimeout(posStableTimer); posStableTimer = undefined; }
                 } else if (!durKnown && pos > 0.1 && posStableTimer === undefined) {
-                  posStableTimer = setTimeout(() => done('pos-stable'), 1500);
+                  posStableTimer = setTimeout(() => done('pos-stable'), 600);
                 }
               }
               lastPos = pos;
