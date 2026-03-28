@@ -275,7 +275,6 @@ export default function Configuracion() {
   const [codigoRegistro, setCodigoRegistro] = useState<string | null>(null);
   const [pinOverlay, setPinOverlay]       = useState<'oculto' | 'verificar' | 'crear' | 'cambiar'>('oculto');
   const [pinConfigurado, setPinConfigurado] = useState(false);
-  const [debugChatId, setDebugChatId]     = useState('');
   const [pinDesbloqueado, setPinDesbloqueado] = useState(false);
 
   const [horaInicioNoche, setHoraInicioNoche] = useState(23);
@@ -373,7 +372,6 @@ export default function Configuracion() {
       setHoraFinNoche(p.horaFinNoche ?? 9);
       setIdsActivos((p.telegramContactos || []).map(c => c.id));
       setContactos(p.telegramContactos || []);
-      setDebugChatId(p.debugChatId ?? '');
     });
   }, []);
 
@@ -464,7 +462,6 @@ export default function Configuracion() {
       })(),
       telegramChatIds:   idsActivos,
       telegramContactos: contactosActivos,
-      debugChatId:       debugChatId.trim() || undefined,
     });
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
@@ -857,17 +854,6 @@ export default function Configuracion() {
             <Ionicons name="shield-outline" size={18} color={M.onSurfaceVariant} />
             <Text style={[s.buscarText, { color: M.onSurfaceVariant }]}>Política de privacidad</Text>
           </TouchableOpacity>
-        </Surface>
-
-        {/* ── Debug ── */}
-        <SectionLabel icon="bug-outline" label="Debug" />
-        <Surface>
-          <M3Input
-            label="Chat ID de Telegram para logs"
-            value={debugChatId}
-            onChangeText={setDebugChatId}
-            placeholder="ej: 123456789"
-          />
         </Surface>
 
         <View style={{ height: 16 }} />

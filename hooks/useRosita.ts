@@ -155,6 +155,8 @@ function categorizarRapida(texto: string): CategoriaRapida | null {
   if (PATRON_EMPATICO.test(texto))  return null;
   if (PATRON_BUSQUEDA.test(texto))  return null;
   if (PATRON_COMANDO.test(texto))   return null;
+  // Si hay una pregunta o contenido sustancial después del saludo, dejar que Claude responda
+  if (/[¿?]/.test(texto) || /,\s*\w/.test(texto)) return null;
   if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
@@ -612,7 +614,6 @@ export function useRosita() {
 
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
-  const debugTimingsRef    = useRef<{ t0: number; t1: number; t2: number; tPrimeraDetectada: number; tWinner: number; winnerKind: string } | null>(null);
 
   function extraerPrimeraFrase(texto: string): { primera: string; resto: string } {
     const match = texto.match(/^.{20,}?[.!?](?:\s+|$)/);
@@ -1108,11 +1109,6 @@ export function useRosita() {
         // setEstado visual se hace en el poll cuando playing=true (audio realmente arrancó),
         // para no animar la boca durante el buffering de Cartesia streaming.
         estadoRef.current = 'hablando';
-        // ── Guardar timing TTS para el log consolidado de responderConClaude ──
-        if (debugTimingsRef.current) {
-          (debugTimingsRef.current as any).tPlay    = Date.now();
-          (debugTimingsRef.current as any).cacheHit = isStream ? 'stream' : true;
-        }
         player.play();
         if (__DEV__) console.log('[TTS] play() llamado');
         await new Promise<void>(resolve => {
@@ -1157,7 +1153,6 @@ export function useRosita() {
                 started = true;
                 lastPos = pos;
                 clearTimeout(noStartTimer);
-                if (debugTimingsRef.current) (debugTimingsRef.current as any).tAudioStart = Date.now();
                 // Animación de boca sincronizada con el audio real (no con play())
                 setEstado('hablando');
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
@@ -1492,16 +1487,13 @@ export function useRosita() {
     const esLugarLocal = !!tipoLugar && !!coordRef.current;
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
-    const t0 = Date.now();
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
     let tagDetectadoStreaming = 'neutral';
-    let tPrimeraDetectada = 0;
     let primeraFraseResolver: ((txt: string) => void) | null = null;
     const primeraFraseDisparada = new Promise<string>(resolve => { primeraFraseResolver = resolve; });
     const onPrimeraFrase = (primera: string, tag: string) => {
-      tPrimeraDetectada = Date.now();
       tagDetectadoStreaming = tag.toLowerCase();
       // Arrancar el fetch de Cartesia inmediatamente — overlap con muletilla y race.
       // Si hay muletilla de 2s, cuando hablar() llame estará cacheado → cero gap.
@@ -1518,10 +1510,9 @@ export function useRosita() {
 
       // Muletilla arranca de inmediato — los callbacks XHR del streaming
       // se disparan entre los ticks del setInterval interno de hablar().
-      let tMuletillaPlay = 0;
       const muletillaAbort = { current: false };
       const muletillaPromise = catMuletilla
-        ? reproducirMuletilla(catMuletilla, muletillaAbort, () => { tMuletillaPlay = Date.now(); })
+        ? reproducirMuletilla(catMuletilla, muletillaAbort)
         : Promise.resolve(null);
 
       if (!pideNoticias && !pideBusqueda) {
@@ -1577,28 +1568,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
         });
       }
 
-      // Race arranca de inmediato — sin esperar que la muletilla termine
-      const t1 = Date.now();
-
-      // Inicializar debug ref antes del race para que primera-case también lo vea
-      if (p.debugChatId) {
-        debugTimingsRef.current = { t0, t1, t2: 0, tPrimeraDetectada: 0, tWinner: 0, winnerKind: '' };
-      }
-
       const winner = await Promise.race([
         primeraFraseDisparada.then(t => ({ kind: 'primera' as const, t })),
         claudePromise.then(t => ({ kind: 'claude' as const, t })),
       ]);
-      const tWinner = Date.now();
-      if (debugTimingsRef.current) {
-        debugTimingsRef.current.tWinner = tWinner;
-        debugTimingsRef.current.tPrimeraDetectada = tPrimeraDetectada;
-        debugTimingsRef.current.winnerKind = winner.kind;
-      }
 
-      // Señalar abort y esperar que la muletilla ceda el player (poll cada 80ms → max 80ms de espera)
-      muletillaAbort.current = true;
-      const textoMuletilla = await muletillaPromise;
+      // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
+      await muletillaPromise;
 
       if (winner.kind === 'primera') {
         // Primera frase lista — reproducirla mientras Claude termina de streamear
@@ -1625,55 +1601,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
 
       // Obtener respuesta completa de Claude (ya resuelta si primera ganó el race)
-      if (__DEV__) console.log('[RC] esperando respuesta completa de Claude...');
       const respuestaRaw = (await claudePromise) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
-      const t2 = Date.now();
-      // Actualizar t2 en el ref si no fue consumido aún (caso claude ganó el race)
-      if (debugTimingsRef.current) debugTimingsRef.current.t2 = t2;
-
-      // ── Log de debug (solo si debugChatId configurado) ──
-      const debugChatId = p.debugChatId;
-      if (debugChatId) {
-        const dt = debugTimingsRef.current as any;
-        const ms = (n: number) => n ? `${n - t0}ms` : '–';
-
-        // Muletilla
-        const muletillaLinea = textoMuletilla
-          ? `🎭 (${catMuletilla}) "${textoMuletilla}" | play: ${tMuletillaPlay ? `${tMuletillaPlay - t0}ms` : '–'}`
-          : `🎭 sin muletilla`;
-
-        // Streaming / Claude
-        const streamingLinea = winner.kind === 'primera'
-          ? `🎙 Streaming: primera=${ms(tPrimeraDetectada)} | completo=${ms(t2)}`
-          : `🎙 Sin streaming (claude ganó): completo=${ms(t2)}`;
-
-        // Cartesia
-        const modo = dt?.cacheHit === true ? 'cache' : 'stream';
-        const cartesiaLinea = dt?.tPlay
-          ? `🔊 Cartesia (${modo}): play()=${ms(dt.tPlay)} | audio_real=${dt.tAudioStart ? ms(dt.tAudioStart) : '–'}`
-          : `🔊 Cartesia: sin datos`;
-
-        // Análisis de lag percibido
-        const primerSonido = tMuletillaPlay || (tPrimeraDetectada && dt?.tPlay) || dt?.tPlay || 0;
-        const audioReal    = dt?.tAudioStart || 0;
-        const silencioMs   = primerSonido ? primerSonido - t0 : null;
-        const gapMs        = (tMuletillaPlay && audioReal) ? audioReal - tMuletillaPlay : null;
-        const lagLinea     = [
-          silencioMs !== null ? `silencio inicial: ${silencioMs}ms` : null,
-          gapMs      !== null ? `gap muletilla→audio: ${gapMs}ms`   : null,
-        ].filter(Boolean).join(' | ');
-
-        const lineas = [
-          `👤 <b>${textoUsuario}</b>`,
-          muletillaLinea,
-          streamingLinea,
-          cartesiaLinea,
-          lagLinea ? `📊 ${lagLinea}` : null,
-          `🤖 ${respuestaRaw.slice(0, 400)}`,
-        ].filter(Boolean);
-        enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
-        debugTimingsRef.current = null;
-      }
 
       const parsed = parsearRespuesta(
         respuestaRaw,
