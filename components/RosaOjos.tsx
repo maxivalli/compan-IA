@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Svg, {
   Circle,
@@ -52,9 +52,13 @@ const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: num
 
 // ── Boca ─────────────────────────────────────────────────────────────────────
 
+// Dimensiones base fijas — la boca escala con transform (nativeDriver: true)
+const BOCA_W = 86;
+const BOCA_H = 14;
+
 function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion: Expresion; silbando: boolean }) {
-  const height  = useRef(new Animated.Value(14)).current;
-  const width   = useRef(new Animated.Value(86)).current;
+  const scaleY  = useRef(new Animated.Value(1)).current;    // 1 = BOCA_H
+  const scaleX  = useRef(new Animated.Value(1)).current;    // 1 = BOCA_W
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
@@ -65,19 +69,19 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       const loop = Animated.loop(
         Animated.sequence([
           Animated.parallel([
-            Animated.timing(height, { toValue: 14, duration: 500, useNativeDriver: false }),
-            Animated.timing(width,  { toValue: 14, duration: 500, useNativeDriver: false }),
+            Animated.timing(scaleY, { toValue: 14/BOCA_H, duration: 500, useNativeDriver: true }),
+            Animated.timing(scaleX, { toValue: 14/BOCA_W, duration: 500, useNativeDriver: true }),
           ]),
           Animated.parallel([
-            Animated.timing(height, { toValue: 26, duration: 500, useNativeDriver: false }),
-            Animated.timing(width,  { toValue: 26, duration: 500, useNativeDriver: false }),
+            Animated.timing(scaleY, { toValue: 26/BOCA_H, duration: 500, useNativeDriver: true }),
+            Animated.timing(scaleX, { toValue: 26/BOCA_W, duration: 500, useNativeDriver: true }),
           ]),
         ])
       );
       loopRef.current = loop;
       Animated.parallel([
-        Animated.timing(height, { toValue: 22, duration: 300, useNativeDriver: false }),
-        Animated.timing(width,  { toValue: 22, duration: 300, useNativeDriver: false }),
+        Animated.timing(scaleY, { toValue: 22/BOCA_H, duration: 300, useNativeDriver: true }),
+        Animated.timing(scaleX, { toValue: 22/BOCA_W, duration: 300, useNativeDriver: true }),
       ]).start(() => loop.start());
       return;
     }
@@ -85,42 +89,42 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     if (expresion === 'bostezando' && !hablando && !silbando) {
       Animated.sequence([
         Animated.parallel([
-          Animated.timing(height, { toValue: 52, duration: 800, useNativeDriver: false }),
-          Animated.timing(width,  { toValue: 54, duration: 800, useNativeDriver: false }),
+          Animated.timing(scaleY, { toValue: 52/BOCA_H, duration: 800, useNativeDriver: true }),
+          Animated.timing(scaleX, { toValue: 54/BOCA_W, duration: 800, useNativeDriver: true }),
         ]),
         Animated.delay(1000),
         Animated.parallel([
-          Animated.timing(height, { toValue: 14, duration: 700, useNativeDriver: false }),
-          Animated.timing(width,  { toValue: 86, duration: 700, useNativeDriver: false }),
+          Animated.timing(scaleY, { toValue: 1, duration: 700, useNativeDriver: true }),
+          Animated.timing(scaleX, { toValue: 1, duration: 700, useNativeDriver: true }),
         ]),
       ]).start();
       return;
     }
 
     if (hablando) {
-      Animated.timing(width, { toValue: 60, duration: 150, useNativeDriver: false }).start();
+      Animated.timing(scaleX, { toValue: 60/BOCA_W, duration: 150, useNativeDriver: true }).start();
       loopRef.current = Animated.loop(
         Animated.sequence([
-          Animated.timing(height, { toValue: 22, duration: 220, useNativeDriver: false }),
-          Animated.timing(height, { toValue: 4,  duration: 200, useNativeDriver: false }),
+          Animated.timing(scaleY, { toValue: 22/BOCA_H, duration: 220, useNativeDriver: true }),
+          Animated.timing(scaleY, { toValue: 4/BOCA_H,  duration: 200, useNativeDriver: true }),
         ])
       );
       loopRef.current.start();
     } else {
-      const reposoHeight =
-        expresion === 'sorprendida' ? 20 :
-        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 10 :
-        expresion === 'enojada' ? 3 :
-        expresion === 'cansada' ? 8 :
-        expresion === 'neutral' ? 14 : 5;
+      const reposoScaleY =
+        expresion === 'sorprendida' ? 20/BOCA_H :
+        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 10/BOCA_H :
+        expresion === 'enojada' ? 3/BOCA_H :
+        expresion === 'cansada' ? 8/BOCA_H :
+        expresion === 'neutral' ? 1 : 5/BOCA_H;
 
-      const reposoWidth =
-        expresion === 'neutral' ? 86 :
-        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 76 : 64;
+      const reposoScaleX =
+        expresion === 'neutral' ? 1 :
+        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' ? 76/BOCA_W : 64/BOCA_W;
 
       Animated.parallel([
-        Animated.timing(height, { toValue: reposoHeight, duration: 350, useNativeDriver: false }),
-        Animated.timing(width,  { toValue: reposoWidth,  duration: 350, useNativeDriver: false }),
+        Animated.timing(scaleY, { toValue: reposoScaleY, duration: 350, useNativeDriver: true }),
+        Animated.timing(scaleX, { toValue: reposoScaleX, duration: 350, useNativeDriver: true }),
       ]).start();
     }
     return () => { loopRef.current?.stop(); };
@@ -146,7 +150,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     <Animated.View style={[
       sb.boca,
       forma,
-      { height, width },
+      { transform: [{ scaleX }, { scaleY }] },
       esCurvaNeutral && {
         backgroundColor: 'transparent',
         borderBottomWidth: 3,
@@ -160,7 +164,8 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
 
 const sb = StyleSheet.create({
   boca: {
-    width: 64,
+    width:  BOCA_W,
+    height: BOCA_H,
     backgroundColor: '#B06050',
     marginTop: 80,
   },
@@ -288,10 +293,15 @@ const sc = StyleSheet.create({
 });
 
 // ── Ojo SVG ───────────────────────────────────────────────────────────────────
+// memo: evita re-renders cuando cambia expresion en el padre.
+// Las animaciones (párpados, iris) van por Animated y no necesitan re-render.
+// Sin memo, un re-render del padre invalida el SVG antes de que su layout esté
+// listo en Fabric → RadialGradient.nativeCreateNativeMethod con radius=0 → crash.
 
-function Ojo({
-  pxAnim, pyAnim, upperLid, lowerLid, blinkLid, cenoLid, cenoExpr, scaleY, offsetX, lidBg, nightAnim,
+const Ojo = memo(function Ojo({
+  side, pxAnim, pyAnim, upperLid, lowerLid, blinkLid, cenoLid, cenoExpr, scaleY, offsetX, lidBg, nightAnim,
 }: {
+  side:     'L' | 'R';
   pxAnim:   Animated.Value;
   pyAnim:   Animated.Value;
   upperLid: Animated.Value;
@@ -304,15 +314,39 @@ function Ojo({
   lidBg:     string;
   nightAnim: Animated.Value;
 }) {
+  // Nodos de animación estabilizados con useRef para no recrearlos en cada render.
+  // Recrear nodos Animated.add mientras el driver nativo está activo causa crashes en new arch.
+
   // Suma total del párpado superior: expresión + parpadeo + ceño estado + ceño expresión
-  const totalUpper = Animated.add(
+  const totalUpper = useRef(Animated.add(
     Animated.add(Animated.add(upperLid, blinkLid), cenoLid),
     cenoExpr,
-  );
+  )).current;
 
-  // translateX del iris (offsetX viene del gap entre ojos, pxAnim del movimiento)
-  const irisX = Animated.add(pxAnim, new Animated.Value(CX));
-  const irisY = Animated.add(pyAnim, new Animated.Value(CY));
+  // Posición del iris dentro del SVG
+  const irisX = useRef(Animated.add(pxAnim, new Animated.Value(CX))).current;
+  const irisY = useRef(Animated.add(pyAnim, new Animated.Value(CY))).current;
+
+  // Reflexos del iris
+  const reflejo1CX = useRef(Animated.add(irisX, new Animated.Value(-PUPIL * 0.28))).current;
+  const reflejo1CY = useRef(Animated.add(irisY, new Animated.Value(-PUPIL * 0.30))).current;
+  const reflejo2CX = useRef(Animated.add(irisX, new Animated.Value(PUPIL * 0.22))).current;
+  const reflejo2CY = useRef(Animated.add(irisY, new Animated.Value(PUPIL * 0.25))).current;
+
+  // Posición Y del párpado inferior: EYE_H - lowerLid
+  const lowerLidY = useRef(Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1))).current;
+
+  // El gradiente radial (gradPiel) usa porcentaje del bounding box del rect.
+  // Si height llega a 0 (expresión "sorprendida": upper=0), Android tira
+  // IllegalArgumentException en RadialGradient.nativeCreate porque radius≤0.
+  // Sumamos 2px mínimos — invisibles dentro del clipPath pero evitan el crash.
+  const totalUpperGrad = useRef(Animated.add(totalUpper, new Animated.Value(2))).current;
+
+  // Interpolación nocturna (único nodo compartido para todos los usos)
+  const nightOpacity = useRef(nightAnim.interpolate({
+    inputRange:  [0, 1],
+    outputRange: [0, 0.82],
+  })).current;
 
   // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
   // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
@@ -333,27 +367,28 @@ function Ojo({
     Z
   `;
 
+  // offsetX (eyeGap) va en un Animated.View SEPARADO con useNativeDriver:false.
+  // Si estuviera junto a scaleY (native:true), el redraw nativo a 60fps del SVG
+  // podría coincidir con el commit de React y dejar el bounding box en 0 → crash RadialGradient.
   return (
-    <Animated.View style={[
-      s.eyeContainer,
-      { transform: [{ scaleY }, { translateX: offsetX }] },
-    ]}>
+    <Animated.View style={{ transform: [{ translateX: offsetX }] }}>
+    <Animated.View style={[s.eyeContainer, { transform: [{ scaleY }] }]}>
       <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`}>
         <Defs>
-          {/* Forma suavizada: afinada arriba pero no tanto. Clippeado al path recalculated */}
-          <ClipPath id="huevo">
+          {/* IDs sufijados con "side" para evitar conflictos entre el ojo L y el R */}
+          <ClipPath id={`huevo${side}`}>
             <Path d={pathFormaOjo}/>
           </ClipPath>
 
           {/* Gradiente radial esclera: blanco cremoso al centro, más oscuro en bordes */}
-          <RadialGradient id="gradEsclera" cx="50%" cy="45%" rx="55%" ry="52%">
+          <RadialGradient id={`gradEsclera${side}`} cx="50%" cy="45%" rx="55%" ry="52%">
             <Stop offset="0%"   stopColor="#FDFAF4" stopOpacity="1"/>
             <Stop offset="60%"  stopColor="#EDE6D8" stopOpacity="1"/>
             <Stop offset="100%" stopColor="#D4C8B0" stopOpacity="1"/>
           </RadialGradient>
 
           {/* Gradiente radial iris: celeste brillante al centro, azul oscuro en bordes */}
-          <RadialGradient id="gradIris" cx="40%" cy="35%" rx="60%" ry="60%">
+          <RadialGradient id={`gradIris${side}`} cx="40%" cy="35%" rx="60%" ry="60%">
             <Stop offset="0%"   stopColor="#A8D8F8" stopOpacity="1"/>
             <Stop offset="30%"  stopColor="#5BA8E0" stopOpacity="1"/>
             <Stop offset="65%"  stopColor="#2464B8" stopOpacity="1"/>
@@ -361,19 +396,19 @@ function Ojo({
           </RadialGradient>
 
           {/* Gradiente radial pupila: no completamente negro, con profundidad */}
-          <RadialGradient id="gradPupila" cx="44%" cy="40%" rx="56%" ry="56%">
+          <RadialGradient id={`gradPupila${side}`} cx="44%" cy="40%" rx="56%" ry="56%">
             <Stop offset="0%"   stopColor="#1E1E38" stopOpacity="1"/>
             <Stop offset="100%" stopColor="#000008" stopOpacity="1"/>
           </RadialGradient>
 
           {/* Gradiente piel párpado: da volumen al párpado */}
-          <RadialGradient id="gradPiel" cx="50%" cy="0%" rx="60%" ry="80%">
+          <RadialGradient id={`gradPiel${side}`} cx="50%" cy="0%" rx="60%" ry="80%">
             <Stop offset="0%"   stopColor="#D4A87A" stopOpacity="1"/>
             <Stop offset="100%" stopColor="#B8864E" stopOpacity="1"/>
           </RadialGradient>
 
           {/* Sombra suave del párpado sobre el ojo — degradé de oscuro a transparente */}
-          <RadialGradient id="gradSombraParpado" cx="50%" cy="0%" rx="50%" ry="100%">
+          <RadialGradient id={`gradSombraParpado${side}`} cx="50%" cy="0%" rx="50%" ry="100%">
             <Stop offset="0%"   stopColor="#000000" stopOpacity="0.18"/>
             <Stop offset="100%" stopColor="#000000" stopOpacity="0"/>
           </RadialGradient>
@@ -386,7 +421,7 @@ function Ojo({
         />
 
         {/* ── Contenido del ojo (clippeado a la forma suavizada) ── */}
-        <G clipPath="url(#huevo)">
+        <G clipPath={`url(#huevo${side})`}>
 
           {/* Esclera con gradiente */}
           <Ellipse
@@ -394,7 +429,7 @@ function Ojo({
             cy={EYE_H * 0.68}
             rx={EYE_W * 0.54}
             ry={EYE_H * 0.46}
-            fill="url(#gradEsclera)"
+            fill={`url(#gradEsclera${side})`}
           />
 
           {/* Iris + pupila animados ── */}
@@ -403,7 +438,7 @@ function Ojo({
             cx={irisX as any}
             cy={irisY as any}
             r={IRIS / 2}
-            fill="url(#gradIris)"
+            fill={`url(#gradIris${side})`}
           />
           {/* Anillo exterior del iris */}
           <AnimatedCircle
@@ -428,12 +463,12 @@ function Ojo({
             cx={irisX as any}
             cy={irisY as any}
             r={PUPIL / 2}
-            fill="url(#gradPupila)"
+            fill={`url(#gradPupila${side})`}
           />
           {/* Reflejo principal ── */}
           <AnimatedEllipse
-            cx={Animated.add(irisX, new Animated.Value(-PUPIL * 0.28)) as any}
-            cy={Animated.add(irisY, new Animated.Value(-PUPIL * 0.30)) as any}
+            cx={reflejo1CX as any}
+            cy={reflejo1CY as any}
             rx={5}
             ry={4}
             fill="white"
@@ -441,8 +476,8 @@ function Ojo({
           />
           {/* Reflejo secundario */}
           <AnimatedEllipse
-            cx={Animated.add(irisX, new Animated.Value(PUPIL * 0.22)) as any}
-            cy={Animated.add(irisY, new Animated.Value(PUPIL * 0.25)) as any}
+            cx={reflejo2CX as any}
+            cy={reflejo2CY as any}
             rx={2.5}
             ry={2}
             fill="white"
@@ -454,7 +489,7 @@ function Ojo({
             x={0} y={0}
             width={EYE_W}
             height={EYE_H * 0.35}
-            fill="url(#gradSombraParpado)"
+            fill={`url(#gradSombraParpado${side})`}
           />
 
           {/* ── Párpado superior ── */}
@@ -471,42 +506,36 @@ function Ojo({
             width={EYE_W}
             height={totalUpper as any}
             fill="#000000"
-            opacity={nightAnim.interpolate({
-              inputRange:  [0, 1],
-              outputRange: [0, 0.82],
-            }) as any}
+            opacity={nightOpacity as any}
           />
 
           {/* ── Párpado inferior ── */}
           <AnimatedRect
             x={0}
-            y={Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1)) as any}
+            y={lowerLidY as any}
             width={EYE_W}
             height={lowerLid as any}
             fill="#C4996A"
           />
           <AnimatedRect
             x={0}
-            y={Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1)) as any}
+            y={lowerLidY as any}
             width={EYE_W}
             height={lowerLid as any}
             fill="#000000"
-            opacity={nightAnim.interpolate({
-              inputRange:  [0, 1],
-              outputRange: [0, 0.82],
-            }) as any}
+            opacity={nightOpacity as any}
           />
 
         </G>
 
         {/* ── Párpado exterior con gradiente de piel — clippeado a la forma suavizada ── */}
-        <G clipPath="url(#huevo)">
+        <G clipPath={`url(#huevo${side})`}>
           <AnimatedRect
             x={0}
             y={0}
             width={EYE_W}
-            height={totalUpper as any}
-            fill="url(#gradPiel)"
+            height={totalUpperGrad as any}
+            fill={`url(#gradPiel${side})`}
           />
           {/* Oscurecimiento nocturno encima del gradiente de piel */}
           <AnimatedRect
@@ -515,17 +544,15 @@ function Ojo({
             width={EYE_W}
             height={totalUpper as any}
             fill="#000000"
-            opacity={nightAnim.interpolate({
-              inputRange:  [0, 1],
-              outputRange: [0, 0.82],
-            }) as any}
+            opacity={nightOpacity as any}
           />
         </G>
 
       </Svg>
     </Animated.View>
+    </Animated.View>
   );
-}
+});
 
 // ── Principal ─────────────────────────────────────────────────────────────────
 
@@ -578,12 +605,14 @@ export default function RosaOjos({
       // Si está amaneciendo, no oscurecer los párpados aunque esté durmiendo
       Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1800, useNativeDriver: false }).start();
       Animated.parallel([
-        Animated.timing(scaleY,  { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pxL,     { toValue: 0, duration: 800,  useNativeDriver: true }),
-        Animated.timing(pxR,     { toValue: 0, duration: 800,  useNativeDriver: true }),
-        Animated.timing(py,      { toValue: 4, duration: 800,  useNativeDriver: true }),
-        Animated.timing(eyeGapL, { toValue: 0, duration: 800,  useNativeDriver: true }),
-        Animated.timing(eyeGapR, { toValue: 0, duration: 800,  useNativeDriver: true }),
+        Animated.timing(scaleY, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pxL,    { toValue: 0, duration: 800,  useNativeDriver: true }),
+        Animated.timing(pxR,    { toValue: 0, duration: 800,  useNativeDriver: true }),
+        Animated.timing(py,     { toValue: 4, duration: 800,  useNativeDriver: true }),
+      ]).start();
+      Animated.parallel([
+        Animated.timing(eyeGapL, { toValue: 0, duration: 800, useNativeDriver: false }),
+        Animated.timing(eyeGapR, { toValue: 0, duration: 800, useNativeDriver: false }),
       ]).start();
     } else if (modoNoche === 'soñolienta') {
       Animated.parallel([
@@ -593,10 +622,12 @@ export default function RosaOjos({
         Animated.timing(nightAnim, { toValue: 0.5,  duration: 1200, useNativeDriver: false }),
       ]).start();
       Animated.parallel([
-        Animated.timing(scaleY,  { toValue: 0.45, duration: 1200, useNativeDriver: true }),
-        Animated.timing(py,      { toValue: 4,    duration: 800,  useNativeDriver: true }),
-        Animated.timing(eyeGapL, { toValue: 0,    duration: 800,  useNativeDriver: true }),
-        Animated.timing(eyeGapR, { toValue: 0,    duration: 800,  useNativeDriver: true }),
+        Animated.timing(scaleY, { toValue: 0.45, duration: 1200, useNativeDriver: true }),
+        Animated.timing(py,     { toValue: 4,    duration: 800,  useNativeDriver: true }),
+      ]).start();
+      Animated.parallel([
+        Animated.timing(eyeGapL, { toValue: 0, duration: 800, useNativeDriver: false }),
+        Animated.timing(eyeGapR, { toValue: 0, duration: 800, useNativeDriver: false }),
       ]).start();
     } else {
       const c = EXPR[expresionRef.current];
@@ -606,10 +637,10 @@ export default function RosaOjos({
         Animated.timing(cenoExpr,  { toValue: c.ceno, duration: 1200, useNativeDriver: false }),
         Animated.timing(nightAnim, { toValue: 0,     duration: 1200, useNativeDriver: false }),
       ]).start();
+      Animated.timing(scaleY, { toValue: 1, duration: 1200, useNativeDriver: true }).start();
       Animated.parallel([
-        Animated.timing(scaleY,  { toValue: 1,            duration: 1200, useNativeDriver: true }),
-        Animated.timing(eyeGapL, { toValue: -c.gapOffset, duration: 1200, useNativeDriver: true }),
-        Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 1200, useNativeDriver: true }),
+        Animated.timing(eyeGapL, { toValue: -c.gapOffset, duration: 1200, useNativeDriver: false }),
+        Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 1200, useNativeDriver: false }),
       ]).start();
     }
   }, [modoNoche]);
@@ -655,9 +686,11 @@ export default function RosaOjos({
         Animated.parallel([
           Animated.timing(upperLid, { toValue: c.upper, duration: 400, useNativeDriver: false }),
           Animated.timing(cenoLid,  { toValue: 0,       duration: 400, useNativeDriver: false }),
-          Animated.timing(pxL,      { toValue: c.pxL,   duration: 400, useNativeDriver: true }),
-          Animated.timing(pxR,      { toValue: c.pxR,   duration: 400, useNativeDriver: true }),
-          Animated.timing(py,       { toValue: c.py,    duration: 400, useNativeDriver: true }),
+        ]).start();
+        Animated.parallel([
+          Animated.timing(pxL, { toValue: c.pxL, duration: 400, useNativeDriver: true }),
+          Animated.timing(pxR, { toValue: c.pxR, duration: 400, useNativeDriver: true }),
+          Animated.timing(py,  { toValue: c.py,  duration: 400, useNativeDriver: true }),
         ]).start();
       };
     }
@@ -674,8 +707,8 @@ export default function RosaOjos({
       Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 420, useNativeDriver: false }),
     ]).start();
     Animated.parallel([
-      Animated.timing(eyeGapL, { toValue: -c.gapOffset, duration: 420, useNativeDriver: true }),
-      Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 420, useNativeDriver: true }),
+      Animated.timing(eyeGapL, { toValue: -c.gapOffset, duration: 420, useNativeDriver: false }),
+      Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 420, useNativeDriver: false }),
     ]).start();
   }, [expresion]);
 
@@ -816,10 +849,10 @@ export default function RosaOjos({
       <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
         <View style={s.contenedor}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
-            <Ojo pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>
+            <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1}>
-            <Ojo pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor} nightAnim={nightAnim}/>
+            <Ojo side="R" pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
         </View>
         {noMolestar && estado === 'esperando' ? <Cremallera /> : <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />}
