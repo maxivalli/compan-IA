@@ -17,6 +17,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "amplificador-audio": "file:./modules/amplificador-audio",
     "expo": "~54.0.33",
     "expo-audio": "~1.1.1",
     "expo-brightness": "~14.0.8",
@@ -29,6 +30,7 @@
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-image-picker": "~17.0.10",
+    "expo-keep-awake": "~15.0.8",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.11",
     "expo-location": "~19.0.8",
@@ -53,8 +55,7 @@
     "react-native-svg": "15.12.1",
     "react-native-web": "~0.21.0",
     "react-native-webview": "13.15.0",
-    "react-native-youtube-iframe": "^2.4.1",
-    "amplificador-audio": "file:./modules/amplificador-audio"
+    "react-native-youtube-iframe": "^2.4.1"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

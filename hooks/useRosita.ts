@@ -23,9 +23,9 @@ import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
 import {
   hashTexto, respuestaOffline,
-  construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
+  construirSystemPromptEstable, construirContextoPerfil, construirContextoTemporal, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, urlCartesiaStream, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, obtenerTokenDispositivo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, urlCartesiaStream, buscarWeb, buscarWikipedia, buscarLugares, leerImagen, sincronizarAnimo, obtenerTokenDispositivo, logCliente, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
@@ -241,14 +241,24 @@ export function useRosita() {
 
   // ── System prompt en dos bloques: estable (cacheable) + dinámico ─────────────
   const systemEstableRef = useRef<{ key: string; text: string } | null>(null);
+  const perfilCacheRef   = useRef<{ key: string; text: string } | null>(null);
   function getSystemBlocks(p: Perfil, climaTexto: string, incluirJuego: boolean, extra = '', incluirChiste = false) {
+    // Bloque 1 — estable: personalidad, reglas, tags (caché ephemeral por nombre/edad/voz)
     const perfKey = `${p.nombreAbuela}|${p.nombreAsistente}|${p.edad}|${p.vozGenero}`;
     if (!systemEstableRef.current || systemEstableRef.current.key !== perfKey) {
       systemEstableRef.current = { key: perfKey, text: construirSystemPromptEstable(p) };
     }
+    // Bloque 2 — semi-estático: perfil + dispositivos (caché ephemeral, invalida cuando cambia el perfil)
+    const perfilKey = `${p.recuerdos.join('|')}|${p.gustos.join('|')}|${p.familiares.join('|')}|${p.medicamentos.join('|')}|${dispositivosTuyaRef.current.map(d => d.id + String(d.estado)).join('|')}`;
+    if (!perfilCacheRef.current || perfilCacheRef.current.key !== perfilKey) {
+      perfilCacheRef.current = { key: perfilKey, text: construirContextoPerfil(p, dispositivosTuyaRef.current) };
+    }
+    // Bloque 3 — dinámico: fecha/hora, clima, juego, búsqueda, ubicación (nunca cacheado)
+    const temporal = construirContextoTemporal(p, climaTexto, incluirJuego, extra, incluirChiste, ciudadRef.current, coordRef.current, feriadosRef.current);
     return [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: construirContextoDinamico(p, climaTexto, incluirJuego, extra, incluirChiste, dispositivosTuyaRef.current) + (ciudadRef.current ? `\nUbicación actual: ${ciudadRef.current}, Argentina.` : '') + (coordRef.current ? `\nCoordenadas GPS exactas: ${coordRef.current.lat.toFixed(4)}, ${coordRef.current.lon.toFixed(4)} — usá estas coordenadas para calcular distancias precisas.` : '') + (feriadosRef.current ? `\n${feriadosRef.current}` : '') },
+      { type: 'text' as const, text: perfilCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
+      { type: 'text' as const, text: temporal },
     ];
   }
   const sinConexionRef   = useRef(false);
@@ -535,9 +545,11 @@ export function useRosita() {
       if (enFlujoVozRef.current) return;
       if (!perfilRef.current?.nombreAbuela) return;
 
-      // Recuperar procesandoRef colgado (safetyTimeout de hablar es 45s, damos 60s)
-      if (procesandoRef.current && Date.now() - procesandoDesdeRef.current > 60000) {
+      // Recuperar procesandoRef colgado: si no está hablando, el cuelgue ocurrió antes del TTS (Claude/red)
+      // Si está 'hablando' dejamos el safetyTimeout de hablar() actuar (45s por oración)
+      if (procesandoRef.current && estadoRef.current !== 'hablando' && Date.now() - procesandoDesdeRef.current > 20000) {
         if (__DEV__) console.log('[Watchdog] procesandoRef colgado — forzando reset');
+        logCliente('watchdog_reset', { estado: estadoRef.current, colgadoMs: Date.now() - procesandoDesdeRef.current });
         procesandoRef.current = false;
         procesandoDesdeRef.current = 0;
       }
@@ -581,6 +593,8 @@ export function useRosita() {
 
   async function precachearMuletillas(voiceId?: string, nombre?: string) {
     if (USAR_TTS_NATIVO) return;
+    if (precacheMuletillasRunningRef.current) return;
+    precacheMuletillasRunningRef.current = true;
     const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
     const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
     const effectiveVoiceId = voiceId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
@@ -588,14 +602,18 @@ export function useRosita() {
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v10_${cat}_${i}_${slug}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v11_${cat}_${i}_${slug}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
         const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? perfilRef.current?.nombreAbuela ?? '');
-        const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
+        const muletillaEmotion: Record<CategoriaMuletilla, string> = {
+          empatico: 'triste', busqueda: 'neutral', nostalgia: 'triste', comando: 'feliz', default: 'feliz',
+        };
+        const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad), muletillaEmotion[cat]).catch(() => null);
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
       }
     }
+    precacheMuletillasRunningRef.current = false;
   }
 
   async function precachearRespuestasRapidas(nombre?: string) {
@@ -613,6 +631,8 @@ export function useRosita() {
   }
 
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
+  const precacheInFlightRef = useRef<Set<string>>(new Set());
+  const precacheMuletillasRunningRef = useRef(false);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
 
   function extraerPrimeraFrase(texto: string): { primera: string; resto: string } {
@@ -689,16 +709,21 @@ export function useRosita() {
   /** Pre-cachea TTS en disco (POST /ai/tts → Cartesia bytes → base64 → archivo).
    *  Usa el mismo cache key que hablar() para garantizar cache hit. */
   async function precachearTexto(texto: string, emotion?: string) {
+    const limpio = limpiarTextoParaTTS(texto);
+    if (!limpio) return;
+    const key = hashTexto(limpio + '|' + (emotion ?? ''));
+    if (precacheInFlightRef.current.has(key)) return;
+    precacheInFlightRef.current.add(key);
     try {
-      const limpio = limpiarTextoParaTTS(texto);
-      if (!limpio) return;
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(limpio + '|' + (emotion ?? '')) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + key + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       if (info.exists) return;
       const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
       const base64 = await sintetizarVoz(limpio, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
       if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-    } catch {}
+    } catch {} finally {
+      precacheInFlightRef.current.delete(key);
+    }
   }
 
 
@@ -716,10 +741,11 @@ export function useRosita() {
       const nombre    = perfilRef.current?.nombreAbuela ?? '';
       const slug      = slugNombre(nombre);
       const texto     = textoRaw.replace(/\{n\}/g, nombre);
-      const uri = FileSystem.cacheDirectory + `muletilla_v10_${categoria}_${idx}_${slug}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_v11_${categoria}_${idx}_${slug}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) return texto;
-      if (abort?.current) return texto; // race ya resolvió, no reproducir
+      if (!info.exists) { logCliente('muletilla_miss', { categoria, idx }); return texto; }
+      if (abort?.current) { logCliente('muletilla_abort', { categoria }); return texto; }
+      logCliente('muletilla_play', { categoria, idx, texto: texto.slice(0, 20) });
       player.replace({ uri });
       player.play();
       onPlay?.();
@@ -884,8 +910,10 @@ export function useRosita() {
         },
       });
       srActivoRef.current = true;
+      logCliente('sr_start', { estado: estadoRef.current });
     } catch {
       srActivoRef.current = false;
+      logCliente('sr_start_error', { estado: estadoRef.current });
     } finally {
       ultimaActivacionSrRef.current = ahora;
     }
@@ -1041,6 +1069,7 @@ export function useRosita() {
   async function hablar(texto: string, emotion?: string) {
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
+    logCliente('hablar_start', { chars: texto.length, emotion: emotion ?? 'none' });
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
     estadoRef.current = 'hablando';
@@ -1125,6 +1154,7 @@ export function useRosita() {
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
             if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
+            logCliente('hablar_end', { motivo, pos: Math.round(((player as any).currentTime ?? 0) * 1000), dur: Math.round(((player as any).duration ?? 0) * 1000) });
             resolve();
           };
 
@@ -1172,7 +1202,7 @@ export function useRosita() {
               }
             } else {
               if (!playing) {
-                const nearEnd = durKnown && pos >= dur - 0.3;
+                const nearEnd = durKnown && pos >= dur - 0.15;
                 if (nearEnd) {
                   done('near-end');
                 } else if (pos === lastPos && durKnown && pos < dur - 0.3) {
@@ -1228,6 +1258,9 @@ export function useRosita() {
     unduckMusica();
     setEstado('esperando');
     estadoRef.current = 'esperando';
+
+    // Pausa breve antes de reanudar SR — evita el "golpe" de corte abrupto
+    await new Promise(r => setTimeout(r, 250));
 
     if (!enFlujoVozRef.current) {
       iniciarSpeechRecognition();
@@ -1458,6 +1491,8 @@ export function useRosita() {
     const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
     const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
     const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|heladeria|heladerias|restaurant|restaurante|pizzeria|panaderia|carniceria|verduleria|ferreteria|peluqueria|gimnasio|kiosco|confiteria|cafe|bar|veterinaria|optica|zapateria|ropa|tienda|negocio|local|comercio|donde puedo|donde compro|donde venden|estacion.{0,5}servicio|nafta|combustible|surtidor|ypf|shell|axion|hay .{3,30} en|intendente|municipio)\b/.test(textoNorm);
+    const preguntaLugarVivo = /\b(lugar donde vivo|ciudad donde vivo|donde vivo|pueblo donde vivo|barrio donde vivo|contame (del|sobre el|de mi|sobre mi) (lugar|ciudad|pueblo|barrio|zona)|que (me podes|podes|sabes|me sabes) contar (del|de mi|sobre) (lugar|ciudad|pueblo|barrio))\b/.test(textoNorm);
+    const pideWikipedia = !pideNoticias && !pideBusqueda && (preguntaLugarVivo || /\b(que es|qué es|que son|qué son|que fue|qué fue|quien es|quién es|quien fue|quién fue|quien era|quién era|contame (sobre|de)|explicame|explicá(me)?|me explicás|que significa|qué significa|historia de|origen de|como funciona|cómo funciona|para que sirve|para qué sirve|cuando naci[oó]|biografía|biografia|quien invento|quién inventó|wikipedia)\b/.test(textoNorm));
 
     let queryBusqueda = textoUsuario;
     let tipoLugar: string | null = null;
@@ -1489,6 +1524,7 @@ export function useRosita() {
     const esLugarLocal = !!tipoLugar && !!coordRef.current;
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
+    logCliente('rc_start', { chars: textoUsuario.length, muletilla: catMuletilla ?? 'none', busqueda: pideBusqueda ? 'si' : 'no', wiki: pideWikipedia ? 'si' : 'no' });
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
@@ -1497,6 +1533,7 @@ export function useRosita() {
     const primeraFraseDisparada = new Promise<string>(resolve => { primeraFraseResolver = resolve; });
     const onPrimeraFrase = (primera: string, tag: string) => {
       tagDetectadoStreaming = tag.toLowerCase();
+      logCliente('primera_frase', { chars: primera.length, tag });
       // Arrancar el fetch de Cartesia inmediatamente — overlap con muletilla y race.
       // Si hay muletilla de 2s, cuando hablar() llame estará cacheado → cero gap.
       precachearTexto(primera, tag.toLowerCase()).catch(() => {});
@@ -1504,7 +1541,8 @@ export function useRosita() {
     };
     const extraBase  = ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '';
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
-    const maxTokBase = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
+    const maxTokBase  = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
+    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -8 : -6;
 
     try {
       let resultadosBusqueda: string | null = null;
@@ -1517,24 +1555,24 @@ export function useRosita() {
         ? reproducirMuletilla(catMuletilla, muletillaAbort)
         : Promise.resolve(null);
 
-      if (!pideNoticias && !pideBusqueda) {
+      if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
         // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
         claudePromise = llamarClaudeConStreaming({
           system:     getSystemBlocks(p, climaRef.current, pideJuego, extraBase, pideChiste),
-          messages:   nuevoHistorial.slice(-8),
+          messages:   nuevoHistorial.slice(histSlice),
           maxTokens:  maxTokBase,
           onPrimeraFrase,
         }).catch(async () => {
           if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
           return await llamarClaude({
             system:    getSystemBlocks(p, climaRef.current, pideJuego, extraBase, pideChiste),
-            messages:  nuevoHistorial.slice(-8),
+            messages:  nuevoHistorial.slice(histSlice),
             maxTokens: maxTokBase,
           }) || '';
         });
       } else {
         // ── Slow path: esperar resultados (muletilla corre durante la búsqueda) ─
-        const [titulosNoticias, busquedaResult] = await Promise.all([
+        const [titulosNoticias, busquedaResult, wikiResult] = await Promise.all([
           pideNoticias ? buscarNoticias(textoUsuario).then(r => r ?? buscarWeb(textoUsuario)) : Promise.resolve(null),
           pideBusqueda
             ? (esLugarLocal
@@ -1543,6 +1581,7 @@ export function useRosita() {
                     .then(r => r !== null ? r : buscarWeb(queryBusqueda))
                 : buscarWeb(queryBusqueda))
             : Promise.resolve(null),
+          pideWikipedia ? buscarWikipedia(preguntaLugarVivo && ciudadRef.current ? ciudadRef.current : textoUsuario) : Promise.resolve(null),
         ]);
         resultadosBusqueda = busquedaResult;
         const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
@@ -1561,8 +1600,12 @@ REGLAS CRÍTICAS PARA RESPONDER:
 2. PRONUNCIACIÓN OBLIGATORIA: Cualquier número que sea altura de dirección o teléfono, escribilo separando CADA dígito con coma y espacio. Ejemplos: "Yrigoyen 7, 6, 2" — "Colón 1, 2, 5, 0" — "3, 4, 0, 8, 6, 7, 7". Sin excepción. No hagas esto con años (1990, 2024).
 3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta. Entregá la información y terminá en punto final.`;
         }
-        const systemFull = getSystemBlocks(p, climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda, pideChiste);
-        const msgSlice   = nuevoHistorial.slice(-8);
+        let contextoWiki = '';
+        if (wikiResult) {
+          contextoWiki = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 60 palabras.\nInformación de Wikipedia para enriquecer tu respuesta:\n${wikiResult}\nUsá esta información de forma natural y cálida, sin citar textualmente Wikipedia.`;
+        }
+        const systemFull = getSystemBlocks(p, climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
+        const msgSlice   = nuevoHistorial.slice(histSlice);
         claudePromise = llamarClaudeConStreaming({
           system: systemFull, messages: msgSlice, maxTokens: maxTokBase, onPrimeraFrase,
         }).catch(async () => {
@@ -1900,12 +1943,14 @@ REGLAS CRÍTICAS PARA RESPONDER:
       await guardarHistorial(nuevoHist);
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
+      const oracionesTotal = splitEnOraciones(parsed.respuesta);
+      logCliente('rc_hablar', { oraciones: oracionesTotal.length, chars: parsed.respuesta.length, primeraReproducida: primeraFraseReproducida });
       if (primeraFraseReproducida) {
         // Primera ya reproducida — reproducir el resto en pipeline (pre-cache por oración)
         const { resto } = extraerPrimeraFrase(parsed.respuesta);
         if (resto) await hablarConCola(splitEnOraciones(resto), parsed.expresion);
       } else {
-        await hablarConCola(splitEnOraciones(parsed.respuesta), parsed.expresion);
+        await hablarConCola(oracionesTotal, parsed.expresion);
       }
 
       // ── Recordatorio de medicamento pendiente ──
@@ -1928,6 +1973,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
     } catch (e: any) {
       if (__DEV__) console.log('[RC] CATCH error:', e?.message ?? e);
+      logCliente('rc_error', { error: String(e?.message ?? e).slice(0, 80) });
       const chatIds  = (perfilRef.current?.telegramContactos ?? []).map(c => c.id);
       const respLocal = respuestaOffline(
         textoUsuario,

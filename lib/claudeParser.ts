@@ -248,12 +248,12 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '',
     'IDENTIDAD Y ESTILO:',
     'Nunca usás palabras genéricas como "amor", "mi amor", "querida". Usás el nombre de la persona con frecuencia y naturalidad, especialmente al inicio de la respuesta y en las preguntas.',
-    'Hacés como máximo UNA pregunta abierta al final, si corresponde. Nunca dos preguntas en la misma respuesta.',
+    'Hacés como máximo UNA pregunta abierta al final, solo cuando el tema lo amerita. No terminás con pregunta en respuestas seguidas — si la respuesta anterior ya tuvo pregunta, esta no tiene. Nunca dos preguntas en la misma respuesta.',
     'NUNCA uses indicaciones escénicas: "pausa", "(pausa)", "(risas)", "(suspiro)", "(silencio)". Tu respuesta es solo texto hablado.',
     '',
     'LONGITUD:',
     maxTokensSegunEdad(p.edad),
-    'Cuando la persona está triste o hablando de algo difícil, podés extenderte un poco más para acompañar bien. En esos casos el límite es orientativo, no estricto.',
+    'Si terminás con una pregunta, la respuesta previa tiene que ser aún más corta (máximo 15 palabras antes de la pregunta). Cuando la persona está triste o hablando de algo difícil, podés extenderte un poco más para acompañar bien. En esos casos el límite es orientativo, no estricto.',
     '',
     'INFORMACIÓN EN TIEMPO REAL:',
     'REGLA CRÍTICA: Si en el contexto hay "Resultados de búsqueda web" o "Noticias recientes", USÁ esa información para responder. NUNCA digas que no tenés acceso a internet ni que no podés buscar algo que ya está en el contexto. Dá la respuesta directa y con confianza.',
@@ -308,53 +308,69 @@ export function construirSystemPromptEstable(p: Perfil): string {
   return lineas.join('\n');
 }
 /** Bloque dinámico: fecha/hora, clima, contexto de perfil y recuerdos. Se envía sin cache. */
-export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false, dispositivos: Dispositivo[] = []): string {
+function generarBloqueDispositivos(dispositivos: Dispositivo[]): string {
+  if (dispositivos.length === 0) {
+    return '\nSIN DOMÓTICA: No hay dispositivos SmartThings vinculados. NUNCA uses los tags [DOMOTICA], [DOMOTICA_ESTADO] ni [DOMOTICA_TODO]. Si la persona pide controlar luces, enchufes u otros dispositivos, respondé amablemente que no hay dispositivos conectados todavía y que se puede configurar en Ajustes.';
+  }
+  return '\nDOMOTICA — Dispositivos SmartThings vinculados:\n' +
+    dispositivos.map(d => {
+      const tipoLower = d.tipo.toLowerCase();
+      const esLuz = tipoLower.includes('light') || tipoLower.includes('bulb') || tipoLower.includes('lamp');
+      const tipoTexto = esLuz ? 'luz' : tipoLower.includes('outlet') || tipoLower.includes('plug') ? 'enchufe' : 'dispositivo';
+      const estadoTexto = d.estado !== undefined ? (d.estado ? ' [ENCENDIDO]' : ' [APAGADO]') : '';
+      const offlineTexto = d.online ? '' : ' [offline]';
+      return `- ${d.nombre} (${tipoTexto})${estadoTexto}${offlineTexto}`;
+    }).join('\n') +
+    '\n\nTags disponibles:' +
+    '\n[DOMOTICA:nombre:switch:true/false] — encender/apagar un dispositivo especifico' +
+    '\n[DOMOTICA_ESTADO:nombre] — consultar si un dispositivo esta encendido o apagado' +
+    '\n[DOMOTICA_TODO] — apagar TODOS los dispositivos a la vez' +
+    '\n\nEjemplos:' +
+    '\n- "apaga la luz del salon" -> [DOMOTICA:luz_salon:switch:false]' +
+    '\n- "enciende el enchufe" -> [DOMOTICA:enchufe_cocina:switch:true]' +
+    '\n- "apaga todo" o "apaga las luces" -> [DOMOTICA_TODO]' +
+    '\n- "esta encendida la luz?" -> [DOMOTICA_ESTADO:luz_salon]' +
+    '\nSolo usa estos tags con dispositivos vinculados. Si no reconoces el dispositivo, diselo amablemente.';
+}
+
+/** Bloque 2 — Semi-estático (perfil + dispositivos). Cacheable con ephemeral.
+ *  Invalida solo cuando cambia el perfil o los dispositivos. */
+export function construirContextoPerfil(p: Perfil, dispositivos: Dispositivo[] = []): string {
+  return `Lo que sabés de la persona:\n${construirContexto(p)}${generarBloqueDispositivos(dispositivos)}`;
+}
+
+/** Bloque 3 — Dinámico (fecha/hora, clima, juego, extra). Nunca cacheado. */
+export function construirContextoTemporal(
+  p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false,
+  ciudad?: string | null, coords?: { lat: number; lon: number } | null, feriados?: string | null,
+): string {
   const ahora = new Date();
   const fecha = ahora.toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const hora  = ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  const esCumple = (() => {
-    if (!p.fechaNacimiento) return false;
-    const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
-    return ahora.getMonth() + 1 === mm && ahora.getDate() === dd;
-  })();
-  const esNavidad   = ahora.getMonth() === 11 && ahora.getDate() === 25;
-  const esAñoNuevo  = ahora.getMonth() === 0  && ahora.getDate() === 1;
-  // Estaciones para hemisferio sur (Argentina)
   const mes = ahora.getMonth() + 1;
   const estacion = (mes >= 12 || mes <= 2) ? 'verano' : (mes <= 5) ? 'otoño' : (mes <= 8) ? 'invierno' : 'primavera';
-  const bloqueDispositivos = dispositivos.length > 0
-    ? (
-        '\nDOMOTICA — Dispositivos SmartThings vinculados:\n' +
-        dispositivos.map(d => {
-          const tipoLower = d.tipo.toLowerCase();
-          const esLuz = tipoLower.includes('light') || tipoLower.includes('bulb') || tipoLower.includes('lamp');
-          const tipoTexto = esLuz ? 'luz' : tipoLower.includes('outlet') || tipoLower.includes('plug') ? 'enchufe' : 'dispositivo';
-          const estadoTexto = d.estado !== undefined
-            ? (d.estado ? ' [ENCENDIDO]' : ' [APAGADO]')
-            : '';
-          const offlineTexto = d.online ? '' : ' [offline]';
-          return `- ${d.nombre} (${tipoTexto})${estadoTexto}${offlineTexto}`;
-        }).join('\n') +
-        '\n\nTags disponibles:' +
-        '\n[DOMOTICA:nombre:switch:true/false] — encender/apagar un dispositivo especifico' +
-        '\n[DOMOTICA_ESTADO:nombre] — consultar si un dispositivo esta encendido o apagado' +
-        '\n[DOMOTICA_TODO] — apagar TODOS los dispositivos a la vez' +
-        '\n\nEjemplos:' +
-        '\n- "apaga la luz del salon" -> [DOMOTICA:luz_salon:switch:false]' +
-        '\n- "enciende el enchufe" -> [DOMOTICA:enchufe_cocina:switch:true]' +
-        '\n- "apaga todo" o "apaga las luces" -> [DOMOTICA_TODO]' +
-        '\n- "esta encendida la luz?" -> [DOMOTICA_ESTADO:luz_salon]' +
-        '\nSolo usa estos tags con dispositivos vinculados. Si no reconoces el dispositivo, diselo amablemente.'
-      )
-    : '\nSIN DOMÓTICA: No hay dispositivos SmartThings vinculados. NUNCA uses los tags [DOMOTICA], [DOMOTICA_ESTADO] ni [DOMOTICA_TODO]. Si la persona pide controlar luces, enchufes u otros dispositivos, respondé amablemente que no hay dispositivos conectados todavía y que se puede configurar en Ajustes.';
-  return `Fecha y hora actual: ${fecha}, ${hora}. Estación del año: ${estacion} (hemisferio sur).
-${climaTexto}
-${esCumple    ? `\n¡HOY ES EL CUMPLEAÑOS DE ${p.nombreAbuela.toUpperCase()}! Mencionar el cumpleaños con mucho cariño en la primera respuesta de la conversación.\n` : ''}
-${esNavidad   ? `\n¡HOY ES NAVIDAD! Podés desearle Feliz Navidad con calidez si surge naturalmente en la conversación.\n` : ''}
-${esAñoNuevo  ? `\n¡HOY ES AÑO NUEVO! Podés desearle Feliz Año Nuevo con alegría si surge naturalmente en la conversación.\n` : ''}
-Lo que sabés de la persona:
-${construirContexto(p)}
-${incluirJuego ? '\n' + formatearJuegoParaClaude(obtenerJuego()) : ''}${incluirChiste ? '\n' + formatearChisteParaClaude(obtenerChiste()) : ''}${bloqueDispositivos}${extra}`;
+  const esCumple = p.fechaNacimiento
+    ? (() => { const [mm, dd] = p.fechaNacimiento!.split('-').map(Number); return ahora.getMonth() + 1 === mm && ahora.getDate() === dd; })()
+    : false;
+  const esNavidad  = ahora.getMonth() === 11 && ahora.getDate() === 25;
+  const esAñoNuevo = ahora.getMonth() === 0  && ahora.getDate() === 1;
+  return [
+    `Fecha y hora actual: ${fecha}, ${hora}. Estación del año: ${estacion} (hemisferio sur).`,
+    climaTexto,
+    esCumple    ? `\n¡HOY ES EL CUMPLEAÑOS DE ${p.nombreAbuela.toUpperCase()}! Mencionarlo con mucho cariño en la primera respuesta.\n` : '',
+    esNavidad   ? '\n¡HOY ES NAVIDAD! Podés desearle Feliz Navidad con calidez si surge naturalmente.\n' : '',
+    esAñoNuevo  ? '\n¡HOY ES AÑO NUEVO! Podés desearle Feliz Año Nuevo con alegría si surge naturalmente.\n' : '',
+    incluirJuego   ? '\n' + formatearJuegoParaClaude(obtenerJuego())   : '',
+    incluirChiste  ? '\n' + formatearChisteParaClaude(obtenerChiste()) : '',
+    ciudad  ? `\nUbicación actual: ${ciudad}, Argentina.` : '',
+    coords  ? `\nCoordenadas GPS exactas: ${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)} — usá estas coordenadas para calcular distancias precisas.` : '',
+    feriados ?? '',
+    extra,
+  ].filter(Boolean).join('\n');
+}
+
+export function construirContextoDinamico(p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false, dispositivos: Dispositivo[] = []): string {
+  return construirContextoPerfil(p, dispositivos) + '\n' + construirContextoTemporal(p, climaTexto, incluirJuego, extra, incluirChiste);
 }
 
 /** @deprecated Usar construirSystemPromptEstable + construirContextoDinamico */

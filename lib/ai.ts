@@ -290,6 +290,23 @@ export async function buscarWeb(query: string): Promise<string | null> {
   }
 }
 
+/** Busca en Wikipedia en español. Devuelve "Título:\nextracto" o null. */
+export async function buscarWikipedia(query: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(
+      `${BACKEND_URL}/ai/wikipedia?q=${encodeURIComponent(query)}`,
+      { headers: await jsonHeaders() },
+      8000,
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.extracto) return null;
+    return `${data.titulo}:\n${data.extracto}`;
+  } catch {
+    return null;
+  }
+}
+
 /** Envía una imagen al backend para que Claude Vision la lea/describa. */
 export async function leerImagen(base64: string): Promise<string | null> {
   try {
@@ -331,6 +348,15 @@ export async function generarSonido(
   if (!res.ok) return null;
   const data = await res.json();
   return data.audio ?? null;
+}
+
+/** Fire-and-forget: loguea un evento de cliente en Railway. */
+export function logCliente(event: string, data?: Record<string, string | number | boolean>): void {
+  fetch(`${BACKEND_URL}/debug/log`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event, data }),
+  }).catch(() => {});
 }
 
 export async function reportarCrash(message: string, stack: string, platform: string, extra?: string): Promise<void> {
