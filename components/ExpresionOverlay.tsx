@@ -92,7 +92,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
             {expresion === 'feliz'       && <Corazones />}
             {expresion === 'mimada'      && <Corazones />}
             {expresion === 'mimada'      && <Mejillas />}
-            {expresion === 'sorprendida' && <Exclamaciones />}
+            {expresion === 'sorprendida' && !esTormenta && <Exclamaciones />}
             {expresion === 'pensativa'   && <SignosPregunta />}
             {expresion === 'chiste'      && <Carcajada />}
             {expresion === 'enojada'     && <CenoEnojado />}

@@ -372,10 +372,13 @@ export function Relampagos({ onRelampago }: { onRelampago?: () => void }) {
   const rayoSc   = useRef(new Animated.Value(0.8)).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animRef  = useRef<Animated.CompositeAnimation | null>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     function disparar() {
-      onRelampago?.();
+      if (!mountedRef.current) return;
+      try { onRelampago?.(); } catch (e) { console.error('[RELAMPAGO-CB]', e); }
       animRef.current = Animated.sequence([
         Animated.parallel([
           Animated.timing(rayoOp, { toValue: 1,   duration: 60,  useNativeDriver: true }),
@@ -388,12 +391,15 @@ export function Relampagos({ onRelampago }: { onRelampago?: () => void }) {
           Animated.timing(rayoSc, { toValue: 0.8, duration: 200, useNativeDriver: true }),
         ]),
       ]);
-      animRef.current.start(() => {
-        timerRef.current = setTimeout(disparar, 8000 + Math.random() * 12000);
+      animRef.current.start(({ finished }) => {
+        if (finished && mountedRef.current) {
+          timerRef.current = setTimeout(disparar, 8000 + Math.random() * 12000);
+        }
       });
     }
     timerRef.current = setTimeout(disparar, 2000 + Math.random() * 4000);
     return () => {
+      mountedRef.current = false;
       if (timerRef.current) clearTimeout(timerRef.current);
       animRef.current?.stop();
     };

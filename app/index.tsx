@@ -657,7 +657,7 @@ export default function Index() {
         </TouchableOpacity>
       </Modal>
 
-      {!!climaObj && (
+      {!!climaObj && !linternaActiva && (
         <Text style={{ position: 'absolute', top: safeTop + 10, left: 0, right: 0, textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,0.75)', letterSpacing: 0.5 }}>
           📍 {ciudadDetectada || `${climaObj.temperatura}°C`}
         </Text>
