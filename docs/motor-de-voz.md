@@ -110,8 +110,7 @@ onPressIn (botón micrófono)
   estado = 'pensando'
   ┌─────────────────────┐
   │  Backend: Whisper   │
-  │  transcribirAudio() │
-  │  POST /ai/whisper   │
+  │  POST /ai/transcribe│
   └──────────┬──────────┘
              │ texto transcripto
              ▼
@@ -128,49 +127,117 @@ onPressIn (botón micrófono)
 
 ```
   estado = 'pensando'
-  agregar mensaje al historial
+  agregar mensaje al historial (nuevoHistorial)
          │
-         ├─ pideNoticias? (regex: f1, boca, dolar, etc.)
-         │     └─ sí → buscarNoticias() → Google News RSS
-         │              → contextoNoticias (se pasa en bloque dinámico)
-         │
-         ├─ pideJuego? → incluirJuego = true
+         ├─ pideNoticias? → buscarNoticias() → Google News RSS
+         ├─ pideBusqueda? → buscarLugares() (Overpass) o buscarWeb() (Serper)
+         ├─ pideJuego?    → incluirJuego = true
+         ├─ pideCuento/pideChiste? → max_tokens = 700
          │
          ▼
-  ┌───────────────────────────────────────────────────┐
-  │  Backend: Claude Haiku                            │
-  │  POST /ai/chat                                    │
-  │                                                   │
-  │  system: [                                        │
-  │    { text: instrucciones+tono+tags,               │
-  │      cache_control: 'ephemeral' }  ← CACHEABLE    │
-  │    { text: fecha/hora+clima+perfil+noticias }      │
-  │  ]                                                │
-  │  messages: historial.slice(-10)                   │
-  │  max_tokens: 180                                  │
-  └──────────────────────┬────────────────────────────┘
-                         │ respuestaRaw
-                         ▼
-  parsearRespuesta()
-    → tagPrincipal: [FELIZ|TRISTE|MUSICA|JUEGO|...]
-    → respuesta: texto limpio para hablar
-    → recuerdos[], animoUsuario, recordatorio, timer...
+  ┌──────────────────────────────────────────────────────┐
+  │  Muletilla (en paralelo con Claude streaming)        │
+  │                                                      │
+  │  categorizarMuletilla(texto):                        │
+  │    PATRON_SKIP   → null (saludos, gracias, etc.)     │
+  │    PATRON_EMPATICO → 'empatico'                      │
+  │    PATRON_BUSQUEDA → 'busqueda'                      │
+  │    PATRON_NOSTALGIA → 'nostalgia'                    │
+  │    PATRON_COMANDO → 'comando'                        │
+  │    default        → 'default'                        │
+  │                                                      │
+  │  reproducirMuletilla(cat) → player.replace(cacheUri) │
+  │    archivo: muletilla_v10_{cat}_{i}_{slug}.mp3       │
+  │    muletillaAbort: señal para ceder el player        │
+  └──────────────────────────────────────────────────────┘
          │
-         ├─ [MUSICA: clave] → buscarRadio() → playerMusica.replace()
-         ├─ [PARAR_MUSICA]  → playerMusica.pause()
-         ├─ [RECUERDO: ...] → agregarRecuerdo() → AsyncStorage
-         ├─ [TIMER: seg]    → setTimeout(seg * 1000) → hablar aviso
-         ├─ [RECORDATORIO:] → guardarRecordatorio() → notificación futura
+         ▼ en paralelo ──────────────────────────────────────────────┐
+  ┌─────────────────────────────────────────────────────┐            │
+  │  Backend: Claude Haiku streaming                    │            │
+  │  POST /ai/chat-stream (SSE)                         │            │
+  │                                                     │            │
+  │  system: [                                          │            │
+  │    { text: instrucciones+tono+tags,                 │            │
+  │      cache_control: 'ephemeral' }  ← CACHEABLE      │            │
+  │    { text: fecha/hora+clima+perfil+noticias }        │            │
+  │  ]                                                  │            │
+  │  messages: historial.slice(-8)                      │            │
+  │  max_tokens: 180 (normal) / 300 (acción) / 700 (cc) │            │
+  │  stream: true                                       │            │
+  │                                                     │            │
+  │  onPrimeraFrase(primera, tag):                      │            │
+  │    • dispara cuando llega oración completa (≥15ch)  │            │
+  │    • no requiere segunda oración                    │            │
+  │    • llama precachearTexto(primera) INMEDIATAMENTE  │            │
+  │      → Cartesia fetch arranca solapado con muletilla│            │
+  │    • resuelve primeraFraseDisparada Promise         │            │
+  └──────────────────────┬──────────────────────────────┘            │
+                         │                                           │
+                         ▼                                           │
+  Promise.race([primeraFraseDisparada, claudePromise])  ◄────────────┘
+         │
+         ├─ primera ganó (respuesta de 2+ oraciones o lenta):
+         │     muletillaAbort → espera que ceda el player
+         │     hablar(primera, tag) ← Cartesia ya en cache o muy adelantado
+         │     precachearTexto(restOraciones[0]) ← 1ra oración del resto
+         │     en paralelo: esperar claudePromise completo
+         │     await hablarPrimeraPromise
+         │
+         └─ claude ganó (respuesta corta/rápida):
+               muletillaAbort → espera que ceda el player
+               (continúa al bloque de respuesta completa)
+         │
+         ▼
+  parsearRespuesta(respuestaRaw)
+    → tagPrincipal, respuesta, expresion, animoUsuario
+    → recuerdos[], recordatorio, timer, mensajeFamiliar, emergencia
+    → listas (LISTA_NUEVA, LISTA_AGREGAR, LISTA_BORRAR)
+         │
+         ├─ [MUSICA: clave]     → buscarRadio() → playerMusica
+         ├─ [PARAR_MUSICA]      → playerMusica.pause()
+         ├─ [RECUERDO: ...]     → agregarRecuerdo() → AsyncStorage
+         ├─ [TIMER: seg]        → setTimeout → hablar aviso
+         ├─ [RECORDATORIO:]     → guardarRecordatorio()
+         ├─ [ALARMA:]           → guardarRecordatorio(esAlarma: true)
          ├─ [MENSAJE_FAMILIAR:] → enviarAlertaTelegram()
-         └─ [EMERGENCIA:]   → enviarAlertaTelegram() urgente
+         ├─ [EMERGENCIA:]       → enviarAlertaTelegram() urgente
+         ├─ [LISTA_NUEVA:]      → guardarLista()
+         ├─ [LISTA_AGREGAR:]    → agregarItemLista()
+         └─ [LISTA_BORRAR:]     → borrarLista()
          │
          ▼
-  hablar(respuesta)
+  setExpresion(parsed.expresion)
+  guardarEntradaAnimo(parsed.animoUsuario)
+         │
+         ├─ primeraFraseReproducida = true:
+         │     extraerPrimeraFrase(respuesta) → resto
+         │     hablarConCola(splitEnOraciones(resto), expresion)
+         │
+         └─ primeraFraseReproducida = false:
+               hablarConCola(splitEnOraciones(respuesta), expresion)
 ```
 
 ---
 
-## hablar(texto) — reproducción TTS
+## hablarConCola(oraciones[], emotion)
+
+Pipeline de reproducción que elimina los gaps entre oraciones para respuestas largas.
+
+```
+  oraciones = ['Oración 1.', 'Oración 2.', 'Oración 3.']
+         │
+         ▼
+  Para cada oración[i]:
+    ├─ precachearTexto(oraciones[i+1]) ← arranca fetch de la siguiente
+    ├─ await hablar(oraciones[i])      ← reproduce actual
+    └─ await nextPrecache              ← garantiza que la siguiente esté lista
+         │
+         ▼ siguiente oración → CACHE HIT → cero gap
+```
+
+---
+
+## hablar(texto, emotion?) — reproducción TTS
 
 ```
   ExpoSpeechRecognitionModule.stop()
@@ -179,22 +246,33 @@ onPressIn (botón micrófono)
          ├─ texto > 450 chars → cortar en límite de oración
          │
          ▼
-  cacheUri = cacheDirectory + 'tts_v2_' + hash(texto) + '.mp3'
+  limpio = limpiarTextoParaTTS(texto)
+    → expande °C, %, km/h, números de teléfono, etc.
+    → elimina markdown y stage directions (pausa), (risas)
+         │
+         ▼
+  cacheUri = cacheDirectory + 'tts_v4_' + hash(limpio + '|' + emotion) + '.mp3'
          │
          ├─ archivo existe? → uri = cacheUri  (CACHE HIT — sin llamada)
          │
          └─ no existe?
               │
               ▼
-         ┌──────────────────────────┐
-         │  Backend: ElevenLabs     │
-         │  POST /ai/tts            │
-         │  model: eleven_flash_v2_5│
-         │  stability: 0.6          │
-         │  similarity_boost: 0.8   │
-         │  speed: 0.9              │
-         └────────────┬─────────────┘
-                      │ base64 MP3
+         ┌──────────────────────────────────────────┐
+         │  Backend: Cartesia TTS                   │
+         │  GET /ai/tts-cartesia-stream             │
+         │    ?text=...&voiceId=...&speed=...       │
+         │    &emotion=...&k=APP_API_KEY            │
+         │  model: sonic-3                          │
+         │  output: MP3 44100hz                     │
+         │  speed: velocidadSegunEdad(edad)          │
+         │  emotion: mapeado por expresión           │
+         │    feliz→positivity:high                 │
+         │    triste→sadness:high                   │
+         │    sorprendida→surprise:high             │
+         │    etc.                                  │
+         └────────────┬─────────────────────────────┘
+                      │ MP3 buffered (Content-Length conocido)
                       ▼
               FileSystem.writeAsStringAsync(cacheUri)
          │
@@ -210,10 +288,11 @@ onPressIn (botón micrófono)
   │  started = false                               │
   │    → si playing: started = true                │
   │       → armar duration-timer (dur + 0.8s)      │
+  │       → capturar tAudioStart (debug)           │
   │                                                │
   │  started = true                                │
   │    → playing: silenceCount = 0                 │
-  │    → !playing + pos ≥ dur - 0.3 → DONE 'near-end'
+  │    → pos ≥ dur - 0.3 → DONE 'near-end'         │
   │    → !playing + pos == lastPos                 │
   │         + pos < dur - 0.3 → STALL              │
   │           → player.play()  (resume)            │
@@ -233,7 +312,94 @@ onPressIn (botón micrófono)
 
 ---
 
-## Watchdog (cada 5 segundos)
+## Muletillas — pre-cache y reproducción
+
+```
+  Al iniciar la app:
+  precachearMuletillas(voiceId, nombre)
+    → para cada categoría × variante:
+        texto = variante.replace('{n}', nombre)
+        archivo: muletilla_v10_{cat}_{i}_{slug}.mp3
+        si no existe → sintetizarVoz() → Cartesia → guardar
+
+  En responderConClaude, cuando se detecta categoría:
+  reproducirMuletilla(cat, abortRef, onPlay?)
+    → elige índice aleatorio (evita repetir último)
+    → player.replace(cacheUri)
+    → player.play()
+    → poll cada 80ms:
+        si abortRef.current = true → detener y ceder player
+        si audio terminó → resolver
+```
+
+Categorías y disparadores:
+
+| Categoría | Disparo | Ejemplo |
+|-----------|---------|---------|
+| `empatico` | dolor, tristeza, miedo, "estoy mal" | "Ay, {n}... estoy acá, contame." |
+| `busqueda` | clima, farmacia, noticias, partido | "Dame un segundito que me fijo..." |
+| `nostalgia` | recuerdos, familia, "cuando era chica" | "Mirá vos, {n}... contame." |
+| `comando` | música, luces, alarma, timer | "¡Dale, {n}!" |
+| `default` | todo lo demás (> 10 chars) | "Mmm, {n}..." |
+| null | PATRON_SKIP (saludos, gracias, etc.) | — sin muletilla — |
+
+---
+
+## precachearTexto(texto, emotion?)
+
+Función compartida por muletillas, hablarConCola y onPrimeraFrase.
+Usa el mismo hash que hablar() → garantiza cache hit.
+
+```
+  limpio = limpiarTextoParaTTS(texto)
+  cacheUri = 'tts_v4_' + hash(limpio + '|' + emotion)
+  si existe → return (ya cacheado)
+  sintetizarVoz(limpio, voiceId, speed, emotion)
+    → POST /ai/tts (Cartesia bytes, base64)
+  writeAsStringAsync(cacheUri, base64)
+```
+
+---
+
+## Log de debug (solo si debugChatId configurado en perfil)
+
+Cada respuesta envía por Telegram:
+
+```
+👤 <texto del usuario>
+🎭 (categoria) "texto muletilla" | play: Xms
+🎙 Streaming: primera=Xms | completo=Xms
+🔊 Cartesia (cache|stream): play()=Xms | audio_real=Xms
+📊 silencio inicial: Xms | gap muletilla→audio: Xms
+🤖 [TAG] respuesta de Claude...
+```
+
+Métricas clave:
+- **silencio inicial**: tiempo desde que el usuario terminó de hablar hasta el primer sonido
+- **gap muletilla→audio**: tiempo de silencio entre que termina la muletilla y arranca el audio real de Cartesia
+- **audio_real**: momento en que ExoPlayer detectó `playing=true` por primera vez
+
+---
+
+## Crash reporting
+
+```
+  app/_layout.tsx:
+    ErrorBoundary.componentDidCatch → reportarCrash()
+    ErrorUtils.setGlobalHandler     → reportarCrash()
+
+  reportarCrash(message, stack, platform, extra):
+    POST /debug/crash { message, stack, platform, installId, extra }
+         │
+         ▼
+    Backend: console.error([CRASH] ...)
+    Si DEBUG_TELEGRAM_CHAT_ID configurado:
+      → sendMessage(chatId, HTML formateado con stack trace)
+```
+
+---
+
+## Watchdog SR (cada 5 segundos)
 
 ```
   ┌─────────────────────────────────────────────┐
@@ -247,10 +413,14 @@ onPressIn (botón micrófono)
                          ▼
            srActivoRef = false?
               OR
-           srActivoRef = true pero sin actividad > 20s? (zombie)
+           srActivoRef = true + sin actividad > 10s (zombie)
+              OR
+           srActivoRef = true + activo > 45s en Android (silent failure)
                          │ sí
                          ▼
               iniciarSpeechRecognition()
+
+  procesandoRef atascado > 60s → forzar false (recovery)
 ```
 
 ---
@@ -259,16 +429,17 @@ onPressIn (botón micrófono)
 
 ```
   Condiciones para activar:
-    • hora entre 9h y 21h
+    • hora entre horaFinNoche y horaInicioNoche (default 9h–23h)
     • última charla hace > 120 min
     • estado = 'esperando'
-    • no está en proceso
+    • no está procesando
     • sin música activa
+    • próxima alarma no en las próximas 2 horas
          │
          ▼
   arrancarCharlaProactiva()
     → llamarClaude(max_tokens: 120)
-      "Iniciá UNA sola frase corta y cálida para charlar"
+      tema según momento del día (mañana/mediodía/tarde/noche)
     → hablar(frase)
     → ultimaCharlaRef = now
 ```
@@ -278,21 +449,28 @@ onPressIn (botón micrófono)
 ## Música y duck
 
 ```
-  Música activa (playerMusica en streaming):
+  Música activa (playerMusica en streaming desde radio-browser.info):
     │
     ├─ SR detecta voz → duckMusica()
     │     playerMusica.volume = 0.15
     │     setTimeout(8s) → unduckMusica() si no respondió
     │
-    ├─ hablar() inicia → playerMusica.volume ya estaba en 0.15
+    ├─ hablar() inicia → volumen ya bajo
     │
     └─ hablar() termina → unduckMusica()
           playerMusica.volume = 1.0
+
+  Con música activa: enConversacion siempre false
+    (requiere mencionar el nombre del asistente)
+
+  Health check a los 10s:
+    si currentTime < 0.5 → intentar URL alternativa del mismo género
+    si alternativa también falla → pararMusica() + hablar aviso
 ```
 
 ---
 
-## Telegram polling (cada 15 segundos)
+## Telegram polling (useNotificaciones, cada 15 segundos)
 
 ```
   GET https://api.telegram.org/bot.../getUpdates
@@ -304,8 +482,14 @@ onPressIn (botón micrófono)
     │     → hablar("Mensaje de [nombre]: ...")
     │     → reproducir audio original después del anuncio
     │
-    └─ texto → ignorar (bot responde automáticamente
-                 indicando que solo se procesan audios)
+    └─ texto → bot responde automáticamente
+               (solo se procesan audios)
+
+  Alertas salientes (enviarAlertaTelegram):
+    SOS         → todos los contactos
+    EMERGENCIA  → todos los contactos (urgente)
+    LLAMAR_FAMILIA → todos los contactos (angustia emocional)
+    MENSAJE_FAMILIAR → contacto específico
 ```
 
 ---
@@ -327,23 +511,46 @@ onPressIn (botón micrófono)
   BLOQUE 2 — Dinámico (sin cache)
   ┌────────────────────────────────────────────────┐
   │ Fecha y hora actual                            │
-  │ Clima (Open-Meteo)                             │
+  │ Clima (OpenWeatherMap): temp, descripción,     │
+  │   pronóstico 3 días, ciudad                    │
   │ Perfil: nombre, edad, familiares, recuerdos    │
-  │ Noticias (si aplica)                           │
+  │ Búsqueda/noticias (si aplica)                  │
   │ ~200–600 tokens                                │
   └────────────────────────────────────────────────┘
 
   HISTORIAL
   ┌────────────────────────────────────────────────┐
-  │ Últimos 10 mensajes (guardados 30, envían 10)  │
+  │ Últimos 8 mensajes (guardados 30, envían 8)    │
   │ ~200–500 tokens                                │
   └────────────────────────────────────────────────┘
 
   OUTPUT
   ┌────────────────────────────────────────────────┐
   │ max_tokens: 180 (respuesta normal)             │
+  │ max_tokens: 300 (acciones: recordatorio, etc.) │
+  │ max_tokens: 700 (cuento, juego, chiste)        │
   │ max_tokens: 120 (charla proactiva)             │
   └────────────────────────────────────────────────┘
+```
+
+---
+
+## Modo noche (evaluado cada 10s)
+
+```
+  hora entre horaFinNoche y horaInicioNoche → 'despierta'
+  (default: 9h–23h, configurable en perfil)
+
+  hora nocturna:
+    └─ actividad < 1 min → 'soñolienta'
+         → brillo al 50% (setBrightnessAsync)
+    └─ sin actividad > 1 min → 'durmiendo'
+         → brillo al 50%
+         → SR detenido
+         → charla proactiva desactivada
+
+  Al volver a 'despierta':
+    → useSystemBrightnessAsync() (restaura brillo del sistema)
 ```
 
 ---
@@ -357,12 +564,14 @@ onPressIn (botón micrófono)
   setExpresion('bostezando') por 2.8s
   siguiente bostezo: mínimo 10 min después
 
-  Sin charla > 10 min + estado 'esperando' + hora diurna + sin música
+  Sin charla > 15 min (evaluado cada 15s en useNotificaciones)
+    + estado 'esperando' + hora diurna + sin música
          │
          ▼
-  reproducirSilbido() → ElevenLabs sound-generation
-  loop cada 2s (máx 3 repeticiones)
-  se detiene al iniciar cualquier interacción
+  reproducirSilbido()
+    → ElevenLabs sound-generation (cacheado en silbido.mp3)
+    → loop hasta 3 repeticiones
+    → se detiene al iniciar cualquier interacción
 ```
 
 ---
@@ -370,27 +579,23 @@ onPressIn (botón micrófono)
 ## Lectura de imágenes / OCR (flujoLeerImagen)
 
 ```
-  SR detecta: "qué dice acá", "leeme esto", "qué pone", "describime", etc.
+  SR detecta: "qué dice acá", "leeme esto", "describime", etc.
          │
          ▼
   hablar("Apuntá la cámara a lo que querés que vea...")
          │
          ▼
   setCamaraFacing('back') → CameraAutoCaptura visible
-  cuenta regresiva 3s → disparo automático → base64
-         │
-         ▼
-  setMostrarCamara(false) → setCamaraFacing('front')
+  cuenta regresiva 3s → disparo automático → base64 JPEG
          │
          ▼
   POST /ai/leer-imagen { imagen: base64 }
     → Claude Haiku Vision (max_tokens: 300)
-    → prompt: "Respondé en español argentino. Si hay texto, leelo completo..."
+    → "Respondé en español argentino. Si hay texto, leelo..."
          │
          ▼
   resultado: string
-    → replace /\d{2,}/g → dígitos a palabras en español
-      (ej: "15" → "uno, cinco")
+    → formatear números para TTS
          │
          ▼
   hablar(textoFormateado)
@@ -398,14 +603,18 @@ onPressIn (botón micrófono)
 
 ---
 
-## Modo noche (evaluado cada 10s)
+## SmartThings (domótica)
 
 ```
-  hora 9h–23h → 'despierta'
+  Claude emite: [DOMOTICA:nombre:switch:true/false]
+         │
+         ▼
+  controlarDispositivo(id, boolean)
+    → POST /smartthings/controlar { deviceId, value }
+    → Backend → Samsung SmartThings API (PAT del usuario)
 
-  hora 23h–9h:
-    └─ actividad < 1 min → 'soñolienta'
-    └─ sin actividad > 1 min → 'durmiendo'
-         SR se detiene, pantalla oscurece
-         Rosita no inicia charla proactiva
+  controlarTodos(false) → apaga todos los dispositivos online
+
+  Estado inicial: GET /smartthings/estado
+    → { vinculado: boolean, dispositivos: Dispositivo[] }
 ```

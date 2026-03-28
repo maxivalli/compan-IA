@@ -54,31 +54,68 @@ type Mensaje = { role: 'user' | 'assistant'; content: string };
 
 type CategoriaMuletilla = 'empatico' | 'busqueda' | 'nostalgia' | 'comando' | 'default';
 
+// {n} se reemplaza con el nombre de la usuaria al pre-cachear y reproducir.
+// Añade ~0.5-1s sin perder contexto — "Mmm, Negrita..." funciona en cualquier situación.
 const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Ay, corazón... estoy acá, contame.', 'Uy... te escucho, decime.', 'Ay, tranquila... acá estoy.'],
-    masculina: ['Ay, amigo... estoy acá, contame.', 'Uy... te escucho, decime.', 'Tranquilo... acá estoy.'],
+    femenina:  ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Ay, tranquila {n}... acá estoy.'],
+    masculina: ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Tranquilo {n}... acá estoy.'],
   },
   busqueda: {
-    femenina:  ['A ver, dame un segundito que me fijo acá...', 'Aguantame un cachito que ya te lo busco...', 'Esperame un ratito que reviso bien...'],
-    masculina: ['A ver, dame un segundito que me fijo acá...', 'Aguantame un cachito que ya te lo busco...', 'Esperame un ratito que reviso bien...'],
+    femenina:  ['A ver, {n}, dame un segundito que me fijo...', 'Aguantame un cachito, {n}, que ya te lo busco...', 'Esperame un ratito, {n}, que reviso...'],
+    masculina: ['A ver, {n}, dame un segundito que me fijo...', 'Aguantame un cachito, {n}, que ya te lo busco...', 'Esperame un ratito, {n}, que reviso...'],
   },
   nostalgia: {
-    femenina:  ['Mirá vos... a ver, contame.', 'Ay, qué lindo... decime.', 'Qué bárbaro, te escucho.'],
-    masculina: ['Mirá vos... a ver, contame.', 'Qué interesante... decime.', 'Qué bárbaro, te escucho.'],
+    femenina:  ['Mirá vos, {n}... contame.', 'Ay, qué lindo, {n}... decime.', 'Qué bárbaro, {n}, te escucho.'],
+    masculina: ['Mirá vos, {n}... contame.', 'Qué interesante, {n}... decime.', 'Qué bárbaro, {n}, te escucho.'],
   },
   comando: {
-    femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
-    masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
+    femenina:  ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
+    masculina: ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
   },
   default: {
-    femenina:  ['Mmm...', 'Mmm... a ver...', 'A ver...'],
-    masculina: ['Mmm...', 'Mmm... a ver...', 'A ver...'],
+    femenina:  ['Mmm, {n}...', 'Mmm... a ver...', 'A ver, {n}...'],
+    masculina: ['Mmm, {n}...', 'Mmm... a ver...', 'A ver, {n}...'],
   },
 };
 
+type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion';
+
+const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculina: string[]; emotion: string }> = {
+  saludo: {
+    femenina:  ['¡Hola, {n}! ¿Cómo andás hoy?', '¡{n}! Qué bueno que me hablás. ¿Cómo estás?', '¡Acá estoy, {n}! ¿Cómo te va?'],
+    masculina: ['¡Hola, {n}! ¿Cómo andás hoy?', '¡{n}! Qué bueno que me hablás. ¿Cómo estás?', '¡Acá estoy, {n}! ¿Cómo te va?'],
+    emotion:   'feliz',
+  },
+  gracias: {
+    femenina:  ['¡De nada {n}!', '¡Para eso estoy, {n}!', '¡De nada, {n}! Cualquier cosa me decís.'],
+    masculina: ['¡De nada {n}!', '¡Para eso estoy, {n}!', '¡De nada, {n}! Cualquier cosa me decís.'],
+    emotion:   'feliz',
+  },
+  de_nada: {
+    femenina:  ['¡Gracias a vos, {n}!', '¡Ay, qué bueno tenerte acá, {n}!', '¡Gracias, {n}! Me alegra estar acá con vos.'],
+    masculina: ['¡Gracias a vos, {n}!', '¡Qué bueno tenerte acá, {n}!', '¡Gracias, {n}! Me alegra estar acá con vos.'],
+    emotion:   'feliz',
+  },
+  despedida: {
+    femenina:  ['¡Chau, {n}! Cuidate mucho.', '¡Hasta luego, {n}! Acá voy a estar cuando me necesitás.', '¡Nos vemos, {n}! Un beso grande.'],
+    masculina: ['¡Chau, {n}! Cuidate mucho.', '¡Hasta luego, {n}! Acá voy a estar cuando me necesitás.', '¡Nos vemos, {n}! Un beso grande.'],
+    emotion:   'neutral',
+  },
+  afirmacion: {
+    femenina:  ['¡Perfecto, {n}! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno, {n}! Acá estoy si necesitás algo.', '¡Genial, {n}!'],
+    masculina: ['¡Perfecto, {n}! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno, {n}! Acá estoy si necesitás algo.', '¡Genial, {n}!'],
+    emotion:   'feliz',
+  },
+};
+
+function slugNombre(nombre: string): string {
+  return nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').slice(0, 12) || 'user';
+}
+
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
-const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s|va|viene)|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
+// "cómo va/viene/estás/andás" solo como saludo — no cuando va seguido de pregunta real ("cómo va a estar el clima")
+const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
 const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo/i;
 const PATRON_BUSQUEDA  = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|calor|frío|farmacia|hospital|heladeria|restaurant|hotel|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 
@@ -111,6 +148,19 @@ function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (PATRON_NOSTALGIA.test(texto)) return 'nostalgia';
   if (PATRON_COMANDO.test(texto))   return 'comando';
   return 'default';
+}
+
+function categorizarRapida(texto: string): CategoriaRapida | null {
+  if (texto.length > 50) return null;
+  if (PATRON_EMPATICO.test(texto))  return null;
+  if (PATRON_BUSQUEDA.test(texto))  return null;
+  if (PATRON_COMANDO.test(texto))   return null;
+  if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';
+  if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
+  if (/\bde nada\b/i.test(texto)) return 'de_nada';
+  if (/\b(chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
+  if (/\b(perfecto|entendido|re bien|todo bien|genial|b[aá]rbaro|de acuerdo)\b/i.test(texto)) return 'afirmacion';
+  return null;
 }
 
 export function useRosita() {
@@ -159,7 +209,6 @@ export function useRosita() {
   const ultimaAlertaRef     = useRef<number>(0);
   const nombreAsistenteRef  = useRef<string>('rosita');
   const expresionTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const miedoTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ojoPicadoTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
   const silbidoActivoRef    = useRef(false);
@@ -528,24 +577,41 @@ export function useRosita() {
 
   // ── Muletillas ──────────────────────────────────────────────────────────────
 
-  async function precachearMuletillas(voiceId?: string) {
+  async function precachearMuletillas(voiceId?: string, nombre?: string) {
     if (USAR_TTS_NATIVO) return;
     const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
     const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
     const effectiveVoiceId = voiceId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+    const slug = slugNombre(nombre ?? perfilRef.current?.nombreAbuela ?? '');
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v8_${cat}_${i}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_v10_${cat}_${i}_${slug}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
-        const base64 = await sintetizarVoz(lista[i], effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
+        const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? perfilRef.current?.nombreAbuela ?? '');
+        const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad)).catch(() => null);
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
       }
     }
   }
 
+  async function precachearRespuestasRapidas(nombre?: string) {
+    if (USAR_TTS_NATIVO) return;
+    const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
+    const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+    const n = nombre ?? perfilRef.current?.nombreAbuela ?? '';
+    for (const cat of Object.keys(RESPUESTAS_RAPIDAS) as CategoriaRapida[]) {
+      const { [genero]: lista, emotion } = RESPUESTAS_RAPIDAS[cat];
+      for (const textoRaw of lista) {
+        const texto = textoRaw.replace(/\{n\}/g, n).trim();
+        if (texto) await precachearTexto(texto, emotion).catch(() => {});
+      }
+    }
+  }
+
   const ultimaMuletillaRef = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
+  const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const debugTimingsRef    = useRef<{ t0: number; t1: number; t2: number; tPrimeraDetectada: number; tWinner: number; winnerKind: string } | null>(null);
 
   function extraerPrimeraFrase(texto: string): { primera: string; resto: string } {
@@ -557,9 +623,86 @@ export function useRosita() {
     return { primera, resto };
   }
 
+  /** Divide un texto en oraciones individuales para pipeline de TTS.
+   *  Fragmentos < 12 chars se fusionan con el siguiente para evitar llamadas triviales. */
+  function splitEnOraciones(texto: string): string[] {
+    const oraciones: string[] = [];
+    const re = /[^.!?]*[.!?]+/g;
+    let match: RegExpExecArray | null;
+    let lastIdx = 0;
+    while ((match = re.exec(texto)) !== null) {
+      const parte = match[0].trim();
+      if (parte.length >= 12) {
+        oraciones.push(parte);
+        lastIdx = match.index + match[0].length;
+      }
+    }
+    const cola = texto.slice(lastIdx).trim();
+    if (cola.length > 0) oraciones.push(cola);
+    return oraciones.filter(s => s.length > 0);
+  }
+
+  /** Reproduce un array de oraciones en pipeline: pre-cachea la N+1 mientras suena la N.
+   *  Garantiza cero gap entre oraciones para respuestas largas (cuentos, juegos). */
+  async function hablarConCola(oraciones: string[], emotion?: string) {
+    if (oraciones.length === 0) return;
+    if (oraciones.length === 1) { await hablar(oraciones[0], emotion); return; }
+    for (let i = 0; i < oraciones.length; i++) {
+      const nextPrecache = i + 1 < oraciones.length
+        ? precachearTexto(oraciones[i + 1], emotion)
+        : Promise.resolve();
+      await hablar(oraciones[i], emotion);
+      await nextPrecache;
+    }
+  }
+
+  /** Limpia texto para TTS: recorta, elimina markup, expande unidades. Pura y determinista. */
+  function limpiarTextoParaTTS(texto: string): string {
+    const MAX_CHARS = 450;
+    if (texto.length > MAX_CHARS) {
+      const corte = texto.lastIndexOf('.', MAX_CHARS);
+      texto = corte > 40 ? texto.slice(0, corte + 1) : texto.slice(0, MAX_CHARS).trimEnd();
+    }
+    return texto
+      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')
+      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')
+      .replace(/(\d+)\s*°\s*[Cc]/g,  '$1 grados')
+      .replace(/(\d+)\s*°\s*[Ff]/g,  '$1 grados Fahrenheit')
+      .replace(/°/g,                  ' grados')
+      .replace(/(\d+)\s*%/g,          '$1 por ciento')
+      .replace(/(\d+)\s*km\/h/gi,     '$1 kilómetros por hora')
+      .replace(/(\d+)\s*m\/s/gi,      '$1 metros por segundo')
+      .replace(/\bkm\b/gi,            'kilómetros')
+      .replace(/\*\*(.+?)\*\*/g,      '$1')
+      .replace(/\*(.+?)\*/g,          '$1')
+      .replace(/#+\s/g,               '')
+      .replace(/[_~`]/g,              '')
+      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', '))
+      .replace(/([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\.?)\s+(\d{2,4})\b/g, (m, word, num) => {
+        const n = parseInt(num);
+        if (n >= 1800 && n <= 2099) return m;
+        return `${word} ${num.split('').join(', ')}`;
+      });
+  }
+
+  /** Pre-cachea TTS en disco (POST /ai/tts → Cartesia bytes → base64 → archivo).
+   *  Usa el mismo cache key que hablar() para garantizar cache hit. */
+  async function precachearTexto(texto: string, emotion?: string) {
+    try {
+      const limpio = limpiarTextoParaTTS(texto);
+      if (!limpio) return;
+      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(limpio + '|' + (emotion ?? '')) + '.mp3';
+      const info = await FileSystem.getInfoAsync(cacheUri);
+      if (info.exists) return;
+      const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+      const base64 = await sintetizarVoz(limpio, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
+      if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+    } catch {}
+  }
 
 
-  async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }): Promise<string> {
+
+  async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void): Promise<string> {
     try {
       const vozGenero = perfilRef.current?.vozGenero ?? 'femenina';
       const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
@@ -568,13 +711,17 @@ export function useRosita() {
       let idx: number;
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
-      const texto = lista[idx];
-      const uri = FileSystem.cacheDirectory + `muletilla_v8_${categoria}_${idx}.mp3`;
+      const textoRaw  = lista[idx];
+      const nombre    = perfilRef.current?.nombreAbuela ?? '';
+      const slug      = slugNombre(nombre);
+      const texto     = textoRaw.replace(/\{n\}/g, nombre);
+      const uri = FileSystem.cacheDirectory + `muletilla_v10_${categoria}_${idx}_${slug}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) return texto;
       if (abort?.current) return texto; // race ya resolvió, no reproducir
       player.replace({ uri });
       player.play();
+      onPlay?.();
       // Esperar que el audio termine — o que el race aborte para ceder el player a hablar()
       await new Promise<void>(resolve => {
         const safety = setTimeout(() => resolve(), 3000);
@@ -606,6 +753,8 @@ export function useRosita() {
     if (!perfil.nombreAbuela) return;
     perfilRef.current = perfil;
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
+    precachearMuletillas(perfil.vozId, perfil.nombreAbuela).catch(() => {});
+    precachearRespuestasRapidas(perfil.nombreAbuela).catch(() => {});
     setCargando(false);
     const yaDada = await bienvenidaYaDada();
     if (!yaDada) {
@@ -643,11 +792,11 @@ export function useRosita() {
     setListas(listasGuardadas);
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
 
-    precachearMuletillas(perfilGuardado.vozId).catch(() => {});
-
     if (!perfilGuardado.nombreAbuela) {
       setMostrarOnboarding(true);
     } else {
+      precachearMuletillas(perfilGuardado.vozId, perfilGuardado.nombreAbuela).catch(() => {});
+      precachearRespuestasRapidas(perfilGuardado.nombreAbuela).catch(() => {});
       setCargando(false);
       iniciarSpeechRecognition();
     }
@@ -869,6 +1018,7 @@ export function useRosita() {
   }
 
   function onRelampago() {
+    flashAnim.stopAnimation();
     flashAnim.setValue(0);
     Animated.sequence([
       Animated.timing(flashAnim, { toValue: 0.85, duration: 60,  useNativeDriver: true }),
@@ -877,9 +1027,11 @@ export function useRosita() {
       Animated.timing(flashAnim, { toValue: 0.5,  duration: 50,  useNativeDriver: true }),
       Animated.timing(flashAnim, { toValue: 0,    duration: 250, useNativeDriver: true }),
     ]).start();
-    if (miedoTimerRef.current) clearTimeout(miedoTimerRef.current);
-    setExpresion('sorprendida');
-    miedoTimerRef.current = setTimeout(() => setExpresion('neutral'), 2500);
+    setTimeout(() => {
+      if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
+      setExpresion('sorprendida');
+      expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 2500);
+    }, 400);
   }
 
   // ── TTS ─────────────────────────────────────────────────────────────────────
@@ -890,33 +1042,7 @@ export function useRosita() {
     detenerSilbido();
     estadoRef.current = 'hablando';
 
-    const MAX_CHARS = 450;
-    if (texto.length > MAX_CHARS) {
-      const corte = texto.lastIndexOf('.', MAX_CHARS);
-      texto = corte > 40 ? texto.slice(0, corte + 1) : texto.slice(0, MAX_CHARS).trimEnd();
-    }
-
-    texto = texto
-      .replace(/\(\s*(pausa|risas?|risa|suspiro|silencio|aplauso)\s*\)/gi, '')
-      .replace(/^\s*[—–-]?\s*pausa\s*[—–-]?\s*$/gim, '')
-      .replace(/(\d+)\s*°\s*[Cc]/g,  '$1 grados')
-      .replace(/(\d+)\s*°\s*[Ff]/g,  '$1 grados Fahrenheit')
-      .replace(/°/g,                  ' grados')
-      .replace(/(\d+)\s*%/g,          '$1 por ciento')
-      .replace(/(\d+)\s*km\/h/gi,     '$1 kilómetros por hora')
-      .replace(/(\d+)\s*m\/s/gi,      '$1 metros por segundo')
-      .replace(/\bkm\b/gi,            'kilómetros')
-      .replace(/\*\*(.+?)\*\*/g,      '$1')
-      .replace(/\*(.+?)\*/g,          '$1')
-      .replace(/#+\s/g,               '')
-      .replace(/[_~`]/g,              '')
-      .replace(/(?:\+?\d[- ]?){6,}\d/g, m => m.replace(/[^0-9]/g, '').split('').join(', '))
-      // Alturas de dirección: número 2-4 dígitos precedido por palabra propia (nombre de calle)
-      .replace(/([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\.?)\s+(\d{2,4})\b/g, (m, word, num) => {
-        const n = parseInt(num);
-        if (n >= 1800 && n <= 2099) return m; // excluir años
-        return `${word} ${num.split('').join(', ')}`;
-      });
+    texto = limpiarTextoParaTTS(texto);
 
     // ── TTS nativo (testing) ──────────────────────────────────────────────────
     if (USAR_TTS_NATIVO) {
@@ -1030,6 +1156,7 @@ export function useRosita() {
                 started = true;
                 lastPos = pos;
                 clearTimeout(noStartTimer);
+                if (debugTimingsRef.current) (debugTimingsRef.current as any).tAudioStart = Date.now();
                 // Animación de boca sincronizada con el audio real (no con play())
                 setEstado('hablando');
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
@@ -1296,6 +1423,35 @@ export function useRosita() {
     // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
     const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    // ── Respuestas rápidas: saltear Claude para mensajes cortos y predecibles ──
+    const catRapida = categorizarRapida(textoNorm);
+    if (catRapida) {
+      // Afirmaciones solo si Rosita no hizo una pregunta pendiente (podría ser respuesta a ella)
+      const hayPreguntaPendiente = catRapida === 'afirmacion' && (() => {
+        const last = historialRef.current.filter(m => m.role === 'assistant').pop()?.content ?? '';
+        return /\?/.test(last.replace(/\[[^\]]+\]/g, '').slice(-100));
+      })();
+      if (!hayPreguntaPendiente) {
+        const { femenina, masculina, emotion } = RESPUESTAS_RAPIDAS[catRapida];
+        const genero = (p.vozGenero ?? 'femenina') === 'masculina' ? 'masculina' : 'femenina';
+        const lista  = genero === 'masculina' ? masculina : femenina;
+        const ultimo = ultimaRapidaRef.current[catRapida] ?? -1;
+        let idx: number;
+        do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
+        ultimaRapidaRef.current[catRapida] = idx;
+        const texto = lista[idx].replace(/\{n\}/g, p.nombreAbuela ?? '').trim();
+        setExpresion('feliz');
+        const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: texto }].slice(-30);
+        historialRef.current = nuevoHist;
+        await guardarHistorial(nuevoHist);
+        ultimaCharlaRef.current    = Date.now();
+        ultimaActividadRef.current = Date.now();
+        await hablar(texto, emotion);
+        return;
+      }
+    }
+
     const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
     const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
@@ -1346,6 +1502,9 @@ export function useRosita() {
     const onPrimeraFrase = (primera: string, tag: string) => {
       tPrimeraDetectada = Date.now();
       tagDetectadoStreaming = tag.toLowerCase();
+      // Arrancar el fetch de Cartesia inmediatamente — overlap con muletilla y race.
+      // Si hay muletilla de 2s, cuando hablar() llame estará cacheado → cero gap.
+      precachearTexto(primera, tag.toLowerCase()).catch(() => {});
       primeraFraseResolver?.(primera);
     };
     const extraBase  = ultimaRadioRef.current ? `\nÚltima radio reproducida: "${ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : '';
@@ -1358,8 +1517,11 @@ export function useRosita() {
 
       // Muletilla arranca de inmediato — los callbacks XHR del streaming
       // se disparan entre los ticks del setInterval interno de hablar().
+      let tMuletillaPlay = 0;
       const muletillaAbort = { current: false };
-      const muletillaPromise = catMuletilla ? reproducirMuletilla(catMuletilla, muletillaAbort) : Promise.resolve(null);
+      const muletillaPromise = catMuletilla
+        ? reproducirMuletilla(catMuletilla, muletillaAbort, () => { tMuletillaPlay = Date.now(); })
+        : Promise.resolve(null);
 
       if (!pideNoticias && !pideBusqueda) {
         // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
@@ -1440,7 +1602,25 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (winner.kind === 'primera') {
         // Primera frase lista — reproducirla mientras Claude termina de streamear
         primeraFraseReproducida = true;
-        await Promise.all([hablar(winner.t, tagDetectadoStreaming), claudePromise]);
+        const hablarPrimeraPromise = hablar(winner.t, tagDetectadoStreaming);
+
+        // Esperar Claude en paralelo con la reproducción de primera
+        const rawParaPrecache = await claudePromise;
+
+        // Pre-cachear la primera oración del resto mientras primera todavía puede estar sonando
+        let precachePromise: Promise<void> | undefined;
+        if (rawParaPrecache) {
+          const p2 = parsearRespuesta(rawParaPrecache, p.telegramContactos ?? [], p.familiares ?? []);
+          const { resto } = extraerPrimeraFrase(p2.respuesta);
+          if (resto) {
+            const restOraciones = splitEnOraciones(resto);
+            if (restOraciones.length > 0) precachePromise = precachearTexto(restOraciones[0], p2.expresion);
+          }
+        }
+
+        // Esperar que primera termine Y que el pre-cache escriba el archivo
+        await hablarPrimeraPromise;
+        if (precachePromise) await precachePromise;
       }
 
       // Obtener respuesta completa de Claude (ya resuelta si primera ganó el race)
@@ -1454,19 +1634,41 @@ REGLAS CRÍTICAS PARA RESPONDER:
       const debugChatId = p.debugChatId;
       if (debugChatId) {
         const dt = debugTimingsRef.current as any;
-        const ttsLinea = dt?.tPlay
-          ? (dt.cacheHit === true
-            ? `🎵 TTS: cache HIT | t0→play: ${dt.tPlay - t0}ms`
-            : dt.cacheHit === 'stream'
-              ? `🎵 TTS: stream | t0→play: ${dt.tPlay - t0}ms`
-              : `🎵 TTS: ${dt.tTTSResp - dt.tTTSReq}ms | t0→play: ${dt.tPlay - t0}ms`)
-          : '';
+        const ms = (n: number) => n ? `${n - t0}ms` : '–';
+
+        // Muletilla
+        const muletillaLinea = textoMuletilla
+          ? `🎭 (${catMuletilla}) "${textoMuletilla}" | play: ${tMuletillaPlay ? `${tMuletillaPlay - t0}ms` : '–'}`
+          : `🎭 sin muletilla`;
+
+        // Streaming / Claude
+        const streamingLinea = winner.kind === 'primera'
+          ? `🎙 Streaming: primera=${ms(tPrimeraDetectada)} | completo=${ms(t2)}`
+          : `🎙 Sin streaming (claude ganó): completo=${ms(t2)}`;
+
+        // Cartesia
+        const modo = dt?.cacheHit === true ? 'cache' : 'stream';
+        const cartesiaLinea = dt?.tPlay
+          ? `🔊 Cartesia (${modo}): play()=${ms(dt.tPlay)} | audio_real=${dt.tAudioStart ? ms(dt.tAudioStart) : '–'}`
+          : `🔊 Cartesia: sin datos`;
+
+        // Análisis de lag percibido
+        const primerSonido = tMuletillaPlay || (tPrimeraDetectada && dt?.tPlay) || dt?.tPlay || 0;
+        const audioReal    = dt?.tAudioStart || 0;
+        const silencioMs   = primerSonido ? primerSonido - t0 : null;
+        const gapMs        = (tMuletillaPlay && audioReal) ? audioReal - tMuletillaPlay : null;
+        const lagLinea     = [
+          silencioMs !== null ? `silencio inicial: ${silencioMs}ms` : null,
+          gapMs      !== null ? `gap muletilla→audio: ${gapMs}ms`   : null,
+        ].filter(Boolean).join(' | ');
+
         const lineas = [
           `👤 <b>${textoUsuario}</b>`,
-          `🎭 Muletilla: ${textoMuletilla ? `"${textoMuletilla}" (${catMuletilla})` : 'ninguna'}`,
-          `⏱ t0→primera: ${tPrimeraDetectada ? `${tPrimeraDetectada - t0}ms` : 'n/a'} | t0→winner: ${tWinner - t0}ms (${winner.kind}) | t0→claude: ${t2 - t0}ms`,
-          ttsLinea,
-          `🤖 Claude: ${respuestaRaw.slice(0, 500)}`,
+          muletillaLinea,
+          streamingLinea,
+          cartesiaLinea,
+          lagLinea ? `📊 ${lagLinea}` : null,
+          `🤖 ${respuestaRaw.slice(0, 400)}`,
         ].filter(Boolean);
         enviarAlertaTelegram([debugChatId], lineas.join('\n'), p.nombreAsistente).catch(() => {});
         debugTimingsRef.current = null;
@@ -1757,11 +1959,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
       if (primeraFraseReproducida) {
-        // Primera ya reproducida — reproducir el resto como bloque único
+        // Primera ya reproducida — reproducir el resto en pipeline (pre-cache por oración)
         const { resto } = extraerPrimeraFrase(parsed.respuesta);
-        if (resto) await hablar(resto, parsed.expresion);
+        if (resto) await hablarConCola(splitEnOraciones(resto), parsed.expresion);
       } else {
-        await hablar(parsed.respuesta, parsed.expresion);
+        await hablarConCola(splitEnOraciones(parsed.respuesta), parsed.expresion);
       }
 
       // ── Recordatorio de medicamento pendiente ──

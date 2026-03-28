@@ -95,7 +95,9 @@ export async function llamarClaudeConStreaming(options: {
           const sinTag = fullText.replace(/^\[[^\]]+\]\s*/, '');
           if (sinTag.length >= 20) {
             const m = sinTag.match(/^.{15,}?[.!?](?:\s+|$)/);
-            if (m && sinTag.length > m[0].length) {
+            // Antes requería segunda oración (sinTag.length > m[0].length).
+            // Ahora dispara aunque sea la única oración → precachearTexto arranca antes.
+            if (m) {
               primeraFired = true;
               options.onPrimeraFrase?.(m[0].trimEnd(), tagDetected);
             }
@@ -302,4 +304,15 @@ export async function generarSonido(
   if (!res.ok) return null;
   const data = await res.json();
   return data.audio ?? null;
+}
+
+export async function reportarCrash(message: string, stack: string, platform: string, extra?: string): Promise<void> {
+  try {
+    const installId = await obtenerInstallId();
+    await fetch(`${BACKEND_URL}/debug/crash`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({ message, stack: stack.slice(0, 2000), platform, installId, extra }),
+    });
+  } catch {}
 }
