@@ -1098,6 +1098,7 @@ export function useRosita() {
       const info = await FileSystem.getInfoAsync(cacheUri);
       const voiceId = perfilRef.current?.vozId ?? (perfilRef.current?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
       const isStream = !info.exists;
+      console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
       const uri: string = info.exists
         ? cacheUri
         : urlCartesiaStream(texto, voiceId, velocidadSegunEdad(perfilRef.current?.edad), emotion);
