@@ -1938,16 +1938,21 @@ REGLAS CRÍTICAS PARA RESPONDER:
     const nombre  = p?.nombreAbuela ?? '';
     const asistente = p?.nombreAsistente ?? 'Rosita';
 
+    if (musicaActivaRef.current) pararMusica();
+
+    guardarEntradaAnimo('triste');
+    sincronizarAnimo('sos', Date.now());
+
     if (chatIds.length) {
       enviarAlertaTelegram(
         chatIds,
         `🆘 *ALERTA SOS* — ${nombre} necesita ayuda urgente.\n\nAbrí la app o llamala de inmediato.`,
         asistente,
       );
+      await hablar(`${nombre}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`);
+    } else {
+      await hablar(`${nombre}, no tenés familiares configurados en la app. No pude avisar a nadie. Pedile a alguien cercano que te ayude.`);
     }
-    guardarEntradaAnimo('triste');
-    sincronizarAnimo('sos', Date.now());
-    await hablar(`${nombre}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`);
   }
 
   async function dispararSOSCaida() {
@@ -1961,16 +1966,21 @@ REGLAS CRÍTICAS PARA RESPONDER:
     const nombre    = p.nombreAbuela;
     const asistente = p.nombreAsistente ?? 'Rosita';
 
+    if (musicaActivaRef.current) pararMusica();
+
+    guardarEntradaAnimo('triste');
+    sincronizarAnimo('caida', Date.now());
+
     if (chatIds.length) {
       enviarAlertaTelegram(
         chatIds,
         `⚠️ *POSIBLE CAÍDA* — ${nombre}\n\nEl sensor del teléfono detectó un posible golpe o caída. Verificá que esté bien.`,
         asistente,
       );
+      await hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`);
+    } else {
+      await hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? No tenés familiares configurados, pedile a alguien cercano que te ayude.`);
     }
-    guardarEntradaAnimo('triste');
-    sincronizarAnimo('caida', Date.now());
-    await hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`);
   }
 
   // ── Bostezo por inactividad ──────────────────────────────────────────────────
