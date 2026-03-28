@@ -1573,6 +1573,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
         claudePromise.then(t => ({ kind: 'claude' as const, t })),
       ]);
 
+      // Si Claude respondió completo antes de detectar primera frase (respuesta corta),
+      // arrancar el pre-cache de todas las oraciones YA, mientras la muletilla termina.
+      if (winner.kind === 'claude' && winner.t) {
+        const ppc = parsearRespuesta(winner.t, p.telegramContactos ?? [], p.familiares ?? []);
+        splitEnOraciones(ppc.respuesta).forEach(s => precachearTexto(s, ppc.expresion).catch(() => {}));
+      }
+
       // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
       await muletillaPromise;
 
@@ -1584,18 +1591,22 @@ REGLAS CRÍTICAS PARA RESPONDER:
         // Esperar Claude en paralelo con la reproducción de primera
         const rawParaPrecache = await claudePromise;
 
-        // Pre-cachear la primera oración del resto mientras primera todavía puede estar sonando
+        // Pre-cachear TODAS las oraciones del resto en paralelo mientras primera todavía suena
         let precachePromise: Promise<void> | undefined;
         if (rawParaPrecache) {
           const p2 = parsearRespuesta(rawParaPrecache, p.telegramContactos ?? [], p.familiares ?? []);
           const { resto } = extraerPrimeraFrase(p2.respuesta);
           if (resto) {
             const restOraciones = splitEnOraciones(resto);
-            if (restOraciones.length > 0) precachePromise = precachearTexto(restOraciones[0], p2.expresion);
+            if (restOraciones.length > 0) {
+              precachePromise = Promise.all(
+                restOraciones.map(s => precachearTexto(s, p2.expresion).catch(() => {}))
+              ).then(() => {});
+            }
           }
         }
 
-        // Esperar que primera termine Y que el pre-cache escriba el archivo
+        // Esperar que primera termine Y que todos los pre-caches escriban sus archivos
         await hablarPrimeraPromise;
         if (precachePromise) await precachePromise;
       }
