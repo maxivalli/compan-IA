@@ -25,7 +25,7 @@ import {
   hashTexto, respuestaOffline,
   construirSystemPromptEstable, construirContextoDinamico, parsearRespuesta, velocidadSegunEdad,
 } from '../lib/claudeParser';
-import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, urlCartesiaStream, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import { llamarClaude, llamarClaudeConStreaming, transcribirAudio, sintetizarVoz, urlCartesiaStream, buscarWeb, buscarLugares, leerImagen, sincronizarAnimo, obtenerTokenDispositivo, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
 import { obtenerEstadoSmartThings, controlarDispositivo, controlarTodos, obtenerEstadoDispositivo, Dispositivo } from '../lib/smartthings';
@@ -781,6 +781,7 @@ export function useRosita() {
 
     try { await AudioModule.requestRecordingPermissionsAsync(); } catch {}
     try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
+    obtenerTokenDispositivo().catch(() => {}); // warmea _cachedToken para urlCartesiaStream
     limpiarCacheViejo().catch(() => {});
 
     const [perfilGuardado, historialGuardado, listasGuardadas, ultimaRadio] = await Promise.all([

@@ -6,8 +6,17 @@ const CLAVE_INSTALL_ID     = 'compania_install_id';
 const CLAVE_FAMILIA_ID     = 'compania_familia_id';
 const CLAVE_CODIGO_REG     = 'compania_codigo_registro';
 const CLAVE_BIENVENIDA     = 'compania_bienvenida_dada';
+const CLAVE_DEVICE_TOKEN   = 'compania_device_token';
 
 // ── Identidad del dispositivo ─────────────────────────────────────────────────
+
+export async function obtenerDeviceToken(): Promise<string | null> {
+  try { return await AsyncStorage.getItem(CLAVE_DEVICE_TOKEN); } catch { return null; }
+}
+
+export async function guardarDeviceToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(CLAVE_DEVICE_TOKEN, token);
+}
 
 export async function obtenerInstallId(): Promise<string> {
   try {

@@ -1,19 +1,44 @@
-import { obtenerInstallId } from './memoria';
+import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken } from './memoria';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
-const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
 
 type Mensaje = { role: 'user' | 'assistant'; content: string };
 type SystemBlock = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
 
-async function jsonHeaders(): Promise<Record<string, string>> {
+// ── Device token (reemplaza la API key hardcodeada) ───────────────────────────
+
+let _cachedToken: string | null = null;
+
+export async function obtenerTokenDispositivo(): Promise<string> {
+  if (_cachedToken) return _cachedToken;
+  const stored = await obtenerDeviceToken();
+  if (stored) { _cachedToken = stored; return stored; }
+  return bootstrapDispositivo();
+}
+
+export async function bootstrapDispositivo(): Promise<string> {
   const installId = await obtenerInstallId();
-  return { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'x-install-id': installId };
+  const res = await fetchConTimeout(`${BACKEND_URL}/auth/bootstrap`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ installId }),
+  }, 10000);
+  if (!res.ok) throw new Error(`Bootstrap ${res.status}`);
+  const data = await res.json();
+  const token: string = data.deviceToken;
+  await guardarDeviceToken(token);
+  _cachedToken = token;
+  return token;
+}
+
+async function jsonHeaders(): Promise<Record<string, string>> {
+  const token = await obtenerTokenDispositivo();
+  return { 'Content-Type': 'application/json', 'x-device-token': token };
 }
 
 async function formHeaders(): Promise<Record<string, string>> {
-  const installId = await obtenerInstallId();
-  return { 'x-api-key': API_KEY, 'x-install-id': installId };
+  const token = await obtenerTokenDispositivo();
+  return { 'x-device-token': token };
 }
 
 // ── Claude ────────────────────────────────────────────────────────────────────
@@ -150,24 +175,26 @@ export async function transcribirAudio(uri: string): Promise<string> {
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
-/** Construye la URL del endpoint de streaming de TTS — ElevenLabs (para expo-audio directo). */
+/** Construye la URL del endpoint de streaming de TTS — ElevenLabs (para expo-audio directo).
+ *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
 export function urlTTSStream(texto: string, voiceId: string, speed?: number): string {
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
     speed:   String(speed ?? 0.92),
-    k:       API_KEY,
+    k:       _cachedToken ?? '',
   });
   return `${BACKEND_URL}/ai/tts-stream?${params}`;
 }
 
-/** Construye la URL del endpoint de streaming de TTS — Cartesia Sonic (baja latencia). */
+/** Construye la URL del endpoint de streaming de TTS — Cartesia Sonic (baja latencia).
+ *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
 export function urlCartesiaStream(texto: string, voiceId: string, speed?: number, emotion?: string): string {
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
     speed:   String(speed ?? 0.92),
-    k:       API_KEY,
+    k:       _cachedToken ?? '',
     ...(emotion ? { emotion } : {}),
   });
   return `${BACKEND_URL}/ai/tts-cartesia-stream?${params}`;
@@ -179,12 +206,12 @@ export const VOICE_ID_FEMENINA2 = 'smHMxLX7gVgXrrfD70xq'; // Cálida y formal
 export const VOICE_ID_MASCULINA  = 'vgekQLm3GYiKMHUnPVvY'; // Santafesino y divertido
 export const VOICE_ID_MASCULINA2 = 'L7pBVwjueW3IPcQt4Ej9'; // Tranquilo y formal
 
-/** TTS para onboarding — no requiere dispositivo registrado. */
+/** TTS para onboarding — el device token ya existe (bootstrap corre al arrancar la app). */
 export async function sintetizarVozMuestra(voiceId: string, nombre: string): Promise<string | null> {
   try {
     const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts/sample`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      headers: await jsonHeaders(),
       body: JSON.stringify({ voiceId, nombre }),
     }, 12000);
     if (!res.ok) return null;
@@ -311,7 +338,7 @@ export async function reportarCrash(message: string, stack: string, platform: st
     const installId = await obtenerInstallId();
     await fetch(`${BACKEND_URL}/debug/crash`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, stack: stack.slice(0, 2000), platform, installId, extra }),
     });
   } catch {}

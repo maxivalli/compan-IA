@@ -19,8 +19,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import { guardarPerfil, cargarPerfil, obtenerInstallId, guardarFamiliaId, guardarCodigoRegistro } from '../lib/memoria';
-import { sintetizarVozMuestra } from '../lib/ai';
+import { guardarPerfil, cargarPerfil, guardarFamiliaId, guardarCodigoRegistro } from '../lib/memoria';
+import { sintetizarVozMuestra, obtenerTokenDispositivo } from '../lib/ai';
 
 const VOCES = [
   { id: 'r3lotmx3BZETVvcKm6R6', label: 'Voz femenina',  genero: 'femenina'  as const, icono: 'woman' as const },
@@ -120,15 +120,14 @@ export default function Onboarding() {
 
     // Registrar dispositivo en el backend para habilitar las llamadas a la IA
     try {
-      const installId = await obtenerInstallId();
+      const deviceToken = await obtenerTokenDispositivo();
       const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL;
-      const apiKey = process.env.EXPO_PUBLIC_APP_API_KEY;
       const ctrl = new AbortController();
       const ctrlId = setTimeout(() => ctrl.abort(), 10000);
       const res = await fetch(`${backendUrl}/familia/registrar`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey! },
-        body: JSON.stringify({ nombreAbuela: nombre, nombreAsistente: asistente, installId }),
+        headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
+        body: JSON.stringify({ nombreAbuela: nombre, nombreAsistente: asistente }),
         signal: ctrl.signal,
       }).finally(() => clearTimeout(ctrlId));
       if (res.ok) {
