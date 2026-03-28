@@ -186,8 +186,13 @@ function limpiarDato(s: string): string {
 
 export function construirContexto(perfil: Perfil): string {
   const san = (arr: string[]) => arr.map(limpiarDato).filter(Boolean);
+  const cumple = (() => {
+    if (!perfil.fechaNacimiento) return '';
+    const [mm, dd] = perfil.fechaNacimiento.split('-');
+    return ` Su cumpleaños es el ${dd}/${mm}.`;
+  })();
   const lineas = [
-    `El nombre de la persona con quien hablás es ${limpiarDato(perfil.nombreAbuela)}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.`,
+    `El nombre de la persona con quien hablás es ${limpiarDato(perfil.nombreAbuela)}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.${cumple}`,
   ];
   if (perfil.familiares.length > 0)
     lineas.push(`Sus familiares cercanos son: ${san(perfil.familiares).join(', ')}.`);
