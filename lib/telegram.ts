@@ -1,11 +1,10 @@
-import { obtenerInstallId } from './memoria';
+import { obtenerTokenDispositivo } from './ai';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
-const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
 
 async function h(): Promise<Record<string, string>> {
-  const installId = await obtenerInstallId();
-  return { 'Content-Type': 'application/json', 'x-api-key': API_KEY, 'x-install-id': installId };
+  const token = await obtenerTokenDispositivo();
+  return { 'Content-Type': 'application/json', 'x-device-token': token };
 }
 
 export async function enviarAlertaTelegram(chatIds: string[], mensaje: string, nombreAsistente = 'Rosita'): Promise<void> {
