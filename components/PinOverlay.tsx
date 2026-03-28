@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { eliminarPIN, obtenerPIN } from '../lib/memoria';
 
 const M = {
@@ -38,6 +39,7 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
   }, []);
 
   function sacudir() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
     Animated.sequence([
       Animated.timing(shake, { toValue: 10,  duration: 50, useNativeDriver: true }),
       Animated.timing(shake, { toValue: -10, duration: 50, useNativeDriver: true }),
@@ -49,6 +51,7 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
   function presionar(d: string) {
     const actual = fase === 'confirmar' ? confirma : digitos;
     if (actual.length >= 4) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     const nuevo = actual + d;
     fase === 'confirmar' ? setConfirma(nuevo) : setDigitos(nuevo);
     if (nuevo.length === 4) { evalTimerRef.current = setTimeout(() => evaluar(nuevo), 120); }
@@ -57,6 +60,7 @@ export default function PinOverlay({ modo, onSuccess, onCancel }: Props) {
   function borrar() {
     if (fase === 'confirmar') setConfirma(c => c.slice(0, -1));
     else setDigitos(d => d.slice(0, -1));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setError('');
   }
 
