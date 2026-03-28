@@ -15,12 +15,12 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerInstallId, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
+import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
 import { obtenerEstadoSmartThings, actualizarDispositivos, desvincularSmartThings, vincularPAT, Dispositivo } from '../lib/smartthings';
+import { obtenerTokenDispositivo } from '../lib/ai';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
-const API_KEY     = process.env.EXPO_PUBLIC_APP_API_KEY!;
 
 const TAGS_INTERESES = [
   'Libros', 'Televisión', 'Fútbol', 'Jardín', 'Huerta', 'Cocina',
@@ -383,9 +383,9 @@ export default function Configuracion() {
     setErrorBusqueda('');
     try {
       const familiaId   = await obtenerFamiliaId() ?? 'default';
-      const installId   = await obtenerInstallId();
+      const token       = await obtenerTokenDispositivo();
       const res  = await fetchTimeout(`${BACKEND_URL}/telegram/contactos?familiaId=${familiaId}`, 10000, {
-        headers: { 'x-api-key': API_KEY, 'x-install-id': installId },
+        headers: { 'x-device-token': token },
       });
       const data = await res.json();
 
@@ -419,14 +419,13 @@ export default function Configuracion() {
       const familiaIdExistente = await obtenerFamiliaId();
       if (!familiaIdExistente) {
         try {
-          const installId = await obtenerInstallId();
+          const token = await obtenerTokenDispositivo();
           const res = await fetchTimeout(`${BACKEND_URL}/familia/registrar`, 10000, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+            headers: { 'Content-Type': 'application/json', 'x-device-token': token },
             body: JSON.stringify({
               nombreAbuela:    nombreTrimmed,
               nombreAsistente: nombreAsistente.trim() || 'Rosita',
-              installId,
             }),
           });
           const data = await res.json();
