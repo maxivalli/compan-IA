@@ -49,6 +49,7 @@ export type NotificacionesRefs = {
   enFlujoVozRef:         React.RefObject<boolean>;
   proximaAlarmaRef:      React.RefObject<number>;
   pararMusica:           () => void;
+  reanudarMusica:        () => void;
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
   flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
@@ -72,7 +73,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
-    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
+    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
   } = refs;
 
   // Grabador para respuestas de voz
@@ -273,11 +274,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     } catch {
       // Error inesperado — el finally se encarga de liberar el flag
     } finally {
-      // Garantiza que el flag siempre se libera, sin importar qué pasó
       enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
       iniciarSpeechRecognition();
+      if (habiaMusica) reanudarMusica();
     }
     return resultado;
   }
@@ -318,6 +319,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       setEstado('esperando');
       estadoRef.current = 'esperando';
       iniciarSpeechRecognition();
+      if (habiaMusica) reanudarMusica();
     }
     return resultado;
   }
@@ -374,6 +376,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       setEstado('esperando');
       estadoRef.current = 'esperando';
       iniciarSpeechRecognition();
+      if (habiaMusica) reanudarMusica();
     }
     return resultado;
   }

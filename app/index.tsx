@@ -73,7 +73,7 @@ export default function Index() {
     musicaActiva, silbando, noMolestar, setNoMolestar,
     linternaActiva, apagarLinterna,
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
-    iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
+    iniciarEscucha, detenerEscucha, pararMusica, reanudarMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada,
     refs, player,
@@ -107,7 +107,7 @@ export default function Index() {
   }
 
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
-  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, iniciarSilbido, detenerSilbido, mostrarFoto }, player);
+  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, mostrarFoto }, player);
 
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────

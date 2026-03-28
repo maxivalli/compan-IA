@@ -1005,6 +1005,7 @@ export function useRosita() {
   function unduckMusica() { /* volumen fijo — duck desactivado */ }
 
   function pararMusica() { playerMusica.pause(); setMusicaActiva(false); }
+  function reanudarMusica() { playerMusica.play(); setMusicaActiva(true); }
 
   // ── Expresiones de ojos ─────────────────────────────────────────────────────
   function onOjoPicado() {
@@ -2099,7 +2100,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       Brightness.useSystemBrightnessAsync().catch(() => {});
     },
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
-    iniciarEscucha, detenerEscucha, pararMusica, dispararSOS, forzarBostezo: () => {
+    iniciarEscucha, detenerEscucha, pararMusica, reanudarMusica, dispararSOS, forzarBostezo: () => {
       ultimoBostezRef.current = Date.now();
       setExpresion('bostezando');
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
@@ -2113,6 +2114,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       musicaActivaRef, enFlujoVozRef, proximaAlarmaRef,
       setEstado, hablar, iniciarSpeechRecognition,
       modoNoche, iniciarSilbido, detenerSilbido, flujoFoto,
+      reanudarMusica,
     },
     player,
   };
