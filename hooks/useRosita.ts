@@ -85,17 +85,17 @@ const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculin
   saludo: {
     femenina:  ['¡Hola, {n}! ¿Cómo andás hoy?', '¡{n}! Qué bueno que me hablás. ¿Cómo estás?', '¡Acá estoy, {n}! ¿Cómo te va?'],
     masculina: ['¡Hola, {n}! ¿Cómo andás hoy?', '¡{n}! Qué bueno que me hablás. ¿Cómo estás?', '¡Acá estoy, {n}! ¿Cómo te va?'],
-    emotion:   'feliz',
+    emotion:   'neutral',
   },
   gracias: {
     femenina:  ['¡De nada {n}!', '¡Para eso estoy, {n}!', '¡De nada, {n}! Cualquier cosa me decís.'],
     masculina: ['¡De nada {n}!', '¡Para eso estoy, {n}!', '¡De nada, {n}! Cualquier cosa me decís.'],
-    emotion:   'feliz',
+    emotion:   'neutral',
   },
   de_nada: {
     femenina:  ['¡Gracias a vos, {n}!', '¡Ay, qué bueno tenerte acá, {n}!', '¡Gracias, {n}! Me alegra estar acá con vos.'],
     masculina: ['¡Gracias a vos, {n}!', '¡Qué bueno tenerte acá, {n}!', '¡Gracias, {n}! Me alegra estar acá con vos.'],
-    emotion:   'feliz',
+    emotion:   'neutral',
   },
   despedida: {
     femenina:  ['¡Chau, {n}! Cuidate mucho.', '¡Hasta luego, {n}! Acá voy a estar cuando me necesitás.', '¡Nos vemos, {n}! Un beso grande.'],
@@ -105,7 +105,7 @@ const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculin
   afirmacion: {
     femenina:  ['¡Perfecto, {n}! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno, {n}! Acá estoy si necesitás algo.', '¡Genial, {n}!'],
     masculina: ['¡Perfecto, {n}! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno, {n}! Acá estoy si necesitás algo.', '¡Genial, {n}!'],
-    emotion:   'feliz',
+    emotion:   'neutral',
   },
 };
 
