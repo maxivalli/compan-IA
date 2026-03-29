@@ -118,8 +118,8 @@ export async function llamarClaudeConStreaming(options: {
 
         if (!primeraFired && tagDetected && STREAMING_SAFE_TAGS.has(tagDetected)) {
           const sinTag = fullText.replace(/^\[[^\]]+\]\s*/, '');
-          if (sinTag.length >= 20) {
-            const m = sinTag.match(/^.{15,}?[.!?](?:\s+|$)/);
+          if (sinTag.length >= 10) {
+            const m = sinTag.match(/^.{8,}?[.!?](?:\s+|$)/);
             // Antes requería segunda oración (sinTag.length > m[0].length).
             // Ahora dispara aunque sea la única oración → precachearTexto arranca antes.
             if (m) {

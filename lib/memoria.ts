@@ -183,7 +183,7 @@ function limpiarDato(s: string): string {
   return s.replace(/[\n\r]/g, ' ').replace(/[[\]]/g, '').trim().slice(0, 200);
 }
 
-export function construirContexto(perfil: Perfil): string {
+export function construirContexto(perfil: Perfil, incluirRecuerdos = true): string {
   const san = (arr: string[]) => arr.map(limpiarDato).filter(Boolean);
   const cumple = (() => {
     if (!perfil.fechaNacimiento) return '';
@@ -201,7 +201,7 @@ export function construirContexto(perfil: Perfil): string {
     lineas.push(`Sus medicamentos son: ${san(perfil.medicamentos).join(', ')}.`);
   if (perfil.fechasImportantes.length > 0)
     lineas.push(`Fechas importantes: ${san(perfil.fechasImportantes).join(', ')}.`);
-  if (perfil.recuerdos.length > 0)
+  if (incluirRecuerdos && perfil.recuerdos.length > 0)
     lineas.push(`Cosas que ha contado: ${san(perfil.recuerdos).join(', ')}.`);
   return lineas.join('\n');
 }

@@ -248,12 +248,12 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '',
     'IDENTIDAD Y ESTILO:',
     'Nunca usás palabras genéricas como "amor", "mi amor", "querida". Usás el nombre de la persona con frecuencia y naturalidad, especialmente al inicio de la respuesta y en las preguntas.',
-    'Hacés como máximo UNA pregunta abierta al final, solo cuando el tema lo amerita. No terminás con pregunta en respuestas seguidas — si la respuesta anterior ya tuvo pregunta, esta no tiene. Nunca dos preguntas en la misma respuesta.',
+    'Hacés como máximo UNA pregunta abierta al final cuando el tema lo amerita. Nunca dos preguntas en la misma respuesta. En saludos y charla casual SIEMPRE devolvés la pregunta ("¿y vos?", "¿cómo te va a vos?") — es lo mínimo de cortesía conversacional.',
     'NUNCA uses indicaciones escénicas: "pausa", "(pausa)", "(risas)", "(suspiro)", "(silencio)". Tu respuesta es solo texto hablado.',
     '',
     'LONGITUD:',
     maxTokensSegunEdad(p.edad),
-    'Si terminás con una pregunta, la respuesta previa tiene que ser aún más corta (máximo 15 palabras antes de la pregunta). Cuando la persona está triste o hablando de algo difícil, podés extenderte un poco más para acompañar bien. En esos casos el límite es orientativo, no estricto.',
+    'Cuando la persona está triste o hablando de algo difícil, podés extenderte un poco más para acompañar bien. En esos casos el límite es orientativo, no estricto.',
     '',
     'INFORMACIÓN EN TIEMPO REAL:',
     'REGLA CRÍTICA: Si en el contexto hay "Resultados de búsqueda web" o "Noticias recientes", USÁ esa información para responder. NUNCA digas que no tenés acceso a internet ni que no podés buscar algo que ya está en el contexto. Dá la respuesta directa y con confianza.',
@@ -333,10 +333,11 @@ function generarBloqueDispositivos(dispositivos: Dispositivo[]): string {
     '\nSolo usa estos tags con dispositivos vinculados. Si no reconoces el dispositivo, diselo amablemente.';
 }
 
-/** Bloque 2 — Semi-estático (perfil + dispositivos). Cacheable con ephemeral.
- *  Invalida solo cuando cambia el perfil o los dispositivos. */
+/** Bloque 2 — Semi-estático (perfil base + dispositivos). Cacheable con ephemeral.
+ *  Excluye recuerdos para que el cache no invalide en cada conversación.
+ *  Invalida solo cuando cambia el perfil base o los dispositivos. */
 export function construirContextoPerfil(p: Perfil, dispositivos: Dispositivo[] = []): string {
-  return `Lo que sabés de la persona:\n${construirContexto(p)}${generarBloqueDispositivos(dispositivos)}`;
+  return `Lo que sabés de la persona:\n${construirContexto(p, false)}${generarBloqueDispositivos(dispositivos)}`;
 }
 
 /** Bloque 3 — Dinámico (fecha/hora, clima, juego, extra). Nunca cacheado. */
@@ -365,6 +366,7 @@ export function construirContextoTemporal(
     ciudad  ? `\nUbicación actual: ${ciudad}, Argentina.` : '',
     coords  ? `\nCoordenadas GPS exactas: ${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)} — usá estas coordenadas para calcular distancias precisas.` : '',
     feriados ?? '',
+    p.recuerdos?.length > 0 ? `\nCosas que ha contado: ${p.recuerdos.map(r => r.trim()).filter(Boolean).join(', ')}.` : '',
     extra,
   ].filter(Boolean).join('\n');
 }

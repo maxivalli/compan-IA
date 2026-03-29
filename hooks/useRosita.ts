@@ -52,7 +52,7 @@ type Mensaje = { role: 'user' | 'assistant'; content: string };
 
 // ── Muletillas por categoría y género ────────────────────────────────────────
 
-type CategoriaMuletilla = 'empatico' | 'busqueda' | 'nostalgia' | 'comando' | 'default';
+type CategoriaMuletilla = 'empatico' | 'busqueda' | 'nostalgia' | 'comando';
 
 // {n} se reemplaza con el nombre de la usuaria al pre-cachear y reproducir.
 // Añade ~0.5-1s sin perder contexto — "Mmm, Negrita..." funciona en cualquier situación.
@@ -72,10 +72,6 @@ const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: st
   comando: {
     femenina:  ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
     masculina: ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
-  },
-  default: {
-    femenina:  ['Mmm, {n}...', 'Mmm... a ver...', 'A ver, {n}...'],
-    masculina: ['Mmm, {n}...', 'Mmm... a ver...', 'A ver, {n}...'],
   },
 };
 
@@ -116,8 +112,8 @@ function slugNombre(nombre: string): string {
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
 // "cómo va/viene/estás/andás" solo como saludo — no cuando va seguido de pregunta real ("cómo va a estar el clima")
 const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
-const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo/i;
-const PATRON_BUSQUEDA  = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|calor|frío|farmacia|hospital|heladeria|restaurant|hotel|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
+const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo/i;
+const PATRON_BUSQUEDA  = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|mucho calor|mucho frío|farmacia|hospital|heladeria|restaurant|hotel|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 
 // Mapeo de texto del usuario → tipo OSM (para Overpass API)
 const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
@@ -138,7 +134,7 @@ const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
   { patron: /hotel|hostal|hospedaje/,                               tipo: 'hotel' },
 ];
 const PATRON_NOSTALGIA = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
-const PATRON_COMANDO   = /pon[eé]|apag[aá]|sub[ií]|baj[aá]|prend[eé]|par[aá]\b|música|la radio|una canción|las luces?|la luz|una alarma|un recordatorio|un timer|despertame/i;
+const PATRON_COMANDO   = /pon[eé]|apag[aá]|prend[eé]|par[aá]\b|música|la radio|una canción|las luces?|la luz|una alarma|un recordatorio|un timer|despertame|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
 
 function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (texto.length < 10) return null;
@@ -147,7 +143,7 @@ function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (PATRON_BUSQUEDA.test(texto))  return 'busqueda';
   if (PATRON_NOSTALGIA.test(texto)) return 'nostalgia';
   if (PATRON_COMANDO.test(texto))   return 'comando';
-  return 'default';
+  return null;
 }
 
 function categorizarRapida(texto: string): CategoriaRapida | null {
@@ -232,6 +228,13 @@ export function useRosita() {
 
   // ── Flag para bloquear SR durante flujo de mensajes de voz ──────────────────
   const enFlujoVozRef    = useRef(false);
+  // ── Flag para bloquear SR entre oraciones en hablarConCola ───────────────────
+  const enColaHablaRef   = useRef(false);
+  // ── Timestamps para medir lag percibido ──────────────────────────────────────
+  const srResultTsRef    = useRef(0);  // cuando SR devuelve resultado
+  const rcStartTsRef     = useRef(0);  // cuando empieza responderConClaude
+  // ── Resumen de sesión ─────────────────────────────────────────────────────────
+  const mensajesSesionRef = useRef(0); // mensajes nuevos en esta sesión
 
   // ── Dispositivos Tuya/Smartlife ───────────────────────────────────────────────
   const dispositivosTuyaRef = useRef<Dispositivo[]>([]);
@@ -402,6 +405,28 @@ export function useRosita() {
     return () => clearInterval(id);
   }, []);
 
+  // ── Resumen de sesión al entrar en modo durmiendo ───────────────────────────
+  useEffect(() => {
+    if (modoNoche !== 'durmiendo') return;
+    if (mensajesSesionRef.current < 6) return; // sesión corta, no vale resumir
+    mensajesSesionRef.current = 0; // reset para no resumir de nuevo esta noche
+    const p = perfilRef.current;
+    const historial = historialRef.current;
+    if (!p || historial.length < 4) return;
+    llamarClaude({
+      system: 'Sos un asistente que genera resúmenes ultra cortos. Respondé SOLO con una frase de máximo 12 palabras en español que capture el tema principal de la charla. Sin saludos ni explicaciones.',
+      messages: [
+        ...historial.slice(-12),
+        { role: 'user', content: 'Resumí en máximo 12 palabras de qué hablamos hoy.' },
+      ],
+      maxTokens: 40,
+    }).then(resumen => {
+      if (!resumen || resumen.length < 5) return;
+      const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+      agregarRecuerdo(`[${fecha}] ${resumen.trim()}`).catch(() => {});
+    }).catch(() => {});
+  }, [modoNoche]);
+
   // ── Brillo modo noche ───────────────────────────────────────────────────────
   useEffect(() => {
     if (linternaActiva) return; // la linterna maneja su propio brillo
@@ -473,9 +498,10 @@ export function useRosita() {
         && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
         && ultimoAudioUriRef.current !== null;
 
+      srResultTsRef.current = Date.now();
       if (esRepeticion) {
         await hablar(ultimoTextoHabladoRef.current!);
-      } else if (/\bfoto\b/i.test(textoNorm)) {
+      } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
         await flujoFoto();
       } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso))\b/.test(textoNorm)) {
         await flujoLeerImagen();
@@ -547,7 +573,7 @@ export function useRosita() {
 
       // Recuperar procesandoRef colgado: si no está hablando, el cuelgue ocurrió antes del TTS (Claude/red)
       // Si está 'hablando' dejamos el safetyTimeout de hablar() actuar (45s por oración)
-      if (procesandoRef.current && estadoRef.current !== 'hablando' && Date.now() - procesandoDesdeRef.current > 20000) {
+      if (procesandoRef.current && estadoRef.current !== 'hablando' && !enColaHablaRef.current && Date.now() - procesandoDesdeRef.current > 20000) {
         if (__DEV__) console.log('[Watchdog] procesandoRef colgado — forzando reset');
         logCliente('watchdog_reset', { estado: estadoRef.current, colgadoMs: Date.now() - procesandoDesdeRef.current });
         procesandoRef.current = false;
@@ -607,7 +633,7 @@ export function useRosita() {
         if (info.exists) continue;
         const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? perfilRef.current?.nombreAbuela ?? '');
         const muletillaEmotion: Record<CategoriaMuletilla, string> = {
-          empatico: 'triste', busqueda: 'neutral', nostalgia: 'triste', comando: 'feliz', default: 'feliz',
+          empatico: 'triste', busqueda: 'neutral', nostalgia: 'triste', comando: 'feliz',
         };
         const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(perfilRef.current?.edad), muletillaEmotion[cat]).catch(() => null);
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
@@ -659,7 +685,7 @@ export function useRosita() {
       }
     }
     const cola = texto.slice(lastIdx).trim();
-    if (cola.length > 0) oraciones.push(cola);
+    if (cola.length >= 4 && /\w/.test(cola)) oraciones.push(cola);
     return oraciones.filter(s => s.length > 0);
   }
 
@@ -667,13 +693,24 @@ export function useRosita() {
    *  Garantiza cero gap entre oraciones para respuestas largas (cuentos, juegos). */
   async function hablarConCola(oraciones: string[], emotion?: string) {
     if (oraciones.length === 0) return;
-    if (oraciones.length === 1) { await hablar(oraciones[0], emotion); return; }
-    for (let i = 0; i < oraciones.length; i++) {
-      const nextPrecache = i + 1 < oraciones.length
-        ? precachearTexto(oraciones[i + 1], emotion)
-        : Promise.resolve();
-      await hablar(oraciones[i], emotion);
-      await nextPrecache;
+    enColaHablaRef.current = true;
+    try {
+      if (oraciones.length === 1) {
+        await hablar(oraciones[0], emotion);
+      } else {
+        for (let i = 0; i < oraciones.length; i++) {
+          const nextPrecache = i + 1 < oraciones.length
+            ? precachearTexto(oraciones[i + 1], emotion)
+            : Promise.resolve();
+          await hablar(oraciones[i], emotion);
+          // Resetear el timestamp de inicio por oración: la siguiente oración mide
+          // su propio lag desde el fin de la reproducción anterior, no desde el request original.
+          rcStartTsRef.current = Date.now();
+          await nextPrecache;
+        }
+      }
+    } finally {
+      enColaHablaRef.current = false;
     }
   }
 
@@ -1069,7 +1106,8 @@ export function useRosita() {
   async function hablar(texto: string, emotion?: string) {
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
-    logCliente('hablar_start', { chars: texto.length, emotion: emotion ?? 'none' });
+    const lagRcMs = rcStartTsRef.current ? Date.now() - rcStartTsRef.current : -1;
+    logCliente('hablar_start', { chars: texto.length, emotion: emotion ?? 'none', lag_rc_ms: lagRcMs });
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
     estadoRef.current = 'hablando';
@@ -1118,7 +1156,7 @@ export function useRosita() {
       unduckMusica();
       setEstado('esperando');
       estadoRef.current = 'esperando';
-      if (!enFlujoVozRef.current) iniciarSpeechRecognition();
+      if (!enFlujoVozRef.current && !enColaHablaRef.current) iniciarSpeechRecognition();
       return;
     }
 
@@ -1135,6 +1173,7 @@ export function useRosita() {
 
       if (uri) {
         ultimoAudioUriRef.current = uri;
+        try { player.pause(); } catch {} // limpiar buffer antes de cargar — evita click de corte
         player.replace({ uri });
         // estadoRef en 'hablando' ya — suprime el watchdog de SR.
         // setEstado visual se hace en el poll cuando playing=true (audio realmente arrancó),
@@ -1176,7 +1215,9 @@ export function useRosita() {
             const durKnown = !isNaN(dur) && dur > 0 && isFinite(dur) && dur < 7200;
 
             // Lazy: setear duration timer si no se pudo al arrancar (streaming sin Content-Length)
+            // Cancelar estimatedPlaybackTimer si dur ya se conoce — evita corte prematuro
             if (started && durationTimer === undefined && durKnown) {
+              if (estimatedPlaybackTimer !== undefined) { clearTimeout(estimatedPlaybackTimer); estimatedPlaybackTimer = undefined; }
               durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
             }
 
@@ -1194,15 +1235,16 @@ export function useRosita() {
                   // Fallback para streaming WAV: ExoPlayer puede quedarse en playing=true
                   // avanzando pos hacia el silencio indefinidamente. Estimamos la duración
                   // basándonos en la longitud del texto (~80ms/char) + 2s de margen.
-                  // ~70ms/char basado en velocidad de la voz + 500ms de margen
-                  const estimatedMs = Math.max(2000, texto.length * 70);
+                  // ~90ms/char basado en velocidad de la voz + margen generoso
+                  const estimatedMs = Math.max(2000, texto.length * 90);
                   if (__DEV__) console.log('[TTS] estimatedPlaybackTimer:', estimatedMs, 'ms (', texto.length, 'chars)');
                   estimatedPlaybackTimer = setTimeout(() => done('estimated-playback'), estimatedMs);
                 }
               }
             } else {
               if (!playing) {
-                const nearEnd = durKnown && pos >= dur - 0.15;
+                const nearEndThresh = durKnown && dur < 1.5 ? 0.05 : 0.15;
+                const nearEnd = durKnown && pos >= dur - nearEndThresh;
                 if (nearEnd) {
                   done('near-end');
                 } else if (pos === lastPos && durKnown && pos < dur - 0.3) {
@@ -1262,7 +1304,7 @@ export function useRosita() {
     // Pausa breve antes de reanudar SR — evita el "golpe" de corte abrupto
     await new Promise(r => setTimeout(r, 250));
 
-    if (!enFlujoVozRef.current) {
+    if (!enFlujoVozRef.current && !enColaHablaRef.current) {
       iniciarSpeechRecognition();
     }
   }
@@ -1308,8 +1350,8 @@ export function useRosita() {
     try {
       const info = await FileSystem.getInfoAsync(uri);
       if (__DEV__) console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as any).size ?? '?');
-      // Muletilla default en paralelo con Whisper — cubre la latencia de red + STT
-      const muletillaPromise = reproducirMuletilla('default');
+      // Muletilla busqueda en paralelo con Whisper — cubre la latencia de red + STT
+      const muletillaPromise = reproducirMuletilla('busqueda');
       const texto = await transcribirAudio(uri);
       await muletillaPromise; // esperar que termine antes de ceder el player
       if (__DEV__) console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
@@ -1450,6 +1492,9 @@ export function useRosita() {
     detenerSilbido();
     setEstado('pensando');
     estadoRef.current = 'pensando';
+    // Feedback visual inmediato — estilo Alexa/Google: expresión sorprendida brevemente
+    setExpresion('sorprendida');
+    setTimeout(() => { if (estadoRef.current === 'pensando') setExpresion('pensativa'); }, 600);
 
     // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
@@ -1478,6 +1523,7 @@ export function useRosita() {
         await guardarHistorial(nuevoHist);
         ultimaCharlaRef.current    = Date.now();
         ultimaActividadRef.current = Date.now();
+        logCliente('rapida_msg', { cat: catRapida, texto });
         await hablar(texto, emotion);
         return;
       }
@@ -1524,7 +1570,10 @@ export function useRosita() {
     const esLugarLocal = !!tipoLugar && !!coordRef.current;
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
-    logCliente('rc_start', { chars: textoUsuario.length, muletilla: catMuletilla ?? 'none', busqueda: pideBusqueda ? 'si' : 'no', wiki: pideWikipedia ? 'si' : 'no' });
+    rcStartTsRef.current = Date.now();
+    const lagSrMs = srResultTsRef.current ? rcStartTsRef.current - srResultTsRef.current : -1;
+    logCliente('rc_start', { chars: textoUsuario.length, muletilla: catMuletilla ?? 'none', busqueda: pideBusqueda ? 'si' : 'no', wiki: pideWikipedia ? 'si' : 'no', lag_sr_ms: lagSrMs });
+    logCliente('user_msg', { texto: textoUsuario.slice(0, 200) });
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
@@ -1941,10 +1990,19 @@ REGLAS CRÍTICAS PARA RESPONDER:
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
       historialRef.current = nuevoHist;
       await guardarHistorial(nuevoHist);
+      mensajesSesionRef.current += 2; // user + assistant
       ultimaCharlaRef.current    = Date.now();
       ultimaActividadRef.current = Date.now();
       const oracionesTotal = splitEnOraciones(parsed.respuesta);
       logCliente('rc_hablar', { oraciones: oracionesTotal.length, chars: parsed.respuesta.length, primeraReproducida: primeraFraseReproducida });
+      logCliente('rosita_msg', { tag: parsed.tagPrincipal ?? 'none', texto: parsed.respuesta.slice(0, 300) });
+      // Guard: si el parser devolvió texto vacío y no hay primera frase reproducida,
+      // el estado quedaría colgado en 'pensando' para siempre (hablar() nunca resetea).
+      if (oracionesTotal.length === 0 && !primeraFraseReproducida) {
+        logCliente('rc_parse_vacio', { rawSlice: respuestaRaw.slice(0, 150) });
+        await hablar('No entendí bien, ¿podés repetir?');
+        return;
+      }
       if (primeraFraseReproducida) {
         // Primera ya reproducida — reproducir el resto en pipeline (pre-cache por oración)
         const { resto } = extraerPrimeraFrase(parsed.respuesta);
