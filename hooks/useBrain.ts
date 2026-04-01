@@ -226,11 +226,20 @@ function esCharlaSocialBreve(texto: string): boolean {
   if (texto.length > 40) return false;
   if (/[¿?]/.test(texto)) return false;
   if (PATRON_EMPATICO.test(texto) || PATRON_BUSQUEDA.test(texto) || PATRON_COMANDO.test(texto)) return false;
-  return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir)\b/i.test(texto);
+  return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir|tengo fr[ií]o|hace fr[ií]o)\b/i.test(texto);
 }
 
 function generarRespuestaSocialBreve(textoNorm: string, vozGenero: string): { texto: string; emotion: string; expresion: Expresion } | null {
   const masculino = vozGenero === 'masculina';
+  if (/\b(tengo fr[ií]o|hace fr[ií]o)\b/i.test(textoNorm)) {
+    return {
+      texto: masculino
+        ? 'Uy, tapate bien entonces. Si querés, te acompaño un rato.'
+        : 'Uy, tapate bien entonces. Si querés, te acompaño un rato.',
+      emotion: 'cansada',
+      expresion: 'cansada',
+    };
+  }
   if (/\b(cansad[oa]|con sue[ñn]o|por dormir)\b/i.test(textoNorm)) {
     return {
       texto: masculino
