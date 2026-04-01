@@ -12,6 +12,7 @@
 
 import { useRef } from 'react';
 import {
+  actualizarDispositivos,
   obtenerEstadoSmartThings, obtenerEstadoDispositivo,
   controlarDispositivo, controlarTodos,
   Dispositivo,
@@ -44,13 +45,66 @@ export function useSmartThings(deps: SmartThingsDeps) {
   const dispositivosRef = useRef<Dispositivo[]>([]);
   const inicializacionRef = useRef<Promise<void> | null>(null);
 
+  const normalizeTexto = (texto: string) =>
+    texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const STOPWORDS = new Set([
+    'la', 'el', 'los', 'las', 'un', 'una', 'unos', 'unas',
+    'de', 'del', 'al', 'por', 'favor',
+    'prende', 'prender', 'enciende', 'encender',
+    'apaga', 'apagar', 'apagae', 'apague',
+    'luz', 'luces', 'lampara', 'lamparas', 'foco', 'focos',
+    'switch', 'enchufe',
+  ]);
+
+  const tokensClave = (texto: string) =>
+    normalizeTexto(texto)
+      .split(' ')
+      .filter(Boolean)
+      .filter(token => !STOPWORDS.has(token));
+
   const findDispositivo = (nombre: string, dispositivos = dispositivosRef.current) => {
-    const query = nombre.toLowerCase();
-    return dispositivos.find(dv =>
-      dv.nombre.toLowerCase().includes(query) ||
-      query.includes(dv.nombre.toLowerCase())
-    );
+    const query = normalizeTexto(nombre);
+    if (!query) return undefined;
+
+    const exacto = dispositivos.find(dv => normalizeTexto(dv.nombre) === query);
+    if (exacto) return exacto;
+
+    const incluido = dispositivos.find(dv => {
+      const nombreNorm = normalizeTexto(dv.nombre);
+      return nombreNorm.includes(query) || query.includes(nombreNorm);
+    });
+    if (incluido) return incluido;
+
+    const queryTokens = tokensClave(nombre);
+    if (queryTokens.length === 0) return undefined;
+
+    let mejor: { dispositivo: Dispositivo; score: number } | null = null;
+    for (const dispositivo of dispositivos) {
+      const nombreTokens = new Set(tokensClave(dispositivo.nombre));
+      const score = queryTokens.reduce((acc, token) => acc + (nombreTokens.has(token) ? 1 : 0), 0);
+      if (score <= 0) continue;
+      if (!mejor || score > mejor.score) mejor = { dispositivo, score };
+    }
+
+    return mejor?.dispositivo;
   };
+
+  async function refrescarDispositivos(): Promise<Dispositivo[]> {
+    const lista = await actualizarDispositivos().catch(() => []);
+    if (lista.length > 0) {
+      dispositivosRef.current = lista;
+      return lista;
+    }
+    return dispositivosRef.current;
+  }
 
   // ── Inicialización: cargar dispositivos y su estado real ──────────────────
   async function inicializar(): Promise<void> {
@@ -95,32 +149,74 @@ export function useSmartThings(deps: SmartThingsDeps) {
   // ── Ejecutar acción de domótica ───────────────────────────────────────────
   async function ejecutarAccion(action: DomoticaAction): Promise<void> {
     const { tipo, dispositivoNombre, valor } = action;
-    const dispositivos = dispositivosRef.current;
+    let dispositivos = dispositivosRef.current;
 
     if (tipo === 'todo') {
+      if (dispositivos.length === 0) {
+        dispositivos = await refrescarDispositivos();
+      }
       // Apagar todos los dispositivos de una vez
       const ok = await controlarTodos(dispositivos, false).then(() => true).catch(() => false);
       if (ok) {
         dispositivosRef.current = dispositivos.map(dv =>
           dv.online ? { ...dv, estado: false } : dv
         );
+      } else {
+        await depsRef.current.hablar('No pude apagar los dispositivos de SmartThings.');
       }
 
     } else if (tipo === 'control') {
-      const dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      if (dispositivos.length === 0) {
+        dispositivos = await refrescarDispositivos();
+      }
+      let dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      if (!dispositivo) {
+        dispositivos = await refrescarDispositivos();
+        dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      }
+
       if (dispositivo) {
-        const ok = await controlarDispositivo(dispositivo.id, Boolean(valor))
-          .then(() => true)
-          .catch(() => false);
-        if (ok) {
-          dispositivosRef.current = dispositivos.map(dv =>
-            dv.id === dispositivo.id ? { ...dv, estado: Boolean(valor) } : dv
-          );
+        if (!dispositivo.online) {
+          await depsRef.current.hablar(`La ${dispositivo.nombre} aparece sin conexión en SmartThings.`);
+          return;
         }
+
+        const ok = await controlarDispositivo(dispositivo.id, Boolean(valor));
+        if (ok) {
+          const est = await obtenerEstadoDispositivo(dispositivo.id).catch(() => null);
+          const encendida = est?.['switch'];
+          const esperado = Boolean(valor);
+
+          dispositivosRef.current = dispositivos.map(dv =>
+            dv.id === dispositivo.id
+              ? { ...dv, estado: typeof encendida === 'boolean' ? encendida : esperado }
+              : dv
+          );
+
+          if (typeof encendida === 'boolean' && encendida !== esperado) {
+            const estadoTexto = encendida ? 'encendida' : 'apagada';
+            await depsRef.current.hablar(`Le mandé la orden a ${dispositivo.nombre}, pero SmartThings todavía la muestra ${estadoTexto}.`);
+          }
+        } else {
+          await depsRef.current.hablar(`No pude controlar ${dispositivo.nombre} desde SmartThings.`);
+        }
+      } else if (dispositivos.length > 0) {
+        const sugerencias = dispositivos.slice(0, 3).map(dv => dv.nombre).join(', ');
+        await depsRef.current.hablar(`No encontré ese dispositivo en SmartThings. Veo: ${sugerencias}.`);
+      } else {
+        await depsRef.current.hablar('Todavía no veo dispositivos de SmartThings para controlar.');
       }
 
     } else if (tipo === 'estado') {
-      const dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      if (dispositivos.length === 0) {
+        dispositivos = await refrescarDispositivos();
+      }
+      let dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      if (!dispositivo) {
+        dispositivos = await refrescarDispositivos();
+        dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      }
+
       if (dispositivo) {
         const est = await obtenerEstadoDispositivo(dispositivo.id).catch(() => null);
         if (est) {
@@ -137,6 +233,10 @@ export function useSmartThings(deps: SmartThingsDeps) {
           );
           await depsRef.current.hablar(descripcion);
         }
+      } else if (dispositivos.length > 0) {
+        await depsRef.current.hablar('No encontré ese dispositivo en SmartThings.');
+      } else {
+        await depsRef.current.hablar('Todavía no veo dispositivos de SmartThings vinculados.');
       }
     }
   }
