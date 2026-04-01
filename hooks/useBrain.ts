@@ -1400,8 +1400,23 @@ REGLAS CRÍTICAS PARA RESPONDER:
         const medRaw = await AsyncStorage.getItem('medPendiente');
         if (medRaw) {
           const { texto, ts } = JSON.parse(medRaw);
-          await AsyncStorage.removeItem('medPendiente');
-          if (Date.now() - ts < 4 * 60 * 60 * 1000) await d.hablar(`Por cierto, ${texto}`);
+          const sigueVigente = Date.now() - ts < 4 * 60 * 60 * 1000;
+          const esTurnoAccion =
+            !!parsed.domotica
+            || !!parsed.listaNueva
+            || !!parsed.listaAgregar
+            || !!parsed.listaBorrar
+            || !!parsed.timerSegundos;
+
+          if (!sigueVigente) {
+            await AsyncStorage.removeItem('medPendiente');
+          } else if (esTurnoAccion) {
+            logCliente('med_pendiente_postergado', { chars: texto.length, turn_id: turnId });
+          } else {
+            await AsyncStorage.removeItem('medPendiente');
+            logCliente('med_pendiente_hablar', { chars: texto.length, turn_id: turnId });
+            await d.hablar(`Por cierto, ${texto}`);
+          }
         }
       } catch {
         await AsyncStorage.removeItem('medPendiente').catch(() => {});
