@@ -31,7 +31,7 @@ import {
 import { buscarRadio, getFallbackAlt, nombreRadioOGenero } from '../lib/musica';
 import { Expresion } from '../components/RosaOjos';
 import {
-  construirSystemPromptEstable, construirContextoPerfil, construirContextoMemoriaPersistente, construirContextoTemporal,
+  construirSystemPromptEstable, construirManualOperativoCacheable, construirContextoPerfil, construirContextoMemoriaPersistente, construirContextoTemporal,
   parsearRespuesta, respuestaOffline, hashTexto, detectarGenero,
 } from '../lib/claudeParser';
 import {
@@ -360,6 +360,7 @@ export function useBrain(deps: BrainDeps) {
   const historialRef       = useRef<Mensaje[]>([]);
   const mensajesSesionRef  = useRef(0);
   const systemEstableRef   = useRef<{ key: string; text: string } | null>(null);
+  const manualCacheRef     = useRef<{ key: string; text: string } | null>(null);
   const perfilCacheRef     = useRef<{ key: string; text: string } | null>(null);
   const memoriaCacheRef    = useRef<{ key: string; text: string } | null>(null);
   const episodicaCacheRef  = useRef<{ key: string; text: string } | null>(null);
@@ -383,8 +384,13 @@ export function useBrain(deps: BrainDeps) {
       systemEstableRef.current = { key: perfKey, text: construirSystemPromptEstable(p) };
     }
 
+    const manualKey = 'haiku-cache-primer-v1';
+    if (!manualCacheRef.current || manualCacheRef.current.key !== manualKey) {
+      manualCacheRef.current = { key: manualKey, text: construirManualOperativoCacheable() };
+    }
+
     // Bloque 2 — semi-estático: perfil + dispositivos (caché ephemeral, invalida cuando cambia)
-    const perfilKey = `${p.gustos.join('|')}|${p.familiares.join('|')}|${p.medicamentos.join('|')}|${p.fechasImportantes.join('|')}|${d.dispositivosTuyaRef.current.map(dv => dv.id + String(dv.estado)).join('|')}`;
+    const perfilKey = `${p.gustos.join('|')}|${p.familiares.join('|')}|${p.medicamentos.join('|')}|${d.dispositivosTuyaRef.current.map(dv => dv.id + String(dv.estado)).join('|')}`;
     if (!perfilCacheRef.current || perfilCacheRef.current.key !== perfilKey) {
       perfilCacheRef.current = { key: perfilKey, text: construirContextoPerfil(p, d.dispositivosTuyaRef.current) };
     }
@@ -403,11 +409,12 @@ export function useBrain(deps: BrainDeps) {
 
     const blocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
+      { type: 'text' as const, text: manualCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: perfilCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: memoriaCacheRef.current.text,  cache_control: { type: 'ephemeral' as const } },
     ];
     if (episodicaCacheRef.current?.text) {
-      blocks.push({ type: 'text' as const, text: episodicaCacheRef.current.text, cache_control: { type: 'ephemeral' as const } });
+      blocks.push({ type: 'text' as const, text: episodicaCacheRef.current.text });
     }
     blocks.push({ type: 'text' as const, text: temporal });
     return blocks;
@@ -422,7 +429,7 @@ export function useBrain(deps: BrainDeps) {
     if (!episodicaCacheRef.current || episodicaCacheRef.current.key !== key) {
       episodicaCacheRef.current = {
         key,
-        text: construirResumenMemoriasEpisodicas(memorias, { limit: 10, maxChars: 1800 }),
+        text: construirResumenMemoriasEpisodicas(memorias, { limit: 8, maxChars: 1200 }),
       };
     }
   }
@@ -805,21 +812,28 @@ Usalas solo si suman.`;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
     const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
-    const cachedSystemChars = systemPreview
-      .filter(block => !!block.cache_control)
-      .reduce((acc, block) => acc + block.text.length, 0);
+    const cacheTaggedBlocks = systemPreview.filter(block => !!block.cache_control);
+    const cachedSystemChars = cacheTaggedBlocks.reduce((acc, block) => acc + block.text.length, 0);
     const cachedSystemTokensEst = Math.ceil(cachedSystemChars / 4);
-      logCliente('prompt_ctx', {
+    const stableCacheChars = systemPreview
+      .slice(0, 4)
+      .reduce((acc, block) => acc + (block.cache_control ? block.text.length : 0), 0);
+    const stableCacheTokensEst = Math.ceil(stableCacheChars / 4);
+    logCliente('prompt_ctx', {
         hist_msgs: msgSliceBase.length,
         hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
         mem_count: contextoMemoria.count,
         mem_chars: contextoMemoria.chars,
         extra_chars: extraBase.length,
         sys_stable_hash: hashTexto(systemPreview[0].text),
-        sys_profile_hash: hashTexto(systemPreview[1].text),
-        sys_memory_hash: hashTexto(systemPreview[2].text),
-        sys_episodic_hash: systemPreview[3]?.cache_control ? hashTexto(systemPreview[3].text) : '0',
+        sys_manual_hash: hashTexto(systemPreview[1].text),
+        sys_profile_hash: hashTexto(systemPreview[2].text),
+        sys_memory_hash: hashTexto(systemPreview[3].text),
+        sys_episodic_hash: systemPreview[4] && !systemPreview[4].cache_control && systemPreview.length > 5 ? hashTexto(systemPreview[4].text) : '0',
         sys_dynamic_hash: hashTexto(systemPreview[systemPreview.length - 1].text),
+        sys_stable_cached_chars: stableCacheChars,
+        sys_stable_cached_tokens_est: stableCacheTokensEst,
+        stable_cache_floor_hit: stableCacheTokensEst >= 4096 ? 'si' : 'no',
         sys_cached_chars: cachedSystemChars,
         sys_cached_tokens_est: cachedSystemTokensEst,
         cache_floor_hit: cachedSystemTokensEst >= 4096 ? 'si' : 'no',
