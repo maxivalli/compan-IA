@@ -17,7 +17,8 @@ import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { obtenerClima, climaATexto } from '../lib/clima';
 import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
-import { leerImagen, sincronizarAnimo, obtenerTokenDispositivo, logCliente } from '../lib/ai';
+import { leerImagen, sincronizarAnimo, obtenerTokenDispositivo, logCliente, calentarCacheClaudeEnBackground } from '../lib/ai';
+import { buildRositaSystemPayload } from '../lib/systemPayload';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
 import { useSmartThings } from './useSmartThings';
@@ -91,6 +92,7 @@ export function useRosita() {
   const fotoResolverRef     = useRef<((base64: string | null) => void) | null>(null);
 
   // ── Timestamps para medir lag percibido ──────────────────────────────────────
+  const speechEndTsRef   = useRef(0);  // cuando el ASR detecta fin de voz del usuario
   const srResultTsRef    = useRef(0);  // cuando SR devuelve resultado
   const rcStartTsRef     = useRef(0);  // cuando empieza responderConClaude
   // enFlujoVozRef, enColaHablaRef → pipeline.*
@@ -143,6 +145,7 @@ export function useRosita() {
     nombreAsistenteRef,
     proximaAlarmaRef,
     rcStartTsRef,
+    speechEndTsRef,
     srResultTsRef,
     setEstado,
     setMusicaActiva,
@@ -181,6 +184,7 @@ export function useRosita() {
     perfilRef,
     ultimaRadioRef,
     dispositivosTuyaRef:      smartthings.dispositivosTuyaRef,
+    speechEndTsRef,
     srResultTsRef,
     rcStartTsRef,
     flashAnim,
@@ -190,6 +194,7 @@ export function useRosita() {
     extraerPrimeraFrase:      pipeline.extraerPrimeraFrase,
     precachearTexto:          pipeline.precachearTexto,
     reproducirMuletilla:      pipeline.reproducirMuletilla,
+    reproducirTecleo:         pipeline.reproducirTecleo,
     detenerSilbido:           pipeline.detenerSilbido,
     pararMusica:              pipeline.pararMusica,
     playerMusica:             pipeline.playerMusica,
@@ -409,6 +414,9 @@ export function useRosita() {
       pipeline.precachearRespuestasRapidas(perfilGuardado.nombreAbuela).catch(() => {});
       setCargando(false);
       pipeline.iniciarSpeechRecognition();
+      // Warmup: escribe el cache de Claude para que el primer turno real sea rápido
+      const warmupPayload = buildRositaSystemPayload({ perfil: perfilGuardado, climaTexto: '' });
+      calentarCacheClaudeEnBackground(warmupPayload);
     }
 
     // Retry loop: intenta obtener clima/ubicación hasta lograrlo.

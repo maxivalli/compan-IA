@@ -274,7 +274,7 @@ function limpiarTextoMemoria(texto: string): string {
     .trim();
 }
 
-function extraerKeywordsMemoria(texto: string, max = 8): string[] {
+export function extraerKeywordsMemoria(texto: string, max = 8): string[] {
   const palabras = limpiarTextoMemoria(texto)
     .split(' ')
     .filter(p => p.length >= 4 && !STOPWORDS_MEMORIA.has(p));
@@ -296,7 +296,9 @@ function truncarMemoria(texto: string, maxLen = 180): string {
 
 function minOverlapRequerido(a: string[], b: string[]): number {
   const minLen = Math.min(a.length, b.length);
-  if (minLen <= 1) return 1;
+  // Con minLen <= 1 un threshold de 2 es inalcanzable → solo merge por texto exacto.
+  // Evita que una memoria de 1 keyword colapse con cualquier memoria que la contenga.
+  if (minLen <= 1) return 2;
   if (minLen === 2) return 2;
   return Math.min(3, minLen - 1);
 }
@@ -340,7 +342,7 @@ export async function registrarMemoriaEpisodica(textoUsuario: string, textoAsist
   if (!esTemaMemorable(textoUsuario)) return;
   const resumen = resumirMemoria(textoUsuario, textoAsistente);
   const keywords = extraerKeywordsMemoria(`${textoUsuario} ${textoAsistente}`);
-  if (keywords.length === 0) return;
+  if (keywords.length < 2) return; // una sola keyword es demasiado vaga para deduplicar correctamente
 
   const ahora = Date.now();
   const memorias = await cargarMemoriasEpisodicas();

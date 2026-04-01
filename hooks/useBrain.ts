@@ -24,7 +24,7 @@ import {
   cargarPerfil, guardarHistorial, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, borrarRecordatorio,
   registrarMusicaHoy, guardarUltimaRadio,
-  buscarMemoriasEpisodicas, registrarMemoriaEpisodica, cargarMemoriasEpisodicas, construirResumenMemoriasEpisodicas,
+  registrarMemoriaEpisodica, cargarMemoriasEpisodicas, construirResumenMemoriasEpisodicas, extraerKeywordsMemoria,
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
   Perfil, TelegramContacto,
 } from '../lib/memoria';
@@ -170,6 +170,50 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   return null;
 }
 
+// ── Respuestas instantáneas (hora, fecha, cálculos) ───────────────────────────
+// No requieren Claude ni red. Se generan en el momento, cero latencia.
+const DIAS  = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+export function respuestaInstantanea(textoNorm: string): { texto: string; emotion: string } | null {
+  // Hora
+  if (/\b(qu[eé]\s+hora\s+(es|son)|qu[eé]\s+horas\s+(son|es)|la\s+hora|dec[ií]me\s+la\s+hora|qu[eé]\s+hora\s+tengo)\b/.test(textoNorm)) {
+    const now = new Date();
+    const hh = now.getHours();
+    const mm = now.getMinutes();
+    const mmStr = mm === 0 ? 'en punto' : mm < 10 ? `y ${mm}` : `y ${mm}`;
+    const periodo = hh < 12 ? 'de la mañana' : hh < 13 ? 'del mediodía' : hh < 20 ? 'de la tarde' : 'de la noche';
+    const horaDisplay = hh > 12 ? hh - 12 : hh === 0 ? 12 : hh;
+    return { texto: `Son las ${horaDisplay} ${mmStr} ${periodo}.`, emotion: 'neutral' };
+  }
+  // Fecha / día
+  if (/\b(qu[eé]\s+(d[ií]a|fecha)\s+(es|estamos)|qu[eé]\s+d[ií]a\s+es\s+hoy|hoy\s+qu[eé]\s+d[ií]a|en\s+qu[eé]\s+fecha\s+estamos)\b/.test(textoNorm)) {
+    const now = new Date();
+    const dia = DIAS[now.getDay()];
+    const num = now.getDate();
+    const mes = MESES[now.getMonth()];
+    const año = now.getFullYear();
+    return { texto: `Hoy es ${dia} ${num} de ${mes} de ${año}.`, emotion: 'neutral' };
+  }
+  // Cálculo simple: "cuánto es X por/más/menos/dividido Y"
+  const matchCalc = textoNorm.match(/cu[aá]nto\s+es\s+(\d+(?:[.,]\d+)?)\s*(por|multiplicado\s+por|por\s+x|m[aá]s|menos|dividido|sobre|partido)\s*(\d+(?:[.,]\d+)?)/);
+  if (matchCalc) {
+    const a = parseFloat(matchCalc[1].replace(',', '.'));
+    const op = matchCalc[2];
+    const b = parseFloat(matchCalc[3].replace(',', '.'));
+    let resultado: number | null = null;
+    if (/por|multiplicado|x/.test(op))    resultado = a * b;
+    else if (/m[aá]s/.test(op))           resultado = a + b;
+    else if (/menos/.test(op))            resultado = a - b;
+    else if (/dividido|sobre|partido/.test(op)) resultado = b !== 0 ? a / b : null;
+    if (resultado !== null) {
+      const res = Number.isInteger(resultado) ? resultado : parseFloat(resultado.toFixed(2));
+      return { texto: `${res}.`, emotion: 'neutral' };
+    }
+  }
+  return null;
+}
+
 function esCharlaSocialBreve(texto: string): boolean {
   if (texto.length > 40) return false;
   if (/[¿?]/.test(texto)) return false;
@@ -294,6 +338,33 @@ function respuestaFallbackIA(nombreAbuela: string, vozGenero: string): string {
   return `[NEUTRAL] ${opciones[Math.floor(Math.random() * opciones.length)]}`;
 }
 
+// ── Query builder para Wikipedia ─────────────────────────────────────────────
+// Resuelve referencias deícticas ("este departamento", "este lugar", "acá") usando
+// la ciudad del perfil y/o el último tema mencionado por Rosita en el historial.
+function construirQueryWikipedia(
+  textoUsuario: string,
+  textoNorm: string,
+  ciudad: string | null | undefined,
+  historial: { role: string; content: string }[],
+): string {
+  // Si ya hay una pregunta directa y explícita, usarla sin modificar
+  const esDeictica = /\b(este|esta|ese|esa|eso|esto|el mismo|la misma|de aca|de acá|de aqui|de aquí|ese lugar|esta ciudad|este pueblo|este departamento|este pais|este municipio)\b/.test(textoNorm);
+
+  if (!esDeictica) return textoUsuario;
+
+  // Intentar extraer el último sustantivo/tema mencionado por Rosita
+  const ultimaRosita = [...historial].reverse().find(m => m.role === 'assistant')?.content ?? '';
+  // Buscar entidades propias (palabras en mayúscula, lugares)
+  const entidades = ultimaRosita
+    .replace(/\[[^\]]+\]/g, '')          // quitar tags
+    .match(/\b([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)\b/g) ?? [];
+  const temaConversacion = entidades.find(e => e.length > 4 && e !== 'Rosita' && e !== 'Maxi');
+
+  if (temaConversacion) return temaConversacion;
+  if (ciudad) return ciudad;
+  return textoUsuario;
+}
+
 // ── Interfaz de dependencias ───────────────────────────────────────────────────
 
 /** Tipo mínimo que useBrain necesita del audio player de música */
@@ -330,6 +401,7 @@ export interface BrainDeps {
   perfilRef:          React.MutableRefObject<Perfil | null>;
   ultimaRadioRef:     React.MutableRefObject<string | null>;
   dispositivosTuyaRef:React.MutableRefObject<Dispositivo[]>;
+  speechEndTsRef:     React.MutableRefObject<number>;
   srResultTsRef:      React.MutableRefObject<number>;
   rcStartTsRef:       React.MutableRefObject<number>;
   flashAnim:          Animated.Value;
@@ -341,6 +413,7 @@ export interface BrainDeps {
   extraerPrimeraFrase: (texto: string) => { primera: string; resto: string };
   precachearTexto:     (texto: string, emotion?: string) => Promise<void>;
   reproducirMuletilla: (cat: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void) => Promise<string>;
+  reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
   detenerSilbido:      () => void;
   pararMusica:         () => void;
   playerMusica:        AudioPlayerLike;
@@ -409,8 +482,11 @@ export function useBrain(deps: BrainDeps) {
     });
   }
 
-  async function refrescarMemoriaEpisodicaCache(): Promise<void> {
+  // Refresca el cache Y construye el contexto relevante en UNA sola lectura AsyncStorage.
+  async function refrescarYConstruirMemoria(query: string): Promise<{ texto: string; count: number; chars: number }> {
     const memorias = await cargarMemoriasEpisodicas();
+
+    // Refrescar cache de resumen completo
     const key = memorias
       .slice(0, 24)
       .map(mem => `${mem.id}:${mem.updatedAt}:${mem.mentions}`)
@@ -421,18 +497,32 @@ export function useBrain(deps: BrainDeps) {
         text: construirResumenMemoriasEpisodicas(memorias, { limit: 8, maxChars: 1200 }),
       };
     }
-  }
 
-  async function construirContextoMemoria(query: string): Promise<{ texto: string; count: number; chars: number }> {
-    const memorias = await buscarMemoriasEpisodicas(query, 2);
+    // Construir contexto relevante para este turno (mismo código que buscarMemoriasEpisodicas
+    // pero sin la segunda lectura AsyncStorage)
     if (!memorias.length) return { texto: '', count: 0, chars: 0 };
-    const lista = memorias
-      .map((mem, idx) => `${idx + 1}. ${mem.resumen}`)
-      .join('\n');
-    const texto = `\nMemorias relevantes:
-${lista}
-Usalas solo si suman.`;
-    return { texto, count: memorias.length, chars: texto.length };
+    const q = normalizarTextoPlano(query.toLowerCase());
+    const qKeywords = extraerKeywordsMemoria(q, 10);
+    if (qKeywords.length === 0 && q.length < 12) return { texto: '', count: 0, chars: 0 };
+    const ahora = Date.now();
+    const relevantes = memorias
+      .map(mem => {
+        const overlap = mem.keywords.filter(k => qKeywords.includes(k)).length;
+        const resumenNorm = normalizarTextoPlano(mem.resumen.toLowerCase());
+        const substringHit = q.length >= 6 && (resumenNorm.includes(q) || q.includes(resumenNorm.slice(0, 24)));
+        const recencyDays = Math.max(1, (ahora - mem.updatedAt) / (24 * 60 * 60 * 1000));
+        const score = (overlap * 3 + (substringHit ? 4 : 0) + Math.log(mem.mentions + 1)) / Math.sqrt(recencyDays);
+        return { mem, score };
+      })
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2)
+      .map(({ mem }) => mem);
+
+    if (!relevantes.length) return { texto: '', count: 0, chars: 0 };
+    const lista = relevantes.map((mem, idx) => `${idx + 1}. ${mem.resumen}`).join('\n');
+    const texto = `\nMemorias relevantes:\n${lista}\nUsalas solo si suman.`;
+    return { texto, count: relevantes.length, chars: texto.length };
   }
 
   // ── Noticias en tiempo real ───────────────────────────────────────────────────
@@ -557,7 +647,7 @@ Usalas solo si suman.`;
     if (urlStream) {
       try {
         d.playerMusica.replace({ uri: urlStream });
-        d.playerMusica.volume = 0.70;
+        d.playerMusica.volume = 0.45;
         d.playerMusica.play();
         d.musicaActivaRef.current = true;
         d.detenerSilbido();
@@ -712,6 +802,20 @@ Usalas solo si suman.`;
       }
     }
 
+    // ── Respuestas instantáneas: hora, fecha, cálculos (cero red) ────────────
+    const instantanea = respuestaInstantanea(textoNorm);
+    if (instantanea) {
+      d.setExpresion('neutral');
+      const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: instantanea.texto }].slice(-24);
+      historialRef.current = nuevoHist;
+      await guardarHistorial(nuevoHist);
+      d.ultimaCharlaRef.current    = Date.now();
+      d.ultimaActividadRef.current = Date.now();
+      logCliente('rapida_msg', { cat: 'instantanea', texto: instantanea.texto });
+      await d.hablar(instantanea.texto, instantanea.emotion);
+      return;
+    }
+
     const socialBreve = generarRespuestaSocialBreve(textoNorm, p.vozGenero ?? 'femenina');
     if (socialBreve && esCharlaSocialBreve(textoNorm)) {
       d.setExpresion('neutral');
@@ -771,9 +875,23 @@ Usalas solo si suman.`;
     const esLugarLocal = !!tipoLugar && !!d.coordRef.current;
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
+    // Si el regex de búsqueda disparó la categoría 'busqueda' pero ninguna búsqueda
+    // real se va a ejecutar, bajar a null para no añadir el delay de "Un segundito"
+    // antes de lo que en realidad va a ser una respuesta rápida de Claude.
+    const catMuletillaEfectiva = (catMuletilla === 'busqueda' && !pideBusqueda && !pideWikipedia && !pideNoticias)
+      ? null
+      : catMuletilla;
     d.rcStartTsRef.current = Date.now();
     const lagSrMs = d.srResultTsRef.current ? d.rcStartTsRef.current - d.srResultTsRef.current : -1;
-    logCliente('rc_start', { chars: textoUsuario.length, muletilla: catMuletilla ?? 'none', busqueda: pideBusqueda ? 'si' : 'no', wiki: pideWikipedia ? 'si' : 'no', lag_sr_ms: lagSrMs });
+    const lagSpeechEndMs = d.speechEndTsRef.current ? d.rcStartTsRef.current - d.speechEndTsRef.current : -1;
+    logCliente('rc_start', {
+      chars: textoUsuario.length,
+      muletilla: catMuletillaEfectiva ?? 'none',
+      busqueda: pideBusqueda ? 'si' : 'no',
+      wiki: pideWikipedia ? 'si' : 'no',
+      lag_sr_ms: lagSrMs,
+      lag_speech_end_ms: lagSpeechEndMs,
+    });
     logCliente('turn_start', { turn_id: turnId, user_chars: textoUsuario.length });
     logCliente('user_msg', { texto: textoUsuario.slice(0, 200) });
 
@@ -795,12 +913,13 @@ Usalas solo si suman.`;
       d.precachearTexto(primera, tag.toLowerCase()).catch(() => {});
       resolverPrimeraFrase(primera);
     };
-    await refrescarMemoriaEpisodicaCache();
-    const contextoMemoria = await construirContextoMemoria(textoUsuario);
+
+    // Arrancar memoria en paralelo — no esperar antes de lanzar muletilla/búsqueda
+    const memoriaPromise = refrescarYConstruirMemoria(textoUsuario);
+
     const contextoInterlocutor = interlocutorActivo
       ? `\nInterlocutor actual: ${interlocutorActivo}. Respondé a ${interlocutorActivo}.`
       : `\nSi no sabés quién habla, no uses nombres propios.`;
-    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const maxTokBase  = (pideCuento || pideJuego || pideChiste)
       ? 700
@@ -811,38 +930,6 @@ Usalas solo si suman.`;
           : 80;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
-    const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
-    const perfilHashBase = [
-      p.nombreAbuela, p.nombreAsistente, p.edad, p.vozGenero, p.generoUsuario,
-      ...(p.gustos ?? []), ...(p.familiares ?? []), ...(p.medicamentos ?? []),
-      ...d.dispositivosTuyaRef.current.map(dv => `${dv.id}:${dv.estado}:${dv.online}`),
-    ].join('|');
-    const memoriaHashBase = [...(p.recuerdos ?? []), ...(p.fechasImportantes ?? [])].join('|');
-    logCliente('prompt_ctx', {
-        hist_msgs: msgSliceBase.length,
-        hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
-        mem_count: contextoMemoria.count,
-        mem_chars: contextoMemoria.chars,
-        extra_chars: extraBase.length,
-        sys_stable_hash: 'backend_rosita_prompt_v1',
-        sys_manual_hash: 'backend_rosita_manual_v1',
-        sys_profile_hash: hashTexto(perfilHashBase),
-        sys_memory_hash: hashTexto(memoriaHashBase),
-        sys_episodic_hash: systemPreview.memoriaEpisodica ? hashTexto(systemPreview.memoriaEpisodica) : '0',
-        sys_dynamic_hash: hashTexto([
-          systemPreview.climaTexto,
-          systemPreview.extraTemporal ?? '',
-          systemPreview.ciudad ?? '',
-          systemPreview.coords ? `${systemPreview.coords.lat},${systemPreview.coords.lon}` : '',
-          systemPreview.feriados ?? '',
-        ].join('|')),
-        sys_stable_cached_chars: -1,
-        sys_stable_cached_tokens_est: -1,
-        stable_cache_floor_hit: 'backend',
-        sys_cached_chars: -1,
-        sys_cached_tokens_est: -1,
-        cache_floor_hit: 'backend',
-      });
 
     try {
       const esRespuestaUtil = (texto?: string | null): boolean => {
@@ -890,29 +977,54 @@ Usalas solo si suman.`;
       let claudePromise: Promise<string>;
 
       const muletillaAbort = { current: false };
-      const muletillaPromise = catMuletilla
-        ? d.reproducirMuletilla(catMuletilla, muletillaAbort)
+      const tecleoAbort    = { current: false };
+      // Muletilla arranca INMEDIATAMENTE — no espera memoria ni búsqueda
+      const muletillaPromise = catMuletillaEfectiva
+        ? d.reproducirMuletilla(catMuletillaEfectiva, muletillaAbort)
         : Promise.resolve(null);
 
       if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
-        // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
+        // ── Fast path ─────────────────────────────────────────────────────────
+        // Para consultas de entretenimiento o charla social, la memoria episódica
+        // no aporta valor y genera ~800ms de espera innecesaria. Usamos string vacío.
+        const esConsultaLiviana = pideCuento || pideChiste || pideJuego || esCharlaSocialBreve(textoNorm);
+        const contextoMemoria = esConsultaLiviana
+          ? { texto: '', count: 0, chars: 0 }
+          : await memoriaPromise;
+        const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
+        const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
+        logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length });
         claudePromise = resolverClaudeConFallback({
           system: systemPreview,
           messages: msgSliceBase,
           maxTokens: maxTokBase,
         });
       } else {
-        // ── Slow path: esperar resultados (muletilla corre durante la búsqueda) ─
-        const [titulosNoticias, busquedaResult, wikiResult] = await Promise.all([
-          pideNoticias ? buscarNoticias(textoUsuario).then(r => r ?? buscarWeb(textoUsuario)) : Promise.resolve(null),
-          pideBusqueda
-            ? (esLugarLocal
-                ? buscarLugares(d.coordRef.current!.lat, d.coordRef.current!.lon, tipoLugar!)
-                    .then(r => r !== null ? r : buscarWeb(queryBusqueda))
-                : buscarWeb(queryBusqueda))
-            : Promise.resolve(null),
-          pideWikipedia ? buscarWikipedia(preguntaLugarVivo && d.ciudadRef.current ? d.ciudadRef.current : textoUsuario) : Promise.resolve(null),
+        // ── Slow path: búsqueda + memoria + tecleo corren todos en paralelo ──
+        // tecleo arranca INMEDIATAMENTE en playerMusica (canal separado de la muletilla)
+        const tecleoPromise = d.reproducirTecleo(tecleoAbort);
+
+        const [[titulosNoticias, busquedaResult, wikiResult], contextoMemoria] = await Promise.all([
+          Promise.all([
+            pideNoticias ? buscarNoticias(textoUsuario).then(r => r ?? buscarWeb(textoUsuario)) : Promise.resolve(null),
+            pideBusqueda
+              ? (esLugarLocal
+                  ? buscarLugares(d.coordRef.current!.lat, d.coordRef.current!.lon, tipoLugar!)
+                      .then(r => r !== null ? r : buscarWeb(queryBusqueda))
+                  : buscarWeb(queryBusqueda))
+              : Promise.resolve(null),
+            pideWikipedia ? buscarWikipedia(construirQueryWikipedia(textoUsuario, textoNorm, d.ciudadRef.current, nuevoHistorial)) : Promise.resolve(null),
+          ]),
+          memoriaPromise,
         ]);
+
+        // Resultados listos → parar tecleo y esperar que se detenga limpiamente
+        tecleoAbort.current = true;
+        await tecleoPromise;
+
+        const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
+        logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length });
+
         resultadosBusqueda = busquedaResult;
         const noticiasFinales = resultadosBusqueda ? null : titulosNoticias;
         let contextoNoticias = '';
@@ -935,10 +1047,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
           contextoWiki = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 60 palabras.\nInformación de Wikipedia para enriquecer tu respuesta:\n${wikiResult}\nUsá esta información de forma natural y cálida, sin citar textualmente Wikipedia.`;
         }
         const systemFull = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
-        const msgSlice   = msgSliceBase;
         claudePromise = resolverClaudeConFallback({
           system: systemFull,
-          messages: msgSlice,
+          messages: msgSliceBase,
           maxTokens: maxTokBase,
         });
       }
@@ -1032,8 +1143,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
           parsed.respuesta,
           d.splitEnOraciones,
           {
-            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 1 : 2,
-            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 120 : 150,
+            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 4 : 2,
+            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 350 : 150,
           },
         );
       }

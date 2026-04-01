@@ -455,6 +455,30 @@ export async function leerImagen(base64: string): Promise<string | null> {
 }
 
 /** Sincroniza una entrada de ánimo al backend (fire-and-forget). */
+/**
+ * Manda un ping mínimo a /ai/chat-stream para que el backend escriba el cache
+ * de Claude (cache_write). Así el primer turno real del usuario ya encuentra
+ * cache_read en vez de pagar el cold-start de ~1000-1500ms extra.
+ * Se llama fire-and-forget desde inicializar(), nunca bloquea la UI.
+ */
+export function calentarCacheClaudeEnBackground(systemPayload: object): void {
+  Promise.all([jsonHeaders(), bootstrapDispositivo().catch(() => '')]).then(([headers]) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BACKEND_URL}/ai/chat-stream`);
+    Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v));
+    xhr.setRequestHeader('x-cache-warm', '1');
+    xhr.timeout = 15000;
+    xhr.send(JSON.stringify({
+      system_payload: systemPayload,
+      messages: [{ role: 'user', content: '.' }],
+      max_tokens: 1,
+    }));
+    // No procesamos la respuesta — solo nos importa que el backend haya
+    // escrito el cache. XHR se abandona pero el servidor completa el request.
+    setTimeout(() => { try { xhr.abort(); } catch {} }, 4000);
+  }).catch(() => {});
+}
+
 export function sincronizarAnimo(expresion: string, timestamp: number): void {
   jsonHeaders().then(headers =>
     fetch(`${BACKEND_URL}/ai/animo`, {

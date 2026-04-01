@@ -55,6 +55,10 @@ const SILBIDOS_ASSETS = [
   require('../assets/audio/a_gentle_cheerful_wh_#1-1774615356858.mp3'),
 ];
 
+// ── Tecleo (audio de espera durante búsquedas) ────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const TECLEO_ASSET = require('../assets/audio/tecleo.mp3');
+
 // ── Funciones puras de texto ──────────────────────────────────────────────────
 
 export function slugNombre(nombre: string): string {
@@ -204,6 +208,7 @@ export interface AudioPipelineDeps {
   nombreAsistenteRef:       React.MutableRefObject<string>;
   proximaAlarmaRef:         React.MutableRefObject<number>;
   rcStartTsRef:             React.MutableRefObject<number>;
+  speechEndTsRef:           React.MutableRefObject<number>;
   srResultTsRef:            React.MutableRefObject<number>;
 
   // Setters de estado visual
@@ -300,8 +305,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         continuous: true,
         interimResults: false,
         androidIntentOptions: {
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 1500,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 700,
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 700,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 350,
         },
       });
       srActivoRef.current = true;
@@ -398,6 +403,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         && ultimoAudioUriRef.current !== null;
 
       d.srResultTsRef.current = Date.now();
+      const lagSpeechEndMs = d.speechEndTsRef.current ? d.srResultTsRef.current - d.speechEndTsRef.current : -1;
+      logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs });
       if (esRepeticion) {
         await hablar(ultimoTextoHabladoRef.current!);
       } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
@@ -464,10 +471,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
     setDetectandoSonido(false);
   }
+  function registrarFinDeVozUsuario() {
+    const d = depsRef.current;
+    desactivarFeedbackSonido();
+    if (enFlujoVozRef.current || enColaHablaRef.current) return;
+    if (d.estadoRef.current === 'hablando') return;
+    d.speechEndTsRef.current = Date.now();
+    logCliente('end_of_user_speech', { estado: d.estadoRef.current });
+  }
   useSpeechRecognitionEvent('soundstart',  activarFeedbackSonido);
   useSpeechRecognitionEvent('speechstart', activarFeedbackSonido);
   useSpeechRecognitionEvent('soundend',    desactivarFeedbackSonido);
-  useSpeechRecognitionEvent('speechend',   desactivarFeedbackSonido);
+  useSpeechRecognitionEvent('speechend',   registrarFinDeVozUsuario);
 
   // ── Watchdog de SR ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -503,8 +518,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }, []);
 
   // ── Duck / unduck música ──────────────────────────────────────────────────
-  function duckMusica() { /* volumen fijo — duck desactivado */ }
-  function unduckMusica() { /* volumen fijo — duck desactivado */ }
+  const MUSICA_VOL_NORMAL = 0.45;
+  const MUSICA_VOL_DUCK   = 0.15;
+  function duckMusica()   { try { playerMusica.volume = MUSICA_VOL_DUCK;   } catch {} }
+  function unduckMusica() { try { playerMusica.volume = MUSICA_VOL_NORMAL; } catch {} }
 
   // ── Música ────────────────────────────────────────────────────────────────
   function pararMusica() {
@@ -548,6 +565,31 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     setSilbando(false);
     if (silbidoTimerRef.current) clearTimeout(silbidoTimerRef.current);
     try { if (player.playing) player.pause(); } catch {}
+  }
+
+  // ── Tecleo de espera durante búsquedas ────────────────────────────────────
+  // Usa playerMusica (canal separado) para sonar en PARALELO con la muletilla
+  // verbal que corre en player. No toca nada si hay música activa.
+  async function reproducirTecleo(abort: { current: boolean }): Promise<void> {
+    if (abort.current) return;
+    if (depsRef.current.musicaActivaRef.current) return;
+    try {
+      playerMusica.replace(TECLEO_ASSET);
+      (playerMusica as any).loop = true;
+      playerMusica.play();
+      await new Promise<void>(resolve => {
+        const poll = setInterval(() => {
+          if (abort.current) {
+            clearInterval(poll);
+            resolve();
+          }
+        }, 80);
+      });
+    } catch {}
+    try {
+      (playerMusica as any).loop = false;
+      playerMusica.pause();
+    } catch {}
   }
 
   // ── Pre-cache TTS ─────────────────────────────────────────────────────────
@@ -665,6 +707,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     const lagRcMs = d.rcStartTsRef.current ? Date.now() - d.rcStartTsRef.current : -1;
     const turnAudio = markTurnFirstAudio();
+    if (turnAudio.firstForTurn) {
+      logCliente('first_audio', {
+        chars: texto.length,
+        emotion: emotion ?? 'none',
+        lag_rc_ms: lagRcMs,
+        e2e_first_audio_ms: turnAudio.e2eFirstAudioMs ?? -1,
+      });
+    }
     logCliente('hablar_start', {
       chars: texto.length,
       emotion: emotion ?? 'none',
@@ -987,6 +1037,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     extraerPrimeraFrase,
     precachearTexto,
     reproducirMuletilla,
+    reproducirTecleo,
 
     // Funciones de gestión (usadas por useRosita en inicializar/reactivar)
     precachearMuletillas,
