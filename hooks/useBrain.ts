@@ -173,7 +173,7 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
-  if (/\b(chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
+  if (/\b(chau|chao|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
   if (/\b(perfecto|entendido|re bien|todo bien|genial|b[aá]rbaro|de acuerdo)\b/i.test(texto)) return 'afirmacion';
   return null;
 }
