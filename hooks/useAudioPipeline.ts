@@ -162,6 +162,34 @@ function esEcoDelTTS(reconocido: string, hablado: string | null): boolean {
   return overlap >= Math.min(3, tokensR.size);
 }
 
+function coincideConColaDelTTS(reconocido: string, hablado: string | null): boolean {
+  if (!hablado) return false;
+  const r = normalizarTextoPlano(reconocido);
+  const h = normalizarTextoPlano(hablado);
+  if (!r || !h) return false;
+
+  const colaChars = h.slice(-Math.min(h.length, 48));
+  if (colaChars.includes(r)) return true;
+
+  const tokensH = h.split(' ').filter(Boolean);
+  const tokensR = r.split(' ').filter(Boolean);
+  if (!tokensH.length || !tokensR.length) return false;
+
+  const cola3 = tokensH.slice(-3).join(' ');
+  const cola4 = tokensH.slice(-4).join(' ');
+  const cola5 = tokensH.slice(-5).join(' ');
+  if (cola3.includes(r) || cola4.includes(r) || cola5.includes(r)) return true;
+
+  // Si lo reconocido es muy corto y comparte casi toda la cola, preferimos
+  // ignorarlo para evitar que Rosita se auto-interrumpa con su propio cierre.
+  if (r.length <= 16 && tokensR.length <= 3) {
+    const overlap = tokensR.filter(token => token.length >= 3 && (cola4.includes(token) || cola5.includes(token))).length;
+    if (overlap >= Math.max(1, tokensR.length)) return true;
+  }
+
+  return false;
+}
+
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
 
 export interface AudioPipelineDeps {
@@ -325,6 +353,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
       if (esEcoDelTTS(texto, ultimoTextoHabladoRef.current)) {
         logCliente('barge_in_ignored', { motivo: 'echo', chars: texto.length });
+        unduckMusica();
+        return;
+      }
+      if (coincideConColaDelTTS(texto, ultimoTextoHabladoRef.current)) {
+        logCliente('barge_in_ignored', { motivo: 'echo_tail', chars: texto.length });
         unduckMusica();
         return;
       }
