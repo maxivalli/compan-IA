@@ -451,9 +451,9 @@ const NUBES_FRENTE = [
   { w: 90,  h: 26, top:  45, startX: 100,  dur: 6500,  delay: 5500 },
 ];
 
-function UnaNube({ w, h, top, startX, dur, delay, opacity: op, borderRadius: br, topOffset = 0, leftOffset = 0 }: {
+function UnaNube({ w, h, top, startX, dur, delay, opacity: op, borderRadius: br, topOffset = 0, leftOffset = 0, scale = 1 }: {
   w: number; h: number; top: number; startX: number;
-  dur: number; delay: number; opacity: number; borderRadius: number; topOffset?: number; leftOffset?: number;
+  dur: number; delay: number; opacity: number; borderRadius: number; topOffset?: number; leftOffset?: number; scale?: number;
 }) {
   const x = useRef(new Animated.Value(startX)).current;
   const ANCHO = OW + 80;
@@ -473,21 +473,26 @@ function UnaNube({ w, h, top, startX, dur, delay, opacity: op, borderRadius: br,
   }, []);
 
   return (
-    <Animated.View style={{ position: 'absolute', top: top + topOffset, left: leftOffset, width: w, height: h, borderRadius: br, backgroundColor: '#C8D8E8', opacity: op, transform: [{ translateX: x }] }} />
+    <Animated.View style={{ position: 'absolute', top: top + topOffset, left: leftOffset, width: w, height: h, borderRadius: br, backgroundColor: '#C8D8E8', opacity: op, transform: [{ translateX: x }, { scale }] }} />
   );
 }
 
 export function Nubes() {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const esHorizontal = screenW > screenH;
+  const shortEdge = Math.min(screenW, screenH);
+  const esTabletHorizontal = esHorizontal && shortEdge >= 700;
+  const cloudScale = esHorizontal ? (shortEdge >= 700 ? 1.45 : 1.15) : 1;
   const cloudTopOffset = esHorizontal ? Math.max(58, Math.round(screenH * 0.16)) : 0;
-  const cloudLeftOffset = esHorizontal ? Math.round(Math.min(screenW * 0.46, 240)) : 0;
+  const cloudLeftOffset = esHorizontal
+    ? Math.round(Math.min(screenW * (esTabletHorizontal ? 0.60 : 0.46), esTabletHorizontal ? 312 : 240))
+    : 0;
 
   return (
     <>
-      {NUBES_FONDO.map((n, i)  => <UnaNube key={`nb${i}`} {...n} opacity={0.18} borderRadius={n.h / 2} topOffset={cloudTopOffset} leftOffset={cloudLeftOffset} />)}
-      {NUBES_MEDIO.map((n, i)  => <UnaNube key={`nm${i}`} {...n} opacity={0.28} borderRadius={n.h / 2} topOffset={cloudTopOffset} leftOffset={cloudLeftOffset} />)}
-      {NUBES_FRENTE.map((n, i) => <UnaNube key={`nf${i}`} {...n} opacity={0.40} borderRadius={n.h / 2} topOffset={cloudTopOffset} leftOffset={cloudLeftOffset} />)}
+      {NUBES_FONDO.map((n, i)  => <UnaNube key={`nb${i}`} {...n} opacity={0.18} borderRadius={n.h / 2} topOffset={cloudTopOffset} leftOffset={cloudLeftOffset} scale={cloudScale} />)}
+      {NUBES_MEDIO.map((n, i)  => <UnaNube key={`nm${i}`} {...n} opacity={0.28} borderRadius={n.h / 2} topOffset={cloudTopOffset} leftOffset={cloudLeftOffset} scale={cloudScale} />)}
+      {NUBES_FRENTE.map((n, i) => <UnaNube key={`nf${i}`} {...n} opacity={0.40} borderRadius={n.h / 2} topOffset={cloudTopOffset} leftOffset={cloudLeftOffset} scale={cloudScale} />)}
     </>
   );
 }
