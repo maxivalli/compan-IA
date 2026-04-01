@@ -540,6 +540,38 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     });
 
     try {
+      const esRespuestaUtil = (texto?: string | null): boolean => {
+        const limpio = (texto ?? '').replace(/\[[^\]]+\]\s*/g, '').trim();
+        return limpio.length >= 12;
+      };
+      const resolverClaudeConFallback = async (params: { system: string | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[]; messages: Mensaje[]; maxTokens?: number; }) => {
+        try {
+          const streamText = await llamarClaudeConStreaming({
+            system: params.system,
+            messages: params.messages,
+            maxTokens: params.maxTokens,
+            onPrimeraFrase,
+          });
+          if (esRespuestaUtil(streamText)) return streamText;
+          logCliente('rc_stream_vacio', { chars: (streamText ?? '').length });
+        } catch (e: any) {
+          if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
+          logCliente('rc_stream_error', { error: String(e?.message ?? e).slice(0, 80) });
+        }
+
+        const retryText = await llamarClaude({
+          system: params.system,
+          messages: params.messages,
+          maxTokens: params.maxTokens,
+        }).catch(() => '');
+        if (esRespuestaUtil(retryText)) {
+          logCliente('rc_retry_ok', { chars: retryText.length });
+          return retryText;
+        }
+        logCliente('rc_retry_vacio', { chars: retryText.length });
+        return '';
+      };
+
       let resultadosBusqueda: string | null = null;
       let claudePromise: Promise<string>;
 
@@ -550,18 +582,10 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
 
       if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
         // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
-        claudePromise = llamarClaudeConStreaming({
-          system:    systemPreview,
-          messages:  msgSliceBase,
+        claudePromise = resolverClaudeConFallback({
+          system: systemPreview,
+          messages: msgSliceBase,
           maxTokens: maxTokBase,
-          onPrimeraFrase,
-        }).catch(async () => {
-          if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
-          return await llamarClaude({
-            system:    systemPreview,
-            messages:  msgSliceBase,
-            maxTokens: maxTokBase,
-          }) || '';
         });
       } else {
         // ── Slow path: esperar resultados (muletilla corre durante la búsqueda) ─
@@ -598,10 +622,10 @@ REGLAS CRÍTICAS PARA RESPONDER:
         }
         const systemFull = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
         const msgSlice   = msgSliceBase;
-        claudePromise = llamarClaudeConStreaming({
-          system: systemFull, messages: msgSlice, maxTokens: maxTokBase, onPrimeraFrase,
-        }).catch(async () => {
-          return await llamarClaude({ system: systemFull, messages: msgSlice, maxTokens: maxTokBase }) || '';
+        claudePromise = resolverClaudeConFallback({
+          system: systemFull,
+          messages: msgSlice,
+          maxTokens: maxTokBase,
         });
       }
 
@@ -643,7 +667,35 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (precachePromise) await precachePromise;
       }
 
-      const respuestaRaw = (await claudePromise) || '[NEUTRAL] No entendí bien, ¿podés repetir?';
+      const respuestaRaw = await claudePromise;
+      if (!esRespuestaUtil(respuestaRaw)) {
+        const respLocal = respuestaOffline(
+          textoUsuario,
+          p.nombreAbuela,
+          p.nombreAsistente ?? 'Rosita',
+          d.climaRef.current,
+          p.vozGenero ?? 'femenina',
+        );
+        const fallbackHumano = respLocal ?? '[NEUTRAL] Se me mezcló un poco lo que me dijiste. Probá decírmelo de nuevo, Maxi.';
+        logCliente('rc_fallback_humano', { chars: fallbackHumano.length });
+        const parsedFallback = parsearRespuesta(
+          fallbackHumano,
+          p.telegramContactos ?? [],
+          p.familiares ?? [],
+        );
+        d.setExpresion(parsedFallback.expresion);
+        guardarEntradaAnimo(parsedFallback.animoUsuario);
+        sincronizarAnimo(parsedFallback.animoUsuario, Date.now());
+        const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsedFallback.respuesta }].slice(-30);
+        historialRef.current = nuevoHist;
+        await guardarHistorial(nuevoHist);
+        mensajesSesionRef.current += 2;
+        d.ultimaCharlaRef.current    = Date.now();
+        d.ultimaActividadRef.current = Date.now();
+        logCliente('rosita_msg', { tag: parsedFallback.tagPrincipal ?? 'none', texto: parsedFallback.respuesta.slice(0, 300) });
+        await d.hablar(parsedFallback.respuesta, parsedFallback.expresion);
+        return;
+      }
 
       const parsed = parsearRespuesta(
         respuestaRaw,
