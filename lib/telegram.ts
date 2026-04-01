@@ -40,9 +40,10 @@ export async function recibirMensajesVoz(
   }
 }
 
-export async function obtenerUrlArchivo(fileId: string): Promise<string | null> {
+export async function obtenerUrlArchivo(fileId: string, chatId: string): Promise<string | null> {
   try {
-    const res  = await fetch(`${BACKEND_URL}/telegram/archivo?fileId=${fileId}`, { headers: await h() });
+    const params = new URLSearchParams({ fileId, chatId });
+    const res  = await fetch(`${BACKEND_URL}/telegram/archivo?${params}`, { headers: await h() });
     const data = await res.json();
     return data.url ?? null;
   } catch {

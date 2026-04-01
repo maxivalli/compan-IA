@@ -8,13 +8,49 @@ const CLAVE_CODIGO_REG     = 'compania_codigo_registro';
 const CLAVE_BIENVENIDA     = 'compania_bienvenida_dada';
 const CLAVE_DEVICE_TOKEN   = 'compania_device_token';
 
+let secureStoreModulePromise: Promise<null | {
+  getItemAsync(key: string): Promise<string | null>;
+  setItemAsync(key: string, value: string): Promise<void>;
+  deleteItemAsync(key: string): Promise<void>;
+}> | null = null;
+
+async function getSecureStore() {
+  if (!secureStoreModulePromise) {
+    secureStoreModulePromise = (async () => {
+      try {
+        const moduleName = 'expo-secure-store';
+        const mod = await import(moduleName);
+        return mod;
+      } catch {
+        return null;
+      }
+    })();
+  }
+  return secureStoreModulePromise;
+}
+
 // ── Identidad del dispositivo ─────────────────────────────────────────────────
 
 export async function obtenerDeviceToken(): Promise<string | null> {
-  try { return await AsyncStorage.getItem(CLAVE_DEVICE_TOKEN); } catch { return null; }
+  try {
+    const secureStore = await getSecureStore();
+    if (secureStore) {
+      const secureValue = await secureStore.getItemAsync(CLAVE_DEVICE_TOKEN);
+      if (secureValue) return secureValue;
+    }
+    return await AsyncStorage.getItem(CLAVE_DEVICE_TOKEN);
+  } catch {
+    return null;
+  }
 }
 
 export async function guardarDeviceToken(token: string): Promise<void> {
+  const secureStore = await getSecureStore();
+  if (secureStore) {
+    await secureStore.setItemAsync(CLAVE_DEVICE_TOKEN, token);
+    await AsyncStorage.removeItem(CLAVE_DEVICE_TOKEN).catch(() => {});
+    return;
+  }
   await AsyncStorage.setItem(CLAVE_DEVICE_TOKEN, token);
 }
 

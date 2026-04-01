@@ -404,7 +404,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
       // Procesar el primero
       const [primero, ...resto] = vigentes;
-      const urlAudio = await obtenerUrlArchivo(primero.fileId);
+      const urlAudio = await obtenerUrlArchivo(primero.fileId, primero.chatId);
       if (!urlAudio) {
         await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
         return;
@@ -887,7 +887,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     async function procesarMensaje(msg: MensajeVoz, p: Perfil): Promise<boolean> {
       const contacto  = (p.telegramContactos ?? []).find(c => c.id === msg.chatId);
       const nombre    = contacto?.nombre ?? msg.fromName;
-      const urlAudio  = await obtenerUrlArchivo(msg.fileId);
+      const urlAudio  = await obtenerUrlArchivo(msg.fileId, msg.chatId);
       if (!urlAudio) return false;
 
       const hora = new Date().getHours();
@@ -973,7 +973,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         if (!vigentes.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
 
         const [primero, ...resto] = vigentes;
-        const urlAudio = await obtenerUrlArchivo(primero.fileId);
+        const urlAudio = await obtenerUrlArchivo(primero.fileId, primero.chatId);
         if (!urlAudio) {
           await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
           return;

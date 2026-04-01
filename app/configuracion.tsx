@@ -380,9 +380,8 @@ export default function Configuracion() {
     setBuscando(true);
     setErrorBusqueda('');
     try {
-      const familiaId   = await obtenerFamiliaId() ?? 'default';
       const token       = await obtenerTokenDispositivo();
-      const res  = await fetchTimeout(`${BACKEND_URL}/telegram/contactos?familiaId=${familiaId}`, 10000, {
+      const res  = await fetchTimeout(`${BACKEND_URL}/telegram/contactos`, 10000, {
         headers: { 'x-device-token': token },
       });
       const data = await res.json();

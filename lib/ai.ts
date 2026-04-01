@@ -297,10 +297,10 @@ export async function sintetizarVoz(texto: string, voiceId?: string, speed?: num
   return data.audio ?? null;
 }
 
-/** Devuelve los comandos pendientes para esta familia (los consume — no se repiten). */
-export async function obtenerComandosPendientes(familiaId: string): Promise<string[]> {
+/** Devuelve los comandos pendientes del dispositivo autenticado (los consume — no se repiten). */
+export async function obtenerComandosPendientes(_familiaId?: string): Promise<string[]> {
   try {
-    const res = await fetchConTimeout(`${BACKEND_URL}/telegram/comandos?familiaId=${familiaId}`, {
+    const res = await fetchConTimeout(`${BACKEND_URL}/telegram/comandos`, {
       headers: await jsonHeaders(),
     }, 8000);
     if (!res.ok) return [];
@@ -417,19 +417,22 @@ export async function generarSonido(
 /** Fire-and-forget: loguea un evento de cliente en Railway. */
 export function logCliente(event: string, data?: Record<string, string | number | boolean>): void {
   const payload = _currentTurnId ? { ...data, turn_id: _currentTurnId } : data;
-  fetch(`${BACKEND_URL}/debug/log`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event, data: payload }),
-  }).catch(() => {});
+  obtenerTokenDispositivo()
+    .then(token => fetch(`${BACKEND_URL}/debug/log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-device-token': token },
+      body: JSON.stringify({ event, data: payload }),
+    }))
+    .catch(() => {});
 }
 
 export async function reportarCrash(message: string, stack: string, platform: string, extra?: string): Promise<void> {
   try {
     const installId = await obtenerInstallId();
+    const token = await obtenerTokenDispositivo();
     await fetch(`${BACKEND_URL}/debug/crash`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-device-token': token },
       body: JSON.stringify({ message, stack: stack.slice(0, 2000), platform, installId, extra }),
     });
   } catch {}
