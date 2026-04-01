@@ -45,6 +45,7 @@ const USE_FISH_REALTIME_STREAM_EXPERIMENT = true;
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
+const FISH_REALTIME_COOLDOWN_MS = 2 * 60 * 1000;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -254,6 +255,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const procesandoRef      = useRef(false);
   const procesandoDesdeRef = useRef<number>(0);
   const yaDetuvRef         = useRef(false);
+  const fishRealtimeCooldownUntilRef = useRef(0);
 
   // ── Refs de SR ────────────────────────────────────────────────────────────
   const srActivoRef           = useRef(false);
@@ -603,6 +605,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   async function precachearTexto(texto: string, emotion?: string) {
     const limpio = limpiarTextoParaTTS(texto);
     if (!limpio) return;
+    if (
+      USE_FISH_REALTIME_STREAM_EXPERIMENT
+      && Date.now() >= fishRealtimeCooldownUntilRef.current
+      && deberiaUsarFishRealtimeStream(limpio, emotion)
+    ) {
+      return;
+    }
     const key = hashTexto(limpio + '|' + (emotion ?? ''));
     if (precacheInFlightRef.current.has(key)) return;
     precacheInFlightRef.current.add(key);
@@ -793,7 +802,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
       const isStream = !info.exists;
-      const usaFishRealtime = isStream && deberiaUsarFishRealtimeStream(texto, emotion);
+      const fishRealtimeDisponible = Date.now() >= fishRealtimeCooldownUntilRef.current;
+      const usaFishRealtime = isStream && fishRealtimeDisponible && deberiaUsarFishRealtimeStream(texto, emotion);
       if (__DEV__) console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
       if (isStream) {
         logCliente('tts_path', {
@@ -804,7 +814,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
       const uri: string = info.exists
         ? cacheUri
-        : urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion, { latency: 'balanced', chunkLength: 140 });
+        : usaFishRealtime
+          ? urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion, { latency: 'balanced', chunkLength: 140 })
+          : '';
 
       if (uri) {
         ultimoAudioUriRef.current = uri;
@@ -851,7 +863,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             done('barge-in');
           };
 
-          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, isStream ? 10000 : 4000);
+          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, isStream ? (usaFishRealtime ? 3000 : 10000) : 4000);
 
           const pollInterval = setInterval(() => {
             const playing = player.playing;
@@ -914,6 +926,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           }, 150);
         });
         if (isStream && finishReason === 'no-start') {
+          if (usaFishRealtime) {
+            fishRealtimeCooldownUntilRef.current = Date.now() + FISH_REALTIME_COOLDOWN_MS;
+            logCliente('tts_rt_cooldown', { ms: FISH_REALTIME_COOLDOWN_MS, motivo: 'no-start' });
+          }
           if (__DEV__) console.log('[TTS] no-start en stream, fallback a Speech.speak');
           d.setEstado('hablando');
           d.estadoRef.current = 'hablando';
