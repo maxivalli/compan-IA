@@ -170,6 +170,38 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   return null;
 }
 
+function esCharlaSocialBreve(texto: string): boolean {
+  if (texto.length > 40) return false;
+  if (/[¿?]/.test(texto)) return false;
+  if (PATRON_EMPATICO.test(texto) || PATRON_BUSQUEDA.test(texto) || PATRON_COMANDO.test(texto)) return false;
+  return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir|ya me voy|descanses|chao|chau|nos vemos|despu[eé]s hablamos|mas tarde|m[aá]s tarde)\b/i.test(texto);
+}
+
+function generarRespuestaSocialBreve(textoNorm: string, vozGenero: string): { texto: string; emotion: string } | null {
+  const masculino = vozGenero === 'masculina';
+  if (/\b(cansad[oa]|con sue[ñn]o|por dormir)\b/i.test(textoNorm)) {
+    return {
+      texto: masculino
+        ? 'Dale, a descansar un poco entonces. Acá estoy después.'
+        : 'Dale, a descansar un poco entonces. Acá estoy después.',
+      emotion: 'neutral',
+    };
+  }
+  if (/\b(ya me voy|chau|chao|nos vemos|despu[eé]s hablamos|mas tarde|m[aá]s tarde)\b/i.test(textoNorm)) {
+    return {
+      texto: 'Dale, después seguimos. Que estés bien.',
+      emotion: 'neutral',
+    };
+  }
+  if (/\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui)\b/i.test(textoNorm)) {
+    return {
+      texto: 'Qué bueno. Yo acá, acompañándote.',
+      emotion: 'neutral',
+    };
+  }
+  return null;
+}
+
 function compactarRespuestaParaVoz(
   respuesta: string,
   splitEnOraciones: (texto: string) => string[],
@@ -390,21 +422,20 @@ export function useBrain(deps: BrainDeps) {
     if (!episodicaCacheRef.current || episodicaCacheRef.current.key !== key) {
       episodicaCacheRef.current = {
         key,
-        text: construirResumenMemoriasEpisodicas(memorias),
+        text: construirResumenMemoriasEpisodicas(memorias, { limit: 10, maxChars: 1800 }),
       };
     }
   }
 
   async function construirContextoMemoria(query: string): Promise<{ texto: string; count: number; chars: number }> {
-    const memorias = await buscarMemoriasEpisodicas(query, 3);
+    const memorias = await buscarMemoriasEpisodicas(query, 2);
     if (!memorias.length) return { texto: '', count: 0, chars: 0 };
     const lista = memorias
       .map((mem, idx) => `${idx + 1}. ${mem.resumen}`)
       .join('\n');
-    const texto = `\n\nMemorias relevantes de conversaciones anteriores:
+    const texto = `\nMemorias relevantes:
 ${lista}
-
-Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que la persona pregunta ahora, ignorala sin mencionarla.`;
+Usalas solo si suman.`;
     return { texto, count: memorias.length, chars: texto.length };
   }
 
@@ -681,6 +712,19 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
       }
     }
 
+    const socialBreve = generarRespuestaSocialBreve(textoNorm, p.vozGenero ?? 'femenina');
+    if (socialBreve && esCharlaSocialBreve(textoNorm)) {
+      d.setExpresion('neutral');
+      const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: socialBreve.texto }].slice(-24);
+      historialRef.current = nuevoHist;
+      await guardarHistorial(nuevoHist);
+      d.ultimaCharlaRef.current = Date.now();
+      d.ultimaActividadRef.current = Date.now();
+      logCliente('rapida_msg', { cat: 'social_breve', texto: socialBreve.texto });
+      await d.hablar(socialBreve.texto, socialBreve.emotion);
+      return;
+    }
+
     const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
     const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
@@ -747,18 +791,18 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     await refrescarMemoriaEpisodicaCache();
     const contextoMemoria = await construirContextoMemoria(textoUsuario);
     const contextoInterlocutor = interlocutorActivo
-      ? `\nInterlocutor actual del turno: ${interlocutorActivo}. En esta respuesta dirigite a ${interlocutorActivo}, no a ${p.nombreAbuela}, salvo que el mensaje sea claramente para ${p.nombreAbuela}.`
-      : `\nSi no estás segura de quién habla, respondé de forma cálida y natural sin usar nombres propios. No menciones a ${p.nombreAbuela} salvo que haga falta.`;
-    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
+      ? `\nInterlocutor actual: ${interlocutorActivo}. Respondé a ${interlocutorActivo}.`
+      : `\nSi no sabés quién habla, no uses nombres propios.`;
+    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const maxTokBase  = (pideCuento || pideJuego || pideChiste)
       ? 700
       : (pideNoticias || pideBusqueda || pideWikipedia)
-        ? 180
+        ? 150
         : pideAccion
-          ? 300
-          : 110;
-    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -11 : -7;
+          ? 220
+          : 80;
+    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
     const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
     const cachedSystemChars = systemPreview

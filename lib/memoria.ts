@@ -365,24 +365,24 @@ export function construirResumenMemoriasEpisodicas(
   memorias: MemoriaEpisodica[],
   opciones?: { limit?: number; maxChars?: number },
 ): string {
-  const limit = opciones?.limit ?? 18;
-  const maxChars = opciones?.maxChars ?? 5200;
+  const limit = opciones?.limit ?? 12;
+  const maxChars = opciones?.maxChars ?? 2400;
   const ordenadas = [...memorias]
     .sort((a, b) => b.updatedAt - a.updatedAt || b.mentions - a.mentions)
     .slice(0, limit);
 
   if (!ordenadas.length) {
-    return 'Memoria episódica consolidada: todavía no hay charlas previas resumidas.';
+    return 'Memoria episódica: todavía no hay charlas previas resumidas.';
   }
 
-  const lineas: string[] = ['Memoria episódica consolidada de charlas anteriores:'];
+  const lineas: string[] = ['Memoria episódica:'];
   for (const memoria of ordenadas) {
     const linea = `- ${truncarMemoria(memoria.resumen, 180)}`;
     const tamañoActual = lineas.join('\n').length;
     if (tamañoActual + linea.length + 1 > maxChars) break;
     lineas.push(linea);
   }
-  lineas.push('Usá esta memoria para dar continuidad si la charla lo pide. Si no viene al caso, no la fuerces.');
+  lineas.push('Usala para continuidad si realmente suma.');
   return lineas.join('\n');
 }
 
@@ -403,15 +403,15 @@ export function construirContexto(perfil: Perfil, incluirRecuerdos = true): stri
     `La persona principal del perfil es ${limpiarDato(perfil.nombreAbuela)}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.${cumple}`,
   ];
   if (perfil.familiares.length > 0)
-    lineas.push(`Sus familiares cercanos son: ${san(perfil.familiares).join(', ')}.`);
+    lineas.push(`Familiares cercanos: ${san(perfil.familiares).slice(0, 8).join(', ')}.`);
   if (perfil.gustos.length > 0)
-    lineas.push(`Le gusta: ${san(perfil.gustos).join(', ')}.`);
+    lineas.push(`Le gusta: ${san(perfil.gustos).slice(0, 8).join(', ')}.`);
   if (perfil.medicamentos.length > 0)
-    lineas.push(`Sus medicamentos son: ${san(perfil.medicamentos).join(', ')}.`);
+    lineas.push(`Medicamentos: ${san(perfil.medicamentos).slice(0, 6).join(', ')}.`);
   if (perfil.fechasImportantes.length > 0)
-    lineas.push(`Fechas importantes: ${san(perfil.fechasImportantes).join(', ')}.`);
+    lineas.push(`Fechas importantes: ${san(perfil.fechasImportantes).slice(0, 8).join(', ')}.`);
   if (incluirRecuerdos && perfil.recuerdos.length > 0)
-    lineas.push(`Cosas que ha contado: ${san(perfil.recuerdos).join(', ')}.`);
+    lineas.push(`Cosas que contó: ${san(perfil.recuerdos).slice(0, 10).join(', ')}.`);
   return lineas.join('\n');
 }
 // ── Recordatorios diarios ────────────────────────────────────────────────────

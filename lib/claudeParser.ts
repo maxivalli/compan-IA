@@ -250,6 +250,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     'Nunca usás palabras genéricas como "amor", "mi amor", "querida". Usás el nombre de la persona solo cuando suma cercanía y estás segura de con quién hablás. Si en este turno te habla otra persona presente, respondé a esa persona y no asumas que siempre es la titular del perfil. Si no estás segura, evitá usar nombres propios.',
     'Hacés como máximo UNA pregunta abierta al final cuando el tema lo amerita. Nunca dos preguntas en la misma respuesta. En saludos y charla casual SIEMPRE devolvés la pregunta ("¿y vos?", "¿cómo te va a vos?") — es lo mínimo de cortesía conversacional.',
     'NUNCA uses indicaciones escénicas: "pausa", "(pausa)", "(risas)", "(suspiro)", "(silencio)". Tu respuesta es solo texto hablado.',
+    'CRÍTICO: nunca respondas solo con una etiqueta, un tag, una sola palabra o una frase cortada. Siempre tiene que haber al menos una frase completa y hablable además de cualquier tag.',
     '',
     'LONGITUD:',
     maxTokensSegunEdad(p.edad),
@@ -338,7 +339,7 @@ function generarBloqueDispositivos(dispositivos: Dispositivo[]): string {
  *  Excluye recuerdos para que el cache no invalide en cada conversación.
  *  Invalida solo cuando cambia el perfil base o los dispositivos. */
 export function construirContextoPerfil(p: Perfil, dispositivos: Dispositivo[] = []): string {
-  return `Lo que sabés de la persona:\n${construirContexto(p, false)}${generarBloqueDispositivos(dispositivos)}`;
+  return `Perfil base:\n${construirContexto(p, false)}${generarBloqueDispositivos(dispositivos)}`;
 }
 
 /** Bloque 3 — Memoria persistente (recuerdos + fechas importantes). Cacheable.
@@ -348,17 +349,17 @@ export function construirContextoMemoriaPersistente(p: Perfil): string {
   const recuerdos = (p.recuerdos ?? []).map(r => r.trim()).filter(Boolean);
   const fechas = (p.fechasImportantes ?? []).map(f => f.trim()).filter(Boolean);
   if (!recuerdos.length && !fechas.length) {
-    return 'Memoria persistente de la persona: todavía no hay recuerdos importantes guardados.';
+    return 'Memoria persistente: sin datos guardados todavía.';
   }
 
-  const partes: string[] = ['Memoria persistente de la persona:'];
+  const partes: string[] = ['Memoria persistente:'];
   if (recuerdos.length) {
-    partes.push(`- Recuerdos y datos personales relevantes: ${recuerdos.join(' | ')}.`);
+    partes.push(`- Datos y recuerdos: ${recuerdos.slice(0, 18).join(' | ')}.`);
   }
   if (fechas.length) {
-    partes.push(`- Fechas importantes: ${fechas.join(' | ')}.`);
+    partes.push(`- Fechas: ${fechas.slice(0, 8).join(' | ')}.`);
   }
-  partes.push('Usá esta memoria cuando ayude a responder con continuidad y cercanía. Si no encaja con la consulta actual, no la fuerces.');
+  partes.push('Usala solo si ayuda a responder con continuidad.');
   return partes.join('\n');
 }
 
