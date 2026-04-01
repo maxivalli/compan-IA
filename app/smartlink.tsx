@@ -19,6 +19,7 @@ import {
   obtenerEstadoDispositivo,
   obtenerEstadoSmartThings,
 } from '../lib/smartthings';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const M = {
   primary: '#0097b2',
@@ -49,6 +50,7 @@ function iconoDispositivo(tipo: string): keyof typeof Ionicons.glyphMap {
 
 export default function SmartLinkScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [cargando, setCargando] = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [vinculado, setVinculado] = useState(false);
@@ -104,10 +106,10 @@ export default function SmartLinkScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView
-        contentContainerStyle={s.content}
+        contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 28 }]}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={() => cargar('refresh')} tintColor={M.primary} />}
       >
-        <View style={s.header}>
+        <View style={[s.header, { paddingTop: insets.top + 16 }]}>
           <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.75}>
             <Ionicons name="arrow-back" size={20} color={M.primary} />
           </TouchableOpacity>
@@ -197,7 +199,7 @@ export default function SmartLinkScreen() {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: M.surface },
-  content: { padding: 16, paddingBottom: 28 },
+  content: { paddingHorizontal: 16, paddingBottom: 28 },
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 18 },
   backBtn: {
     width: 42,
