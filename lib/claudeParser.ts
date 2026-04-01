@@ -83,7 +83,7 @@ export function detectarGenero(tag: string): string {
     ['romantica', ['romantica', 'balada', 'romantico', 'amor']],
     ['clasica',   ['clasica', 'classical', 'clasico', 'beethoven', 'mozart', 'opera']],
     ['jazz',      ['jazz', 'swing', 'blues']],
-    ['pop',       ['pop', 'rock', 'moderna', 'moderno', 'nueva', 'nuevo', 'actual', 'hoy', 'contemporanea', 'contemporaneo']],
+    ['pop',       ['pop', 'rock', 'moderna', 'moderno', 'contemporanea', 'contemporaneo']],
   ];
   for (const [genero, palabras] of mapa) {
     if (palabras.some(p => t.includes(p))) return genero;
@@ -358,9 +358,10 @@ export function parsearRespuesta(
   }
   // Fallback: Claude olvidó el tag pero el texto menciona explícitamente la música/radio.
   // Ej: "¡Dale, pongo Radio Vida!" sin [MUSICA: vida] → inferir el género del texto.
-  const musicaEnTexto = raw.match(/(?:pongo|pon[eé]|escuch[aá]|va)\s+(?:(?:la\s+|radio\s+|fm\s+)?(.+?))(?:\s+ahora|!|,|\.|\n|$)/i);
+  const musicaEnTexto = raw.match(/(?:pongo|pon[eé]|escuch[aá])\s+(?:(?:la\s+|radio\s+|fm\s+)?(.+?))(?:\s+ahora|!|,|\.|\n|$)|va\s+(?:la\s+)?(?:radio|fm|musica)\s+(.+?)(?:\s+ahora|!|,|\.|\n|$)/i);
   if (musicaEnTexto) {
-    const generoInferido = detectarGenero(musicaEnTexto[1]?.trim() ?? '');
+    const candidato = (musicaEnTexto[1] ?? musicaEnTexto[2] ?? '').trim();
+    const generoInferido = detectarGenero(candidato);
     if (generoInferido) {
       const respuesta = limpiarTagsFinales(raw.replace(/\[ANIMO_USUARIO:[^\]]*\]?\s*/i, '').replace(/\[RECUERDO:[^\]]*\]?\s*/gi, '').trim());
       return { tagPrincipal: 'MUSICA', generoMusica: generoInferido, respuesta, expresion: 'feliz', animoUsuario: 'feliz', recuerdos: [] };

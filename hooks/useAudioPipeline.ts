@@ -43,6 +43,7 @@ const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v13';
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
+const BARGE_IN_MIN_CHARS = 110;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -675,13 +676,16 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     detenerSilbido();
     d.estadoRef.current = 'hablando';
     hablandoDesdeRef.current = Date.now();
+    const shouldArmBargeIn = turnAudio.firstForTurn && texto.length >= BARGE_IN_MIN_CHARS;
     if (bargeInTimerRef.current) clearTimeout(bargeInTimerRef.current);
-    bargeInTimerRef.current = setTimeout(() => {
-      if (depsRef.current.estadoRef.current === 'hablando' && !depsRef.current.noMolestarRef.current) {
-        iniciarSpeechRecognition();
-        logCliente('barge_in_listening', { chars: texto.length });
-      }
-    }, BARGE_IN_ARM_DELAY_MS);
+    if (shouldArmBargeIn) {
+      bargeInTimerRef.current = setTimeout(() => {
+        if (depsRef.current.estadoRef.current === 'hablando' && !depsRef.current.noMolestarRef.current) {
+          iniciarSpeechRecognition();
+          logCliente('barge_in_listening', { chars: texto.length });
+        }
+      }, BARGE_IN_ARM_DELAY_MS);
+    }
 
     texto = limpiarTextoParaTTS(texto);
 
