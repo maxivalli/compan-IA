@@ -279,8 +279,8 @@ function esTemaMemorable(textoUsuario: string): boolean {
 function resumirMemoria(textoUsuario: string, textoAsistente: string): string {
   const usuario = truncarMemoria(textoUsuario, 120);
   const asistente = truncarMemoria(textoAsistente.replace(/\[[^\]]+\]\s*/g, ''), 120);
-  if (asistente.length < 12) return `Hablaron sobre: ${usuario}`;
-  return `Hablaron sobre: ${usuario}. Rosita respondió: ${asistente}`;
+  if (asistente.length < 12) return `Usuario: ${usuario}`;
+  return `Usuario: ${usuario}. Rosita: ${asistente}`;
 }
 
 export async function cargarMemoriasEpisodicas(): Promise<MemoriaEpisodica[]> {
@@ -359,6 +359,31 @@ export async function buscarMemoriasEpisodicas(query: string, limit = 3): Promis
     .sort((a, b) => b.score - a.score || b.mem.updatedAt - a.mem.updatedAt)
     .slice(0, limit)
     .map(item => item.mem);
+}
+
+export function construirResumenMemoriasEpisodicas(
+  memorias: MemoriaEpisodica[],
+  opciones?: { limit?: number; maxChars?: number },
+): string {
+  const limit = opciones?.limit ?? 18;
+  const maxChars = opciones?.maxChars ?? 5200;
+  const ordenadas = [...memorias]
+    .sort((a, b) => b.updatedAt - a.updatedAt || b.mentions - a.mentions)
+    .slice(0, limit);
+
+  if (!ordenadas.length) {
+    return 'Memoria episódica consolidada: todavía no hay charlas previas resumidas.';
+  }
+
+  const lineas: string[] = ['Memoria episódica consolidada de charlas anteriores:'];
+  for (const memoria of ordenadas) {
+    const linea = `- ${truncarMemoria(memoria.resumen, 180)}`;
+    const tamañoActual = lineas.join('\n').length;
+    if (tamañoActual + linea.length + 1 > maxChars) break;
+    lineas.push(linea);
+  }
+  lineas.push('Usá esta memoria para dar continuidad si la charla lo pide. Si no viene al caso, no la fuerces.');
+  return lineas.join('\n');
 }
 
 // ── Contexto ─────────────────────────────────────────────────────────────────

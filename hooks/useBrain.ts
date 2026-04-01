@@ -24,7 +24,7 @@ import {
   cargarPerfil, guardarHistorial, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, borrarRecordatorio,
   registrarMusicaHoy, guardarUltimaRadio,
-  buscarMemoriasEpisodicas, registrarMemoriaEpisodica,
+  buscarMemoriasEpisodicas, registrarMemoriaEpisodica, cargarMemoriasEpisodicas, construirResumenMemoriasEpisodicas,
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
   Perfil, TelegramContacto,
 } from '../lib/memoria';
@@ -54,16 +54,16 @@ export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | '
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Ay... estoy acá, contame.', 'Uy... te escucho, decime.', 'Te escucho... contame.'],
-    masculina: ['Ay... estoy acá, contame.', 'Uy... te escucho, decime.', 'Te escucho... contame.'],
+    femenina:  ['Estoy acá.', 'Te escucho.', 'Contame.'],
+    masculina: ['Estoy acá.', 'Te escucho.', 'Contame.'],
   },
   busqueda: {
-    femenina:  ['A ver, dame un segundito que me fijo...', 'Aguantame un cachito, que ya te lo busco...', 'Esperame un ratito, que reviso...'],
-    masculina: ['A ver, dame un segundito que me fijo...', 'Aguantame un cachito, que ya te lo busco...', 'Esperame un ratito, que reviso...'],
+    femenina:  ['A ver...', 'Ya miro.', 'Un segundito.'],
+    masculina: ['A ver...', 'Ya miro.', 'Un segundito.'],
   },
   nostalgia: {
-    femenina:  ['Mirá vos... contame.', 'Ay, qué lindo... decime.', 'Qué bárbaro, te escucho.'],
-    masculina: ['Mirá vos... contame.', 'Qué interesante... decime.', 'Qué bárbaro, te escucho.'],
+    femenina:  ['Mirá vos.', 'Qué lindo.', 'Te escucho.'],
+    masculina: ['Mirá vos.', 'Qué interesante.', 'Te escucho.'],
   },
   comando: {
     femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
@@ -225,6 +225,31 @@ function inferirInterlocutorTemporal(texto: string, perfil: Perfil): string | nu
   return nombre;
 }
 
+function detectarRetornoAlPrincipal(textoNorm: string, perfil: Perfil): boolean {
+  const principal = extraerPrimerNombre(perfil.nombreAbuela ?? '');
+  if (!principal) return false;
+  const principalNorm = normalizarTextoPlano(principal);
+  const mencionaPrincipal = textoNorm.includes(principalNorm);
+  if (!mencionaPrincipal) return false;
+  return /\b(ahora soy|soy|estoy yo|te hablo yo|ahora estoy yo|volvi yo|volví yo)\b/.test(textoNorm);
+}
+
+function detectarHandoffDirigido(textoNorm: string, perfil: Perfil): string | null {
+  const principalNorm = normalizarTextoPlano(perfil.nombreAbuela ?? '');
+  const candidatos = (perfil.familiares ?? [])
+    .map(extraerPrimerNombre)
+    .filter((nombre): nombre is string => !!nombre);
+
+  for (const candidato of candidatos) {
+    const nombreNorm = normalizarTextoPlano(candidato);
+    if (!nombreNorm || nombreNorm === principalNorm) continue;
+    const mencionaNombre = textoNorm.includes(nombreNorm);
+    const patronHandoff = /\b(saludala|saludalo|te paso a|habla con|hablá con|estoy con|aca con|acá con|vino|llego|llegó)\b/;
+    if (mencionaNombre && patronHandoff.test(textoNorm)) return candidato;
+  }
+  return null;
+}
+
 // ── Interfaz de dependencias ───────────────────────────────────────────────────
 
 /** Tipo mínimo que useBrain necesita del audio player de música */
@@ -293,6 +318,7 @@ export function useBrain(deps: BrainDeps) {
   const systemEstableRef   = useRef<{ key: string; text: string } | null>(null);
   const perfilCacheRef     = useRef<{ key: string; text: string } | null>(null);
   const memoriaCacheRef    = useRef<{ key: string; text: string } | null>(null);
+  const episodicaCacheRef  = useRef<{ key: string; text: string } | null>(null);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
   const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
@@ -314,7 +340,7 @@ export function useBrain(deps: BrainDeps) {
     }
 
     // Bloque 2 — semi-estático: perfil + dispositivos (caché ephemeral, invalida cuando cambia)
-    const perfilKey = `${p.recuerdos.join('|')}|${p.gustos.join('|')}|${p.familiares.join('|')}|${p.medicamentos.join('|')}|${d.dispositivosTuyaRef.current.map(dv => dv.id + String(dv.estado)).join('|')}`;
+    const perfilKey = `${p.gustos.join('|')}|${p.familiares.join('|')}|${p.medicamentos.join('|')}|${p.fechasImportantes.join('|')}|${d.dispositivosTuyaRef.current.map(dv => dv.id + String(dv.estado)).join('|')}`;
     if (!perfilCacheRef.current || perfilCacheRef.current.key !== perfilKey) {
       perfilCacheRef.current = { key: perfilKey, text: construirContextoPerfil(p, d.dispositivosTuyaRef.current) };
     }
@@ -331,12 +357,30 @@ export function useBrain(deps: BrainDeps) {
       d.ciudadRef.current, d.coordRef.current, d.feriadosRef.current,
     );
 
-    return [
+    const blocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: perfilCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: memoriaCacheRef.current.text,  cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: temporal },
     ];
+    if (episodicaCacheRef.current?.text) {
+      blocks.push({ type: 'text' as const, text: episodicaCacheRef.current.text, cache_control: { type: 'ephemeral' as const } });
+    }
+    blocks.push({ type: 'text' as const, text: temporal });
+    return blocks;
+  }
+
+  async function refrescarMemoriaEpisodicaCache(): Promise<void> {
+    const memorias = await cargarMemoriasEpisodicas();
+    const key = memorias
+      .slice(0, 24)
+      .map(mem => `${mem.id}:${mem.updatedAt}:${mem.mentions}`)
+      .join('|');
+    if (!episodicaCacheRef.current || episodicaCacheRef.current.key !== key) {
+      episodicaCacheRef.current = {
+        key,
+        text: construirResumenMemoriasEpisodicas(memorias),
+      };
+    }
   }
 
   async function construirContextoMemoria(query: string): Promise<{ texto: string; count: number; chars: number }> {
@@ -551,10 +595,15 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
     const textoNorm = normalizarTextoPlano(textoUsuario);
-    const interlocutorDetectado = inferirInterlocutorTemporal(textoUsuario, p);
+    const vuelvePrincipal = detectarRetornoAlPrincipal(textoNorm, p);
+    if (vuelvePrincipal) {
+      interlocutorRef.current = null;
+      logCliente('interlocutor_reset', { destino: 'principal' });
+    }
+    const interlocutorDetectado = inferirInterlocutorTemporal(textoUsuario, p) ?? detectarHandoffDirigido(textoNorm, p);
     if (interlocutorDetectado) {
       interlocutorRef.current = { nombre: interlocutorDetectado, expiresAt: Date.now() + INTERLOCUTOR_TTL_MS };
-      logCliente('interlocutor_detectado', { nombre: interlocutorDetectado });
+      logCliente('interlocutor_detectado', { nombre: interlocutorDetectado, modo: 'temporal' });
     }
     const interlocutorActivo = interlocutorRef.current && interlocutorRef.current.expiresAt > Date.now()
       ? interlocutorRef.current.nombre
@@ -683,10 +732,11 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
       d.precachearTexto(primera, tag.toLowerCase()).catch(() => {});
       primeraFraseResolver?.(primera);
     };
+    await refrescarMemoriaEpisodicaCache();
     const contextoMemoria = await construirContextoMemoria(textoUsuario);
     const contextoInterlocutor = interlocutorActivo
       ? `\nInterlocutor actual del turno: ${interlocutorActivo}. En esta respuesta dirigite a ${interlocutorActivo}, no a ${p.nombreAbuela}, salvo que el mensaje sea claramente para ${p.nombreAbuela}.`
-      : '';
+      : `\nSi no estás segura de quién habla, respondé de forma cálida y natural sin usar nombres propios. No menciones a ${p.nombreAbuela} salvo que haga falta.`;
     const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const maxTokBase  = (pideCuento || pideJuego || pideChiste)
@@ -696,27 +746,28 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
         : pideAccion
           ? 300
           : 110;
-    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -11 : -9;
+    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -11 : -7;
     const msgSliceBase = nuevoHistorial.slice(histSlice);
     const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
     const cachedSystemChars = systemPreview
       .filter(block => !!block.cache_control)
       .reduce((acc, block) => acc + block.text.length, 0);
     const cachedSystemTokensEst = Math.ceil(cachedSystemChars / 4);
-    logCliente('prompt_ctx', {
-      hist_msgs: msgSliceBase.length,
-      hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
-      mem_count: contextoMemoria.count,
-      mem_chars: contextoMemoria.chars,
-      extra_chars: extraBase.length,
-      sys_stable_hash: hashTexto(systemPreview[0].text),
-      sys_profile_hash: hashTexto(systemPreview[1].text),
-      sys_memory_hash: hashTexto(systemPreview[2].text),
-      sys_dynamic_hash: hashTexto(systemPreview[3].text),
-      sys_cached_chars: cachedSystemChars,
-      sys_cached_tokens_est: cachedSystemTokensEst,
-      cache_floor_hit: cachedSystemTokensEst >= 4096 ? 'si' : 'no',
-    });
+      logCliente('prompt_ctx', {
+        hist_msgs: msgSliceBase.length,
+        hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
+        mem_count: contextoMemoria.count,
+        mem_chars: contextoMemoria.chars,
+        extra_chars: extraBase.length,
+        sys_stable_hash: hashTexto(systemPreview[0].text),
+        sys_profile_hash: hashTexto(systemPreview[1].text),
+        sys_memory_hash: hashTexto(systemPreview[2].text),
+        sys_episodic_hash: systemPreview[3]?.cache_control ? hashTexto(systemPreview[3].text) : '0',
+        sys_dynamic_hash: hashTexto(systemPreview[systemPreview.length - 1].text),
+        sys_cached_chars: cachedSystemChars,
+        sys_cached_tokens_est: cachedSystemTokensEst,
+        cache_floor_hit: cachedSystemTokensEst >= 4096 ? 'si' : 'no',
+      });
 
     try {
       const esRespuestaUtil = (texto?: string | null): boolean => {

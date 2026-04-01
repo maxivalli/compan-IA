@@ -40,7 +40,9 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 const USAR_TTS_NATIVO = false;
 const TTS_SEGMENT_PADDING_MS = 80;
 const TTS_CACHE_VERSION = 'v5';
-const MULETILLA_CACHE_VERSION = 'v12';
+const MULETILLA_CACHE_VERSION = 'v13';
+const BARGE_IN_ARM_DELAY_MS = 1700;
+const BARGE_IN_MIN_SPEECH_MS = 1400;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -141,6 +143,25 @@ export function splitEnOraciones(texto: string): string[] {
   return oraciones.filter(s => s.length > 0);
 }
 
+function normalizarTextoPlano(texto: string): string {
+  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function esEcoDelTTS(reconocido: string, hablado: string | null): boolean {
+  if (!hablado) return false;
+  const r = normalizarTextoPlano(reconocido);
+  const h = normalizarTextoPlano(hablado);
+  if (!r || !h) return false;
+  if (r.length < 6) return false;
+  if (h.includes(r) || r.includes(h.slice(0, Math.min(h.length, 24)))) return true;
+  const tokensR = new Set(r.split(' ').filter(p => p.length >= 3));
+  const tokensH = new Set(h.split(' ').filter(p => p.length >= 3));
+  if (!tokensR.size || !tokensH.size) return false;
+  let overlap = 0;
+  tokensR.forEach(token => { if (tokensH.has(token)) overlap++; });
+  return overlap >= Math.min(3, tokensR.size);
+}
+
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
 
 export interface AudioPipelineDeps {
@@ -200,6 +221,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Refs de TTS ──────────────────────────────────────────────────────────
   const ultimoAudioUriRef     = useRef<string | null>(null);
   const ultimoTextoHabladoRef = useRef<string | null>(null);
+  const cancelarHablaRef      = useRef<(() => void) | null>(null);
+  const bargeInTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hablandoDesdeRef      = useRef<number>(0);
 
   // ── Refs de muletillas y cache ────────────────────────────────────────────
   const ultimaMuletillaRef         = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
@@ -262,6 +286,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', d.estadoRef.current, '| asistente:', d.nombreAsistenteRef.current);
     if (procesandoRef.current) return;
     if (enFlujoVozRef.current) return;
+    if (!texto || texto.length < 2) return;
 
     // Reactivación en modo no molestar
     if (d.noMolestarRef.current) {
@@ -273,8 +298,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
       return;
     }
-    if (d.estadoRef.current === 'pensando' || d.estadoRef.current === 'hablando') return;
-    if (!texto || texto.length < 2) return;
 
     if (d.musicaActivaRef.current) duckMusica();
 
@@ -291,6 +314,30 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const _entret = /^(contame (un|una)|cantame|jugamos)\b/.test(textoNorm) || /\b(un chiste|una adivinanza)\b/.test(textoNorm);
     const esPreguntaDirecta = (d.musicaActivaRef.current || esNoche) ? false : (_imp || _info || _entret);
     if (__DEV__) console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
+
+    if (d.estadoRef.current === 'hablando') {
+      const msHablando = hablandoDesdeRef.current ? Date.now() - hablandoDesdeRef.current : 0;
+      const esRelevante = mencionaNombre || esPreguntaDirecta || (enConversacion && textoNorm.length >= 10);
+      if (msHablando < BARGE_IN_MIN_SPEECH_MS) {
+        logCliente('barge_in_ignored', { motivo: 'grace', chars: texto.length, ms_hablando: msHablando });
+        unduckMusica();
+        return;
+      }
+      if (esEcoDelTTS(texto, ultimoTextoHabladoRef.current)) {
+        logCliente('barge_in_ignored', { motivo: 'echo', chars: texto.length });
+        unduckMusica();
+        return;
+      }
+      if (!esRelevante) {
+        logCliente('barge_in_ignored', { motivo: 'irrelevante', chars: texto.length });
+        unduckMusica();
+        return;
+      }
+      logCliente('barge_in_committed', { chars: texto.length, ms_hablando: msHablando });
+      try { cancelarHablaRef.current?.(); } catch {}
+    } else if (d.estadoRef.current === 'pensando') {
+      return;
+    }
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
 
@@ -580,6 +627,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
     d.estadoRef.current = 'hablando';
+    hablandoDesdeRef.current = Date.now();
+    if (bargeInTimerRef.current) clearTimeout(bargeInTimerRef.current);
+    bargeInTimerRef.current = setTimeout(() => {
+      if (depsRef.current.estadoRef.current === 'hablando' && !depsRef.current.noMolestarRef.current) {
+        iniciarSpeechRecognition();
+        logCliente('barge_in_listening', { chars: texto.length });
+      }
+    }, BARGE_IN_ARM_DELAY_MS);
 
     texto = limpiarTextoParaTTS(texto);
 
@@ -647,12 +702,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           const done = (motivo: string) => {
             if (resolved) return;
             resolved = true;
+            cancelarHablaRef.current = null;
             clearInterval(pollInterval);
             if (durationTimer !== undefined) clearTimeout(durationTimer);
             if (posStableTimer !== undefined) clearTimeout(posStableTimer);
             if (estimatedPlaybackTimer !== undefined) clearTimeout(estimatedPlaybackTimer);
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
+            if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
             if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
             const turnMetrics = getCurrentTurnMetrics();
             logCliente('hablar_end', {
@@ -671,6 +728,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           let posStableTimer: ReturnType<typeof setTimeout> | undefined;
           let estimatedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
           let lastPos = -1;
+          cancelarHablaRef.current = () => {
+            try { player.pause(); } catch {}
+            done('barge-in');
+          };
 
           const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, isStream ? 10000 : 4000);
 
@@ -753,6 +814,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       } catch {}
     }
 
+    hablandoDesdeRef.current = 0;
+    cancelarHablaRef.current = null;
+    if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
     unduckMusica();
     d.setEstado('esperando');
     d.estadoRef.current = 'esperando';
