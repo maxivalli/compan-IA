@@ -3,7 +3,7 @@
  *
  * Responsabilidades:
  *   - Speech Recognition continuo (expo-speech-recognition)
- *   - TTS con cache disco + streaming Cartesia (expo-audio)
+ *   - TTS con cache disco + streaming HTTP (expo-audio)
  *   - Cola de oraciones (hablarConCola) con pre-cache solapado
  *   - Muletillas: pre-cache al inicio y reproducción en race con Claude
  *   - Respuestas rápidas: pre-cache de audios sin Claude
@@ -29,7 +29,6 @@ import {
   markTurnFirstAudio,
   transcribirAudio,
   sintetizarVoz,
-  urlCartesiaStream,
   urlFishRealtimeStream,
   logCliente,
   VOICE_ID_FEMENINA,
@@ -43,7 +42,6 @@ const TTS_SEGMENT_PADDING_MS = 80;
 const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v13';
 const USE_FISH_REALTIME_STREAM_EXPERIMENT = true;
-const FISH_REALTIME_MIN_CHARS = 80;
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
@@ -198,10 +196,9 @@ function coincideConColaDelTTS(reconocido: string, hablado: string | null): bool
   return false;
 }
 
-function deberiaUsarFishRealtimeStream(texto: string, emotion?: string): boolean {
+function deberiaUsarFishRealtimeStream(texto: string, _emotion?: string): boolean {
   if (!USE_FISH_REALTIME_STREAM_EXPERIMENT) return false;
-  if (texto.length < FISH_REALTIME_MIN_CHARS) return false;
-  if (emotion === 'none') return false;
+  if (texto.trim().length < 8) return false;
   return true;
 }
 
@@ -790,7 +787,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
 
     try {
-      // ── TTS — cache disco o streaming Cartesia ───────────────────────────
+      // ── TTS — cache disco o streaming Fish realtime ──────────────────────
       const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       const p = d.perfilRef.current;
@@ -802,14 +799,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         logCliente('tts_path', {
           chars: texto.length,
           emotion: emotion ?? 'none',
-          provider: usaFishRealtime ? 'fish_realtime' : 'cartesia_stream',
+          provider: usaFishRealtime ? 'fish_realtime' : 'legacy_stream',
         });
       }
       const uri: string = info.exists
         ? cacheUri
-        : usaFishRealtime
-          ? urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion, { latency: 'balanced', chunkLength: 140 })
-          : urlCartesiaStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
+        : urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion, { latency: 'balanced', chunkLength: 140 });
 
       if (uri) {
         ultimoAudioUriRef.current = uri;
