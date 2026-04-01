@@ -250,6 +250,18 @@ function detectarHandoffDirigido(textoNorm: string, perfil: Perfil): string | nu
   return null;
 }
 
+function respuestaFallbackIA(nombreAbuela: string, vozGenero: string): string {
+  const completo = vozGenero === 'masculina' ? 'completo' : 'completa';
+  const opciones = [
+    `Se me trabó un poco la respuesta, ${nombreAbuela}. Decímelo de nuevo.`,
+    `${nombreAbuela}, se me mezcló lo que te iba a decir. Probemos otra vez.`,
+    `Perdón, ${nombreAbuela}, justo se me pinchó la respuesta. Decímelo de nuevo y seguimos.`,
+    `Me quedé medio colgada con eso, ${nombreAbuela}. Repetímelo y te respondo mejor.`,
+    `No me salió bien la respuesta recién, ${nombreAbuela}. Decímelo otra vez y sigo ${completo}.`,
+  ];
+  return `[NEUTRAL] ${opciones[Math.floor(Math.random() * opciones.length)]}`;
+}
+
 // ── Interfaz de dependencias ───────────────────────────────────────────────────
 
 /** Tipo mínimo que useBrain necesita del audio player de música */
@@ -793,7 +805,10 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
           system: params.system,
           messages: params.messages,
           maxTokens: params.maxTokens,
-        }).catch(() => '');
+        }).catch((e: any) => {
+          logCliente('rc_retry_error', { error: String(e?.message ?? e).slice(0, 80) });
+          return '';
+        });
         if (esRespuestaUtil(retryText)) {
           logCliente('rc_retry_ok', { chars: retryText.length });
           return retryText;
@@ -899,15 +914,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       const respuestaRaw = await claudePromise;
       if (!esRespuestaUtil(respuestaRaw)) {
-        const respLocal = respuestaOffline(
-          textoUsuario,
+        const fallbackHumano = respuestaFallbackIA(
           p.nombreAbuela,
-          p.nombreAsistente ?? 'Rosita',
-          d.climaRef.current,
           p.vozGenero ?? 'femenina',
         );
-        const fallbackHumano = respLocal ?? '[NEUTRAL] Se me mezcló un poco lo que me dijiste. Probá decírmelo de nuevo.';
-        logCliente('rc_fallback_humano', { chars: fallbackHumano.length });
+        logCliente('rc_fallback_ia', { chars: fallbackHumano.length, motivo: 'llm_empty_or_error' });
         const parsedFallback = parsearRespuesta(
           fallbackHumano,
           p.telegramContactos ?? [],
