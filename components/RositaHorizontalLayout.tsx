@@ -282,10 +282,10 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
 
           {/* Ciudad y temperatura: no se muestran en ningún layout */}
 
-          {/* No molestar — esquina superior derecha (único control visible) */}
+          {/* No molestar — esquina superior izquierda */}
           <TouchableOpacity
             onPress={props.acciones.toggleDoNotDisturb}
-            style={[styles.iconBtn, { top: safeTop + 16, right: safeRight + 16 }]}
+            style={[styles.iconBtn, { top: safeTop + 16, left: safeLeft + 16 }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons
@@ -297,7 +297,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
 
           <TouchableOpacity
             onPress={props.onToggleModoReloj}
-            style={[styles.iconBtn, { right: safeRight + 16, bottom: safeBottom + 16 }]}
+            style={[styles.iconBtn, { left: safeLeft + 16, bottom: safeBottom + 16 }]}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Ionicons
@@ -320,9 +320,9 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             </View>
           )}
 
-          {/* Indicator de estado texto — esquina inferior izquierda, sutil */}
+          {/* Indicator de estado texto — esquina inferior derecha, sutil */}
           {props.estado !== 'esperando' && (
-            <View style={[styles.estadoBadge, { bottom: safeBottom + 14, left: safeLeft + 16 }]}>
+            <View style={[styles.estadoBadge, { bottom: safeBottom + 14, right: safeRight + 16 }]}>
               <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
               <Text style={styles.estadoTexto}>
                 {props.estado === 'escuchando' ? 'Escuchando'
