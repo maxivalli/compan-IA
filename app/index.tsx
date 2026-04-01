@@ -383,39 +383,50 @@ export default function Index() {
   // ── Modo horizontal: layout dedicado sin botones visibles ────────────────────
   if (layoutMode === 'horizontal') {
     return (
-      <RositaHorizontalLayout
-        modoReloj={modoRelojHorizontal}
-        onToggleModoReloj={() => setModoRelojHorizontal(prev => !prev)}
-        estado={estado}
-        expresion={expresion}
-        modoNoche={modoNoche}
-        musicaActiva={musicaActiva}
-        silbando={silbando}
-        noMolestar={noMolestar}
-        linternaActiva={linternaActiva}
-        detectandoSonido={detectandoSonido}
-        bgActual={bgActual}
-        degradadoCielo={degradadoCielo}
-        esFondoNoche={esFondoNoche}
-        cieloTapado={cieloTapado}
-        amaneciendo={amaneciendo}
-        climaObj={climaObj}
-        mostrarCamara={mostrarCamara}
-        camaraFacing={camaraFacing}
-        camaraSilenciosa={camaraSilenciosa}
-        onFotoCapturada={onFotoCapturada}
-        onFotoCancelada={onFotoCancelada}
-        fotoTelegram={fotoTelegram}
-        onClearFotoTelegram={() => setFotoTelegram(null)}
-        flashAnim={flashAnim}
-        esCumpleaños={esCumpleaños}
-        onTriggerCumpleaños={triggerCumpleaños}
-        acciones={acciones}
-        onOjoPicado={onOjoPicado}
-        onCaricia={onCaricia}
-        onRelampago={onRelampago}
-        apagarLinterna={apagarLinterna}
-      />
+      <>
+        <RositaHorizontalLayout
+          modoReloj={modoRelojHorizontal}
+          onToggleModoReloj={() => setModoRelojHorizontal(prev => !prev)}
+          hasListas={listas.length > 0}
+          listasCount={listas.length}
+          onOpenListas={() => setMostrarListas(true)}
+          estado={estado}
+          expresion={expresion}
+          modoNoche={modoNoche}
+          musicaActiva={musicaActiva}
+          silbando={silbando}
+          noMolestar={noMolestar}
+          linternaActiva={linternaActiva}
+          detectandoSonido={detectandoSonido}
+          bgActual={bgActual}
+          degradadoCielo={degradadoCielo}
+          esFondoNoche={esFondoNoche}
+          cieloTapado={cieloTapado}
+          amaneciendo={amaneciendo}
+          climaObj={climaObj}
+          mostrarCamara={mostrarCamara}
+          camaraFacing={camaraFacing}
+          camaraSilenciosa={camaraSilenciosa}
+          onFotoCapturada={onFotoCapturada}
+          onFotoCancelada={onFotoCancelada}
+          fotoTelegram={fotoTelegram}
+          onClearFotoTelegram={() => setFotoTelegram(null)}
+          flashAnim={flashAnim}
+          esCumpleaños={esCumpleaños}
+          onTriggerCumpleaños={triggerCumpleaños}
+          acciones={acciones}
+          onOjoPicado={onOjoPicado}
+          onCaricia={onCaricia}
+          onRelampago={onRelampago}
+          apagarLinterna={apagarLinterna}
+        />
+        <PostItViewer
+          visible={mostrarListas}
+          listas={listas}
+          onBorrar={(nombre) => { borrarListaVoz(nombre); }}
+          onClose={() => setMostrarListas(false)}
+        />
+      </>
     );
   }
 

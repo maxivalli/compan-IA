@@ -31,6 +31,9 @@ import { AccionesRosita } from '../hooks/useAccionesRosita';
 export interface RositaHorizontalProps {
   modoReloj: boolean;
   onToggleModoReloj: () => void;
+  hasListas: boolean;
+  listasCount: number;
+  onOpenListas: () => void;
   // Estado de Rosita
   estado:           EstadoRosita;
   expresion:        Expresion;
@@ -295,6 +298,19 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             />
           </TouchableOpacity>
 
+          {props.hasListas && (
+            <TouchableOpacity
+              onPress={props.onOpenListas}
+              style={[styles.iconBtn, { top: safeTop + 16, right: safeRight + 16 }]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="document-text-outline" size={24} color="#ffffffcc" />
+              <View style={styles.listasBadge}>
+                <Text style={styles.listasBadgeText}>{props.listasCount > 9 ? '9+' : props.listasCount}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             onPress={props.onToggleModoReloj}
             style={[styles.iconBtn, { left: safeLeft + 16, bottom: safeBottom + 16 }]}
@@ -384,6 +400,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#00000033',
     borderWidth: 1,
     borderColor: '#ffffff22',
+  },
+  listasBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 5,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E85D24',
+    borderWidth: 1,
+    borderColor: '#ffffff44',
+  },
+  listasBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
   waveformWrap: {
     position:  'absolute',
