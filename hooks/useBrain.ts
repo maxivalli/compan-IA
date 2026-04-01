@@ -54,8 +54,8 @@ export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | '
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Ay, tranquila {n}... acá estoy.'],
-    masculina: ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Tranquilo {n}... acá estoy.'],
+    femenina:  ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Te escucho, {n}... contame.'],
+    masculina: ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Te escucho, {n}... contame.'],
   },
   busqueda: {
     femenina:  ['A ver, {n}, dame un segundito que me fijo...', 'Aguantame un cachito, {n}, que ya te lo busco...', 'Esperame un ratito, {n}, que reviso...'],
@@ -70,8 +70,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
   },
   default: {
-    femenina:  ['Mmm, {n}...', 'A ver, {n}...', 'Claro, {n}...'],
-    masculina: ['Mmm, {n}...', 'A ver, {n}...', 'Claro, {n}...'],
+    femenina:  ['Te sigo, {n}...', 'Decime, {n}...', 'Sí, {n}...'],
+    masculina: ['Te sigo, {n}...', 'Decime, {n}...', 'Sí, {n}...'],
   },
 };
 
@@ -107,7 +107,7 @@ export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; m
 
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
 export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
-export const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo/i;
+export const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
 export const PATRON_BUSQUEDA  = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|mucho calor|mucho frío|farmacia|hospital|heladeria|restaurant|hotel|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 export const PATRON_NOSTALGIA = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
 export const PATRON_COMANDO   = /pon[eé]|apag[aá]|prend[eé]|par[aá]\b|música|la radio|una canción|las luces?|la luz|una alarma|un recordatorio|un timer|despertame|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
@@ -138,10 +138,13 @@ export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   // Solo skip para mensajes cortos (<= 30 chars) — evita que PATRON_SKIP bloquee
   // frases largas que contienen "todo bien" u otras palabras del patrón como substring.
   if (texto.length <= 30 && PATRON_SKIP.test(texto)) return null;
+  if (/\b(hablemos de otra cosa|otra cosa|cambiemos de tema|dejemos eso|dej[aá] eso|despu[eé]s hablamos|despues hablamos|charlamos despu[eé]s|charlamos despues)\b/i.test(texto)) return null;
+  if (/\b(comer|hambre|comprar|pizza|sanguch|sanguche|sanguchito|cocinar|almorz|cenar)\b/i.test(texto) && texto.length <= 90) return null;
   if (PATRON_EMPATICO.test(texto))  return 'empatico';
   if (PATRON_BUSQUEDA.test(texto))  return 'busqueda';
   if (PATRON_NOSTALGIA.test(texto)) return 'nostalgia';
   if (PATRON_COMANDO.test(texto))   return 'comando';
+  if (texto.length <= 55) return null;
   return 'default';
 }
 

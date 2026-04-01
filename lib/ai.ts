@@ -143,7 +143,10 @@ export async function llamarClaudeConStreaming(options: {
 
     xhr.onload = () => {
       if (sseBuffer.trim()) processLine(sseBuffer);
-      if (xhr.status >= 200 && xhr.status < 300) resolveOnce(fullText);
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (!fullText.trim()) rejectOnce(new Error('Stream empty'));
+        else resolveOnce(fullText);
+      }
       else rejectOnce(new Error(`Stream ${xhr.status}`));
     };
 
