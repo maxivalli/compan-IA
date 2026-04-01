@@ -31,6 +31,16 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
 
+  const safeStopSpeechRecognition = useCallback(() => {
+    try {
+      ExpoSpeechRecognitionModule.stop();
+      return true;
+    } catch (error) {
+      console.warn('[AccionesRosita] No pude detener SR al activar no molestar:', error);
+      return false;
+    }
+  }, []);
+
   /**
    * Acción principal: hablar si está esperando, parar grabación si está
    * escuchando, o parar música si está sonando.
@@ -67,12 +77,3 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
 }
 
 export type AccionesRosita = ReturnType<typeof useAccionesRosita>;
-  const safeStopSpeechRecognition = useCallback(() => {
-    try {
-      ExpoSpeechRecognitionModule.stop();
-      return true;
-    } catch (error) {
-      console.warn('[AccionesRosita] No pude detener SR al activar no molestar:', error);
-      return false;
-    }
-  }, []);
