@@ -32,7 +32,7 @@ import { buscarRadio, getFallbackAlt } from '../lib/musica';
 import { Expresion } from '../components/RosaOjos';
 import {
   construirSystemPromptEstable, construirContextoPerfil, construirContextoTemporal,
-  parsearRespuesta, respuestaOffline,
+  parsearRespuesta, respuestaOffline, hashTexto,
 } from '../lib/claudeParser';
 import {
   llamarClaude, llamarClaudeConStreaming,
@@ -506,12 +506,16 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     const maxTokBase  = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -10 : -8;
     const msgSliceBase = nuevoHistorial.slice(histSlice);
+    const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
     logCliente('prompt_ctx', {
       hist_msgs: msgSliceBase.length,
       hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
       mem_count: contextoMemoria.count,
       mem_chars: contextoMemoria.chars,
       extra_chars: extraBase.length,
+      sys_stable_hash: hashTexto(systemPreview[0].text),
+      sys_profile_hash: hashTexto(systemPreview[1].text),
+      sys_dynamic_hash: hashTexto(systemPreview[2].text),
     });
 
     try {
@@ -526,14 +530,14 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
       if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
         // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
         claudePromise = llamarClaudeConStreaming({
-          system:    getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste),
+          system:    systemPreview,
           messages:  msgSliceBase,
           maxTokens: maxTokBase,
           onPrimeraFrase,
         }).catch(async () => {
           if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
           return await llamarClaude({
-            system:    getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste),
+            system:    systemPreview,
             messages:  msgSliceBase,
             maxTokens: maxTokBase,
           }) || '';
