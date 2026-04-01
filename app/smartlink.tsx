@@ -111,13 +111,20 @@ export default function SmartLinkScreen() {
       >
         <View style={[s.header, { paddingTop: insets.top + 16 }]}>
           <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.75}>
-            <Ionicons name="arrow-back" size={20} color={M.primary} />
+            <Ionicons name="arrow-back" size={22} color={M.onPrimary} />
           </TouchableOpacity>
           <View style={s.headerTextos}>
             <Text style={s.eyebrow}>Panel del hogar</Text>
             <Text style={s.title}>SmartLink</Text>
-            <Text style={s.subtitle}>Estado en vivo y control manual de tus dispositivos.</Text>
           </View>
+          <View style={s.headerIcono}>
+            <Ionicons name="bulb-outline" size={28} color={M.onPrimary} style={{ opacity: 0.6 }} />
+          </View>
+        </View>
+
+        <View style={s.intro}>
+          <Ionicons name="flash-outline" size={16} color={M.primary} />
+          <Text style={s.introTexto}>Estado en vivo y control manual de tus dispositivos vinculados.</Text>
         </View>
 
         {cargando ? (
@@ -147,14 +154,16 @@ export default function SmartLinkScreen() {
               const prendido = dispositivo.estado === true;
               const apagado = dispositivo.estado === false;
               const disabled = !dispositivo.online || updatingId === dispositivo.id;
+              const iconBg = prendido ? '#FFE6A7' : '#E1E6E8';
+              const iconColor = prendido ? '#8E5A00' : M.onSurfaceVariant;
               return (
                 <View key={dispositivo.id} style={s.card}>
                   <View style={s.rowTop}>
-                    <View style={[s.iconWrap, { backgroundColor: dispositivo.online ? '#E5F6FA' : M.surfaceVariant }]}>
+                    <View style={[s.iconWrap, { backgroundColor: dispositivo.online ? iconBg : M.surfaceVariant }]}>
                       <Ionicons
                         name={iconoDispositivo(dispositivo.tipo)}
                         size={20}
-                        color={dispositivo.online ? M.primary : M.onSurfaceVariant}
+                        color={dispositivo.online ? iconColor : M.onSurfaceVariant}
                       />
                     </View>
                     <View style={s.deviceTextos}>
@@ -199,27 +208,47 @@ export default function SmartLinkScreen() {
 
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: M.surface },
-  content: { paddingHorizontal: 16, paddingBottom: 28 },
-  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginBottom: 18 },
+  content: { paddingBottom: 28 },
+  header: {
+    backgroundColor: M.primary,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
   backBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#e5f6fa',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ffffff22',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    marginBottom: 2,
   },
   headerTextos: { flex: 1 },
-  eyebrow: { fontSize: 12, fontWeight: '700', color: M.primary, letterSpacing: 0.6, textTransform: 'uppercase' },
-  title: { fontSize: 30, fontWeight: '300', color: M.onSurface, marginTop: 4 },
-  subtitle: { fontSize: 14, color: M.onSurfaceVariant, marginTop: 4, lineHeight: 20 },
+  eyebrow: { fontSize: 11, color: '#ffffffaa', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1.4 },
+  title: { fontSize: 28, fontWeight: '300', color: M.onPrimary, letterSpacing: -0.3, lineHeight: 34 },
+  headerIcono: { marginBottom: 2 },
+  intro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#cef5ff',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#bec8cb',
+    marginBottom: 18,
+  },
+  introTexto: { fontSize: 13, color: M.onSurface, flex: 1, lineHeight: 18 },
   centerCard: {
     backgroundColor: M.surfaceCard,
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
     gap: 10,
+    marginHorizontal: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -239,7 +268,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   primaryBtnText: { color: M.onPrimary, fontWeight: '700', fontSize: 14 },
-  list: { gap: 12 },
+  list: { gap: 12, paddingHorizontal: 16 },
   card: {
     backgroundColor: M.surfaceCard,
     borderRadius: 18,
