@@ -43,6 +43,58 @@ export type RespuestaParsed = {
   listaBorrar?: string;
 };
 
+const ANIMOS_VALIDOS: ExpresionAnimo[] = ['feliz', 'triste', 'sorprendida', 'pensativa', 'neutral'];
+
+function expresionSegunTag(tag: TagPrincipal): Expresion {
+  switch (tag) {
+    case 'CUENTO':
+      return 'mimada';
+    case 'JUEGO':
+      return 'feliz';
+    case 'CHISTE':
+      return 'chiste';
+    case 'ENOJADA':
+      return 'enojada';
+    case 'AVERGONZADA':
+      return 'avergonzada';
+    case 'CANSADA':
+      return 'cansada';
+    case 'FELIZ':
+      return 'feliz';
+    case 'TRISTE':
+      return 'triste';
+    case 'SORPRENDIDA':
+      return 'sorprendida';
+    case 'PENSATIVA':
+      return 'pensativa';
+    case 'NEUTRAL':
+    default:
+      return 'neutral';
+  }
+}
+
+function animoFallbackSegunTag(tag: TagPrincipal): ExpresionAnimo {
+  switch (tag) {
+    case 'FELIZ':
+    case 'CUENTO':
+    case 'JUEGO':
+    case 'CHISTE':
+      return 'feliz';
+    case 'TRISTE':
+      return 'triste';
+    case 'SORPRENDIDA':
+      return 'sorprendida';
+    case 'PENSATIVA':
+    case 'CANSADA':
+      return 'pensativa';
+    case 'ENOJADA':
+    case 'AVERGONZADA':
+    case 'NEUTRAL':
+    default:
+      return 'neutral';
+  }
+}
+
 // ── Helpers públicos ──────────────────────────────────────────────────────────
 
 export function hashTexto(texto: string): string {
@@ -341,7 +393,7 @@ export function parsearRespuesta(
   // ── LINTERNA ──
   if (/^\[LINTERNA\]/i.test(raw)) {
     const respuesta = limpiarTagsFinales(raw.replace(/^\[LINTERNA\]\s*/, ''));
-    return { tagPrincipal: 'LINTERNA', respuesta, expresion: 'feliz', animoUsuario: 'neutral', recuerdos: [] };
+    return { tagPrincipal: 'LINTERNA', respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
   }
 
   // ── MUSICA ──
@@ -354,7 +406,7 @@ export function parsearRespuesta(
     const respuesta = limpiarTagsFinales(
       raw.replace(/^\[[^\]]+\]\s*/, '').replace(/\[MUSICA:[^\]]+\]\s*/gi, '')
     );
-    return { tagPrincipal: 'MUSICA', generoMusica, respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
+    return { tagPrincipal: 'MUSICA', generoMusica, respuesta, expresion: 'feliz', animoUsuario: 'neutral', recuerdos: [] };
   }
   // Fallback: Claude olvidó el tag pero el texto menciona explícitamente la música/radio.
   // Ej: "¡Dale, pongo Radio Vida!" sin [MUSICA: vida] → inferir el género del texto.
@@ -442,14 +494,7 @@ export function parsearRespuesta(
   // ── Tag de emoción principal ──
   const matchTag = raw.match(/^\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]\s*/i);
   const tagRaw = matchTag?.[1]?.toUpperCase() as TagPrincipal ?? 'NEUTRAL';
-  const expresion: Expresion =
-    tagRaw === 'CUENTO'      ? 'feliz'     :
-    tagRaw === 'JUEGO'       ? 'pensativa' :
-    tagRaw === 'CHISTE'      ? 'feliz'     :
-    tagRaw === 'ENOJADA'     ? 'triste'    :
-    tagRaw === 'AVERGONZADA' ? 'neutral'   :
-    tagRaw === 'CANSADA'     ? 'pensativa' :
-    tagRaw.toLowerCase() as Expresion;
+  const expresion = expresionSegunTag(tagRaw);
 
   // ── Limpiar texto para hablar ──
   let respuesta = raw.replace(/^\[.*?\]\s*/, '');
@@ -463,12 +508,9 @@ export function parsearRespuesta(
   respuesta = respuesta.replace(/\[RECUERDO:[^\]]*\]?\s*/gi, '').trim();
 
   // ── ANIMO_USUARIO ──
-  const ANIMOS_VALIDOS: ExpresionAnimo[] = ['feliz', 'triste', 'sorprendida', 'pensativa', 'neutral'];
   const animoMatch = respuesta.match(/\[ANIMO_USUARIO:\s*([^\]]*)\]?/i);
   const animoRaw = animoMatch?.[1]?.trim().toLowerCase() ?? '';
-  const fallbackAnimo: ExpresionAnimo = ANIMOS_VALIDOS.includes(expresion as ExpresionAnimo)
-    ? (expresion as ExpresionAnimo)
-    : 'neutral';
+  const fallbackAnimo = animoFallbackSegunTag(tagRaw);
   let animoUsuario: ExpresionAnimo = ANIMOS_VALIDOS.includes(animoRaw as ExpresionAnimo)
     ? (animoRaw as ExpresionAnimo)
     : fallbackAnimo;

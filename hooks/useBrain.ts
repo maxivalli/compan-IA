@@ -79,17 +79,17 @@ export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; m
   saludo: {
     femenina:  ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?'],
     masculina: ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?'],
-    emotion:   'neutral',
+    emotion:   'feliz',
   },
   gracias: {
     femenina:  ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.'],
     masculina: ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.'],
-    emotion:   'neutral',
+    emotion:   'feliz',
   },
   de_nada: {
     femenina:  ['¡Gracias a vos!', '¡Ay, qué bueno tenerte acá!', '¡Gracias! Me alegra estar acá con vos.'],
     masculina: ['¡Gracias a vos!', '¡Qué bueno tenerte acá!', '¡Gracias! Me alegra estar acá con vos.'],
-    emotion:   'neutral',
+    emotion:   'feliz',
   },
   despedida: {
     femenina:  ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.'],
@@ -99,8 +99,16 @@ export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; m
   afirmacion: {
     femenina:  ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!'],
     masculina: ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!'],
-    emotion:   'neutral',
+    emotion:   'feliz',
   },
+};
+
+const EXPRESION_RAPIDA: Record<CategoriaRapida, Expresion> = {
+  saludo: 'feliz',
+  gracias: 'feliz',
+  de_nada: 'feliz',
+  despedida: 'neutral',
+  afirmacion: 'feliz',
 };
 
 const INTERLOCUTOR_TTL_MS = 2 * 60 * 1000;
@@ -221,26 +229,29 @@ function esCharlaSocialBreve(texto: string): boolean {
   return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir|ya me voy|descanses|chao|chau|nos vemos|despu[eé]s hablamos|mas tarde|m[aá]s tarde)\b/i.test(texto);
 }
 
-function generarRespuestaSocialBreve(textoNorm: string, vozGenero: string): { texto: string; emotion: string } | null {
+function generarRespuestaSocialBreve(textoNorm: string, vozGenero: string): { texto: string; emotion: string; expresion: Expresion } | null {
   const masculino = vozGenero === 'masculina';
   if (/\b(cansad[oa]|con sue[ñn]o|por dormir)\b/i.test(textoNorm)) {
     return {
       texto: masculino
         ? 'Dale, a descansar un poco entonces. Acá estoy después.'
         : 'Dale, a descansar un poco entonces. Acá estoy después.',
-      emotion: 'neutral',
+      emotion: 'cansada',
+      expresion: 'cansada',
     };
   }
   if (/\b(ya me voy|chau|chao|nos vemos|despu[eé]s hablamos|mas tarde|m[aá]s tarde)\b/i.test(textoNorm)) {
     return {
       texto: 'Dale, después seguimos. Que estés bien.',
       emotion: 'neutral',
+      expresion: 'neutral',
     };
   }
   if (/\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui)\b/i.test(textoNorm)) {
     return {
       texto: 'Qué bueno. Yo acá, acompañándote.',
-      emotion: 'neutral',
+      emotion: 'feliz',
+      expresion: 'feliz',
     };
   }
   return null;
@@ -790,7 +801,7 @@ export function useBrain(deps: BrainDeps) {
         do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
         ultimaRapidaRef.current[catRapida] = idx;
         const texto = lista[idx].replace(/\{n\}/g, interlocutorActivo ?? '').trim();
-        d.setExpresion('feliz');
+        d.setExpresion(EXPRESION_RAPIDA[catRapida]);
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: texto }].slice(-30);
         historialRef.current = nuevoHist;
         await guardarHistorial(nuevoHist);
@@ -818,7 +829,7 @@ export function useBrain(deps: BrainDeps) {
 
     const socialBreve = generarRespuestaSocialBreve(textoNorm, p.vozGenero ?? 'femenina');
     if (socialBreve && esCharlaSocialBreve(textoNorm)) {
-      d.setExpresion('neutral');
+      d.setExpresion(socialBreve.expresion);
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: socialBreve.texto }].slice(-24);
       historialRef.current = nuevoHist;
       await guardarHistorial(nuevoHist);
