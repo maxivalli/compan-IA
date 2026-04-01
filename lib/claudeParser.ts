@@ -340,6 +340,27 @@ export function construirContextoPerfil(p: Perfil, dispositivos: Dispositivo[] =
   return `Lo que sabés de la persona:\n${construirContexto(p, false)}${generarBloqueDispositivos(dispositivos)}`;
 }
 
+/** Bloque 3 — Memoria persistente (recuerdos + fechas importantes). Cacheable.
+ *  Cambia menos seguido que el contexto temporal y ayuda tanto a recordar mejor
+ *  como a cruzar el umbral mínimo de prompt caching en Haiku 4.5. */
+export function construirContextoMemoriaPersistente(p: Perfil): string {
+  const recuerdos = (p.recuerdos ?? []).map(r => r.trim()).filter(Boolean);
+  const fechas = (p.fechasImportantes ?? []).map(f => f.trim()).filter(Boolean);
+  if (!recuerdos.length && !fechas.length) {
+    return 'Memoria persistente de la persona: todavía no hay recuerdos importantes guardados.';
+  }
+
+  const partes: string[] = ['Memoria persistente de la persona:'];
+  if (recuerdos.length) {
+    partes.push(`- Recuerdos y datos personales relevantes: ${recuerdos.join(' | ')}.`);
+  }
+  if (fechas.length) {
+    partes.push(`- Fechas importantes: ${fechas.join(' | ')}.`);
+  }
+  partes.push('Usá esta memoria cuando ayude a responder con continuidad y cercanía. Si no encaja con la consulta actual, no la fuerces.');
+  return partes.join('\n');
+}
+
 /** Bloque 3 — Dinámico (fecha/hora, clima, juego, extra). Nunca cacheado. */
 export function construirContextoTemporal(
   p: Perfil, climaTexto: string, incluirJuego = false, extra = '', incluirChiste = false,

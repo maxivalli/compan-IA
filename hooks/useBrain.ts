@@ -31,7 +31,7 @@ import {
 import { buscarRadio, getFallbackAlt } from '../lib/musica';
 import { Expresion } from '../components/RosaOjos';
 import {
-  construirSystemPromptEstable, construirContextoPerfil, construirContextoTemporal,
+  construirSystemPromptEstable, construirContextoPerfil, construirContextoMemoriaPersistente, construirContextoTemporal,
   parsearRespuesta, respuestaOffline, hashTexto,
 } from '../lib/claudeParser';
 import {
@@ -227,6 +227,7 @@ export function useBrain(deps: BrainDeps) {
   const mensajesSesionRef  = useRef(0);
   const systemEstableRef   = useRef<{ key: string; text: string } | null>(null);
   const perfilCacheRef     = useRef<{ key: string; text: string } | null>(null);
+  const memoriaCacheRef    = useRef<{ key: string; text: string } | null>(null);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
 
@@ -252,7 +253,13 @@ export function useBrain(deps: BrainDeps) {
       perfilCacheRef.current = { key: perfilKey, text: construirContextoPerfil(p, d.dispositivosTuyaRef.current) };
     }
 
-    // Bloque 3 — dinámico: fecha/hora, clima, juego, búsqueda, ubicación (nunca cacheado)
+    // Bloque 3 — memoria persistente: recuerdos/fechas importantes (cacheable)
+    const memoriaKey = `${p.recuerdos.join('|')}|${p.fechasImportantes.join('|')}`;
+    if (!memoriaCacheRef.current || memoriaCacheRef.current.key !== memoriaKey) {
+      memoriaCacheRef.current = { key: memoriaKey, text: construirContextoMemoriaPersistente(p) };
+    }
+
+    // Bloque 4 — dinámico: fecha/hora, clima, juego, búsqueda, ubicación (nunca cacheado)
     const temporal = construirContextoTemporal(
       p, climaTexto, incluirJuego, extra, incluirChiste,
       d.ciudadRef.current, d.coordRef.current, d.feriadosRef.current,
@@ -261,6 +268,7 @@ export function useBrain(deps: BrainDeps) {
     return [
       { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: perfilCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
+      { type: 'text' as const, text: memoriaCacheRef.current.text,  cache_control: { type: 'ephemeral' as const } },
       { type: 'text' as const, text: temporal },
     ];
   }
@@ -512,6 +520,10 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -10 : -8;
     const msgSliceBase = nuevoHistorial.slice(histSlice);
     const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
+    const cachedSystemChars = systemPreview
+      .filter(block => !!block.cache_control)
+      .reduce((acc, block) => acc + block.text.length, 0);
+    const cachedSystemTokensEst = Math.ceil(cachedSystemChars / 4);
     logCliente('prompt_ctx', {
       hist_msgs: msgSliceBase.length,
       hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
@@ -520,7 +532,11 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
       extra_chars: extraBase.length,
       sys_stable_hash: hashTexto(systemPreview[0].text),
       sys_profile_hash: hashTexto(systemPreview[1].text),
-      sys_dynamic_hash: hashTexto(systemPreview[2].text),
+      sys_memory_hash: hashTexto(systemPreview[2].text),
+      sys_dynamic_hash: hashTexto(systemPreview[3].text),
+      sys_cached_chars: cachedSystemChars,
+      sys_cached_tokens_est: cachedSystemTokensEst,
+      cache_floor_hit: cachedSystemTokensEst >= 4096 ? 'si' : 'no',
     });
 
     try {
