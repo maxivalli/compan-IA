@@ -342,7 +342,7 @@ export function useRosita() {
     if (modoNoche !== 'despierta') {
       Brightness.setBrightnessAsync(0).catch(() => {});
     } else {
-      Brightness.useSystemBrightnessAsync().catch(() => {});
+      Brightness.restoreSystemBrightnessAsync().catch(() => {});
     }
   }, [modoNoche, linternaActiva]);
 
@@ -799,7 +799,7 @@ export function useRosita() {
     linternaActiva, apagarLinterna: () => {
       setLinternaActiva(false);
       Animated.timing(flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
-      Brightness.useSystemBrightnessAsync().catch(() => {});
+      Brightness.restoreSystemBrightnessAsync().catch(() => {});
     },
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     iniciarEscucha:  pipeline.iniciarEscucha,
