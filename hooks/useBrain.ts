@@ -226,7 +226,7 @@ function esCharlaSocialBreve(texto: string): boolean {
   if (texto.length > 40) return false;
   if (/[¿?]/.test(texto)) return false;
   if (PATRON_EMPATICO.test(texto) || PATRON_BUSQUEDA.test(texto) || PATRON_COMANDO.test(texto)) return false;
-  return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir|ya me voy|descanses|chao|chau|nos vemos|despu[eé]s hablamos|mas tarde|m[aá]s tarde)\b/i.test(texto);
+  return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir)\b/i.test(texto);
 }
 
 function generarRespuestaSocialBreve(textoNorm: string, vozGenero: string): { texto: string; emotion: string; expresion: Expresion } | null {
@@ -238,13 +238,6 @@ function generarRespuestaSocialBreve(textoNorm: string, vozGenero: string): { te
         : 'Dale, a descansar un poco entonces. Acá estoy después.',
       emotion: 'cansada',
       expresion: 'cansada',
-    };
-  }
-  if (/\b(ya me voy|chau|chao|nos vemos|despu[eé]s hablamos|mas tarde|m[aá]s tarde)\b/i.test(textoNorm)) {
-    return {
-      texto: 'Dale, después seguimos. Que estés bien.',
-      emotion: 'neutral',
-      expresion: 'neutral',
     };
   }
   if (/\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui)\b/i.test(textoNorm)) {
@@ -1046,7 +1039,12 @@ export function useBrain(deps: BrainDeps) {
                       .then(r => r !== null ? r : buscarWeb(queryBusqueda))
                   : buscarWeb(queryBusqueda))
               : Promise.resolve(null),
-            pideWikipedia ? buscarWikipedia(construirQueryWikipedia(textoUsuario, textoNorm, d.ciudadRef.current, nuevoHistorial)) : Promise.resolve(null),
+            pideWikipedia ? buscarWikipedia(construirQueryWikipedia(
+              textoUsuario.replace(new RegExp(`\\b${p.nombreAsistente ?? 'Rosita'}\\b`, 'gi'), '').trim(),
+              textoNorm,
+              d.ciudadRef.current,
+              nuevoHistorial,
+            )) : Promise.resolve(null),
           ]),
           memoriaPromise,
         ]);
