@@ -159,7 +159,7 @@ export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (PATRON_BUSQUEDA.test(texto))  return 'busqueda';
   if (PATRON_NOSTALGIA.test(texto)) return 'nostalgia';
   if (PATRON_COMANDO.test(texto))   return 'comando';
-  if (texto.length <= 55) return null;
+  if (texto.length <= 15) return null;
   return 'default';
 }
 
@@ -443,7 +443,14 @@ export function useBrain(deps: BrainDeps) {
   // ── Refs internos ────────────────────────────────────────────────────────────
   const historialRef       = useRef<Mensaje[]>([]);
   const mensajesSesionRef  = useRef(0);
-  const episodicaCacheRef  = useRef<{ key: string; text: string } | null>(null);
+  const episodicaCacheRef  = useRef<{
+    key: string;
+    text: string;
+    lastRelevant?: {
+      query: string;
+      result: { texto: string; count: number; chars: number };
+    };
+  } | null>(null);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
   const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
@@ -530,10 +537,22 @@ export function useBrain(deps: BrainDeps) {
       .slice(0, 2)
       .map(({ mem }) => mem);
 
-    if (!relevantes.length) return { texto: '', count: 0, chars: 0 };
+    if (!relevantes.length) {
+      if (episodicaCacheRef.current) {
+        episodicaCacheRef.current.lastRelevant = {
+          query,
+          result: { texto: '', count: 0, chars: 0 },
+        };
+      }
+      return { texto: '', count: 0, chars: 0 };
+    }
     const lista = relevantes.map((mem, idx) => `${idx + 1}. ${mem.resumen}`).join('\n');
     const texto = `\nMemorias relevantes:\n${lista}\nUsalas solo si suman.`;
-    return { texto, count: relevantes.length, chars: texto.length };
+    const result = { texto, count: relevantes.length, chars: texto.length };
+    if (episodicaCacheRef.current) {
+      episodicaCacheRef.current.lastRelevant = { query, result };
+    }
+    return result;
   }
 
   // ── Noticias en tiempo real ───────────────────────────────────────────────────
@@ -1001,7 +1020,10 @@ export function useBrain(deps: BrainDeps) {
         const esConsultaLiviana = pideCuento || pideChiste || pideJuego || esCharlaSocialBreve(textoNorm);
         const contextoMemoria = esConsultaLiviana
           ? { texto: '', count: 0, chars: 0 }
-          : await memoriaPromise;
+          : (episodicaCacheRef.current?.lastRelevant?.result ?? { texto: '', count: 0, chars: 0 });
+        if (!esConsultaLiviana && !episodicaCacheRef.current?.lastRelevant) {
+          memoriaPromise.catch(() => {});
+        }
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
         logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length });

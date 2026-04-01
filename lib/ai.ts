@@ -217,6 +217,12 @@ export async function llamarClaudeConStreaming(options: {
       try {
         const chunk = JSON.parse(raw) as any;
         if (chunk.error) { rejectOnce(new Error(chunk.error)); return; }
+        if (chunk.primera_frase && !primeraFired) {
+          const safeTag = typeof chunk.tag === 'string' ? chunk.tag : 'NEUTRAL';
+          primeraFired = true;
+          tagDetected = safeTag;
+          options.onPrimeraFrase?.(String(chunk.primera_frase).trim(), safeTag);
+        }
         if (!chunk.text) return;
 
         fullText += chunk.text;

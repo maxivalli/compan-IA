@@ -46,6 +46,16 @@ const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
 const FISH_REALTIME_COOLDOWN_MS = 2 * 60 * 1000;
+const FRASES_BUFFER_429 = [
+  'Un momentito...',
+  'Ya te sigo...',
+  'Dame un segundo...',
+  'Esperate un cachito...',
+  'Ahi voy...',
+  'Ya te respondo...',
+  'Un momento...',
+  'Enseguida...',
+] as const;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -273,6 +283,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const precacheInFlightRef        = useRef<Set<string>>(new Set());
   const precacheMuletillasRunningRef = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
+  const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
+  const fishRealtimeInFlightRef    = useRef(0);
+  const fraseBufferIdxRef          = useRef(0);
 
   // ── Refs de silbido ──────────────────────────────────────────────────────
   const silbidoActivoRef  = useRef(false);
@@ -601,31 +614,96 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     } catch {}
   }
 
+  function cacheUriBuffer429(texto: string) {
+    const key = hashTexto(`buffer429|${texto}`);
+    return FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_buffer429_` + key + '.mp3';
+  }
+
+  async function precachearFrasesBuffer429() {
+    const p = depsRef.current.perfilRef.current;
+    const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+    for (const frase of FRASES_BUFFER_429) {
+      try {
+        const uri = cacheUriBuffer429(frase);
+        const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
+        if ((info as any).exists) continue;
+        const base64 = await sintetizarVoz(frase, voiceId, velocidadSegunEdad(p?.edad), 'neutral').catch(() => null);
+        if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
+      } catch {}
+    }
+  }
+
+  async function reproducirFallbackFishCacheado(): Promise<boolean> {
+    for (let intentos = 0; intentos < FRASES_BUFFER_429.length; intentos++) {
+      const idx = fraseBufferIdxRef.current % FRASES_BUFFER_429.length;
+      fraseBufferIdxRef.current += 1;
+      const frase = FRASES_BUFFER_429[idx];
+      const uri = cacheUriBuffer429(frase);
+      const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
+      if (!(info as any).exists) continue;
+      try {
+        player.replace({ uri });
+        player.play();
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 2500);
+          const poll = setInterval(() => {
+            const dur = (player as any).duration as number;
+            const pos = (player as any).currentTime as number;
+            if (dur > 0 && pos >= dur - 0.15) {
+              clearTimeout(timeout);
+              clearInterval(poll);
+              try { player.pause(); } catch {}
+              resolve();
+            }
+          }, 80);
+        });
+        return true;
+      } catch {}
+    }
+    return false;
+  }
+
+  async function fallbackVozUltimoRecurso(texto: string) {
+    const d = depsRef.current;
+    d.setEstado('hablando');
+    d.estadoRef.current = 'hablando';
+    const pudoCache = await reproducirFallbackFishCacheado().catch(() => false);
+    if (pudoCache) return;
+    await new Promise<void>((resolve) => {
+      Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
+    });
+  }
+
   // ── Pre-cache TTS ─────────────────────────────────────────────────────────
   async function precachearTexto(texto: string, emotion?: string) {
     const limpio = limpiarTextoParaTTS(texto);
     if (!limpio) return;
-    if (
-      USE_FISH_REALTIME_STREAM_EXPERIMENT
-      && Date.now() >= fishRealtimeCooldownUntilRef.current
-      && deberiaUsarFishRealtimeStream(limpio, emotion)
-    ) {
-      return;
-    }
     const key = hashTexto(limpio + '|' + (emotion ?? ''));
     if (precacheInFlightRef.current.has(key)) return;
     precacheInFlightRef.current.add(key);
-    try {
-      const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + key + '.mp3';
-      const info = await FileSystem.getInfoAsync(cacheUri);
-      if (info.exists) return;
-      const p = depsRef.current.perfilRef.current;
-      const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-      const base64 = await sintetizarVoz(limpio, voiceId, velocidadSegunEdad(p?.edad), emotion);
-      if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-    } catch {} finally {
-      precacheInFlightRef.current.delete(key);
-    }
+    const run = async () => {
+      try {
+        if (fishRealtimeInFlightRef.current > 0) return;
+        if (
+          USE_FISH_REALTIME_STREAM_EXPERIMENT
+          && Date.now() >= fishRealtimeCooldownUntilRef.current
+          && deberiaUsarFishRealtimeStream(limpio, emotion)
+        ) {
+          return;
+        }
+        const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + key + '.mp3';
+        const info = await FileSystem.getInfoAsync(cacheUri);
+        if (info.exists) return;
+        const p = depsRef.current.perfilRef.current;
+        const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+        const base64 = await sintetizarVoz(limpio, voiceId, velocidadSegunEdad(p?.edad), emotion);
+        if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+      } catch {} finally {
+        precacheInFlightRef.current.delete(key);
+      }
+    };
+    precacheQueueRef.current = precacheQueueRef.current.catch(() => {}).then(run);
+    await precacheQueueRef.current;
   }
 
   async function precachearMuletillas(voiceId?: string, nombre?: string) {
@@ -651,6 +729,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
       }
     }
+    await precachearFrasesBuffer429().catch(() => {});
     precacheMuletillasRunningRef.current = false;
   }
 
@@ -795,15 +874,17 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       return;
     }
 
+    let isStream = false;
+    let usaFishRealtime = false;
     try {
       // ── TTS — cache disco o streaming Fish realtime ──────────────────────
       const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-      const isStream = !info.exists;
+      isStream = !info.exists;
       const fishRealtimeDisponible = Date.now() >= fishRealtimeCooldownUntilRef.current;
-      const usaFishRealtime = isStream && fishRealtimeDisponible && deberiaUsarFishRealtimeStream(texto, emotion);
+      usaFishRealtime = isStream && fishRealtimeDisponible && deberiaUsarFishRealtimeStream(texto, emotion);
       if (__DEV__) console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
       if (isStream) {
         logCliente('tts_path', {
@@ -819,6 +900,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           : '';
 
       if (uri) {
+        if (usaFishRealtime) fishRealtimeInFlightRef.current += 1;
         ultimoAudioUriRef.current = uri;
         try { player.pause(); } catch {}
         player.replace({ uri });
@@ -930,30 +1012,22 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             fishRealtimeCooldownUntilRef.current = Date.now() + FISH_REALTIME_COOLDOWN_MS;
             logCliente('tts_rt_cooldown', { ms: FISH_REALTIME_COOLDOWN_MS, motivo: 'no-start' });
           }
-          if (__DEV__) console.log('[TTS] no-start en stream, fallback a Speech.speak');
-          d.setEstado('hablando');
-          d.estadoRef.current = 'hablando';
-          await new Promise<void>((resolve) => {
-            Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
-          });
+          if (__DEV__) console.log('[TTS] no-start en stream, fallback a frase cacheada/native');
+          await fallbackVozUltimoRecurso(texto);
         }
       } else {
-        if (__DEV__) console.log('[TTS] fallback a Speech.speak (sin URI de stream)');
-        d.setEstado('hablando');
-        d.estadoRef.current = 'hablando';
-        await new Promise<void>((resolve) => {
-          Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
-        });
+        if (__DEV__) console.log('[TTS] fallback a frase cacheada/native (sin URI de stream)');
+        await fallbackVozUltimoRecurso(texto);
       }
     } catch (e: any) {
       if (__DEV__) console.log('[TTS] CATCH en hablar:', e?.message ?? e);
       try {
-        d.setEstado('hablando');
-        d.estadoRef.current = 'hablando';
-        await new Promise<void>((resolve) => {
-          Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
-        });
+        await fallbackVozUltimoRecurso(texto);
       } catch {}
+    } finally {
+      if (isStream && usaFishRealtime) {
+        fishRealtimeInFlightRef.current = Math.max(0, fishRealtimeInFlightRef.current - 1);
+      }
     }
 
     hablandoDesdeRef.current = 0;
