@@ -128,86 +128,86 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
 
           <GestureDetector gesture={swipeGesture}>
             <Animated.View
-              style={[s.card, {
-                backgroundColor: c.bg,
+              style={[s.sheet, {
                 transform: [{ scale: scaleAnim }, { translateX: slideX }],
               }]}
             >
-              {/* Franja de color */}
-              <View style={[s.franja, { backgroundColor: c.linea }]} />
+              <View style={[s.card, { backgroundColor: c.bg }]}>
+                {/* Franja de color */}
+                <View style={[s.franja, { backgroundColor: c.linea }]} />
 
-              {/* Header */}
-              <View style={s.header}>
-                <Text style={[s.titulo, { color: c.text }]} numberOfLines={2}>
-                  {lista.nombre}
-                </Text>
-                <TouchableOpacity onPress={cerrar} hitSlop={12}>
-                  <Ionicons name="close-circle" size={28} color={c.text + 'aa'} />
-                </TouchableOpacity>
-              </View>
+                {/* Header */}
+                <View style={s.header}>
+                  <Text style={[s.titulo, { color: c.text }]} numberOfLines={2}>
+                    {lista.nombre}
+                  </Text>
+                  <TouchableOpacity onPress={cerrar} hitSlop={12}>
+                    <Ionicons name="close-circle" size={28} color={c.text + 'aa'} />
+                  </TouchableOpacity>
+                </View>
 
-              {/* Ítems */}
-              <ScrollView
-                style={s.scroll}
-                contentContainerStyle={s.scrollContent}
-                showsVerticalScrollIndicator={false}
-              >
-                {lista.items.length === 0 ? (
-                  <Text style={[s.vacio, { color: c.text + '77' }]}>Lista vacía</Text>
-                ) : (
-                  lista.items.map((item, i) => (
-                    <View key={i} style={s.itemRow}>
-                      <View style={[s.itemCirculo, { borderColor: c.text + '55' }]} />
-                      <Text style={[s.itemTexto, { color: c.text }]}>{item}</Text>
-                    </View>
-                  ))
-                )}
-              </ScrollView>
-
-              {/* Footer */}
-              <View style={s.footer}>
-                {listas.length > 1 && (
-                  <View style={s.dots}>
-                    {listas.map((_, i) => (
-                      <View
-                        key={i}
-                        style={[s.dot, {
-                          backgroundColor: c.text,
-                          opacity: i === idx ? 0.75 : 0.2,
-                          width:   i === idx ? 22   : 8,
-                        }]}
-                      />
-                    ))}
-                  </View>
-                )}
-
-                <TouchableOpacity
-                  style={[s.btnBorrar, { borderColor: c.text + '33', backgroundColor: c.text + '11' }]}
-                  onPress={() => {
-                    const nombre   = lista.nombre;
-                    const esUltima = listas.length <= 1;
-                    onBorrar(nombre);
-                    if (esUltima) {
-                      cerrar();
-                    } else {
-                      const newIdx  = idx > 0 ? idx - 1 : 0;
-                      const salida  = idx > 0 ? 420 : -420;
-                      const entrada = idx > 0 ? -420 : 420;
-                      idxRef.current = newIdx;
-                      Animated.timing(slideX, { toValue: salida, duration: 200, useNativeDriver: true }).start(() => {
-                        setIdx(Math.min(newIdx, listasRef.current.length - 1));
-                        idxRef.current = Math.min(newIdx, listasRef.current.length - 1);
-                        slideX.setValue(entrada);
-                        Animated.spring(slideX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 22 }).start();
-                      });
-                    }
-                  }}
+                {/* Ítems */}
+                <ScrollView
+                  style={s.scroll}
+                  contentContainerStyle={s.scrollContent}
+                  showsVerticalScrollIndicator={false}
                 >
-                  <Ionicons name="trash-outline" size={16} color={c.text} />
-                  <Text style={[s.btnBorrarTexto, { color: c.text }]}>Borrar esta lista</Text>
-                </TouchableOpacity>
+                  {lista.items.length === 0 ? (
+                    <Text style={[s.vacio, { color: c.text + '77' }]}>Lista vacía</Text>
+                  ) : (
+                    lista.items.map((item, i) => (
+                      <View key={i} style={s.itemRow}>
+                        <View style={[s.itemCirculo, { borderColor: c.text + '55' }]} />
+                        <Text style={[s.itemTexto, { color: c.text }]}>{item}</Text>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+
+                {/* Footer */}
+                <View style={s.footer}>
+                  <TouchableOpacity
+                    style={[s.btnBorrar, { borderColor: c.text + '33', backgroundColor: c.text + '11' }]}
+                    onPress={() => {
+                      const nombre   = lista.nombre;
+                      const esUltima = listas.length <= 1;
+                      onBorrar(nombre);
+                      if (esUltima) {
+                        cerrar();
+                      } else {
+                        const newIdx  = idx > 0 ? idx - 1 : 0;
+                        const salida  = idx > 0 ? 420 : -420;
+                        const entrada = idx > 0 ? -420 : 420;
+                        idxRef.current = newIdx;
+                        Animated.timing(slideX, { toValue: salida, duration: 200, useNativeDriver: true }).start(() => {
+                          setIdx(Math.min(newIdx, listasRef.current.length - 1));
+                          idxRef.current = Math.min(newIdx, listasRef.current.length - 1);
+                          slideX.setValue(entrada);
+                          Animated.spring(slideX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 22 }).start();
+                        });
+                      }
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={c.text} />
+                    <Text style={[s.btnBorrarTexto, { color: c.text }]}>Borrar esta lista</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
 
+              {listas.length > 1 && (
+                <View style={s.dotsOutside}>
+                  {listas.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[s.dot, {
+                        backgroundColor: '#ffffff',
+                        opacity: i === idx ? 0.88 : 0.28,
+                        width: i === idx ? 22 : 8,
+                      }]}
+                    />
+                  ))}
+                </View>
+              )}
             </Animated.View>
           </GestureDetector>
 
@@ -232,6 +232,10 @@ const s = StyleSheet.create({
     shadowOpacity: 0.38,
     shadowRadius: 24,
     elevation: 22,
+  },
+  sheet: {
+    alignItems: 'center',
+    gap: 14,
   },
   franja: {
     height: 8,
@@ -291,13 +295,14 @@ const s = StyleSheet.create({
     paddingHorizontal: 22,
     paddingTop: 14,
     paddingBottom: 22,
-    gap: 14,
     alignItems: 'center',
   },
-  dots: {
+  dotsOutside: {
     flexDirection: 'row',
     gap: 6,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 12,
   },
   dot: {
     height: 8,
