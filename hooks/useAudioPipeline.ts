@@ -30,6 +30,7 @@ import {
   transcribirAudio,
   sintetizarVoz,
   urlCartesiaStream,
+  urlFishRealtimeStream,
   logCliente,
   VOICE_ID_FEMENINA,
   VOICE_ID_MASCULINA,
@@ -41,6 +42,8 @@ const USAR_TTS_NATIVO = false;
 const TTS_SEGMENT_PADDING_MS = 80;
 const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v13';
+const USE_FISH_REALTIME_STREAM_EXPERIMENT = true;
+const FISH_REALTIME_MIN_CHARS = 80;
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
@@ -193,6 +196,13 @@ function coincideConColaDelTTS(reconocido: string, hablado: string | null): bool
   }
 
   return false;
+}
+
+function deberiaUsarFishRealtimeStream(texto: string, emotion?: string): boolean {
+  if (!USE_FISH_REALTIME_STREAM_EXPERIMENT) return false;
+  if (texto.length < FISH_REALTIME_MIN_CHARS) return false;
+  if (emotion === 'none') return false;
+  return true;
 }
 
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
@@ -786,10 +796,20 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
       const isStream = !info.exists;
+      const usaFishRealtime = isStream && deberiaUsarFishRealtimeStream(texto, emotion);
       if (__DEV__) console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
+      if (isStream) {
+        logCliente('tts_path', {
+          chars: texto.length,
+          emotion: emotion ?? 'none',
+          provider: usaFishRealtime ? 'fish_realtime' : 'cartesia_stream',
+        });
+      }
       const uri: string = info.exists
         ? cacheUri
-        : urlCartesiaStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
+        : usaFishRealtime
+          ? urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion, { latency: 'balanced', chunkLength: 140 })
+          : urlCartesiaStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
 
       if (uri) {
         ultimoAudioUriRef.current = uri;

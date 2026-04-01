@@ -324,6 +324,29 @@ export function urlCartesiaStream(texto: string, voiceId: string, speed?: number
   return `${BACKEND_URL}/ai/tts-cartesia-stream?${params}`;
 }
 
+/** Construye la URL del endpoint experimental de Fish realtime streaming.
+ *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente. */
+export function urlFishRealtimeStream(
+  texto: string,
+  voiceId: string,
+  speed?: number,
+  emotion?: string,
+  options?: { latency?: 'normal' | 'balanced'; chunkLength?: number },
+): string {
+  if (!_cachedToken) throw new Error('Device token unavailable for Fish realtime stream');
+  const params = new URLSearchParams({
+    text: texto,
+    voiceId,
+    speed: String(speed ?? 0.92),
+    k: _cachedToken,
+    ...(emotion ? { emotion } : {}),
+    ...(options?.latency ? { latency: options.latency } : {}),
+    ...(options?.chunkLength ? { chunkLength: String(options.chunkLength) } : {}),
+    ...(_currentTurnId ? { t: _currentTurnId } : {}),
+  });
+  return `${BACKEND_URL}/ai/tts-fish-realtime-stream?${params}`;
+}
+
 /** Devuelve el audio sintetizado como string base64, o null si falla. */
 export const VOICE_ID_FEMENINA  = 'r3lotmx3BZETVvcKm6R6'; // Tucumana y enérgica
 export const VOICE_ID_FEMENINA2 = 'smHMxLX7gVgXrrfD70xq'; // Cálida y formal
