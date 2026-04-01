@@ -375,7 +375,7 @@ export function construirContexto(perfil: Perfil, incluirRecuerdos = true): stri
     return ` Su cumpleaños es el ${dd}/${mm}.`;
   })();
   const lineas = [
-    `El nombre de la persona con quien hablás es ${limpiarDato(perfil.nombreAbuela)}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.${cumple}`,
+    `La persona principal del perfil es ${limpiarDato(perfil.nombreAbuela)}${perfil.edad ? `, tiene ${perfil.edad} años` : ''}.${cumple}`,
   ];
   if (perfil.familiares.length > 0)
     lineas.push(`Sus familiares cercanos son: ${san(perfil.familiares).join(', ')}.`);

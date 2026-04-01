@@ -77,31 +77,38 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
 
 export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculina: string[]; emotion: string }> = {
   saludo: {
-    femenina:  ['¡Hola, {n}! ¿Cómo andás hoy?', '¡{n}! Qué bueno que me hablás. ¿Cómo estás?', '¡Acá estoy, {n}! ¿Cómo te va?'],
-    masculina: ['¡Hola, {n}! ¿Cómo andás hoy?', '¡{n}! Qué bueno que me hablás. ¿Cómo estás?', '¡Acá estoy, {n}! ¿Cómo te va?'],
+    femenina:  ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?'],
+    masculina: ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?'],
     emotion:   'neutral',
   },
   gracias: {
-    femenina:  ['¡De nada {n}!', '¡Para eso estoy, {n}!', '¡De nada, {n}! Cualquier cosa me decís.'],
-    masculina: ['¡De nada {n}!', '¡Para eso estoy, {n}!', '¡De nada, {n}! Cualquier cosa me decís.'],
+    femenina:  ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.'],
+    masculina: ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.'],
     emotion:   'neutral',
   },
   de_nada: {
-    femenina:  ['¡Gracias a vos, {n}!', '¡Ay, qué bueno tenerte acá, {n}!', '¡Gracias, {n}! Me alegra estar acá con vos.'],
-    masculina: ['¡Gracias a vos, {n}!', '¡Qué bueno tenerte acá, {n}!', '¡Gracias, {n}! Me alegra estar acá con vos.'],
+    femenina:  ['¡Gracias a vos!', '¡Ay, qué bueno tenerte acá!', '¡Gracias! Me alegra estar acá con vos.'],
+    masculina: ['¡Gracias a vos!', '¡Qué bueno tenerte acá!', '¡Gracias! Me alegra estar acá con vos.'],
     emotion:   'neutral',
   },
   despedida: {
-    femenina:  ['¡Chau, {n}! Cuidate mucho.', '¡Hasta luego, {n}! Acá voy a estar cuando me necesitás.', '¡Nos vemos, {n}! Un beso grande.'],
-    masculina: ['¡Chau, {n}! Cuidate mucho.', '¡Hasta luego, {n}! Acá voy a estar cuando me necesitás.', '¡Nos vemos, {n}! Un beso grande.'],
+    femenina:  ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.'],
+    masculina: ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.'],
     emotion:   'neutral',
   },
   afirmacion: {
-    femenina:  ['¡Perfecto, {n}! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno, {n}! Acá estoy si necesitás algo.', '¡Genial, {n}!'],
-    masculina: ['¡Perfecto, {n}! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno, {n}! Acá estoy si necesitás algo.', '¡Genial, {n}!'],
+    femenina:  ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!'],
+    masculina: ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!'],
     emotion:   'neutral',
   },
 };
+
+const INTERLOCUTOR_TTL_MS = 2 * 60 * 1000;
+const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
+  'yo', 'aca', 'acá', 'hola', 'buenas', 'buenos', 'soy', 'llamo', 'nombre',
+  'novia', 'novio', 'marido', 'esposa', 'mama', 'mamá', 'papa', 'papá',
+  'amiga', 'amigo', 'hija', 'hijo', 'senora', 'señora', 'senor', 'señor',
+]);
 
 // ── Patrones de clasificación (exportados para uso en SR y otros hooks) ─────────
 
@@ -181,6 +188,43 @@ function compactarRespuestaParaVoz(
   return /[.!?]$/.test(truncada) ? truncada : `${truncada}.`;
 }
 
+function normalizarTextoPlano(texto: string): string {
+  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function capitalizarNombre(nombre: string): string {
+  return nombre
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(parte => parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function extraerPrimerNombre(texto: string): string | null {
+  const limpio = normalizarTextoPlano(texto).replace(/[^a-zñ\s]/g, ' ').trim();
+  const nombre = limpio.split(/\s+/).find(Boolean) ?? '';
+  if (nombre.length < 3 || nombre.length > 20) return null;
+  if (PALABRAS_INVALIDAS_INTERLOCUTOR.has(nombre)) return null;
+  return capitalizarNombre(nombre);
+}
+
+function inferirInterlocutorTemporal(texto: string, perfil: Perfil): string | null {
+  const principal = normalizarTextoPlano(perfil.nombreAbuela ?? '');
+  const conocidos = new Set(
+    (perfil.familiares ?? [])
+      .map(extraerPrimerNombre)
+      .filter((nombre): nombre is string => !!nombre)
+      .map(nombre => normalizarTextoPlano(nombre)),
+  );
+  const match = texto.match(/\b(?:soy|yo soy|me llamo|mi nombre es|habla|te habla)\s+([A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{3,20})\b/i);
+  const nombre = match?.[1] ? extraerPrimerNombre(match[1]) : null;
+  if (!nombre) return null;
+  const normalizado = normalizarTextoPlano(nombre);
+  if (normalizado === principal) return null;
+  if (conocidos.size === 0 || conocidos.has(normalizado)) return nombre;
+  return nombre;
+}
+
 // ── Interfaz de dependencias ───────────────────────────────────────────────────
 
 /** Tipo mínimo que useBrain necesita del audio player de música */
@@ -251,6 +295,7 @@ export function useBrain(deps: BrainDeps) {
   const memoriaCacheRef    = useRef<{ key: string; text: string } | null>(null);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
+  const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
 
   // ── System prompt en tres bloques ────────────────────────────────────────────
   function getSystemBlocks(
@@ -505,7 +550,18 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
 
     // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
-    const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const textoNorm = normalizarTextoPlano(textoUsuario);
+    const interlocutorDetectado = inferirInterlocutorTemporal(textoUsuario, p);
+    if (interlocutorDetectado) {
+      interlocutorRef.current = { nombre: interlocutorDetectado, expiresAt: Date.now() + INTERLOCUTOR_TTL_MS };
+      logCliente('interlocutor_detectado', { nombre: interlocutorDetectado });
+    }
+    const interlocutorActivo = interlocutorRef.current && interlocutorRef.current.expiresAt > Date.now()
+      ? interlocutorRef.current.nombre
+      : null;
+    if (interlocutorRef.current && interlocutorRef.current.expiresAt <= Date.now()) {
+      interlocutorRef.current = null;
+    }
 
     const esPararMusicaDirecto = /\b(par[áa]|apaga|corta|saca)\b.{0,20}\b(musica|música|radio)\b|\b(parar_musica)\b/.test(textoNorm);
     if (esPararMusicaDirecto && d.musicaActivaRef.current) {
@@ -551,7 +607,7 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
         let idx: number;
         do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
         ultimaRapidaRef.current[catRapida] = idx;
-        const texto = lista[idx].replace(/\{n\}/g, p.nombreAbuela ?? '').trim();
+        const texto = lista[idx].replace(/\{n\}/g, interlocutorActivo ?? '').trim();
         d.setExpresion('feliz');
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: texto }].slice(-30);
         historialRef.current = nuevoHist;
@@ -628,7 +684,10 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
       primeraFraseResolver?.(primera);
     };
     const contextoMemoria = await construirContextoMemoria(textoUsuario);
-    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}`;
+    const contextoInterlocutor = interlocutorActivo
+      ? `\nInterlocutor actual del turno: ${interlocutorActivo}. En esta respuesta dirigite a ${interlocutorActivo}, no a ${p.nombreAbuela}, salvo que el mensaje sea claramente para ${p.nombreAbuela}.`
+      : '';
+    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const maxTokBase  = (pideCuento || pideJuego || pideChiste)
       ? 700
@@ -796,7 +855,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
           d.climaRef.current,
           p.vozGenero ?? 'femenina',
         );
-        const fallbackHumano = respLocal ?? '[NEUTRAL] Se me mezcló un poco lo que me dijiste. Probá decírmelo de nuevo, Maxi.';
+        const fallbackHumano = respLocal ?? '[NEUTRAL] Se me mezcló un poco lo que me dijiste. Probá decírmelo de nuevo.';
         logCliente('rc_fallback_humano', { chars: fallbackHumano.length });
         const parsedFallback = parsearRespuesta(
           fallbackHumano,
