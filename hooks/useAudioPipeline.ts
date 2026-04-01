@@ -41,7 +41,7 @@ const USAR_TTS_NATIVO = false;
 const TTS_SEGMENT_PADDING_MS = 80;
 const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v13';
-const BARGE_IN_ARM_DELAY_MS = 1700;
+const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
@@ -287,6 +287,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── SR: iniciar ──────────────────────────────────────────────────────────
   function iniciarSpeechRecognition() {
     if (enFlujoVozRef.current) return;
+    if (depsRef.current.estadoRef.current !== 'esperando') return;
+    if (depsRef.current.noMolestarRef.current) return;
+    if (enColaHablaRef.current) return;
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
@@ -407,7 +410,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       unduckMusica();
       procesandoRef.current = false;
       procesandoDesdeRef.current = 0;
-      iniciarSpeechRecognition();
+      if (
+        d.estadoRef.current === 'esperando'
+        && !enFlujoVozRef.current
+        && !enColaHablaRef.current
+        && !d.noMolestarRef.current
+      ) {
+        iniciarSpeechRecognition();
+      }
     }
   });
 
