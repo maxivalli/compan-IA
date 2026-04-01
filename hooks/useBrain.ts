@@ -28,11 +28,11 @@ import {
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
   Perfil, TelegramContacto,
 } from '../lib/memoria';
-import { buscarRadio, getFallbackAlt } from '../lib/musica';
+import { buscarRadio, getFallbackAlt, nombreRadioOGenero } from '../lib/musica';
 import { Expresion } from '../components/RosaOjos';
 import {
   construirSystemPromptEstable, construirContextoPerfil, construirContextoMemoriaPersistente, construirContextoTemporal,
-  parsearRespuesta, respuestaOffline, hashTexto,
+  parsearRespuesta, respuestaOffline, hashTexto, detectarGenero,
 } from '../lib/claudeParser';
 import {
   llamarClaude, llamarClaudeConStreaming,
@@ -54,24 +54,24 @@ export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | '
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Te escucho, {n}... contame.'],
-    masculina: ['Ay, {n}... estoy acá, contame.', 'Uy, {n}... te escucho, decime.', 'Te escucho, {n}... contame.'],
+    femenina:  ['Ay... estoy acá, contame.', 'Uy... te escucho, decime.', 'Te escucho... contame.'],
+    masculina: ['Ay... estoy acá, contame.', 'Uy... te escucho, decime.', 'Te escucho... contame.'],
   },
   busqueda: {
-    femenina:  ['A ver, {n}, dame un segundito que me fijo...', 'Aguantame un cachito, {n}, que ya te lo busco...', 'Esperame un ratito, {n}, que reviso...'],
-    masculina: ['A ver, {n}, dame un segundito que me fijo...', 'Aguantame un cachito, {n}, que ya te lo busco...', 'Esperame un ratito, {n}, que reviso...'],
+    femenina:  ['A ver, dame un segundito que me fijo...', 'Aguantame un cachito, que ya te lo busco...', 'Esperame un ratito, que reviso...'],
+    masculina: ['A ver, dame un segundito que me fijo...', 'Aguantame un cachito, que ya te lo busco...', 'Esperame un ratito, que reviso...'],
   },
   nostalgia: {
-    femenina:  ['Mirá vos, {n}... contame.', 'Ay, qué lindo, {n}... decime.', 'Qué bárbaro, {n}, te escucho.'],
-    masculina: ['Mirá vos, {n}... contame.', 'Qué interesante, {n}... decime.', 'Qué bárbaro, {n}, te escucho.'],
+    femenina:  ['Mirá vos... contame.', 'Ay, qué lindo... decime.', 'Qué bárbaro, te escucho.'],
+    masculina: ['Mirá vos... contame.', 'Qué interesante... decime.', 'Qué bárbaro, te escucho.'],
   },
   comando: {
-    femenina:  ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
-    masculina: ['¡Dale, {n}!', '¡Ahora mismo!', '¡Claro, {n}!'],
+    femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
+    masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
   },
   default: {
-    femenina:  ['Te sigo, {n}...', 'Decime, {n}...', 'Sí, {n}...'],
-    masculina: ['Te sigo, {n}...', 'Decime, {n}...', 'Sí, {n}...'],
+    femenina:  ['Te sigo...', 'Decime...', 'Sí...'],
+    masculina: ['Te sigo...', 'Decime...', 'Sí...'],
   },
 };
 
@@ -416,6 +416,69 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     } catch {}
   }
 
+  async function ejecutarMusica(generoMusica: string, respuesta: string, nuevoHistorial: Mensaje[]): Promise<void> {
+    const d = depsRef.current;
+    d.setExpresion('neutral');
+    const streamPromise = buscarRadio(generoMusica);
+    logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 300) });
+    await d.hablar(`${respuesta} Para pararla, tocá la pantalla.`);
+    d.setEstado('pensando');
+    d.estadoRef.current = 'pensando';
+    ExpoSpeechRecognitionModule.stop();
+    const urlStream = await streamPromise;
+    if (urlStream) {
+      try {
+        d.playerMusica.replace({ uri: urlStream });
+        d.playerMusica.volume = 0.70;
+        d.playerMusica.play();
+        d.musicaActivaRef.current = true;
+        d.detenerSilbido();
+        d.setMusicaActiva(true);
+        registrarMusicaHoy().catch(() => {});
+        d.ultimaRadioRef.current = generoMusica;
+        guardarUltimaRadio(generoMusica).catch(() => {});
+        d.setEstado('esperando');
+        d.estadoRef.current = 'esperando';
+        d.iniciarSpeechRecognition();
+        if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+        d.expresionTimerRef.current = setTimeout(() => d.setExpresion('neutral'), 5000);
+        setTimeout(async () => {
+          if (!d.musicaActivaRef.current) return;
+          if (d.playerMusica.currentTime >= 0.5) return;
+          const altUrl = getFallbackAlt(generoMusica, urlStream);
+          if (altUrl) {
+            try {
+              d.playerMusica.replace({ uri: altUrl });
+              d.playerMusica.play();
+              setTimeout(async () => {
+                if (!d.musicaActivaRef.current) return;
+                if (d.playerMusica.currentTime < 0.5) {
+                  d.pararMusica();
+                  await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
+                }
+              }, 8000);
+            } catch {
+              d.pararMusica();
+              await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
+            }
+          } else {
+            d.pararMusica();
+            await d.hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
+          }
+        }, 10000);
+      } catch {
+        d.setMusicaActiva(false);
+        await d.hablar('No pude conectar con la radio, perdoname.');
+      }
+    } else {
+      await d.hablar('No pude conectar con esa radio ahora, perdoname. Podés intentar con otra o pedirme un género musical.');
+    }
+    const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: respuesta }].slice(-30);
+    historialRef.current = nuevoHist;
+    await guardarHistorial(nuevoHist);
+    d.ultimaCharlaRef.current = Date.now();
+  }
+
   // ── Responder con Claude ───────────────────────────────────────────────────────
   async function responderConClaude(textoUsuario: string) {
     const d = depsRef.current;
@@ -443,6 +506,34 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
     const textoNorm = textoUsuario.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+    const esPararMusicaDirecto = /\b(par[áa]|apaga|corta|saca)\b.{0,20}\b(musica|música|radio)\b|\b(parar_musica)\b/.test(textoNorm);
+    if (esPararMusicaDirecto && d.musicaActivaRef.current) {
+      const respuesta = 'Listo, apago la música.';
+      d.pararMusica();
+      d.setExpresion('neutral');
+      const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: respuesta }].slice(-30);
+      historialRef.current = nuevoHist;
+      await guardarHistorial(nuevoHist);
+      d.ultimaCharlaRef.current = Date.now();
+      d.ultimaActividadRef.current = Date.now();
+      logCliente('rapida_msg', { cat: 'parar_musica', texto: respuesta });
+      await d.hablar(respuesta);
+      return;
+    }
+
+    const pideMusicaDirecta = /\b(pon[eé]|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b|\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|vida|del plata|delplata|lt8|lv3|tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop)\b/.test(textoNorm);
+    const generoDirecto = detectarGenero(textoNorm);
+    if (pideMusicaDirecta && generoDirecto) {
+      const nombreRadio = nombreRadioOGenero(generoDirecto);
+      const respuesta = /^radio|^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|vida|delplata|lt8)$/.test(generoDirecto)
+        ? `¡Claro! Va ${nombreRadio}.`
+        : `¡Dale! Pongo ${nombreRadio}.`;
+      d.ultimaActividadRef.current = Date.now();
+      logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
+      await ejecutarMusica(generoDirecto, respuesta, nuevoHistorial);
+      return;
+    }
 
     // ── Respuestas rápidas: saltear Claude para mensajes cortos y predecibles ──
     const catRapida = categorizarRapida(textoNorm);
@@ -745,8 +836,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
           parsed.respuesta,
           d.splitEnOraciones,
           {
-            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 2 : 2,
-            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 190 : 150,
+            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 1 : 2,
+            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 120 : 150,
           },
         );
       }
@@ -785,66 +876,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // ── MUSICA ──
       if (parsed.tagPrincipal === 'MUSICA' && parsed.generoMusica) {
-        d.setExpresion('neutral');
-        const streamPromise = buscarRadio(parsed.generoMusica);
-        logCliente('rosita_msg', { tag: parsed.tagPrincipal ?? 'none', texto: parsed.respuesta.slice(0, 300) });
-        await d.hablar(parsed.respuesta + ` Para pararla, tocá la pantalla.`);
-        d.setEstado('pensando');
-        d.estadoRef.current = 'pensando';
-        ExpoSpeechRecognitionModule.stop();
-        const urlStream = await streamPromise;
-        if (urlStream) {
-          try {
-            d.playerMusica.replace({ uri: urlStream });
-            d.playerMusica.volume = 0.70;
-            d.playerMusica.play();
-            d.musicaActivaRef.current = true;
-            d.detenerSilbido();
-            d.setMusicaActiva(true);
-            registrarMusicaHoy().catch(() => {});
-            d.ultimaRadioRef.current = parsed.generoMusica!;
-            guardarUltimaRadio(parsed.generoMusica!).catch(() => {});
-            d.setEstado('esperando');
-            d.estadoRef.current = 'esperando';
-            d.iniciarSpeechRecognition();
-            if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
-            d.expresionTimerRef.current = setTimeout(() => d.setExpresion('neutral'), 5000);
-            // Health check: si a los 10s el stream no arrancó, intentar URL alternativa
-            setTimeout(async () => {
-              if (!d.musicaActivaRef.current) return;
-              if (d.playerMusica.currentTime >= 0.5) return;
-              const altUrl = getFallbackAlt(parsed.generoMusica!, urlStream);
-              if (altUrl) {
-                try {
-                  d.playerMusica.replace({ uri: altUrl });
-                  d.playerMusica.play();
-                  setTimeout(async () => {
-                    if (!d.musicaActivaRef.current) return;
-                    if (d.playerMusica.currentTime < 0.5) {
-                      d.pararMusica();
-                      await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
-                    }
-                  }, 8000);
-                } catch {
-                  d.pararMusica();
-                  await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
-                }
-              } else {
-                d.pararMusica();
-                await d.hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
-              }
-            }, 10000);
-          } catch {
-            d.setMusicaActiva(false);
-            await d.hablar('No pude conectar con la radio, perdoname.');
-          }
-        } else {
-          await d.hablar('No pude conectar con esa radio ahora, perdoname. Podés intentar con otra o pedirme un género musical.');
-        }
-        const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
-        historialRef.current = nuevoHist;
-        await guardarHistorial(nuevoHist);
-        d.ultimaCharlaRef.current = Date.now();
+        await ejecutarMusica(parsed.generoMusica, parsed.respuesta, nuevoHistorial);
         return;
       }
 

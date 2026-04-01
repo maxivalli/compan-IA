@@ -67,7 +67,7 @@ function fetchConTimeout(url: string, ms: number, options?: RequestInit): Promis
 }
 
 // Términos de búsqueda reales para claves abreviadas
-const ALIAS_BUSQUEDA: Record<string, string> = {
+export const ALIAS_BUSQUEDA: Record<string, string> = {
   cadena3:    'Cadena 3',
   lv3:        'Cadena 3',
   delplata:   'Radio Del Plata',
@@ -88,6 +88,11 @@ const ALIAS_BUSQUEDA: Record<string, string> = {
   mega:       'Mega 98.3',
   vida:       'FM Vida',
 };
+
+export function nombreRadioOGenero(clave: string): string {
+  const key = clave.toLowerCase().trim();
+  return ALIAS_BUSQUEDA[key] ?? key.charAt(0).toUpperCase() + key.slice(1);
+}
 
 async function buscarEnAPI(termino: string, pais?: string): Promise<string | null> {
   const nombre = ALIAS_BUSQUEDA[termino] ?? termino;
