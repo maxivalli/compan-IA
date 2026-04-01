@@ -315,7 +315,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
 
           {/* Waveform de detección de voz — centro inferior */}
           {props.detectandoSonido && props.estado === 'esperando' && !props.noMolestar && (
-            <View style={[styles.waveformWrap, { bottom: safeBottom + 12 }]}>
+            <View style={[styles.waveformWrap, { bottom: safeBottom + Math.max(96, Math.round(screenH * 0.20)) }]}>
               <WaveformDetectando />
             </View>
           )}
