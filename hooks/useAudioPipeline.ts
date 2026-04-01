@@ -30,6 +30,8 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
 const TTS_SEGMENT_PADDING_MS = 80;
+const TTS_CACHE_VERSION = 'v5';
+const MULETILLA_CACHE_VERSION = 'v12';
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -452,7 +454,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (precacheInFlightRef.current.has(key)) return;
     precacheInFlightRef.current.add(key);
     try {
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + key + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + key + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       if (info.exists) return;
       const p = depsRef.current.perfilRef.current;
@@ -476,7 +478,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_v11_${cat}_${i}_${slug}.mp3`;
+        const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${cat}_${i}_${slug}.mp3`;
         const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
         if (info.exists) continue;
         const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
@@ -520,7 +522,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const nombre    = p?.nombreAbuela ?? '';
       const slug      = slugNombre(nombre);
       const texto     = textoRaw.replace(/\{n\}/g, nombre);
-      const uri = FileSystem.cacheDirectory + `muletilla_v11_${categoria}_${idx}_${slug}.mp3`;
+      const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${categoria}_${idx}_${slug}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
       if (!info.exists) { logCliente('muletilla_miss', { categoria, idx }); return texto; }
       if (abort?.current) { logCliente('muletilla_abort', { categoria }); return texto; }
@@ -607,7 +609,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     try {
       // ── TTS — cache disco o streaming Cartesia ───────────────────────────
-      const cacheUri = FileSystem.cacheDirectory + 'tts_v4_' + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
+      const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
