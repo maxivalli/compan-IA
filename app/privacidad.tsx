@@ -40,7 +40,7 @@ export default function Privacidad() {
           Al usar la aplicación, el usuario consiente expresamente que:{'\n'}
           • Sus conversaciones pueden ser resumidas y compartidas con los contactos familiares que configure en la app.{'\n'}
           • Su estado de ánimo registrado por la asistente puede ser visible para dichos contactos.{'\n'}
-          • Su audio de voz es procesado por servicios de terceros (Anthropic, OpenAI, ElevenLabs) exclusivamente para el funcionamiento del servicio.
+          • Su audio de voz y texto pueden ser procesados por servicios de terceros (Anthropic, OpenAI, Fish Audio, SmartThings, Open-Meteo y Telegram, según la función utilizada) exclusivamente para el funcionamiento del servicio.
         </Text>
 
         <Text style={s.titulo}>4. Uso previsto</Text>
@@ -68,9 +68,10 @@ export default function Privacidad() {
 
         <Text style={s.titulo}>Datos que recopilamos</Text>
         <Text style={s.parrafo}>
-          <Text style={s.negrita}>Voz y audio:</Text> Cuando usás el botón de grabación manual, el audio se envía a OpenAI Whisper para transcripción. El audio no se almacena en ningún servidor; solo se procesa y se descarta. El texto de las respuestas de la asistente se envía a ElevenLabs para generar la voz, pero ElevenLabs no guarda ese contenido (historial desactivado en nuestra cuenta).{'\n\n'}
-          <Text style={s.negrita}>Ubicación:</Text> Se usa exclusivamente para obtener el pronóstico del tiempo local mediante Open-Meteo (servicio gratuito sin tracking). No se comparte ni almacena.{'\n\n'}
-          <Text style={s.negrita}>Perfil y conversaciones:</Text> El nombre, gustos, medicamentos y fechas importantes se guardan únicamente en el dispositivo (AsyncStorage). Las conversaciones no se almacenan en ningún servidor.{'\n\n'}
+          <Text style={s.negrita}>Voz y audio:</Text> Cuando usás el botón de grabación manual, el audio se envía a OpenAI Whisper para transcripción. El audio no se almacena en ningún servidor; solo se procesa y se descarta. El texto de las respuestas de la asistente se envía a Fish Audio para generar la voz.{'\n\n'}
+          <Text style={s.negrita}>Texto y conversación:</Text> Las respuestas conversacionales se generan con Anthropic Claude exclusivamente para operar la asistente.{'\n\n'}
+          <Text style={s.negrita}>Ubicación:</Text> Se usa exclusivamente para obtener el pronóstico del tiempo local mediante Open-Meteo. No se comparte ni almacena.{'\n\n'}
+          <Text style={s.negrita}>Perfil y conversaciones:</Text> El nombre, gustos, medicamentos y fechas importantes se guardan únicamente en el dispositivo (AsyncStorage). Las conversaciones no se almacenan en ningún servidor como cuentas personales.{'\n\n'}
           <Text style={s.negrita}>Identificador de dispositivo:</Text> Se genera un ID anónimo (UUID) para asociar tu dispositivo con tu familia en nuestro servidor. No contiene información personal.
         </Text>
 
@@ -90,9 +91,10 @@ export default function Privacidad() {
         <Text style={s.parrafo}>
           • <Text style={s.negrita}>Anthropic Claude</Text> — genera las respuestas de la asistente{'\n'}
           • <Text style={s.negrita}>OpenAI Whisper</Text> — transcribe el audio del botón manual{'\n'}
-          • <Text style={s.negrita}>ElevenLabs</Text> — sintetiza la voz de la asistente. El texto enviado no se almacena en sus servidores (historial desactivado).{'\n'}
-          • <Text style={s.negrita}>Open-Meteo</Text> — provee el clima sin API key ni tracking{'\n'}
-          • <Text style={s.negrita}>Sentry</Text> — registra errores técnicos de forma anónima para mejorar la app
+          • <Text style={s.negrita}>Fish Audio</Text> — sintetiza la voz de la asistente{'\n'}
+          • <Text style={s.negrita}>SmartThings</Text> — permite consultar y controlar dispositivos del hogar si el usuario vincula su cuenta{'\n'}
+          • <Text style={s.negrita}>Open-Meteo</Text> — provee el clima local{'\n'}
+          • <Text style={s.negrita}>Telegram</Text> — se usa para alertas, mensajes y fotos familiares si el usuario lo configura
         </Text>
 
         <Text style={s.titulo}>Seguridad</Text>
