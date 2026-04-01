@@ -265,16 +265,17 @@ export function useBrain(deps: BrainDeps) {
     ];
   }
 
-  async function construirContextoMemoria(query: string): Promise<string> {
+  async function construirContextoMemoria(query: string): Promise<{ texto: string; count: number; chars: number }> {
     const memorias = await buscarMemoriasEpisodicas(query, 3);
-    if (!memorias.length) return '';
+    if (!memorias.length) return { texto: '', count: 0, chars: 0 };
     const lista = memorias
       .map((mem, idx) => `${idx + 1}. ${mem.resumen}`)
       .join('\n');
-    return `\n\nMemorias relevantes de conversaciones anteriores:
+    const texto = `\n\nMemorias relevantes de conversaciones anteriores:
 ${lista}
 
 Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que la persona pregunta ahora, ignorala sin mencionarla.`;
+    return { texto, count: memorias.length, chars: texto.length };
   }
 
   // ── Noticias en tiempo real ───────────────────────────────────────────────────
@@ -500,10 +501,18 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
       primeraFraseResolver?.(primera);
     };
     const contextoMemoria = await construirContextoMemoria(textoUsuario);
-    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria}`;
+    const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const maxTokBase  = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -10 : -8;
+    const msgSliceBase = nuevoHistorial.slice(histSlice);
+    logCliente('prompt_ctx', {
+      hist_msgs: msgSliceBase.length,
+      hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
+      mem_count: contextoMemoria.count,
+      mem_chars: contextoMemoria.chars,
+      extra_chars: extraBase.length,
+    });
 
     try {
       let resultadosBusqueda: string | null = null;
@@ -518,14 +527,14 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
         // ── Fast path: streaming inicia en paralelo con la muletilla ──────────
         claudePromise = llamarClaudeConStreaming({
           system:    getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste),
-          messages:  nuevoHistorial.slice(histSlice),
+          messages:  msgSliceBase,
           maxTokens: maxTokBase,
           onPrimeraFrase,
         }).catch(async () => {
           if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
           return await llamarClaude({
             system:    getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste),
-            messages:  nuevoHistorial.slice(histSlice),
+            messages:  msgSliceBase,
             maxTokens: maxTokBase,
           }) || '';
         });
@@ -563,7 +572,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
           contextoWiki = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 60 palabras.\nInformación de Wikipedia para enriquecer tu respuesta:\n${wikiResult}\nUsá esta información de forma natural y cálida, sin citar textualmente Wikipedia.`;
         }
         const systemFull = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
-        const msgSlice   = nuevoHistorial.slice(histSlice);
+        const msgSlice   = msgSliceBase;
         claudePromise = llamarClaudeConStreaming({
           system: systemFull, messages: msgSlice, maxTokens: maxTokBase, onPrimeraFrase,
         }).catch(async () => {
