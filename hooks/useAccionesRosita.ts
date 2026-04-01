@@ -51,17 +51,28 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
   const toggleDoNotDisturb = useCallback(() => {
     const d = depsRef.current;
     const nuevo = !d.noMolestar;
-    d.setNoMolestar(nuevo);
     if (nuevo) {
-      ExpoSpeechRecognitionModule.stop();
+      const stopped = safeStopSpeechRecognition();
+      if (!stopped) return;
+      d.setNoMolestar(true);
       d.detenerSilbido();
     } else {
+      d.setNoMolestar(false);
       d.iniciarSpeechRecognition();
       d.chequearPendientesAlActivar();
     }
-  }, []);
+  }, [safeStopSpeechRecognition]);
 
   return { toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb };
 }
 
 export type AccionesRosita = ReturnType<typeof useAccionesRosita>;
+  const safeStopSpeechRecognition = useCallback(() => {
+    try {
+      ExpoSpeechRecognitionModule.stop();
+      return true;
+    } catch (error) {
+      console.warn('[AccionesRosita] No pude detener SR al activar no molestar:', error);
+      return false;
+    }
+  }, []);

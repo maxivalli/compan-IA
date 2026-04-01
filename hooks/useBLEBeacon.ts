@@ -72,6 +72,9 @@ export interface BLEBeaconDeps {
 export function useBLEBeacon(deps: BLEBeaconDeps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
+  const bleManagerRef = useRef<any>(null);
+  const bleStateSubRef = useRef<any>(null);
+  const gestureSeqRef = useRef(0);
 
   // Timing de gestos app-side
   const ultimoClickRef    = useRef<number>(0);
@@ -80,6 +83,7 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
   /** Cancela timers de gesto pendientes. */
   const cancelarTimers = useCallback(() => {
+    gestureSeqRef.current += 1;
     if (pendingClickTimer.current) { clearTimeout(pendingClickTimer.current); pendingClickTimer.current = null; }
     if (longPressTimer.current)    { clearTimeout(longPressTimer.current);    longPressTimer.current    = null; }
   }, []);
@@ -130,9 +134,11 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
       // Cancelar longPress anterior (nuevo click llegó antes)
       cancelarTimers();
+      const gestureSeq = gestureSeqRef.current;
 
       // Iniciar timer de long press
       longPressTimer.current = setTimeout(() => {
+        if (gestureSeqRef.current !== gestureSeq) return;
         longPressTimer.current = null;
         pendingClickTimer.current = null;
         acciones.triggerSOS();
@@ -140,6 +146,7 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
       // Iniciar timer de "esperar doble click"
       pendingClickTimer.current = setTimeout(() => {
+        if (gestureSeqRef.current !== gestureSeq) return;
         pendingClickTimer.current = null;
         // Si no llegó un segundo click y el long press no disparó → click simple
         if (longPressTimer.current) {
@@ -180,19 +187,36 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
     if (Platform.OS === 'web') return;
 
     let BleManager: any;
-    let subscription: any;
 
     async function iniciar() {
       try {
         const { BleManager: BM } = await import('react-native-ble-plx');
         BleManager = new BM();
+        bleManagerRef.current = BleManager;
 
         // Esperar a que el adaptador BLE esté encendido
         await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            bleStateSubRef.current?.remove?.();
+            bleStateSubRef.current = null;
+            reject(new Error('BLE init timeout'));
+          }, 10000);
+
           const sub = BleManager.onStateChange((state: string) => {
-            if (state === 'PoweredOn') { sub.remove(); resolve(); }
-            if (state === 'Unsupported' || state === 'Unauthorized') { sub.remove(); reject(new Error(state)); }
+            if (state === 'PoweredOn') {
+              clearTimeout(timeout);
+              sub.remove();
+              bleStateSubRef.current = null;
+              resolve();
+            }
+            if (state === 'Unsupported' || state === 'Unauthorized') {
+              clearTimeout(timeout);
+              sub.remove();
+              bleStateSubRef.current = null;
+              reject(new Error(state));
+            }
           }, true);
+          bleStateSubRef.current = sub;
         });
 
         // Escaneo continuo — sin conectar, solo advertising packets
@@ -208,7 +232,8 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
             const esBeacon =
               nombre.toLowerCase().includes('holyiot') ||
               (device.serviceUUIDs ?? []).some((u: string) =>
-                u.toLowerCase().includes('5242')
+                u.toLowerCase() === BEACON_SERVICE_UUID.toLowerCase() ||
+                u.toLowerCase() === '5242'
               );
 
             if (!esBeacon) return;
@@ -234,8 +259,10 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
     return () => {
       cancelarTimers();
-      try { BleManager?.stopDeviceScan(); } catch {}
-      subscription?.remove();
+      try { bleManagerRef.current?.stopDeviceScan?.(); } catch {}
+      try { bleStateSubRef.current?.remove?.(); } catch {}
+      bleStateSubRef.current = null;
+      bleManagerRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }

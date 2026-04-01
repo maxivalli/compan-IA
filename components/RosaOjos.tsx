@@ -562,7 +562,7 @@ const FACE_W = EYE_W * 2 + 32;
 const FACE_H = EYE_H + 120;
 
 export default function RosaOjos({
-  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false,
+  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1,
 }: {
   estado: Estado;
   expresion: Expresion;
@@ -573,6 +573,10 @@ export default function RosaOjos({
   onOjoPicado?: () => void;
   scale?: number;
   amaneciendo?: boolean;
+  mouthOffsetY?: number;
+  eyeGapExtra?: number;
+  zipperOffsetY?: number;
+  zipperScale?: number;
 }) {
   const pxL      = useRef(new Animated.Value(0)).current;
   const pxR      = useRef(new Animated.Value(0)).current;
@@ -593,73 +597,113 @@ export default function RosaOjos({
   const timer         = useRef<ReturnType<typeof setTimeout> | null>(null);
   const blinkTmr      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const breathingAnim = useRef<Animated.CompositeAnimation | null>(null);
+  const nightAnimRef  = useRef<Animated.CompositeAnimation | null>(null);
+  const nightTintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const noMolestarLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const expresionAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  function stopEstadoTimers() {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    if (blinkTmr.current) {
+      clearTimeout(blinkTmr.current);
+      blinkTmr.current = null;
+    }
+  }
 
   // ── Modo noche ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    nightAnimRef.current?.stop();
+    nightTintAnimRef.current?.stop();
+    stopEstadoTimers();
+    breathingAnim.current?.stop();
     if (modoNoche === 'durmiendo') {
-      if (timer.current)    clearTimeout(timer.current);
-      if (blinkTmr.current) clearTimeout(blinkTmr.current);
-      breathingAnim.current?.stop();
       running.current = false;
-      Animated.timing(upperLid,  { toValue: EYE_H, duration: 1800, useNativeDriver: false }).start();
+      nightAnimRef.current = Animated.timing(upperLid,  { toValue: EYE_H, duration: 1800, useNativeDriver: false });
+      nightAnimRef.current.start();
       // Si está amaneciendo, no oscurecer los párpados aunque esté durmiendo
-      Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1800, useNativeDriver: false }).start();
-      Animated.parallel([
+      nightTintAnimRef.current = Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1800, useNativeDriver: false });
+      nightTintAnimRef.current.start();
+      nightAnimRef.current = Animated.parallel([
         Animated.timing(scaleY, { toValue: 1, duration: 1200, useNativeDriver: true }),
         Animated.timing(pxL,    { toValue: 0, duration: 800,  useNativeDriver: true }),
         Animated.timing(pxR,    { toValue: 0, duration: 800,  useNativeDriver: true }),
         Animated.timing(py,     { toValue: 4, duration: 800,  useNativeDriver: true }),
-      ]).start();
-      Animated.parallel([
+      ]);
+      nightAnimRef.current.start();
+      expresionAnimRef.current?.stop();
+      expresionAnimRef.current = Animated.parallel([
         Animated.timing(eyeGapL, { toValue: 0, duration: 800, useNativeDriver: false }),
         Animated.timing(eyeGapR, { toValue: 0, duration: 800, useNativeDriver: false }),
-      ]).start();
+      ]);
+      expresionAnimRef.current.start();
     } else if (modoNoche === 'soñolienta') {
-      Animated.parallel([
+      nightAnimRef.current = Animated.parallel([
         Animated.timing(upperLid, { toValue: EYE_H * 0.55, duration: 1200, useNativeDriver: false }),
         Animated.timing(lowerLid, { toValue: EYE_H * 0.10, duration: 1200, useNativeDriver: false }),
         Animated.timing(cenoExpr,  { toValue: 0,    duration: 1200, useNativeDriver: false }),
         Animated.timing(nightAnim, { toValue: 0.5,  duration: 1200, useNativeDriver: false }),
-      ]).start();
-      Animated.parallel([
+      ]);
+      nightAnimRef.current.start();
+      expresionAnimRef.current?.stop();
+      expresionAnimRef.current = Animated.parallel([
         Animated.timing(scaleY, { toValue: 0.45, duration: 1200, useNativeDriver: true }),
         Animated.timing(py,     { toValue: 4,    duration: 800,  useNativeDriver: true }),
-      ]).start();
-      Animated.parallel([
+      ]);
+      expresionAnimRef.current.start();
+      noMolestarLoopRef.current?.stop();
+      noMolestarLoopRef.current = Animated.parallel([
         Animated.timing(eyeGapL, { toValue: 0, duration: 800, useNativeDriver: false }),
         Animated.timing(eyeGapR, { toValue: 0, duration: 800, useNativeDriver: false }),
-      ]).start();
+      ]);
+      noMolestarLoopRef.current.start();
     } else {
       const c = EXPR[expresionRef.current];
-      Animated.parallel([
+      nightAnimRef.current = Animated.parallel([
         Animated.timing(upperLid, { toValue: c.upper, duration: 1200, useNativeDriver: false }),
         Animated.timing(lowerLid, { toValue: c.lower, duration: 1200, useNativeDriver: false }),
         Animated.timing(cenoExpr,  { toValue: c.ceno, duration: 1200, useNativeDriver: false }),
         Animated.timing(nightAnim, { toValue: 0,     duration: 1200, useNativeDriver: false }),
-      ]).start();
-      Animated.timing(scaleY, { toValue: 1, duration: 1200, useNativeDriver: true }).start();
-      Animated.parallel([
+      ]);
+      nightAnimRef.current.start();
+      expresionAnimRef.current?.stop();
+      expresionAnimRef.current = Animated.timing(scaleY, { toValue: 1, duration: 1200, useNativeDriver: true });
+      expresionAnimRef.current.start();
+      noMolestarLoopRef.current?.stop();
+      noMolestarLoopRef.current = Animated.parallel([
         Animated.timing(eyeGapL, { toValue: -c.gapOffset, duration: 1200, useNativeDriver: false }),
         Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 1200, useNativeDriver: false }),
-      ]).start();
+      ]);
+      noMolestarLoopRef.current.start();
     }
+    return () => {
+      nightAnimRef.current?.stop();
+      nightTintAnimRef.current?.stop();
+    };
   }, [modoNoche]);
 
   // Si cambia amaneciendo mientras ya está durmiendo, actualizar el tinte
   useEffect(() => {
     if (modoNoche === 'durmiendo') {
-      Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1200, useNativeDriver: false }).start();
+      nightTintAnimRef.current?.stop();
+      nightTintAnimRef.current = Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1200, useNativeDriver: false });
+      nightTintAnimRef.current.start();
     }
   }, [amaneciendo]);
 
   // ── No molestar ─────────────────────────────────────────────────────────────
   useEffect(() => {
+    noMolestarLoopRef.current?.stop();
     if (noMolestar) {
-      Animated.parallel([
+      expresionAnimRef.current?.stop();
+      expresionAnimRef.current = Animated.parallel([
         Animated.timing(upperLid, { toValue: EYE_H * 0.38, duration: 400, useNativeDriver: false }),
         Animated.timing(cenoLid,  { toValue: EYE_H * 0.10, duration: 400, useNativeDriver: false }),
-      ]).start();
-      const loopMirada = Animated.loop(
+      ]);
+      expresionAnimRef.current.start();
+      noMolestarLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.parallel([
             Animated.timing(py,  { toValue: -MAX * 1.1, duration: 400, useNativeDriver: true }),
@@ -679,19 +723,23 @@ export default function RosaOjos({
           Animated.delay(400),
         ])
       );
-      loopMirada.start();
+      noMolestarLoopRef.current.start();
       return () => {
-        loopMirada.stop();
+        noMolestarLoopRef.current?.stop();
         const c = EXPR[expresionRef.current];
-        Animated.parallel([
+        expresionAnimRef.current?.stop();
+        expresionAnimRef.current = Animated.parallel([
           Animated.timing(upperLid, { toValue: c.upper, duration: 400, useNativeDriver: false }),
           Animated.timing(cenoLid,  { toValue: 0,       duration: 400, useNativeDriver: false }),
-        ]).start();
-        Animated.parallel([
+        ]);
+        expresionAnimRef.current.start();
+        nightAnimRef.current?.stop();
+        nightAnimRef.current = Animated.parallel([
           Animated.timing(pxL, { toValue: c.pxL, duration: 400, useNativeDriver: true }),
           Animated.timing(pxR, { toValue: c.pxR, duration: 400, useNativeDriver: true }),
           Animated.timing(py,  { toValue: c.py,  duration: 400, useNativeDriver: true }),
-        ]).start();
+        ]);
+        nightAnimRef.current.start();
       };
     }
   }, [noMolestar]);
@@ -701,15 +749,19 @@ export default function RosaOjos({
     if (modoNoche !== 'despierta') return;
     expresionRef.current = expresion;
     const c = EXPR[expresion];
-    Animated.parallel([
+    expresionAnimRef.current?.stop();
+    expresionAnimRef.current = Animated.parallel([
       Animated.timing(upperLid, { toValue: c.upper, duration: 420, useNativeDriver: false }),
       Animated.timing(lowerLid, { toValue: c.lower, duration: 420, useNativeDriver: false }),
       Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 420, useNativeDriver: false }),
-    ]).start();
-    Animated.parallel([
+    ]);
+    expresionAnimRef.current.start();
+    noMolestarLoopRef.current?.stop();
+    noMolestarLoopRef.current = Animated.parallel([
       Animated.timing(eyeGapL, { toValue: -c.gapOffset, duration: 420, useNativeDriver: false }),
       Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 420, useNativeDriver: false }),
-    ]).start();
+    ]);
+    noMolestarLoopRef.current.start();
   }, [expresion]);
 
   // ── Estado: movimiento de pupila + efectos especiales ──────────────────────
@@ -750,6 +802,7 @@ export default function RosaOjos({
       const maxMs = rapido ? 1600 : 4000;
       const delay = minMs + Math.random() * (maxMs - minMs);
       blinkTmr.current = setTimeout(() => {
+        blinkTmr.current = null;
         if (!running.current) return;
         parpadear(Math.random() < 0.25);
         programarParpadeo(rapido);
@@ -764,7 +817,10 @@ export default function RosaOjos({
       const dur    = micro ? 400 + Math.random() * 200 : 700 + Math.random() * 400;
       const espera = micro ? 800 + Math.random() * 800 : 2000 + Math.random() * 2500;
       mover(dx, dy, dur);
-      timer.current = setTimeout(loopEsperando, espera);
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        loopEsperando();
+      }, espera);
     }
 
     function loopEscuchando() {
@@ -772,7 +828,10 @@ export default function RosaOjos({
       const dx = (Math.random() - 0.5) * MAX * 0.9;
       const dy = -4 + (Math.random() - 0.5) * 4;
       mover(dx, dy, 350 + Math.random() * 200);
-      timer.current = setTimeout(loopEscuchando, 500 + Math.random() * 700);
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        loopEscuchando();
+      }, 500 + Math.random() * 700);
     }
 
     function loopPensando() {
@@ -789,7 +848,10 @@ export default function RosaOjos({
         if (!running.current) return;
         const [dx, dy] = poses[i++ % poses.length];
         mover(dx, dy, 550 + Math.random() * 150);
-        timer.current = setTimeout(sig, 900 + Math.random() * 200);
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          sig();
+        }, 900 + Math.random() * 200);
       }
       sig();
     }
@@ -799,7 +861,10 @@ export default function RosaOjos({
       const dx = (Math.random() - 0.5) * MAX * 1.4;
       const dy = (Math.random() - 0.5) * MAX * 0.6;
       mover(dx, dy, 180 + Math.random() * 120);
-      timer.current = setTimeout(loopHablando, 280 + Math.random() * 180);
+      timer.current = setTimeout(() => {
+        timer.current = null;
+        loopHablando();
+      }, 280 + Math.random() * 180);
     }
 
     Animated.timing(cenoLid, {
@@ -828,10 +893,21 @@ export default function RosaOjos({
     return () => {
       running.current = false;
       breathingAnim.current?.stop();
-      if (timer.current)    clearTimeout(timer.current);
-      if (blinkTmr.current) clearTimeout(blinkTmr.current);
+      stopEstadoTimers();
     };
   }, [estado, modoNoche]);
+
+  useEffect(() => {
+    return () => {
+      running.current = false;
+      stopEstadoTimers();
+      breathingAnim.current?.stop();
+      nightAnimRef.current?.stop();
+      nightTintAnimRef.current?.stop();
+      noMolestarLoopRef.current?.stop();
+      expresionAnimRef.current?.stop();
+    };
+  }, []);
 
   function picarOjo(_lado: 'L' | 'R') {
     const lid = blinkLid;
@@ -840,14 +916,15 @@ export default function RosaOjos({
       Animated.timing(lid, { toValue: 0,     duration: 40,  useNativeDriver: false }),
       Animated.timing(lid, { toValue: EYE_H, duration: 40,  useNativeDriver: false }),
       Animated.timing(lid, { toValue: 0,     duration: 60,  useNativeDriver: false }),
-    ]).start();
-    onOjoPicado?.();
+    ]).start(({ finished }) => {
+      if (finished) onOjoPicado?.();
+    });
   }
 
   return (
     <View style={{ width: FACE_W * scale, height: FACE_H * scale, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
       <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
-        <View style={s.contenedor}>
+        <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
             <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
@@ -855,7 +932,15 @@ export default function RosaOjos({
             <Ojo side="R" pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
         </View>
-        {noMolestar && estado === 'esperando' ? <Cremallera /> : <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />}
+        {noMolestar && estado === 'esperando' ? (
+          <View style={(zipperOffsetY !== 0 || zipperScale !== 1) ? { transform: [{ translateY: zipperOffsetY }, { scale: zipperScale }] } : undefined}>
+            <Cremallera />
+          </View>
+        ) : (
+          <View style={mouthOffsetY !== 0 ? { transform: [{ translateY: mouthOffsetY }] } : undefined}>
+            <Boca hablando={estado === 'hablando'} expresion={expresion} silbando={silbando} />
+          </View>
+        )}
       </View>
     </View>
   );

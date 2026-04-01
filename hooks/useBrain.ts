@@ -31,9 +31,9 @@ import {
 import { buscarRadio, getFallbackAlt, nombreRadioOGenero } from '../lib/musica';
 import { Expresion } from '../components/RosaOjos';
 import {
-  construirSystemPromptEstable, construirManualOperativoCacheable, construirContextoPerfil, construirContextoMemoriaPersistente, construirContextoTemporal,
   parsearRespuesta, respuestaOffline, hashTexto, detectarGenero,
 } from '../lib/claudeParser';
+import { buildRositaSystemPayload, RositaSystemPayload } from '../lib/systemPayload';
 import {
   llamarClaude, llamarClaudeConStreaming,
   buscarWeb, buscarWikipedia, buscarLugares,
@@ -359,17 +359,37 @@ export function useBrain(deps: BrainDeps) {
   // ── Refs internos ────────────────────────────────────────────────────────────
   const historialRef       = useRef<Mensaje[]>([]);
   const mensajesSesionRef  = useRef(0);
-  const systemEstableRef   = useRef<{ key: string; text: string } | null>(null);
-  const manualCacheRef     = useRef<{ key: string; text: string } | null>(null);
-  const perfilCacheRef     = useRef<{ key: string; text: string } | null>(null);
-  const memoriaCacheRef    = useRef<{ key: string; text: string } | null>(null);
   const episodicaCacheRef  = useRef<{ key: string; text: string } | null>(null);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
   const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
+  const timerVozSeqRef     = useRef(0);
+  const listaOpsRef        = useRef<Promise<void>>(Promise.resolve());
 
-  // ── System prompt en tres bloques ────────────────────────────────────────────
-  function getSystemBlocks(
+  function encolarOperacionListas(op: () => Promise<void>): Promise<void> {
+    const next = listaOpsRef.current
+      .catch(() => {})
+      .then(op);
+    listaOpsRef.current = next.catch(() => {});
+    return next;
+  }
+
+  function esperarEstadoEsperando(timeoutMs = 15000): Promise<void> {
+    const d = depsRef.current;
+    if (d.estadoRef.current === 'esperando') return Promise.resolve();
+    return new Promise(resolve => {
+      const startedAt = Date.now();
+      const check = setInterval(() => {
+        if (d.estadoRef.current === 'esperando' || Date.now() - startedAt >= timeoutMs) {
+          clearInterval(check);
+          resolve();
+        }
+      }, 500);
+    });
+  }
+
+  // ── Payload de prompt — el backend arma el system real ──────────────────────
+  function getSystemPayload(
     p: Perfil,
     climaTexto: string,
     incluirJuego: boolean,
@@ -377,47 +397,16 @@ export function useBrain(deps: BrainDeps) {
     incluirChiste = false,
   ) {
     const d = depsRef.current;
-
-    // Bloque 1 — estable: personalidad, reglas, tags (caché ephemeral por nombre/edad/voz)
-    const perfKey = `${p.nombreAbuela}|${p.nombreAsistente}|${p.edad}|${p.vozGenero}`;
-    if (!systemEstableRef.current || systemEstableRef.current.key !== perfKey) {
-      systemEstableRef.current = { key: perfKey, text: construirSystemPromptEstable(p) };
-    }
-
-    const manualKey = 'haiku-cache-primer-v1';
-    if (!manualCacheRef.current || manualCacheRef.current.key !== manualKey) {
-      manualCacheRef.current = { key: manualKey, text: construirManualOperativoCacheable() };
-    }
-
-    // Bloque 2 — semi-estático: perfil + dispositivos (caché ephemeral, invalida cuando cambia)
-    const perfilKey = `${p.gustos.join('|')}|${p.familiares.join('|')}|${p.medicamentos.join('|')}|${d.dispositivosTuyaRef.current.map(dv => dv.id + String(dv.estado)).join('|')}`;
-    if (!perfilCacheRef.current || perfilCacheRef.current.key !== perfilKey) {
-      perfilCacheRef.current = { key: perfilKey, text: construirContextoPerfil(p, d.dispositivosTuyaRef.current) };
-    }
-
-    // Bloque 3 — memoria persistente: recuerdos/fechas importantes (cacheable)
-    const memoriaKey = `${p.recuerdos.join('|')}|${p.fechasImportantes.join('|')}`;
-    if (!memoriaCacheRef.current || memoriaCacheRef.current.key !== memoriaKey) {
-      memoriaCacheRef.current = { key: memoriaKey, text: construirContextoMemoriaPersistente(p) };
-    }
-
-    // Bloque 4 — dinámico: fecha/hora, clima, juego, búsqueda, ubicación (nunca cacheado)
-    const temporal = construirContextoTemporal(
-      p, climaTexto, incluirJuego, extra, incluirChiste,
-      d.ciudadRef.current, d.coordRef.current, d.feriadosRef.current,
-    );
-
-    const blocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [
-      { type: 'text' as const, text: systemEstableRef.current.text, cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: manualCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: perfilCacheRef.current.text,   cache_control: { type: 'ephemeral' as const } },
-      { type: 'text' as const, text: memoriaCacheRef.current.text,  cache_control: { type: 'ephemeral' as const } },
-    ];
-    if (episodicaCacheRef.current?.text) {
-      blocks.push({ type: 'text' as const, text: episodicaCacheRef.current.text });
-    }
-    blocks.push({ type: 'text' as const, text: temporal });
-    return blocks;
+    return buildRositaSystemPayload({
+      perfil: p,
+      dispositivos: d.dispositivosTuyaRef.current,
+      climaTexto,
+      extraTemporal: extra,
+      ciudad: d.ciudadRef.current,
+      coords: d.coordRef.current,
+      feriados: d.feriadosRef.current,
+      memoriaEpisodica: episodicaCacheRef.current?.text ?? '',
+    });
   }
 
   async function refrescarMemoriaEpisodicaCache(): Promise<void> {
@@ -450,7 +439,7 @@ Usalas solo si suman.`;
   async function buscarNoticias(query: string): Promise<string | null> {
     try {
       const controller = new AbortController();
-      const id = setTimeout(() => controller.abort(), 3000);
+      const id = setTimeout(() => controller.abort(), 7000);
       const hace5dias = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
       const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query + ' after:' + hace5dias)}&hl=es-419&gl=AR&ceid=AR:es-419`;
       const res = await fetch(url, { signal: controller.signal });
@@ -522,7 +511,7 @@ Usalas solo si suman.`;
     try {
       const frase = await llamarClaude({
         maxTokens: 120,
-        system: getSystemBlocks(p, d.climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${tema}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.`),
+        system: getSystemPayload(p, d.climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${tema}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });
       if (frase) { await d.hablar(frase); d.ultimaCharlaRef.current = Date.now(); }
@@ -635,12 +624,16 @@ Usalas solo si suman.`;
       return;
     }
 
+    let pensativaTimer: ReturnType<typeof setTimeout> | null = null;
+    let neutralTimerProgramado = false;
     d.detenerSilbido();
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
     // Feedback visual inmediato — estilo Alexa/Google
     d.setExpresion('sorprendida');
-    setTimeout(() => { if (d.estadoRef.current === 'pensando') d.setExpresion('pensativa'); }, 600);
+    pensativaTimer = setTimeout(() => {
+      if (d.estadoRef.current === 'pensando') d.setExpresion('pensativa');
+    }, 600);
 
     // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
@@ -787,13 +780,20 @@ Usalas solo si suman.`;
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
     let tagDetectadoStreaming = 'neutral';
-    let primeraFraseResolver: ((txt: string) => void) | null = null;
-    const primeraFraseDisparada = new Promise<string>(resolve => { primeraFraseResolver = resolve; });
+    let primeraFraseResolver: ((txt: string | null) => void) | null = null;
+    let primeraFraseSettled = false;
+    const resolverPrimeraFrase = (txt: string | null) => {
+      if (primeraFraseSettled) return;
+      primeraFraseSettled = true;
+      primeraFraseResolver?.(txt);
+      primeraFraseResolver = null;
+    };
+    const primeraFraseDisparada = new Promise<string | null>(resolve => { primeraFraseResolver = resolve; });
     const onPrimeraFrase = (primera: string, tag: string) => {
       tagDetectadoStreaming = tag.toLowerCase();
       logCliente('primera_frase', { chars: primera.length, tag });
       d.precachearTexto(primera, tag.toLowerCase()).catch(() => {});
-      primeraFraseResolver?.(primera);
+      resolverPrimeraFrase(primera);
     };
     await refrescarMemoriaEpisodicaCache();
     const contextoMemoria = await construirContextoMemoria(textoUsuario);
@@ -811,32 +811,37 @@ Usalas solo si suman.`;
           : 80;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
-    const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
-    const cacheTaggedBlocks = systemPreview.filter(block => !!block.cache_control);
-    const cachedSystemChars = cacheTaggedBlocks.reduce((acc, block) => acc + block.text.length, 0);
-    const cachedSystemTokensEst = Math.ceil(cachedSystemChars / 4);
-    const stableCacheChars = systemPreview
-      .slice(0, 4)
-      .reduce((acc, block) => acc + (block.cache_control ? block.text.length : 0), 0);
-    const stableCacheTokensEst = Math.ceil(stableCacheChars / 4);
+    const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
+    const perfilHashBase = [
+      p.nombreAbuela, p.nombreAsistente, p.edad, p.vozGenero, p.generoUsuario,
+      ...(p.gustos ?? []), ...(p.familiares ?? []), ...(p.medicamentos ?? []),
+      ...d.dispositivosTuyaRef.current.map(dv => `${dv.id}:${dv.estado}:${dv.online}`),
+    ].join('|');
+    const memoriaHashBase = [...(p.recuerdos ?? []), ...(p.fechasImportantes ?? [])].join('|');
     logCliente('prompt_ctx', {
         hist_msgs: msgSliceBase.length,
         hist_chars: msgSliceBase.reduce((acc, m) => acc + m.content.length, 0),
         mem_count: contextoMemoria.count,
         mem_chars: contextoMemoria.chars,
         extra_chars: extraBase.length,
-        sys_stable_hash: hashTexto(systemPreview[0].text),
-        sys_manual_hash: hashTexto(systemPreview[1].text),
-        sys_profile_hash: hashTexto(systemPreview[2].text),
-        sys_memory_hash: hashTexto(systemPreview[3].text),
-        sys_episodic_hash: systemPreview[4] && !systemPreview[4].cache_control && systemPreview.length > 5 ? hashTexto(systemPreview[4].text) : '0',
-        sys_dynamic_hash: hashTexto(systemPreview[systemPreview.length - 1].text),
-        sys_stable_cached_chars: stableCacheChars,
-        sys_stable_cached_tokens_est: stableCacheTokensEst,
-        stable_cache_floor_hit: stableCacheTokensEst >= 4096 ? 'si' : 'no',
-        sys_cached_chars: cachedSystemChars,
-        sys_cached_tokens_est: cachedSystemTokensEst,
-        cache_floor_hit: cachedSystemTokensEst >= 4096 ? 'si' : 'no',
+        sys_stable_hash: 'backend_rosita_prompt_v1',
+        sys_manual_hash: 'backend_rosita_manual_v1',
+        sys_profile_hash: hashTexto(perfilHashBase),
+        sys_memory_hash: hashTexto(memoriaHashBase),
+        sys_episodic_hash: systemPreview.memoriaEpisodica ? hashTexto(systemPreview.memoriaEpisodica) : '0',
+        sys_dynamic_hash: hashTexto([
+          systemPreview.climaTexto,
+          systemPreview.extraTemporal ?? '',
+          systemPreview.ciudad ?? '',
+          systemPreview.coords ? `${systemPreview.coords.lat},${systemPreview.coords.lon}` : '',
+          systemPreview.feriados ?? '',
+        ].join('|')),
+        sys_stable_cached_chars: -1,
+        sys_stable_cached_tokens_est: -1,
+        stable_cache_floor_hit: 'backend',
+        sys_cached_chars: -1,
+        sys_cached_tokens_est: -1,
+        cache_floor_hit: 'backend',
       });
 
     try {
@@ -844,7 +849,7 @@ Usalas solo si suman.`;
         const limpio = (texto ?? '').replace(/\[[^\]]+\]\s*/g, '').trim();
         return limpio.length >= 12;
       };
-      const resolverClaudeConFallback = async (params: { system: string | { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }[]; messages: Mensaje[]; maxTokens?: number; }) => {
+      const resolverClaudeConFallback = async (params: { system: string | RositaSystemPayload; messages: Mensaje[]; maxTokens?: number; }) => {
         try {
           const streamText = await llamarClaudeConStreaming({
             system: params.system,
@@ -852,11 +857,15 @@ Usalas solo si suman.`;
             maxTokens: params.maxTokens,
             onPrimeraFrase,
           });
-          if (esRespuestaUtil(streamText)) return streamText;
+          if (esRespuestaUtil(streamText)) {
+            resolverPrimeraFrase(null);
+            return streamText;
+          }
           logCliente('rc_stream_vacio', { chars: (streamText ?? '').length });
         } catch (e: any) {
           if (__DEV__) console.log('[RC] streaming falló, fallback a llamarClaude');
           logCliente('rc_stream_error', { error: String(e?.message ?? e).slice(0, 80) });
+          resolverPrimeraFrase(null);
         }
 
         const retryText = await llamarClaude({
@@ -869,9 +878,11 @@ Usalas solo si suman.`;
         });
         if (esRespuestaUtil(retryText)) {
           logCliente('rc_retry_ok', { chars: retryText.length });
+          resolverPrimeraFrase(null);
           return retryText;
         }
         logCliente('rc_retry_vacio', { chars: retryText.length });
+        resolverPrimeraFrase(null);
         return '';
       };
 
@@ -923,7 +934,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (wikiResult) {
           contextoWiki = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 60 palabras.\nInformación de Wikipedia para enriquecer tu respuesta:\n${wikiResult}\nUsá esta información de forma natural y cálida, sin citar textualmente Wikipedia.`;
         }
-        const systemFull = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
+        const systemFull = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
         const msgSlice   = msgSliceBase;
         claudePromise = resolverClaudeConFallback({
           system: systemFull,
@@ -932,21 +943,25 @@ REGLAS CRÍTICAS PARA RESPONDER:
         });
       }
 
+      const claudeOutcomePromise = claudePromise
+        .then(t => ({ ok: true as const, value: t }))
+        .catch(error => ({ ok: false as const, error }));
+
       const winner = await Promise.race([
         primeraFraseDisparada.then(t => ({ kind: 'primera' as const, t })),
-        claudePromise.then(t => ({ kind: 'claude' as const, t })),
+        claudeOutcomePromise.then(result => ({ kind: 'claude' as const, result })),
       ]);
 
       // Si Claude respondió completo antes de detectar primera frase, pre-cachear ya
-      if (winner.kind === 'claude' && winner.t) {
-        const ppc = parsearRespuesta(winner.t, p.telegramContactos ?? [], p.familiares ?? []);
+      if (winner.kind === 'claude' && winner.result.ok && winner.result.value) {
+        const ppc = parsearRespuesta(winner.result.value, p.telegramContactos ?? [], p.familiares ?? []);
         d.splitEnOraciones(ppc.respuesta).forEach(s => d.precachearTexto(s, ppc.expresion).catch(() => {}));
       }
 
       // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
       await muletillaPromise;
 
-      if (winner.kind === 'primera') {
+      if (winner.kind === 'primera' && winner.t) {
         primeraFraseReproducida = true;
         const hablarPrimeraPromise = d.hablar(winner.t, tagDetectadoStreaming);
 
@@ -970,7 +985,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (precachePromise) await precachePromise;
       }
 
-      const respuestaRaw = await claudePromise;
+      const respuestaRaw = winner.kind === 'claude'
+        ? (winner.result.ok ? winner.result.value : await claudePromise)
+        : await claudePromise;
       if (!esRespuestaUtil(respuestaRaw)) {
         const fallbackHumano = respuestaFallbackIA(
           p.nombreAbuela,
@@ -1087,14 +1104,17 @@ REGLAS CRÍTICAS PARA RESPONDER:
         }).catch(() => {});
 
         if (segundos <= 3600) {
+          timerVozSeqRef.current += 1;
+          const seq = timerVozSeqRef.current;
           if (d.timerVozRef.current) clearTimeout(d.timerVozRef.current);
+          d.timerVozRef.current = null;
           d.timerVozRef.current = setTimeout(async () => {
+            if (seq !== timerVozSeqRef.current) return;
             borrarRecordatorio(timerId).catch(() => {});
             if (d.estadoRef.current === 'hablando' || d.estadoRef.current === 'pensando') {
-              await new Promise<void>(resolve => {
-                const check = setInterval(() => { if (d.estadoRef.current === 'esperando') { clearInterval(check); resolve(); } }, 500);
-              });
+              await esperarEstadoEsperando();
             }
+            if (seq !== timerVozSeqRef.current) return;
             await d.hablar(mensaje);
           }, segundos * 1000);
         }
@@ -1133,12 +1153,24 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // ── LISTAS ──
       if (parsed.listaNueva) {
-        const nueva: Lista = { id: Date.now().toString(), nombre: parsed.listaNueva.nombre, items: parsed.listaNueva.items, creadaEn: Date.now() };
-        guardarLista(nueva).then(() => cargarListas().then(d.setListas)).catch(() => {});
+        const listaNueva = parsed.listaNueva;
+        const nueva: Lista = { id: Date.now().toString(), nombre: listaNueva.nombre, items: listaNueva.items, creadaEn: Date.now() };
+        await encolarOperacionListas(async () => {
+          await guardarLista(nueva);
+          d.setListas(await cargarListas());
+        });
       } else if (parsed.listaAgregar) {
-        agregarItemLista(parsed.listaAgregar.nombre, parsed.listaAgregar.item).then(() => cargarListas().then(d.setListas)).catch(() => {});
+        const listaAgregar = parsed.listaAgregar;
+        await encolarOperacionListas(async () => {
+          await agregarItemLista(listaAgregar.nombre, listaAgregar.item);
+          d.setListas(await cargarListas());
+        });
       } else if (parsed.listaBorrar) {
-        borrarLista(parsed.listaBorrar).then(() => cargarListas().then(d.setListas)).catch(() => {});
+        const listaBorrar = parsed.listaBorrar;
+        await encolarOperacionListas(async () => {
+          await borrarLista(listaBorrar);
+          d.setListas(await cargarListas());
+        });
       }
 
       // ── Alertas Telegram: EMERGENCIA > LLAMAR_FAMILIA > MENSAJE_FAMILIAR ──
@@ -1220,14 +1252,22 @@ REGLAS CRÍTICAS PARA RESPONDER:
           await AsyncStorage.removeItem('medPendiente');
           if (Date.now() - ts < 4 * 60 * 60 * 1000) await d.hablar(`Por cierto, ${texto}`);
         }
-      } catch {}
+      } catch {
+        await AsyncStorage.removeItem('medPendiente').catch(() => {});
+      }
 
       if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+      neutralTimerProgramado = true;
       d.expresionTimerRef.current = setTimeout(() => {
         if (d.estadoRef.current === 'esperando') d.setExpresion('neutral');
       }, 8000);
 
     } catch (e: any) {
+      resolverPrimeraFrase(null);
+      if (d.expresionTimerRef.current && neutralTimerProgramado) {
+        clearTimeout(d.expresionTimerRef.current);
+        d.expresionTimerRef.current = null;
+      }
       if (__DEV__) console.log('[RC] CATCH error:', e?.message ?? e);
       logCliente('rc_error', { error: String(e?.message ?? e).slice(0, 80) });
       const respLocal = respuestaOffline(
@@ -1238,6 +1278,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
         p.vozGenero ?? 'femenina',
       );
       await d.hablar(respLocal ?? 'No pude conectarme ahora. ¿Podés intentar de nuevo en un momento?');
+    } finally {
+      if (pensativaTimer) clearTimeout(pensativaTimer);
     }
   }
 
@@ -1246,7 +1288,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
     historialRef,
     mensajesSesionRef,
     ultimaRapidaRef,
-    getSystemBlocks,
+    getSystemPayload,
     responderConClaude,
     arrancarCharlaProactiva,
     generarResumenSesion,

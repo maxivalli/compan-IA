@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { OW } from './EfectosExpresion';
 
 // ── Lluvia ────────────────────────────────────────────────────────────────────
@@ -328,7 +328,8 @@ export function CalorEfecto() {
 
 const RAYOS = Array.from({ length: 8 }, (_, i) => i);
 
-export function Sol() {
+export function Sol({ modoHorizontal = false }: { modoHorizontal?: boolean }) {
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const rotacion = useRef(new Animated.Value(0)).current;
   const nucleoSc = useRef(new Animated.Value(1)).current;
 
@@ -345,21 +346,33 @@ export function Sol() {
   }, []);
 
   const rotate = rotacion.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const esHorizontalPantalla = modoHorizontal || screenW > screenH;
+  const shortEdge = Math.min(screenW, screenH);
+  const esTabletHorizontal = esHorizontalPantalla && shortEdge >= 700;
+  const solStyle = esHorizontalPantalla
+    ? [
+        ss.solWrapHorizontal,
+        esTabletHorizontal && ss.solWrapHorizontalTablet,
+      ]
+    : ss.solWrap;
+  const solScale = esHorizontalPantalla ? (esTabletHorizontal ? 0.88 : 0.72) : 1;
 
   return (
-    <View style={ss.solWrap}>
-      <Animated.View style={[ss.rayosWrap, { transform: [{ rotate }] }]}>
+    <View style={solStyle}>
+      <Animated.View style={[ss.rayosWrap, { transform: [{ scale: solScale }, { rotate }] }]}>
         {RAYOS.map(i => (
           <View key={i} style={[ss.rayo, { transform: [{ rotate: `${i * 45}deg` }, { translateY: -42 }] }]} />
         ))}
       </Animated.View>
-      <Animated.View style={[ss.nucleo, { transform: [{ scale: nucleoSc }] }]} />
+      <Animated.View style={[ss.nucleo, { transform: [{ scale: Animated.multiply(nucleoSc, solScale) }] }]} />
     </View>
   );
 }
 
 const ss = StyleSheet.create({
   solWrap:   { position: 'absolute', right: -10, top: -100, width: 160, height: 160, alignItems: 'center', justifyContent: 'center' },
+  solWrapHorizontal: { position: 'absolute', right: 32, top: 46, width: 120, height: 120, alignItems: 'center', justifyContent: 'center' },
+  solWrapHorizontalTablet: { right: 42, top: 54, width: 144, height: 144 },
   rayosWrap: { position: 'absolute', width: 160, height: 160, alignItems: 'center', justifyContent: 'center' },
   rayo:      { position: 'absolute', width: 0, height: 0, borderLeftWidth: 5, borderRightWidth: 5, borderBottomWidth: 16, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#FFD700BB' },
   nucleo:    { width: 52, height: 52, borderRadius: 26, backgroundColor: '#FFD700' },

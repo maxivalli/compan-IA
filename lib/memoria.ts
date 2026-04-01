@@ -13,6 +13,8 @@ let secureStoreModulePromise: Promise<null | {
   setItemAsync(key: string, value: string): Promise<void>;
   deleteItemAsync(key: string): Promise<void>;
 }> | null = null;
+let historialWriteQueue: Promise<void> = Promise.resolve();
+let animoWriteQueue: Promise<void> = Promise.resolve();
 
 async function getSecureStore() {
   if (!secureStoreModulePromise) {
@@ -22,11 +24,19 @@ async function getSecureStore() {
         const mod = await import(moduleName);
         return mod;
       } catch {
+        secureStoreModulePromise = null;
         return null;
       }
     })();
   }
   return secureStoreModulePromise;
+}
+
+export function normalizarTextoPlano(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 // ── Identidad del dispositivo ─────────────────────────────────────────────────
@@ -160,8 +170,19 @@ export async function cargarPerfil(): Promise<Perfil> {
 }
 
 export async function guardarHistorial(historial: { role: string; content: string }[]): Promise<void> {
-  const ultimos = historial.slice(-30);
-  await AsyncStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(ultimos));
+  historialWriteQueue = historialWriteQueue.then(async () => {
+    const actual = await cargarHistorial();
+    const merged: { role: string; content: string }[] = [];
+    const seen = new Set<string>();
+    for (const item of [...actual, ...historial]) {
+      const key = `${item.role}\u0000${item.content}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(item);
+    }
+    await AsyncStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(merged.slice(-30)));
+  }).catch(() => {});
+  await historialWriteQueue;
 }
 
 export async function cargarHistorial(): Promise<{ role: string; content: string }[]> {
@@ -184,12 +205,19 @@ export type EntradaAnimo = {
 const CLAVE_ANIMO = 'rosa_animo';
 
 export async function guardarEntradaAnimo(expresion: ExpresionAnimo): Promise<void> {
-  try {
-    const data = await AsyncStorage.getItem(CLAVE_ANIMO);
-    const historial: EntradaAnimo[] = data ? JSON.parse(data) : [];
+  animoWriteQueue = animoWriteQueue.then(async () => {
+    let historial: EntradaAnimo[] = [];
+    try {
+      const data = await AsyncStorage.getItem(CLAVE_ANIMO);
+      historial = data ? JSON.parse(data) : [];
+      if (!Array.isArray(historial)) historial = [];
+    } catch {
+      historial = [];
+    }
     historial.push({ expresion, timestamp: Date.now() });
     await AsyncStorage.setItem(CLAVE_ANIMO, JSON.stringify(historial.slice(-500)));
-  } catch {}
+  }).catch(() => {});
+  await animoWriteQueue;
 }
 
 export async function cargarEntradasAnimo(): Promise<EntradaAnimo[]> {
@@ -266,6 +294,13 @@ function truncarMemoria(texto: string, maxLen = 180): string {
   return `${limpio.slice(0, maxLen - 1).trimEnd()}…`;
 }
 
+function minOverlapRequerido(a: string[], b: string[]): number {
+  const minLen = Math.min(a.length, b.length);
+  if (minLen <= 1) return 1;
+  if (minLen === 2) return 2;
+  return Math.min(3, minLen - 1);
+}
+
 function esTemaMemorable(textoUsuario: string): boolean {
   const t = limpiarTextoMemoria(textoUsuario);
   if (t.length < 18) return false;
@@ -312,7 +347,7 @@ export async function registrarMemoriaEpisodica(textoUsuario: string, textoAsist
   const nuevaNorm = limpiarTextoMemoria(resumen);
   const existente = memorias.find(mem => {
     const overlap = mem.keywords.filter(k => keywords.includes(k)).length;
-    return overlap >= Math.min(3, Math.max(2, keywords.length - 1)) || limpiarTextoMemoria(mem.resumen) === nuevaNorm;
+    return overlap >= minOverlapRequerido(mem.keywords, keywords) || limpiarTextoMemoria(mem.resumen) === nuevaNorm;
   });
 
   if (existente) {

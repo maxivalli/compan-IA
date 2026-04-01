@@ -110,7 +110,7 @@ function RelojHorizontalFullscreen() {
     );
     anim.start();
     return () => anim.stop();
-  }, [latido]);
+  }, []);
 
   const fontFamily = fontsLoaded ? 'Poppins_700Bold' : undefined;
 
@@ -129,16 +129,24 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom, top: safeTop, left: safeLeft, right: safeRight } = useSafeAreaInsets();
 
-  // En landscape screenH es la dimensión corta.
-  // Escala para que los ojos (EYE_H=159px base) llenen ~90% de la altura.
-  // A esta escala la boca (a ~239px base) queda bien fuera del área visible.
-  const faceScale = (screenH * 0.90) / 159;
-  const faceW = (EYE_W * 2 + GAP + 32) * faceScale;
-  const eyeTop = Math.round(screenH * 0.05) + Math.round(60 * faceScale);
-  const leftEyeLeft = Math.round((screenW - faceW) / 2) + Math.round(18 * faceScale);
-  const eyeBoxW = Math.round(EYE_W * faceScale);
-  const eyeBoxH = Math.round(EYE_H * faceScale);
-  const rightEyeLeft = leftEyeLeft + eyeBoxW + Math.round(GAP * faceScale);
+  const FACE_W = EYE_W * 2 + 32;
+  const FACE_H = EYE_H + 120;
+  const shortEdge = Math.min(screenW, screenH);
+  const esTabletHorizontal = screenW > screenH && shortEdge >= 700;
+  const eyeDominantScale = (screenH * 0.96) / EYE_H;
+  const faceFitScale = (screenH * 1.16) / FACE_H;
+  const widthFitScale = (screenW * 0.88) / FACE_W;
+  const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale);
+  const paddingTopCara = Math.max(0, Math.round(screenH * 0.005));
+  const faceTranslateY = Math.round(screenH * 0.018);
+  const mouthOffsetY = esTabletHorizontal
+    ? -Math.round(12 * faceScale)
+    : -Math.round(28 * faceScale);
+  const eyeGapExtra = Math.round(10 * faceScale);
+  const zipperOffsetY = esTabletHorizontal
+    ? -Math.round(18 * faceScale)
+    : -Math.round(33 * faceScale);
+  const zipperScale = 0.92;
 
   // Gesto de caricia horizontal sobre la cara
   const panCaricia = useRef(PanResponder.create({
@@ -195,7 +203,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             </Modal>
           )}
 
-          {/* ── Cara principal — ojos llenan la pantalla, boca fuera de área ── */}
+          {/* ── Cara principal — horizontal muestra ojos + boca dentro de cuadro ── */}
           <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
             {props.modoReloj ? (
               <View style={styles.relojFullscreen}>
@@ -221,7 +229,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                     overflow: 'hidden',
                     alignItems: 'center',
                     justifyContent: 'flex-start',
-                    paddingTop: Math.round(screenH * 0.05),
+                    paddingTop: paddingTopCara,
                   }}>
                     <ExpresionOverlay
                       capa="fondo"
@@ -232,17 +240,23 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       modoNoche={props.modoNoche}
                       modoHorizontal
                     />
-                    <RosaOjos
-                      estado={props.estado}
-                      expresion={props.expresion}
-                      modoNoche={props.modoNoche}
-                      bgColor={props.bgActual}
-                      silbando={props.silbando}
+                    <View style={{ transform: [{ translateY: faceTranslateY }] }}>
+                      <RosaOjos
+                        estado={props.estado}
+                        expresion={props.expresion}
+                        modoNoche={props.modoNoche}
+                        bgColor={props.bgActual}
+                        silbando={props.silbando}
                       noMolestar={props.noMolestar}
                       onOjoPicado={props.onOjoPicado}
                       scale={faceScale}
                       amaneciendo={props.amaneciendo}
+                      mouthOffsetY={mouthOffsetY}
+                      eyeGapExtra={eyeGapExtra}
+                      zipperOffsetY={zipperOffsetY}
+                      zipperScale={zipperScale}
                     />
+                    </View>
                     <ExpresionOverlay
                       capa="frente"
                       expresion={props.expresion}
@@ -262,7 +276,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           </View>
 
           {/* ZZZ modo durmiendo */}
-          {props.modoNoche === 'durmiendo' && <ZZZ />}
+          {props.modoNoche === 'durmiendo' && <ZZZ modoHorizontal />}
 
           {/* ── HUD mínimo ─────────────────────────────────────────────────── */}
 

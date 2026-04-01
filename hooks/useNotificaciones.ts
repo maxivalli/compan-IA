@@ -62,11 +62,94 @@ export type NotificacionesRefs = {
 export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<typeof useAudioPlayer>) {
   // Cola FIFO — serializa los handlers de Telegram para evitar race conditions
   const colaRef = useRef<Promise<void>>(Promise.resolve());
+  const mountedRef = useRef(true);
+  const ultimoSilbidoRef = useRef(0);
 
   // Blacklist de recordatorios/alarmas ya disparados: useRef para sobrevivir remounts del componente
   const disparadosRef = useRef(new Set<string>());
   function encolar(fn: () => Promise<void>): void {
     colaRef.current = colaRef.current.then(fn).catch(() => {});
+  }
+
+  type VozPendiente = { fileId: string; chatId: string; fromName: string; timestamp: number };
+
+  const waitMs = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+  function safeSetEsCumpleaños(value: boolean) {
+    if (mountedRef.current) setEsCumpleaños(value);
+  }
+
+  function nombreAsistenteActual(): string {
+    return perfilRef.current?.nombreAsistente ?? 'Rosita';
+  }
+
+  function logClaudeError(contexto: string, error: unknown) {
+    console.warn(`[useNotificaciones:${contexto}]`, error);
+  }
+
+  async function esperarEstadoEsperando(timeoutMs = 15000): Promise<void> {
+    const startedAt = Date.now();
+    while (estadoRef.current !== 'esperando' && Date.now() - startedAt < timeoutMs) {
+      await waitMs(500);
+    }
+  }
+
+  async function esperarFinPlayer(audioPlayer: typeof player, timeoutMs: number): Promise<void> {
+    const startedAt = Date.now();
+    let lastPos = -1;
+    let stallCount = 0;
+    while (Date.now() - startedAt < timeoutMs) {
+      const pos = audioPlayer.currentTime ?? 0;
+      const dur = audioPlayer.duration ?? 0;
+      if (dur > 0.5 && pos >= dur - 0.5) return;
+      if (pos === lastPos) {
+        stallCount++;
+        if (stallCount >= 10 && pos > 0.5) return;
+      } else {
+        stallCount = 0;
+      }
+      lastPos = pos;
+      await waitMs(300);
+    }
+  }
+
+  async function esperarFinCumple(timeoutTicks = 180): Promise<void> {
+    let ticks = 0;
+    while (playerCumple.playing && ticks <= timeoutTicks) {
+      ticks++;
+      await waitMs(500);
+    }
+  }
+
+  function depurarDisparados() {
+    if (disparadosRef.current.size > 500) disparadosRef.current.clear();
+  }
+
+  function parsearColaVoz(raw: string | null): VozPendiente[] {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((item): item is VozPendiente =>
+        item
+        && typeof item.fileId === 'string'
+        && typeof item.chatId === 'string'
+        && typeof item.fromName === 'string'
+        && typeof item.timestamp === 'number'
+      );
+    } catch {
+      return [];
+    }
+  }
+
+  function parsearArraySeguro<T>(raw: string | null): T[] {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
 
   const {
@@ -80,11 +163,16 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // Grabador para respuestas de voz
   const recorderResp = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   // ── Escuchar una respuesta de sí/no por voz ────────────────────────────────
   async function escucharRespuesta(): Promise<string> {
     try {
       ExpoSpeechRecognitionModule.stop();
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await waitMs(200);
 
       setEstado('escuchando');
       estadoRef.current = 'escuchando';
@@ -93,13 +181,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       recorderResp.record();
 
       // Esperar hasta 6 segundos (suficiente para un sí/no, sin pausas innecesarias)
-      await new Promise<void>(resolve => {
-        let elapsed = 0;
-        const check = setInterval(() => {
-          elapsed += 300;
-          if (elapsed >= 6000) { clearInterval(check); resolve(); }
-        }, 300);
-      });
+      await waitMs(6000);
 
       await recorderResp.stop();
       const uri = recorderResp.uri;
@@ -147,13 +229,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       recorderResp.record();
 
       // Esperar hasta 10 segundos para dar tiempo a usuarios mayores
-      await new Promise<void>(resolve => {
-        let elapsed = 0;
-        const check = setInterval(() => {
-          elapsed += 300;
-          if (elapsed >= 10000) { clearInterval(check); resolve(); }
-        }, 300);
-      });
+      await waitMs(10000);
 
       await recorderResp.stop();
       const uri = recorderResp.uri;
@@ -177,7 +253,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await enviarAlertaTelegram(
         [chatId],
         `Mensaje de ${nombreAbuela}: "${texto}"`,
-        perfilRef.current?.nombreAsistente,
+        nombreAsistenteActual(),
       );
 
       await hablar(`Listo, le mandé tu mensaje a ${nombreContacto}.`);
@@ -207,11 +283,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     let resultado: 'respondido' | 'rechazado' | 'ignorado' = 'ignorado';
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitMs(500);
 
       // 1. Verificar presencia
       await hablar(`¿Estás por ahí, ${nombreAbuela}?`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitMs(500);
       const respuestaPresencia = await escucharRespuesta();
 
       if (esNegativo(respuestaPresencia)) return 'rechazado'; // dijo "no" → descartar
@@ -219,42 +295,20 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
       // 2. Anunciar el mensaje
       await hablar(`Te llegó un mensaje de voz de ${nombre}.`);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await waitMs(300);
 
       // 3. Reproducir el audio
       try {
         player.replace({ uri: urlAudio });
-        await new Promise(resolve => setTimeout(resolve, 400));
+        await waitMs(400);
         player.play();
-
-        await new Promise<void>(resolve => {
-          const timeout = setTimeout(resolve, 45000);
-          let lastPos = -1;
-          let stallCount = 0;
-          const interval = setInterval(() => {
-            const pos = player.currentTime ?? 0;
-            const dur = player.duration ?? 0;
-            if (dur > 0.5 && pos >= dur - 0.5) {
-              clearInterval(interval); clearTimeout(timeout); resolve();
-              return;
-            }
-            if (pos === lastPos) {
-              stallCount++;
-              if (stallCount >= 10 && pos > 0.5) {
-                clearInterval(interval); clearTimeout(timeout); resolve();
-              }
-            } else {
-              stallCount = 0;
-            }
-            lastPos = pos;
-          }, 300);
-        });
+        await esperarFinPlayer(player, 45000);
       } catch {}
 
       // 4. Ofrecer contestar
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await waitMs(300);
       await hablar(`¿Querés contestarle a ${nombre}?`);
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await waitMs(200);
       const respuestaContestar = await escucharRespuesta();
 
       if (esAfirmativo(respuestaContestar)) {
@@ -263,7 +317,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           // Ya dijo el mensaje junto con el "sí" — mandarlo directamente sin pedir de nuevo
           const chatIds = [chatId];
           const nombre_ = perfilRef.current?.nombreAbuela ?? '';
-          await enviarAlertaTelegram(chatIds, `Mensaje de ${nombre_}: "${mensajeInline}"`, perfilRef.current?.nombreAsistente);
+          await enviarAlertaTelegram(chatIds, `Mensaje de ${nombre_}: "${mensajeInline}"`, nombreAsistenteActual());
           await hablar(`Listo, le mandé tu mensaje a ${nombre}.`);
         } else {
           await grabarYMandarRespuesta(chatId, nombre, nombreAbuela);
@@ -298,11 +352,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     let resultado: 'respondido' | 'rechazado' | 'ignorado' = 'ignorado';
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitMs(500);
 
       // 1. Verificar presencia
       await hablar(`¿Estás por ahí, ${nombreAbuela}? ${nombre} te mandó una foto.`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitMs(500);
       const respuesta = await escucharRespuesta();
 
       if (esNegativo(respuesta)) return 'rechazado';
@@ -310,7 +364,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
       // 2. Mostrar foto en pantalla + describir con voz
       mostrarFoto(msg.urlFoto, msg.descripcion);
-      await new Promise(resolve => setTimeout(resolve, 600));
+      await waitMs(600);
       await hablar(msg.descripcion);
 
       resultado = 'respondido';
@@ -338,11 +392,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     let resultado: 'respondido' | 'rechazado' | 'ignorado' = 'ignorado';
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitMs(500);
 
       // 1. Verificar presencia
       await hablar(`¿Estás por ahí, ${nombreAbuela}? ${msg.fromName} te mandó un mensaje.`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitMs(500);
       const respuestaPresencia = await escucharRespuesta();
 
       if (esNegativo(respuestaPresencia)) return 'rechazado';
@@ -351,7 +405,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // 2. Leer el mensaje en voz alta
       const textoSeguro = msg.texto.slice(0, 300); // límite de seguridad
       await hablar(`${msg.fromName} te dice: ${textoSeguro}`);
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await waitMs(800);
 
       // 3. Ofrecer contestar
       await hablar(`¿Querés contestarle a ${msg.fromName}?`);
@@ -362,7 +416,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         const mensajeInline = extraerMensajeDeRespuesta(respuestaContestar);
         if (mensajeInline.length > 3) {
           const chatIds = [msg.chatId];
-          await enviarAlertaTelegram(chatIds, `Mensaje de ${nombreAbuela}: "${mensajeInline}"`, perfilRef.current?.nombreAsistente);
+          await enviarAlertaTelegram(chatIds, `Mensaje de ${nombreAbuela}: "${mensajeInline}"`, nombreAsistenteActual());
           await hablar(`Listo, le mandé tu mensaje a ${msg.fromName}.`);
         } else {
           await grabarYMandarRespuesta(msg.chatId, msg.fromName, nombreAbuela);
@@ -389,8 +443,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     try {
       const raw = await AsyncStorage.getItem('vozPendiente');
       if (!raw) return;
-      let todos: { fileId: string; chatId: string; fromName: string; timestamp: number }[] = [];
-      try { todos = JSON.parse(raw); } catch { await AsyncStorage.removeItem('vozPendiente'); return; }
+      const todos = parsearColaVoz(raw);
+      if (!todos.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
       const hace20h = Date.now() - 20 * 60 * 60 * 1000;
       const vigentes = todos.filter(m => m.timestamp > hace20h);
       if (!vigentes.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
@@ -410,10 +464,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         return;
       }
 
-      await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
       const contacto = (p.telegramContactos ?? []).find(c => c.id === primero.chatId);
       const nombre   = contacto?.nombre ?? primero.fromName;
-      await manejarMensajeVoz(urlAudio, nombre, primero.chatId, p.nombreAbuela);
+      const estado = await manejarMensajeVoz(urlAudio, nombre, primero.chatId, p.nombreAbuela);
+      if (estado !== 'ignorado') {
+        await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
+      }
     } catch {}
   }
 
@@ -467,7 +523,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           system: `Resumí en una sola línea corta los temas principales de estos mensajes de ${perfilRef.current?.generoUsuario === 'masculino' ? 'un señor mayor' : 'una señora mayor'}. Sin puntuación al final. Solo los temas, sin nombres propios. Máximo 15 palabras.`,
           messages: [{ role: 'user', content: mensajesUsuario.join(' | ') }],
         }) || 'conversación general';
-      } catch {
+      } catch (e) {
+        logClaudeError('generarMensajeResumen', e);
         temasTexto = `${mensajesUsuario.length} mensajes`;
       }
     }
@@ -524,7 +581,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // Solo mostrar globos a partir de la hora de despertar (horaFinNoche, default 9)
       const horaDespertar = p.horaFinNoche ?? 9;
       if (ahora.getHours() < horaDespertar) return;
-      setEsCumpleaños(true);
+      safeSetEsCumpleaños(true);
     })();
   }, []);
 
@@ -592,7 +649,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
             messages: [{ role: 'user', content: `Hoy es: ${fecha}. Generá un recordatorio cálido para ${p.nombreAbuela}.` }],
           });
           if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
-        } catch {}
+        } catch (e) { logClaudeError('chequearFechas', e); }
         break;
       }
     }
@@ -617,17 +674,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         await guardarPerfil(perfilActualizado).catch(() => {});
         perfilRef.current = perfilActualizado;
       }
-      setEsCumpleaños(true);
+      safeSetEsCumpleaños(true);
       try {
         playerCumple.seekTo(0);
         playerCumple.play();
-        await new Promise<void>(resolve => {
-          let ticks = 0;
-          const check = setInterval(() => {
-            ticks++;
-            if (!playerCumple.playing || ticks > 180) { clearInterval(check); resolve(); }
-          }, 500);
-        });
+        await esperarFinCumple();
       } catch {}
       try {
         const pActual = perfilRef.current ?? p;
@@ -637,7 +688,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${pActual.nombreAbuela} con mucho cariño.` }],
         });
         if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
-      } catch {}
+      } catch (e) { logClaudeError('cumpleañosMatutino', e); }
     }
 
     async function saludoMatutino() {
@@ -674,7 +725,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días, mencioná el día y el clima brevemente, con calidez y buen humor. Cerrá con una pregunta corta y cálida que invite a charlar, por ejemplo sobre cómo amaneció o qué tiene pensado hacer hoy.` }] });
         }
         if (frase && estadoRef.current === 'esperando') await hablar(frase);
-      } catch {}
+      } catch (e) { logClaudeError('saludoMatutino', e); }
     }
 
     async function chequearAlarmas() {
@@ -741,13 +792,22 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     async function resetearAnimo() {
       const ahora = new Date();
-      if (ahora.getHours() !== 23 || ahora.getMinutes() > 5) return;
+      const hora = ahora.getHours();
+      const minuto = ahora.getMinutes();
+      const puedeResetearTemprano = hora === 22 && minuto > 5;
+      const enVentanaOriginal = hora === 23 && minuto <= 5;
+      if (!puedeResetearTemprano && !enVentanaOriginal) return;
+      if (puedeResetearTemprano) {
+        const claveResumen = `resumen_${ahora.toISOString().slice(0, 10)}`;
+        const resumenEnviado = await yaRecordo(claveResumen);
+        if (!resumenEnviado) return;
+      }
       const clave = `reset_animo_${ahora.toISOString().slice(0, 10)}`;
       const ya = await yaRecordo(clave);
       if (ya) return;
       await marcarRecordado(clave);
       await limpiarHistorialAnimo();
-      setEsCumpleaños(false);
+      safeSetEsCumpleaños(false);
     }
 
     async function chequearClima() {
@@ -794,6 +854,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     async function tick() {
+      depurarDisparados();
       await chequearAlarmas();
       await chequearMedicamentos();
       await chequearFechas();
@@ -873,7 +934,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!chatIds.length) return;
       const nombre = p.nombreAbuela ?? 'Tu abuela';
       const horas  = Math.floor(minutosActivos / 60);
-      enviarAlertaTelegram(chatIds, `ℹ️ ${nombre} no interactuó con ${p.nombreAsistente ?? 'Rosita'} hace más de ${horas} horas.`, p.nombreAsistente);
+      enviarAlertaTelegram(chatIds, `ℹ️ ${nombre} no interactuó con ${p.nombreAsistente ?? 'Rosita'} hace más de ${horas} horas.`, p.nombreAsistente ?? 'Rosita');
     }
 
     const id = setInterval(chequearInactividad, 5 * 60 * 1000);
@@ -899,12 +960,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
 
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
-        await new Promise<void>(resolve => {
-          const timeout = setTimeout(resolve, 15000); // máximo 15s de espera
-          const check = setInterval(() => {
-            if (estadoRef.current === 'esperando') { clearInterval(check); clearTimeout(timeout); resolve(); }
-          }, 500);
-        });
+        await esperarEstadoEsperando();
       }
 
       // manejarMensajeVoz se encarga de verificar presencia internamente
@@ -931,8 +987,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         if (!procesado) {
           // Guardar en cola pendiente para reintentar
           const rawP = await AsyncStorage.getItem('vozPendiente');
-          let pendientes: any[] = [];
-          try { pendientes = JSON.parse(rawP ?? '[]'); } catch { pendientes = []; }
+          let pendientes = parsearArraySeguro<any>(rawP);
           // Evitar duplicados
           const yaEsta = pendientes.some((m: any) => m.fileId === msg.fileId);
           if (!yaEsta) {
@@ -966,8 +1021,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       try {
         const raw = await AsyncStorage.getItem('vozPendiente');
         if (!raw) return;
-        let todos: { fileId: string; chatId: string; fromName: string; timestamp: number }[] = [];
-        try { todos = JSON.parse(raw); } catch { await AsyncStorage.removeItem('vozPendiente'); return; }
+        const todos = parsearColaVoz(raw);
+        if (!todos.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
         const hace20h = Date.now() - 20 * 60 * 60 * 1000;
         const vigentes = todos.filter(m => m.timestamp > hace20h);
         if (!vigentes.length) { await AsyncStorage.removeItem('vozPendiente'); return; }
@@ -979,20 +1034,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           return;
         }
 
-        // Sacar de la cola y dejar que manejarMensajeVoz verifique presencia
-        await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
-
         const contacto = (p.telegramContactos ?? []).find(c => c.id === primero.chatId);
         const nombre   = contacto?.nombre ?? primero.fromName;
         const estadoVoz = await manejarMensajeVoz(urlAudio, nombre, primero.chatId, p.nombreAbuela);
 
-        // Solo volver a encolar si fue ignorado (silencio/ausencia) — no si rechazó explícitamente
-        if (estadoVoz === 'ignorado') {
-          const rawActual = await AsyncStorage.getItem('vozPendiente');
-          let actuales: any[] = [];
-          try { actuales = JSON.parse(rawActual ?? '[]'); } catch { actuales = []; }
-          actuales.unshift(primero);
-          await AsyncStorage.setItem('vozPendiente', JSON.stringify(actuales));
+        if (estadoVoz !== 'ignorado') {
+          await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
         }
       } catch {}
     }
@@ -1013,7 +1060,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           try {
             const mensaje = await generarMensajeResumen(p);
             await enviarMensajeTelegram(chatIds, mensaje);
-          } catch {}
+          } catch (e) { logClaudeError('chequearComandos/informe', e); }
         } else if (cmd.startsWith('camara')) {
           const horaCmd = new Date().getHours();
           if (horaCmd >= 23 || horaCmd < 9) continue;
@@ -1035,12 +1082,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (horarioNocturno || dormida || noMolestarRef.current) return false;
 
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
-        await new Promise<void>(resolve => {
-          const timeout = setTimeout(resolve, 15000);
-          const check = setInterval(() => {
-            if (estadoRef.current === 'esperando') { clearInterval(check); clearTimeout(timeout); resolve(); }
-          }, 500);
-        });
+        await esperarEstadoEsperando();
       }
 
       const estado = await manejarMensajeFoto(msg, nombre, p.nombreAbuela);
@@ -1068,12 +1110,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // Procesar de a uno — igual que voz y foto
       for (const msg of nuevos) {
         if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
-          await new Promise<void>(resolve => {
-            const timeout = setTimeout(resolve, 15000);
-            const check = setInterval(() => {
-              if (estadoRef.current === 'esperando') { clearInterval(check); clearTimeout(timeout); resolve(); }
-            }, 500);
-          });
+          await esperarEstadoEsperando();
         }
         await manejarMensajeTexto(msg, p.nombreAbuela);
         break; // de a uno por vez
@@ -1093,8 +1130,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // Fotos nuevas del servidor
       const nuevas = await recibirMensajesFoto(chatIds);
       const pendientesRaw = await AsyncStorage.getItem('fotoPendiente');
-      let pendientes: MensajeFoto[] = [];
-      try { pendientes = JSON.parse(pendientesRaw ?? '[]'); } catch { pendientes = []; }
+      let pendientes = parsearArraySeguro<MensajeFoto>(pendientesRaw);
 
       // Agregar nuevas a pendientes (sin duplicar por urlFoto)
       for (const foto of nuevas) {
@@ -1129,9 +1165,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     // Polling serializado via cola FIFO — evita race conditions entre handlers
-    const idPolling  = setInterval(() => encolar(chequearMensajesVoz),   3 * 60 * 1000);
-    const idTextos   = setInterval(() => encolar(chequearMensajesTexto), 3 * 60 * 1000);
-    const idFotos    = setInterval(() => encolar(chequearMensajesFoto),  3 * 60 * 1000);
+    const idPolling  = setInterval(() => encolar(chequearMensajesVoz),   60 * 1000);
+    const idTextos   = setInterval(() => encolar(chequearMensajesTexto), 60 * 1000);
+    const idFotos    = setInterval(() => encolar(chequearMensajesFoto),  60 * 1000);
     const idComandos = setInterval(() => encolar(chequearComandos),      15 * 1000);
     const idReintento = setInterval(() => encolar(reintentar),           INTERVALO_REINTENTO);
 
@@ -1147,7 +1183,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // ── Timer de silbido ────────────────────────────────────────────────────────
   useEffect(() => {
     const DIEZ_MIN        = 10 * 60 * 1000;
-    const ultimoSilbidoRef = { current: 0 };
 
     function puedeSilbar() {
       return estadoRef.current === 'esperando'
@@ -1161,7 +1196,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!puedeSilbar()) return;
       iniciarSilbido();
       // Esperar que termine el audio (~4.5s en reproducirSilbido) + 500ms extra
-      await new Promise(r => setTimeout(r, 5000));
+      await waitMs(5000);
       detenerSilbido();
       ultimoSilbidoRef.current = Date.now();
     }
@@ -1177,17 +1212,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
   async function triggerCumpleaños() {
     const p = perfilRef.current;
-    setEsCumpleaños(true);
+    safeSetEsCumpleaños(true);
     try {
       playerCumple.seekTo(0);
       playerCumple.play();
-      await new Promise<void>(resolve => {
-        let ticks = 0;
-        const check = setInterval(() => {
-          ticks++;
-          if (!playerCumple.playing || ticks > 180) { clearInterval(check); resolve(); }
-        }, 500);
-      });
+      await esperarFinCumple();
     } catch {}
     try {
       const nombre = p?.nombreAbuela ?? 'vos';
@@ -1197,7 +1226,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${nombre} con mucho cariño.` }],
       });
       if (frase && estadoRef.current === 'esperando') await hablar(frase);
-    } catch {}
+    } catch (e) { logClaudeError('triggerCumpleaños', e); }
   }
 
   return { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños };

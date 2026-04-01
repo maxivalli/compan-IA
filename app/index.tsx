@@ -104,6 +104,9 @@ export default function Index() {
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Cleanup del timer al desmontar
+  useEffect(() => () => { if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current); }, []);
+
   function mostrarFoto(urlFoto: string, descripcion: string) {
     if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current);
     setFotoTelegram({ url: urlFoto, descripcion });
@@ -155,35 +158,50 @@ export default function Index() {
   const hintOpacity           = useRef(new Animated.Value(0)).current;
   const hintTranslate         = useRef(new Animated.Value(30)).current;
   const hintActiveRef         = useRef(false);
+  const hintAnimRef           = useRef<Animated.CompositeAnimation | null>(null);
+  const hintAnimSeqRef        = useRef(0);
 
   useEffect(() => {
+    hintAnimSeqRef.current += 1;
+    hintAnimRef.current?.stop();
     if (estado !== 'esperando' || musicaActiva) {
       hintActiveRef.current = false;
-      Animated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true }).start();
+      hintAnimRef.current = Animated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true });
+      hintAnimRef.current.start();
       return;
     }
     hintActiveRef.current = true;
     hintTranslate.setValue(30);
-    Animated.parallel([
+    const seq = hintAnimSeqRef.current;
+    hintAnimRef.current = Animated.parallel([
       Animated.timing(hintOpacity,   { toValue: 1, duration: 700, useNativeDriver: true }),
       Animated.timing(hintTranslate, { toValue: 0, duration: 700, useNativeDriver: true }),
-    ]).start();
+    ]);
+    hintAnimRef.current.start();
     const id = setInterval(() => {
-      if (!hintActiveRef.current) return;
-      Animated.parallel([
+      if (!hintActiveRef.current || hintAnimSeqRef.current !== seq) return;
+      hintAnimRef.current?.stop();
+      hintAnimRef.current = Animated.parallel([
         Animated.timing(hintOpacity,   { toValue: 0, duration: 400, useNativeDriver: true }),
         Animated.timing(hintTranslate, { toValue: -30, duration: 400, useNativeDriver: true }),
-      ]).start(({ finished }) => {
-        if (!finished || !hintActiveRef.current) return;
+      ]);
+      hintAnimRef.current.start(({ finished }) => {
+        if (!finished || !hintActiveRef.current || hintAnimSeqRef.current !== seq) return;
         setHintIdx(prev => (prev + 1) % HINTS.length);
         hintTranslate.setValue(30);
-        Animated.parallel([
+        hintAnimRef.current?.stop();
+        hintAnimRef.current = Animated.parallel([
           Animated.timing(hintOpacity,   { toValue: 1, duration: 500, useNativeDriver: true }),
           Animated.timing(hintTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
-        ]).start();
+        ]);
+        hintAnimRef.current.start();
       });
     }, 4500);
-    return () => { hintActiveRef.current = false; clearInterval(id); };
+    return () => {
+      hintActiveRef.current = false;
+      clearInterval(id);
+      hintAnimRef.current?.stop();
+    };
   }, [estado, musicaActiva]);
 
   // ── Modal hint SOS ──────────────────────────────────────────────────────────
@@ -238,6 +256,7 @@ export default function Index() {
   const glowOpacity = useRef(new Animated.Value(0.30)).current;
   const detectRing  = useRef(new Animated.Value(0)).current;
   const detectScale = useRef(new Animated.Value(1)).current;
+  const detectScaleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   // Feedback visual cuando el SR detecta sonido: ring + pulso de escala en el botón
   useEffect(() => {
@@ -248,17 +267,22 @@ export default function Index() {
       useNativeDriver: true,
     }).start();
     if (activo) {
-      const loop = Animated.loop(
+      detectScaleLoopRef.current?.stop();
+      detectScaleLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(detectScale, { toValue: 1.03, duration: 200, useNativeDriver: true }),
           Animated.timing(detectScale, { toValue: 1.0,  duration: 200, useNativeDriver: true }),
         ])
       );
-      loop.start();
+      detectScaleLoopRef.current.start();
     } else {
+      detectScaleLoopRef.current?.stop();
       detectScale.stopAnimation();
       detectScale.setValue(1);
     }
+    return () => {
+      detectScaleLoopRef.current?.stop();
+    };
   }, [detectandoSonido, estado, noMolestar]);
 
   useEffect(() => {
@@ -272,7 +296,10 @@ export default function Index() {
       ])
     );
     dotPulseAnim.current.start();
-    return () => { dotPulseAnim.current?.stop(); };
+    return () => {
+      dotPulseAnim.current?.stop();
+      dotPulseAnim.current = null;
+    };
   }, [estado, musicaActiva]);
 
   useEffect(() => {

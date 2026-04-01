@@ -1,14 +1,17 @@
 import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken } from './memoria';
+import { RositaSystemPayload } from './systemPayload';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 
 type TextBlock = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
 type Mensaje = { role: 'user' | 'assistant'; content: string | TextBlock[] };
 type SystemBlock = TextBlock;
+type SystemInput = string | SystemBlock[] | RositaSystemPayload;
 
 // ── Device token (reemplaza la API key hardcodeada) ───────────────────────────
 
 let _cachedToken: string | null = null;
+let _bootstrapPromise: Promise<string> | null = null;
 let _currentTurnId: string | null = null;
 let _currentTurnStartedAt = 0;
 let _currentTurnFirstAudioAt = 0;
@@ -17,22 +20,31 @@ export async function obtenerTokenDispositivo(): Promise<string> {
   if (_cachedToken) return _cachedToken;
   const stored = await obtenerDeviceToken();
   if (stored) { _cachedToken = stored; return stored; }
+  if (_bootstrapPromise) return _bootstrapPromise;
   return bootstrapDispositivo();
 }
 
 export async function bootstrapDispositivo(): Promise<string> {
-  const installId = await obtenerInstallId();
-  const res = await fetchConTimeout(`${BACKEND_URL}/auth/bootstrap`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ installId }),
-  }, 10000);
-  if (!res.ok) throw new Error(`Bootstrap ${res.status}`);
-  const data = await res.json();
-  const token: string = data.deviceToken;
-  await guardarDeviceToken(token);
-  _cachedToken = token;
-  return token;
+  if (_bootstrapPromise) return _bootstrapPromise;
+  _bootstrapPromise = (async () => {
+    const installId = await obtenerInstallId();
+    const res = await fetchConTimeout(`${BACKEND_URL}/auth/bootstrap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ installId }),
+    }, 10000, 'Bootstrap');
+    if (!res.ok) throw new Error(`Bootstrap ${res.status}`);
+    const data = await res.json();
+    const token: string = data.deviceToken;
+    await guardarDeviceToken(token);
+    _cachedToken = token;
+    return token;
+  })();
+  try {
+    return await _bootstrapPromise;
+  } finally {
+    _bootstrapPromise = null;
+  }
 }
 
 async function jsonHeaders(): Promise<Record<string, string>> {
@@ -103,27 +115,46 @@ export function getCurrentTurnMetrics(): { turnId: string | null; e2eFirstAudioM
 
 // ── Claude ────────────────────────────────────────────────────────────────────
 
-function fetchConTimeout(url: string, options: RequestInit, ms: number): Promise<Response> {
+function timeoutError(etiqueta: string, ms: number): Error {
+  const error = new Error(`${etiqueta} timeout (${ms}ms)`);
+  error.name = 'TimeoutError';
+  return error;
+}
+
+function fetchConTimeout(url: string, options: RequestInit, ms: number, etiqueta = 'Request'): Promise<Response> {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);
-  return fetch(url, { ...options, signal: ctrl.signal }).finally(() => clearTimeout(id));
+  return fetch(url, { ...options, signal: ctrl.signal })
+    .catch((error: any) => {
+      if (error?.name === 'AbortError') throw timeoutError(etiqueta, ms);
+      throw error;
+    })
+    .finally(() => clearTimeout(id));
 }
 
 export async function llamarClaude(options: {
-  system: string | SystemBlock[];
+  system: SystemInput;
   messages: Mensaje[];
   maxTokens?: number;
 }): Promise<string> {
+  const body = typeof options.system === 'string' || Array.isArray(options.system)
+    ? {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: options.maxTokens ?? 140,
+        system: options.system,
+        messages: options.messages,
+      }
+    : {
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: options.maxTokens ?? 140,
+        system_payload: options.system,
+        messages: options.messages,
+      };
   const res = await fetchConTimeout(`${BACKEND_URL}/ai/chat`, {
     method: 'POST',
     headers: await jsonHeaders(),
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: options.maxTokens ?? 140,
-      system: options.system,
-      messages: options.messages,
-    }),
-  }, 20000);
+    body: JSON.stringify(body),
+  }, 20000, 'Claude');
   if (!res.ok) throw new Error(`Claude ${res.status}`);
   const data = await res.json();
   return data.content?.[0]?.text ?? '';
@@ -137,7 +168,7 @@ const STREAMING_SAFE_TAGS = new Set([
 ]);
 
 export async function llamarClaudeConStreaming(options: {
-  system: string | SystemBlock[];
+  system: SystemInput;
   messages: Mensaje[];
   maxTokens?: number;
   onPrimeraFrase?: (primera: string, tag: string) => void;
@@ -157,8 +188,27 @@ export async function llamarClaudeConStreaming(options: {
     let tagDetected = '';
     let resolved = false;
 
-    const resolveOnce = (text: string) => { if (!resolved) { resolved = true; resolve(text); } };
-    const rejectOnce  = (e: Error)      => { if (!resolved) { resolved = true; reject(e); } };
+    const cleanup = () => {
+      xhr.onprogress = null;
+      xhr.onload = null;
+      xhr.onerror = null;
+      xhr.ontimeout = null;
+      try { xhr.abort(); } catch {}
+    };
+    const resolveOnce = (text: string) => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        resolve(text);
+      }
+    };
+    const rejectOnce  = (e: Error)      => {
+      if (!resolved) {
+        resolved = true;
+        cleanup();
+        reject(e);
+      }
+    };
 
     const processLine = (line: string) => {
       if (!line.startsWith('data: ')) return;
@@ -212,11 +262,19 @@ export async function llamarClaudeConStreaming(options: {
     xhr.onerror   = () => rejectOnce(new Error('Stream network error'));
     xhr.ontimeout = () => rejectOnce(new Error('Stream timeout'));
 
-    xhr.send(JSON.stringify({
-      max_tokens: options.maxTokens ?? 140,
-      system: options.system,
-      messages: options.messages,
-    }));
+    xhr.send(JSON.stringify(
+      typeof options.system === 'string' || Array.isArray(options.system)
+        ? {
+            max_tokens: options.maxTokens ?? 140,
+            system: options.system,
+            messages: options.messages,
+          }
+        : {
+            max_tokens: options.maxTokens ?? 140,
+            system_payload: options.system,
+            messages: options.messages,
+          }
+    ));
   });
 }
 
@@ -230,7 +288,7 @@ export async function transcribirAudio(uri: string): Promise<string> {
     method: 'POST',
     headers: await formHeaders(),
     body: formData,
-  }, 25000);
+  }, 25000, 'Whisper');
   if (!res.ok) throw new Error(`Whisper ${res.status}`);
   const data = await res.json();
   return data.text?.trim() ?? '';
@@ -241,11 +299,12 @@ export async function transcribirAudio(uri: string): Promise<string> {
 /** Construye la URL del endpoint de streaming de TTS — ElevenLabs (para expo-audio directo).
  *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
 export function urlTTSStream(texto: string, voiceId: string, speed?: number): string {
+  if (!_cachedToken) throw new Error('Device token unavailable for TTS stream');
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
     speed:   String(speed ?? 0.92),
-    k:       _cachedToken ?? '',
+    k:       _cachedToken,
   });
   return `${BACKEND_URL}/ai/tts-stream?${params}`;
 }
@@ -253,11 +312,12 @@ export function urlTTSStream(texto: string, voiceId: string, speed?: number): st
 /** Construye la URL del endpoint de streaming de TTS — Cartesia Sonic (baja latencia).
  *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
 export function urlCartesiaStream(texto: string, voiceId: string, speed?: number, emotion?: string): string {
+  if (!_cachedToken) throw new Error('Device token unavailable for Cartesia stream');
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
     speed:   String(speed ?? 0.92),
-    k:       _cachedToken ?? '',
+    k:       _cachedToken,
     ...(emotion ? { emotion } : {}),
     ...(_currentTurnId ? { t: _currentTurnId } : {}),
   });
@@ -277,7 +337,7 @@ export async function sintetizarVozMuestra(voiceId: string, nombre: string): Pro
       method: 'POST',
       headers: await jsonHeaders(),
       body: JSON.stringify({ voiceId, nombre }),
-    }, 12000);
+    }, 12000, 'TTS sample');
     if (!res.ok) return null;
     const data = await res.json();
     return data.audio ?? null;
@@ -287,14 +347,18 @@ export async function sintetizarVozMuestra(voiceId: string, nombre: string): Pro
 }
 
 export async function sintetizarVoz(texto: string, voiceId?: string, speed?: number, emotion?: string): Promise<string | null> {
-  const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
-    method: 'POST',
-    headers: await jsonHeaders(),
-    body: JSON.stringify({ text: texto, voiceId, speed, emotion }),
-  }, 12000);
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.audio ?? null;
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ text: texto, voiceId, speed, emotion }),
+    }, 12000, 'TTS');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.audio ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Devuelve los comandos pendientes del dispositivo autenticado (los consume — no se repiten). */
@@ -302,7 +366,7 @@ export async function obtenerComandosPendientes(_familiaId?: string): Promise<st
   try {
     const res = await fetchConTimeout(`${BACKEND_URL}/telegram/comandos`, {
       headers: await jsonHeaders(),
-    }, 8000);
+    }, 8000, 'Telegram commands');
     if (!res.ok) return [];
     const data = await res.json();
     return data.comandos ?? [];
@@ -319,6 +383,7 @@ export async function buscarLugares(lat: number, lon: number, tipo: string, radi
       `${BACKEND_URL}/ai/places?${params}`,
       { headers: await jsonHeaders() },
       15000,
+      'Places',
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -337,6 +402,7 @@ export async function buscarWeb(query: string): Promise<string | null> {
       `${BACKEND_URL}/ai/search?q=${encodeURIComponent(query)}`,
       { headers: await jsonHeaders() },
       15000,
+      'Web search',
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -361,6 +427,7 @@ export async function buscarWikipedia(query: string): Promise<string | null> {
       `${BACKEND_URL}/ai/wikipedia?q=${encodeURIComponent(query)}`,
       { headers: await jsonHeaders() },
       8000,
+      'Wikipedia',
     );
     if (!res.ok) return null;
     const data = await res.json();
@@ -378,7 +445,7 @@ export async function leerImagen(base64: string): Promise<string | null> {
       method: 'POST',
       headers: await jsonHeaders(),
       body: JSON.stringify({ imagen: base64 }),
-    }, 25000);
+    }, 25000, 'Vision');
     if (!res.ok) return null;
     const data = await res.json();
     return data.texto ?? null;
@@ -404,14 +471,18 @@ export async function generarSonido(
   duracion = 8,
   influencia = 0.3,
 ): Promise<string | null> {
-  const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts/sound`, {
-    method: 'POST',
-    headers: await jsonHeaders(),
-    body: JSON.stringify({ text: texto, duration_seconds: duracion, prompt_influence: influencia }),
-  }, 30000);
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.audio ?? null;
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/tts/sound`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ text: texto, duration_seconds: duracion, prompt_influence: influencia }),
+    }, 30000, 'Sound');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.audio ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Fire-and-forget: loguea un evento de cliente en Railway. */

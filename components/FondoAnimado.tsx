@@ -63,9 +63,13 @@ export function AnimacionMusica() {
 
 // ── ZZZs de modo durmiendo ────────────────────────────────────────────────────
 
-export function ZZZ() {
-  const { width: screenW } = useWindowDimensions();
-  const zs = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1.4;
+export function ZZZ({ modoHorizontal = false }: { modoHorizontal?: boolean } = {}) {
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const esHorizontal = modoHorizontal || screenW > screenH;
+  const esTablet = Math.max(screenW, screenH) >= 900;
+  const zs = esHorizontal
+    ? (esTablet ? 2.9 : 1.9)
+    : (esTablet ? 2.45 : (screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1.4));
   const zetas = useRef([0, 1, 2].map(i => ({
     y:       new Animated.Value(0),
     opacity: new Animated.Value(0),
@@ -95,7 +99,18 @@ export function ZZZ() {
   }, []);
 
   return (
-    <View style={[sz.contenedor, { width: Math.round(80 * zs), height: Math.round(90 * zs) }, screenW >= 600 && { bottom: '65%' }]}>
+    <View
+      style={[
+        sz.contenedor,
+        { width: Math.round(80 * zs), height: Math.round(90 * zs) },
+        esHorizontal
+          ? {
+              right: Math.round(screenW * 0.17),
+              bottom: Math.round(screenH * 0.34),
+            }
+          : (esTablet ? { bottom: '60%' } : (screenW >= 600 ? { bottom: '65%' } : null)),
+      ]}
+    >
       {zetas.map((z, i) => (
         <Animated.Text
           key={i}

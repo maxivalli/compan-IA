@@ -38,6 +38,7 @@ export default function ExpresionOverlay({
   esCumpleaños = false,
 }: Props & { esCumpleaños?: boolean }) {
   const fade = useRef(new Animated.Value(0)).current;
+  const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
   const faceScale = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1;
   const esHorizontalPantalla = modoHorizontal || screenW > screenH;
@@ -57,11 +58,14 @@ export default function ExpresionOverlay({
   const accesorio: 'bonete' | 'gorro' | null = esCumpleaños ? 'bonete' : accesorioFallback;
 
   useEffect(() => {
-    Animated.timing(fade, {
+    fadeAnimRef.current?.stop();
+    fadeAnimRef.current = Animated.timing(fade, {
       toValue: expresion === 'neutral' ? 0 : 1,
       duration: 400,
       useNativeDriver: true,
-    }).start();
+    });
+    fadeAnimRef.current.start();
+    return () => fadeAnimRef.current?.stop();
   }, [expresion]);
 
   if (capa === 'fondo') return (
@@ -71,7 +75,7 @@ export default function ExpresionOverlay({
       {esViento                                                           && <Viento />}
       {esCalor                                                            && <CalorEfecto />}
       {esNublado && !esLluvia                                             && <Nubes />}
-      {!esNoche && !musicaActiva && !esLluvia && !esNublado && !esNieve && !esViento && esSoleado && <Sol />}
+      {!esNoche && !musicaActiva && !esLluvia && !esNublado && !esNieve && !esViento && esSoleado && <Sol modoHorizontal={esHorizontalPantalla} />}
     </View>
   );
 

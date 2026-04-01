@@ -41,56 +41,86 @@ export function useSmartThings(deps: SmartThingsDeps) {
   depsRef.current = deps;
 
   // ── Estado de dispositivos ────────────────────────────────────────────────
-  const dispositivosTuyaRef = useRef<Dispositivo[]>([]);
+  const dispositivosRef = useRef<Dispositivo[]>([]);
+  const inicializacionRef = useRef<Promise<void> | null>(null);
+
+  const findDispositivo = (nombre: string, dispositivos = dispositivosRef.current) => {
+    const query = nombre.toLowerCase();
+    return dispositivos.find(dv =>
+      dv.nombre.toLowerCase().includes(query) ||
+      query.includes(dv.nombre.toLowerCase())
+    );
+  };
 
   // ── Inicialización: cargar dispositivos y su estado real ──────────────────
   async function inicializar(): Promise<void> {
-    obtenerEstadoSmartThings().then(async ({ vinculado, dispositivos }) => {
-      if (!vinculado) return;
-      // Consultar estado real (encendido/apagado) de cada dispositivo online
-      const conEstado = await Promise.all(
-        dispositivos.map(async d => {
-          if (!d.online) return d;
-          try {
-            const est = await obtenerEstadoDispositivo(d.id);
-            const encendido = est?.['switch'];
-            return { ...d, estado: typeof encendido === 'boolean' ? encendido : undefined };
-          } catch { return d; }
-        })
-      );
-      dispositivosTuyaRef.current = conEstado;
-    }).catch(() => {});
+    if (inicializacionRef.current) {
+      await inicializacionRef.current;
+      return;
+    }
+
+    inicializacionRef.current = (async () => {
+      try {
+        const { vinculado, dispositivos } = await obtenerEstadoSmartThings();
+        if (!vinculado) {
+          dispositivosRef.current = [];
+          return;
+        }
+
+        // Consultar estado real (encendido/apagado) de cada dispositivo online
+        const conEstado = await Promise.all(
+          dispositivos.map(async d => {
+            if (!d.online) return d;
+            try {
+              const est = await obtenerEstadoDispositivo(d.id);
+              const encendido = est?.['switch'];
+              return { ...d, estado: typeof encendido === 'boolean' ? encendido : undefined };
+            } catch {
+              return d;
+            }
+          })
+        );
+
+        dispositivosRef.current = conEstado;
+      } catch {}
+    })();
+
+    try {
+      await inicializacionRef.current;
+    } finally {
+      inicializacionRef.current = null;
+    }
   }
 
   // ── Ejecutar acción de domótica ───────────────────────────────────────────
   async function ejecutarAccion(action: DomoticaAction): Promise<void> {
     const { tipo, dispositivoNombre, valor } = action;
-    const dispositivos = dispositivosTuyaRef.current;
+    const dispositivos = dispositivosRef.current;
 
     if (tipo === 'todo') {
       // Apagar todos los dispositivos de una vez
-      await controlarTodos(dispositivos, false).catch(() => {});
-      dispositivosTuyaRef.current = dispositivos.map(dv =>
-        dv.online ? { ...dv, estado: false } : dv
-      );
-
-    } else if (tipo === 'control') {
-      const dispositivo = dispositivos.find(dv =>
-        dv.nombre.toLowerCase().includes(dispositivoNombre.toLowerCase()) ||
-        dispositivoNombre.toLowerCase().includes(dv.nombre.toLowerCase())
-      );
-      if (dispositivo) {
-        controlarDispositivo(dispositivo.id, Boolean(valor)).catch(() => {});
-        dispositivosTuyaRef.current = dispositivos.map(dv =>
-          dv.id === dispositivo.id ? { ...dv, estado: Boolean(valor) } : dv
+      const ok = await controlarTodos(dispositivos, false).then(() => true).catch(() => false);
+      if (ok) {
+        dispositivosRef.current = dispositivos.map(dv =>
+          dv.online ? { ...dv, estado: false } : dv
         );
       }
 
+    } else if (tipo === 'control') {
+      const dispositivo = findDispositivo(dispositivoNombre, dispositivos);
+      if (dispositivo) {
+        const ok = await controlarDispositivo(dispositivo.id, Boolean(valor))
+          .then(() => true)
+          .catch(() => false);
+        if (ok) {
+          dispositivosRef.current = dispositivos.map(dv =>
+            dv.id === dispositivo.id ? { ...dv, estado: Boolean(valor) } : dv
+          );
+        }
+      }
+
     } else if (tipo === 'estado') {
-      const dispositivo = dispositivos.find(dv =>
-        dv.nombre.toLowerCase().includes(dispositivoNombre.toLowerCase()) ||
-        dispositivoNombre.toLowerCase().includes(dv.nombre.toLowerCase())
-      );
+      const dispositivo = findDispositivo(dispositivoNombre, dispositivos);
       if (dispositivo) {
         const est = await obtenerEstadoDispositivo(dispositivo.id).catch(() => null);
         if (est) {
@@ -100,7 +130,7 @@ export function useSmartThings(deps: SmartThingsDeps) {
             : encendida === false
               ? `La ${dispositivo.nombre} está apagada.`
               : `No pude determinar el estado de ${dispositivo.nombre}.`;
-          dispositivosTuyaRef.current = dispositivos.map(dv =>
+          dispositivosRef.current = dispositivos.map(dv =>
             dv.id === dispositivo.id
               ? { ...dv, estado: typeof encendida === 'boolean' ? encendida : dv.estado }
               : dv
@@ -113,7 +143,7 @@ export function useSmartThings(deps: SmartThingsDeps) {
 
   return {
     /** Ref con la lista de dispositivos y su estado en memoria. */
-    dispositivosTuyaRef,
+    dispositivosTuyaRef: dispositivosRef,
     /** Carga dispositivos y su estado real desde el backend. Llamar en inicializar(). */
     inicializar,
     /** Ejecuta una acción de domótica parseada de la respuesta de Claude. */
