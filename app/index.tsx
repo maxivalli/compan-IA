@@ -14,6 +14,9 @@ import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRosita } from '../hooks/useRosita';
 import { useNotificaciones } from '../hooks/useNotificaciones';
+import { useAccionesRosita } from '../hooks/useAccionesRosita';
+import { useBLEBeacon } from '../hooks/useBLEBeacon';
+import RositaHorizontalLayout from '../components/RositaHorizontalLayout';
 import RosaOjos, { BG } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
 import ExpresionOverlay from '../components/ExpresionOverlay';
@@ -98,6 +101,7 @@ export default function Index() {
 
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
+  const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function mostrarFoto(urlFoto: string, descripcion: string) {
@@ -296,6 +300,7 @@ export default function Index() {
 
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom, top: safeTop } = useSafeAreaInsets();
+  const layoutMode = screenW > screenH ? 'horizontal' : 'vertical';
   const isTablet  = screenW >= 600;
   const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : 1;
   const textScale = faceScale; 
@@ -326,7 +331,65 @@ export default function Index() {
     : estado === 'hablando'   ? 'Hablando'
     : 'Hablar';
 
+  // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
+  const acciones = useAccionesRosita({
+    estado, musicaActiva, noMolestar,
+    iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
+    setNoMolestar,
+    iniciarSpeechRecognition: refs.iniciarSpeechRecognition,
+    detenerSilbido,
+    chequearPendientesAlActivar,
+  });
+
+  // ── BLE Beacon — solo activo en modo horizontal ──────────────────────────────
+  useBLEBeacon({
+    acciones,
+    modoHorizontal: layoutMode === 'horizontal',
+    onCaida: () => {
+      // Caída detectada: alerta inmediata por Telegram + voz
+      dispararSOS();
+    },
+  });
+
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+
+  // ── Modo horizontal: layout dedicado sin botones visibles ────────────────────
+  if (layoutMode === 'horizontal') {
+    return (
+      <RositaHorizontalLayout
+        modoReloj={modoRelojHorizontal}
+        onToggleModoReloj={() => setModoRelojHorizontal(prev => !prev)}
+        estado={estado}
+        expresion={expresion}
+        modoNoche={modoNoche}
+        musicaActiva={musicaActiva}
+        silbando={silbando}
+        noMolestar={noMolestar}
+        linternaActiva={linternaActiva}
+        detectandoSonido={detectandoSonido}
+        bgActual={bgActual}
+        degradadoCielo={degradadoCielo}
+        esFondoNoche={esFondoNoche}
+        cieloTapado={cieloTapado}
+        amaneciendo={amaneciendo}
+        climaObj={climaObj}
+        mostrarCamara={mostrarCamara}
+        camaraFacing={camaraFacing}
+        camaraSilenciosa={camaraSilenciosa}
+        onFotoCapturada={onFotoCapturada}
+        onFotoCancelada={onFotoCancelada}
+        fotoTelegram={fotoTelegram}
+        onClearFotoTelegram={() => setFotoTelegram(null)}
+        flashAnim={flashAnim}
+        esCumpleaños={esCumpleaños}
+        acciones={acciones}
+        onOjoPicado={onOjoPicado}
+        onCaricia={onCaricia}
+        onRelampago={onRelampago}
+        apagarLinterna={apagarLinterna}
+      />
+    );
+  }
 
   return (
     <>

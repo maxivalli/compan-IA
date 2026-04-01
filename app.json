@@ -3,7 +3,7 @@
     "name": "CompañIA",
     "slug": "AbuApp",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "compania",
     "userInterfaceStyle": "automatic",
@@ -63,7 +63,8 @@
         {
           "cameraPermission": "CompañIA necesita la cámara para sacar fotos y mandárselas a tu familia."
         }
-      ]
+      ],
+      "react-native-ble-plx"
     ],
     "experiments": {
       "typedRoutes": true
