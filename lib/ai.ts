@@ -2,8 +2,9 @@ import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken } from './memo
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 
-type Mensaje = { role: 'user' | 'assistant'; content: string };
-type SystemBlock = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
+type TextBlock = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
+type Mensaje = { role: 'user' | 'assistant'; content: string | TextBlock[] };
+type SystemBlock = TextBlock;
 
 // ── Device token (reemplaza la API key hardcodeada) ───────────────────────────
 

@@ -7,6 +7,7 @@ import {
   Perfil,
   EntradaAnimo,
   cargarPerfil,
+  guardarPerfil,
   obtenerFamiliaId,
   yaRecordo,
   marcarRecordado,
@@ -511,7 +512,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   const [esCumpleaños, setEsCumpleaños] = useState(false);
   const playerCumple = useAudioPlayer(require('../assets/audio/0319.mp3'));
 
-  // Detecta si hoy es el cumpleaños al montar (para mostrar globos todo el día)
+  // Detecta si hoy es el cumpleaños al montar (para mostrar globos desde que termina el modo noche)
   useEffect(() => {
     (async () => {
       // Leer directamente de storage por si perfilRef aún no cargó
@@ -519,7 +520,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!p?.fechaNacimiento) return;
       const ahora = new Date();
       const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
-      if (ahora.getMonth() + 1 === mm && ahora.getDate() === dd) setEsCumpleaños(true);
+      if (ahora.getMonth() + 1 !== mm || ahora.getDate() !== dd) return;
+      // Solo mostrar globos a partir de la hora de despertar (horaFinNoche, default 9)
+      const horaDespertar = p.horaFinNoche ?? 9;
+      if (ahora.getHours() < horaDespertar) return;
+      setEsCumpleaños(true);
     })();
   }, []);
 
@@ -570,7 +575,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!p || noMolestarRef.current) return;
       const ahora = new Date();
       // Desfasado 2 minutos respecto al saludoMatutino para no pisarse
-      if (ahora.getHours() !== 9 || ahora.getMinutes() < 2 || ahora.getMinutes() > 7) return;
+      const horaDespertarFecha = p.horaFinNoche ?? 9;
+      if (ahora.getHours() !== horaDespertarFecha || ahora.getMinutes() < 2 || ahora.getMinutes() > 7) return;
       for (const fecha of p.fechasImportantes) {
         const parsed = parsearFecha(fecha);
         if (!parsed) continue;
@@ -596,13 +602,21 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!p?.fechaNacimiento || noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
       const ahora = new Date();
-      if (ahora.getHours() !== 9 || ahora.getMinutes() > 8) return;
+      const horaDespertar = p.horaFinNoche ?? 9;
+      if (ahora.getHours() !== horaDespertar || ahora.getMinutes() > 8) return;
       const [mm, dd] = p.fechaNacimiento.split('-').map(Number);
       if (ahora.getMonth() + 1 !== mm || ahora.getDate() !== dd) return;
       const clave = `cumple_${ahora.toISOString().slice(0, 10)}`;
       const ya = await yaRecordo(clave);
       if (ya) return;
       await marcarRecordado(clave);
+      // Incrementar edad automáticamente al cumplir años
+      if (p.edad != null) {
+        const nuevaEdad = p.edad + 1;
+        const perfilActualizado = { ...p, edad: nuevaEdad };
+        await guardarPerfil(perfilActualizado).catch(() => {});
+        perfilRef.current = perfilActualizado;
+      }
       setEsCumpleaños(true);
       try {
         playerCumple.seekTo(0);
@@ -616,10 +630,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         });
       } catch {}
       try {
+        const pActual = perfilRef.current ?? p;
         const frase = await llamarClaude({
           maxTokens: 120,
-          system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva, sin etiquetas.`,
-          messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${p.nombreAbuela} con mucho cariño.` }],
+          system: `Sos ${pActual.nombreAsistente ?? 'Rosita'}, ${pActual.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${pActual.nombreAbuela}${pActual.edad ? ` (${pActual.edad} años)` : ''}. ${tonoSegunEdad(pActual.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva, sin etiquetas.`,
+          messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${pActual.nombreAbuela} con mucho cariño.` }],
         });
         if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
       } catch {}
@@ -1143,15 +1158,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     async function seriedeSilbidos() {
-      for (let i = 0; i < 3; i++) {
-        if (!puedeSilbar()) break;
-        iniciarSilbido();
-        // Esperar que termine el audio (~4.5s en reproducirSilbido) + 500ms extra
-        await new Promise(r => setTimeout(r, 5000));
-        detenerSilbido();
-        // Pausa entre silbidos
-        if (i < 2) await new Promise(r => setTimeout(r, 3000));
-      }
+      if (!puedeSilbar()) return;
+      iniciarSilbido();
+      // Esperar que termine el audio (~4.5s en reproducirSilbido) + 500ms extra
+      await new Promise(r => setTimeout(r, 5000));
+      detenerSilbido();
       ultimoSilbidoRef.current = Date.now();
     }
 

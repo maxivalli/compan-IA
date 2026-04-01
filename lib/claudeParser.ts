@@ -282,7 +282,7 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '[ENOJADA] — cuando expresa frustración o molestia',
     '[AVERGONZADA] — cuando dice algo confuso, gracioso sin querer, o se corrige',
     '[CANSADA] — cuando menciona que está cansada, con sueño o sin energía',
-    '[MUSICA: clave] — cuando piden música o radio ("poné música", "poné radio", "poné la radio", "quiero escuchar"). Géneros: tango, bolero, folklore, romantica, clasica, jazz, pop. Radios (usá la clave exacta): cadena3, lv3, mitre, continental, rivadavia, lared, metro, aspen, la100, folklorenac, rockpop, convos, urbana, radio10, destape, mega, vida, delplata, lt8. Nombres hablados → clave: "Radio Con Vos" o "89.9" → convos (OJO: "con vos" en español rioplatense significa "contigo" — solo usar convos cuando mencionan explícitamente la radio "Con Vos") | "La Red" → lared | "Rock and Pop" → rockpop | "Del Plata" → delplata | "Nacional Folklórica" → folklorenac. Avisale a la persona qué vas a poner. NUNCA uses nombre de canción ni artista.',
+    '[MUSICA: clave] — cuando piden música o radio ("poné música", "poné radio", "poné la radio", "quiero escuchar"). Géneros: tango, bolero, folklore, romantica, clasica, jazz, pop. Radios (usá la clave exacta): cadena3, lv3, mitre, continental, rivadavia, lared, metro, aspen, la100, folklorenac, rockpop, convos, urbana, radio10, destape, mega, vida, delplata, lt8. Nombres hablados → clave: "Radio Con Vos" o "89.9" → convos (OJO: "con vos" en español rioplatense significa "contigo" — solo usar convos cuando mencionan explícitamente la radio "Con Vos") | "La Red" → lared | "Rock and Pop" → rockpop | "Del Plata" → delplata | "Nacional Folklórica" → folklorenac. Avisale a la persona qué vas a poner con una frase corta y afirmativa (ej: "¡Dale, pongo boleros!", "¡Ahora mismo, va la radio Mitre!", "Para parar la música tocá la pantalla."). NUNCA hagas preguntas al poner música — el usuario no puede responder mientras suena el audio. NUNCA uses nombre de canción ni artista.',
     '[CUENTO] — cuando contás un cuento, historia o cualquier narrativa. Usá este tag SIEMPRE que el usuario pida que cuentes algo libre, una historia, un cuento, o diga "contame lo que quieras / lo que se te ocurra". Con este tag podés extenderte hasta 150 palabras.',
     '[JUEGO] — cuando iniciás una adivinanza, trivia, juego de memoria, cálculo mental o trabalenguas.',
     '[CHISTE] — cuando contás un chiste. Si hay un CHISTE CURADO en el contexto, contalo EXACTAMENTE como está escrito, sin modificarlo.',
@@ -450,10 +450,13 @@ export function parsearRespuesta(
   contactos: TelegramContacto[],
   familiares: string[],
 ): RespuestaParsed {
-  // Normalizar: algunos modelos (GPT) agregan texto antes del tag principal
+  // Normalizar: algunos modelos agregan texto antes del tag principal
   // Ej: "¡Claro! [MUSICA: tango]..." → "[MUSICA: tango]..."
+  // Solo hacer el slice si el bracket abre un TAG PRINCIPAL — evita tirar el texto
+  // hablable cuando el primer "[" es un tag secundario como [ANIMO_USUARIO:].
+  const PATRON_TAG_PRINCIPAL = /^\[(?:PARAR_MUSICA|LINTERNA|MUSICA:|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)/i;
   const firstBracket = respuestaRaw.indexOf('[');
-  const raw = firstBracket > 0 && firstBracket < 80
+  const raw = firstBracket > 0 && firstBracket < 80 && PATRON_TAG_PRINCIPAL.test(respuestaRaw.slice(firstBracket))
     ? respuestaRaw.slice(firstBracket)
     : respuestaRaw;
 
@@ -480,6 +483,16 @@ export function parsearRespuesta(
       raw.replace(/^\[[^\]]+\]\s*/, '').replace(/\[MUSICA:[^\]]+\]\s*/gi, '')
     );
     return { tagPrincipal: 'MUSICA', generoMusica, respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
+  }
+  // Fallback: Claude olvidó el tag pero el texto menciona explícitamente la música/radio.
+  // Ej: "¡Dale, pongo Radio Vida!" sin [MUSICA: vida] → inferir el género del texto.
+  const musicaEnTexto = raw.match(/(?:pongo|pon[eé]|escuch[aá]|va)\s+(?:(?:la\s+|radio\s+|fm\s+)?(.+?))(?:\s+ahora|!|,|\.|\n|$)/i);
+  if (musicaEnTexto) {
+    const generoInferido = detectarGenero(musicaEnTexto[1]?.trim() ?? '');
+    if (generoInferido) {
+      const respuesta = limpiarTagsFinales(raw.replace(/\[ANIMO_USUARIO:[^\]]*\]?\s*/i, '').replace(/\[RECUERDO:[^\]]*\]?\s*/gi, '').trim());
+      return { tagPrincipal: 'MUSICA', generoMusica: generoInferido, respuesta, expresion: 'feliz', animoUsuario: 'feliz', recuerdos: [] };
+    }
   }
 
   // ── MENSAJE_FAMILIAR ──

@@ -168,50 +168,39 @@ function calcularFaseLunar(fecha: Date): number {
 // El círculo base tiene radio R centrado en (R, R).
 // La fase determina qué porción está iluminada y en qué lado.
 function lunaPath(R: number, fase: number): string {
-  // fase 0   = luna nueva (todo oscuro)
-  // fase 0.5 = luna llena (todo iluminado)
-  // 0..0.5   = creciente (iluminado lado derecho)
-  // 0.5..1   = menguante (iluminado lado izquierdo)
-
   const cx = R;
   const cy = R;
 
-  // El "terminator" es una elipse cuyo eje X varía con la fase.
-  // Cuando fase=0.25 → elipse plana (cuarto creciente)
-  // Cuando fase=0.5  → círculo lleno
-  // Cuando fase=0.75 → elipse plana (cuarto menguante)
-  const creciente = fase <= 0.5;
-  // Normalizar: 0..0.5 → 0..1 y 0.5..1 → 1..0
-  const t = creciente ? fase * 2 : (1 - fase) * 2;
-  // rx del terminator: va de R (luna nueva/llena) a 0 (cuartos)
-  // t=0 → rx=R (terminador = semicírculo, nada iluminado / todo iluminado)
-  // t=1 → rx=0 (cuarto exacto, terminador es línea recta)
-  const rx = R * Math.abs(1 - t * 2); // 0..R
-  const ladoDerecho = fase <= 0.5;
-
-  if (fase < 0.02 || fase > 0.98) {
-    // Luna nueva — círculo muy tenue, casi invisible
-    return `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} Z`;
-  }
-
+  // 1. Luna Nueva: no dibujamos nada extra
+  if (fase < 0.02 || fase > 0.98) return "";
+  
+  // 2. Luna Llena: fix de SVG con dos semicírculos
   if (fase > 0.48 && fase < 0.52) {
-    // Luna llena — círculo completo
-    return `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} Z`;
+    return `M ${cx} ${cy - R} A ${R} ${R} 0 0 1 ${cx} ${cy + R} A ${R} ${R} 0 0 1 ${cx} ${cy - R} Z`;
   }
 
-  // Semicírculo iluminado (mitad derecha para creciente, izquierda para menguante)
-  // + arco elíptico del terminator
-  const sweep_semi  = ladoDerecho ? 1 : 0; // sentido del semicírculo
-  const sweep_term  = ladoDerecho ? (t < 1 ? 0 : 1) : (t < 1 ? 1 : 0);
+  const creciente = fase <= 0.5;
+  const t = creciente ? fase * 2 : (1 - fase) * 2;
+  const rx = R * Math.abs(1 - t * 2);
 
-  // Puntos superior e inferior del diámetro vertical
+  // 3. Lógica para el Hemisferio Sur:
+  // Creciente ilumina desde la izquierda (C), Menguante desde la derecha (D)
+  const ladoIzquierdo = creciente; 
+  
+  // sweep_semi: 0 dibuja el borde izquierdo, 1 dibuja el derecho
+  const sweep_semi = ladoIzquierdo ? 0 : 1;
+
+  // sweep_term: hacia dónde "pansea" la curva interna
+  // Arreglado el bug que convertía gibosas en medialunas
+  const sweep_term = ladoIzquierdo
+    ? (t < 0.5 ? 1 : 0)
+    : (t < 0.5 ? 0 : 1);
+
   const top    = `${cx} ${cy - R}`;
   const bottom = `${cx} ${cy + R}`;
 
-  // Semicírculo exterior (lado iluminado)
-  const semi = `M ${top} A ${R} ${R} 0 1 ${sweep_semi} ${bottom}`;
-  // Arco elíptico del terminator (une bottom con top)
-  const term = `A ${rx} ${R} 0 1 ${sweep_term} ${top}`;
+  const semi = `M ${top} A ${R} ${R} 0 0 ${sweep_semi} ${bottom}`;
+  const term = `A ${rx} ${R} 0 0 ${sweep_term} ${top}`;
 
   return `${semi} ${term} Z`;
 }

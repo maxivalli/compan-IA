@@ -177,6 +177,154 @@ export async function agregarRecuerdo(texto: string): Promise<void> {
   await guardarPerfil({ ...perfil, recuerdos });
 }
 
+// ── Memoria episódica ────────────────────────────────────────────────────────
+
+export type MemoriaEpisodica = {
+  id: string;
+  resumen: string;
+  keywords: string[];
+  createdAt: number;
+  updatedAt: number;
+  lastAskedAt: number;
+  mentions: number;
+};
+
+const CLAVE_MEMORIA_EPISODICA = 'rosa_memoria_episodica';
+const STOPWORDS_MEMORIA = new Set([
+  'a', 'al', 'algo', 'ante', 'antes', 'buenas', 'buenos', 'como', 'con', 'cual', 'cuales', 'cuál', 'cuáles',
+  'de', 'del', 'desde', 'donde', 'dos', 'el', 'ella', 'ellas', 'ellos', 'en', 'era', 'eres', 'es', 'esa',
+  'ese', 'eso', 'esta', 'estaba', 'estado', 'estamos', 'estan', 'estar', 'estas', 'este', 'esto', 'fue',
+  'gracias', 'hablar', 'hablamos', 'hola', 'hoy', 'la', 'las', 'le', 'les', 'lo', 'los', 'mas', 'me',
+  'mi', 'mis', 'mucho', 'muy', 'no', 'nos', 'nuestra', 'nuestro', 'para', 'pero', 'poco', 'por', 'porque',
+  'que', 'qué', 'receta', 'se', 'si', 'sin', 'sobre', 'su', 'sus', 'te', 'tema', 'tenia', 'teníamos',
+  'todo', 'tu', 'un', 'una', 'uno', 'vos', 'ya',
+]);
+
+function limpiarTextoMemoria(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extraerKeywordsMemoria(texto: string, max = 8): string[] {
+  const palabras = limpiarTextoMemoria(texto)
+    .split(' ')
+    .filter(p => p.length >= 4 && !STOPWORDS_MEMORIA.has(p));
+  const pesos = new Map<string, number>();
+  for (const palabra of palabras) {
+    pesos.set(palabra, (pesos.get(palabra) ?? 0) + 1);
+  }
+  return [...pesos.entries()]
+    .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length)
+    .slice(0, max)
+    .map(([palabra]) => palabra);
+}
+
+function truncarMemoria(texto: string, maxLen = 180): string {
+  const limpio = texto.replace(/\s+/g, ' ').trim();
+  if (limpio.length <= maxLen) return limpio;
+  return `${limpio.slice(0, maxLen - 1).trimEnd()}…`;
+}
+
+function esTemaMemorable(textoUsuario: string): boolean {
+  const t = limpiarTextoMemoria(textoUsuario);
+  if (t.length < 18) return false;
+  if (/\b(hola|chau|gracias|de nada|que hora|que dia|que fecha|clima|tiempo|llueve|temperatura)\b/.test(t)) return false;
+  if (/\b(receta|ingredientes|cocinar|comida|horno|salsa|masa|guiso|torta|pastel)\b/.test(t)) return true;
+  if (/\b(me acuerdo|te acordas|acordate|recorda|recordame|cuando era|mi mama|mi papa|mi hijo|mi hija|mi niet|mi hermano|mi hermana|mi mascota)\b/.test(t)) return true;
+  if (/\b(me gusta|prefiero|siempre|nunca|suelo|antes|de chica|de chico|de joven|cumpleanos|cumpleanos|medicamento|dolor|salud)\b/.test(t)) return true;
+  return extraerKeywordsMemoria(t).length >= 3;
+}
+
+function resumirMemoria(textoUsuario: string, textoAsistente: string): string {
+  const usuario = truncarMemoria(textoUsuario, 120);
+  const asistente = truncarMemoria(textoAsistente.replace(/\[[^\]]+\]\s*/g, ''), 120);
+  if (asistente.length < 12) return `Hablaron sobre: ${usuario}`;
+  return `Hablaron sobre: ${usuario}. Rosita respondió: ${asistente}`;
+}
+
+export async function cargarMemoriasEpisodicas(): Promise<MemoriaEpisodica[]> {
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_MEMORIA_EPISODICA);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function guardarMemoriasEpisodicas(lista: MemoriaEpisodica[]): Promise<void> {
+  try {
+    const ordenadas = [...lista]
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 80);
+    await AsyncStorage.setItem(CLAVE_MEMORIA_EPISODICA, JSON.stringify(ordenadas));
+  } catch {}
+}
+
+export async function registrarMemoriaEpisodica(textoUsuario: string, textoAsistente: string): Promise<void> {
+  if (!esTemaMemorable(textoUsuario)) return;
+  const resumen = resumirMemoria(textoUsuario, textoAsistente);
+  const keywords = extraerKeywordsMemoria(`${textoUsuario} ${textoAsistente}`);
+  if (keywords.length === 0) return;
+
+  const ahora = Date.now();
+  const memorias = await cargarMemoriasEpisodicas();
+  const nuevaNorm = limpiarTextoMemoria(resumen);
+  const existente = memorias.find(mem => {
+    const overlap = mem.keywords.filter(k => keywords.includes(k)).length;
+    return overlap >= Math.min(3, Math.max(2, keywords.length - 1)) || limpiarTextoMemoria(mem.resumen) === nuevaNorm;
+  });
+
+  if (existente) {
+    existente.resumen = resumen;
+    existente.keywords = [...new Set([...keywords, ...existente.keywords])].slice(0, 10);
+    existente.updatedAt = ahora;
+    existente.lastAskedAt = ahora;
+    existente.mentions += 1;
+  } else {
+    memorias.push({
+      id: `${ahora}_${Math.random().toString(36).slice(2, 8)}`,
+      resumen,
+      keywords,
+      createdAt: ahora,
+      updatedAt: ahora,
+      lastAskedAt: ahora,
+      mentions: 1,
+    });
+  }
+
+  await guardarMemoriasEpisodicas(memorias);
+}
+
+export async function buscarMemoriasEpisodicas(query: string, limit = 3): Promise<MemoriaEpisodica[]> {
+  const q = limpiarTextoMemoria(query);
+  if (!q) return [];
+  const qKeywords = extraerKeywordsMemoria(q, 10);
+  if (qKeywords.length === 0 && q.length < 12) return [];
+
+  const memorias = await cargarMemoriasEpisodicas();
+  const ahora = Date.now();
+
+  return memorias
+    .map(mem => {
+      const overlap = mem.keywords.filter(k => qKeywords.includes(k)).length;
+      const resumenNorm = limpiarTextoMemoria(mem.resumen);
+      const substringHit = q.length >= 6 && (resumenNorm.includes(q) || q.includes(resumenNorm.slice(0, 24)));
+      const recencyDays = Math.max(1, (ahora - mem.updatedAt) / (24 * 60 * 60 * 1000));
+      const recencyBoost = 1 / recencyDays;
+      const score = overlap * 4 + (substringHit ? 5 : 0) + Math.min(mem.mentions, 4) + recencyBoost;
+      return { mem, score };
+    })
+    .filter(item => item.score >= 4)
+    .sort((a, b) => b.score - a.score || b.mem.updatedAt - a.mem.updatedAt)
+    .slice(0, limit)
+    .map(item => item.mem);
+}
+
 // ── Contexto ─────────────────────────────────────────────────────────────────
 
 function limpiarDato(s: string): string {
