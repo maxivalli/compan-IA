@@ -29,6 +29,7 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
+const TTS_SEGMENT_PADDING_MS = 80;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -748,6 +749,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             ? precachearTexto(oraciones[i + 1], emotion)
             : Promise.resolve();
           await hablar(oraciones[i], emotion);
+          if (i + 1 < oraciones.length) {
+            await new Promise(r => setTimeout(r, TTS_SEGMENT_PADDING_MS));
+          }
           depsRef.current.rcStartTsRef.current = Date.now();
           await nextPrecache;
         }
