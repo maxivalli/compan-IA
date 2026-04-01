@@ -813,11 +813,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         d.estadoRef.current = 'hablando';
         player.play();
         if (__DEV__) console.log('[TTS] play() llamado');
+        let finishReason: string | null = null;
         await new Promise<void>(resolve => {
           let resolved = false;
           const done = (motivo: string) => {
             if (resolved) return;
             resolved = true;
+            finishReason = motivo;
             cancelarHablaRef.current = null;
             clearInterval(pollInterval);
             if (durationTimer !== undefined) clearTimeout(durationTimer);
@@ -911,8 +913,16 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             }
           }, 150);
         });
+        if (isStream && finishReason === 'no-start') {
+          if (__DEV__) console.log('[TTS] no-start en stream, fallback a Speech.speak');
+          d.setEstado('hablando');
+          d.estadoRef.current = 'hablando';
+          await new Promise<void>((resolve) => {
+            Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
+          });
+        }
       } else {
-        if (__DEV__) console.log('[TTS] fallback a Speech.speak (ElevenLabs falló)');
+        if (__DEV__) console.log('[TTS] fallback a Speech.speak (sin URI de stream)');
         d.setEstado('hablando');
         d.estadoRef.current = 'hablando';
         await new Promise<void>((resolve) => {
