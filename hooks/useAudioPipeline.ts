@@ -134,7 +134,10 @@ export function limpiarTextoParaTTS(texto: string): string {
 
 /** Extrae la primera frase y el resto de un texto. */
 export function extraerPrimeraFrase(texto: string): { primera: string; resto: string } {
-  const match = texto.match(/^.{20,}?[.!?](?:\s+|$)/);
+  // Mínimo 8 chars (igual que el umbral del streaming SSE) para no perder
+  // oraciones cortas como "Bien, acá estoy." (16 chars) cuando la respuesta
+  // tiene más de una oración.
+  const match = texto.match(/^.{8,}?[.!?](?:\s+|$)/);
   if (!match) return { primera: texto, resto: '' };
   const primera = match[0].trimEnd();
   const resto   = texto.slice(match[0].length).trim();
@@ -667,8 +670,51 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const d = depsRef.current;
     d.setEstado('hablando');
     d.estadoRef.current = 'hablando';
+    const fishEnCooldown = Date.now() < fishRealtimeCooldownUntilRef.current;
+
+    // Si Fish acaba de devolver 429, no golpear el mismo proveedor otra vez por HTTP.
+    // En ese caso priorizamos una frase buffer ya cacheada con la voz de Rosita.
+    if (fishEnCooldown) {
+      const pudoCache = await reproducirFallbackFishCacheado().catch(() => false);
+      if (pudoCache) return;
+    }
+
+    // 1. Si Fish no está en cooldown, intentar sintetizar el texto real vía HTTP.
+    //    Esto preserva el contenido cuando el problema fue puntual del stream y no un 429.
+    if (!fishEnCooldown) {
+      try {
+        const p = d.perfilRef.current;
+        const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(p?.edad));
+        if (base64) {
+          const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_fallback_` + hashTexto(texto) + '.mp3';
+          await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+          player.replace({ uri: cacheUri });
+          player.play();
+          await new Promise<void>((resolve) => {
+            const safety = setTimeout(resolve, 30000);
+            const poll = setInterval(() => {
+              const dur = (player as any).duration as number;
+              const pos = (player as any).currentTime as number;
+              const durKnown = !isNaN(dur) && dur > 0 && isFinite(dur);
+              if (durKnown && pos >= dur - 0.15) {
+                clearTimeout(safety); clearInterval(poll);
+                try { player.pause(); } catch {}
+                resolve();
+              }
+            }, 150);
+          });
+          return;
+        }
+      } catch {}
+    }
+
+    // 2. Si no pudimos hablar el texto real, usar frase buffer de Rosita antes de
+    //    caer en voz nativa. Prioriza continuidad de voz sobre silencio/errores.
     const pudoCache = await reproducirFallbackFishCacheado().catch(() => false);
     if (pudoCache) return;
+
+    // 3. Última red: voz nativa del sistema.
     await new Promise<void>((resolve) => {
       Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
     });
@@ -703,7 +749,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     };
     precacheQueueRef.current = precacheQueueRef.current.catch(() => {}).then(run);
-    await precacheQueueRef.current;
+    // Fire-and-forget: el caller no necesita esperar que el precache termine.
+    // La cola garantiza que solo corre un request Fish Audio a la vez.
   }
 
   async function precachearMuletillas(voiceId?: string, nombre?: string) {
@@ -1048,15 +1095,17 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         await hablar(oraciones[0], emotion);
       } else {
         for (let i = 0; i < oraciones.length; i++) {
-          const nextPrecache = i + 1 < oraciones.length
-            ? precachearTexto(oraciones[i + 1], emotion)
-            : Promise.resolve();
+          // Disparar el precache de la siguiente oración SIN esperar — corre en paralelo
+          // mientras se reproduce la oración actual. La cola interna de precacheQueueRef
+          // garantiza que solo va un request Fish a la vez.
+          if (i + 1 < oraciones.length) {
+            precachearTexto(oraciones[i + 1], emotion).catch(() => {});
+          }
           await hablar(oraciones[i], emotion);
           if (i + 1 < oraciones.length) {
             await new Promise(r => setTimeout(r, TTS_SEGMENT_PADDING_MS));
           }
           depsRef.current.rcStartTsRef.current = Date.now();
-          await nextPrecache;
         }
       }
     } finally {
