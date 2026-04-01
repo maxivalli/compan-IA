@@ -4,6 +4,7 @@ import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cargarPerfil } from '../lib/memoria';
+import { obtenerEstadoSmartThings } from '../lib/smartthings';
 
 const ITEMS = [
   { ruta: '/',              label: 'ASISTENTE',       sub: 'Pantalla principal',    icono: 'heart',            color: '#7C5200', bg: '#FFE0A0' },
@@ -32,6 +33,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const [nombreAsistente, setNombre]   = useState('Rosita');
   const [vozGenero, setVozGenero]      = useState<'femenina' | 'masculina'>('femenina');
+  const [smartLinkVisible, setSmartLinkVisible] = useState(false);
   const insets = useSafeAreaInsets();
 
   const { width: screenW } = useWindowDimensions();
@@ -59,6 +61,17 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   const router   = useRouter();
   const pathname = usePathname();
 
+  useEffect(() => {
+    if (!abierto) return;
+    let viva = true;
+    obtenerEstadoSmartThings().then(({ vinculado }) => {
+      if (viva) setSmartLinkVisible(vinculado);
+    }).catch(() => {
+      if (viva) setSmartLinkVisible(false);
+    });
+    return () => { viva = false; };
+  }, [abierto, pathname]);
+
   function abrir() {
     setAbierto(true);
     Animated.parallel([
@@ -77,6 +90,15 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   function ir(ruta: string) { cerrar(() => router.push(ruta as any)); }
 
   const translateX = slide.interpolate({ inputRange: [0, 1], outputRange: [panelW + 20, 0] });
+  const items = smartLinkVisible
+    ? [
+        ITEMS[0],
+        ITEMS[1],
+        ITEMS[2],
+        { ruta: '/smartlink', label: 'SmartLink', sub: 'Luces y dispositivos', icono: 'bulb-outline', color: '#8E5A00', bg: '#FFE7BE' },
+        ITEMS[3],
+      ]
+    : ITEMS;
 
   return (
     <>
@@ -112,7 +134,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
 
             {/* ── Nav items como chips tonales ── */}
             <View style={s.lista}>
-              {ITEMS.map(({ ruta, label, sub, icono, color, bg }) => {
+              {items.map(({ ruta, label, sub, icono, color, bg }) => {
                 const activo = pathname === ruta;
                 return (
                   <Pressable

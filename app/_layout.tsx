@@ -83,6 +83,7 @@ export default function Layout() {
       <Tabs backBehavior="initialRoute" screenOptions={{ headerShown: false, tabBarStyle: { display: 'none' } }}>
         <Tabs.Screen name="index" />
         <Tabs.Screen name="configuracion" />
+        <Tabs.Screen name="smartlink" />
         <Tabs.Screen name="animo" />
         <Tabs.Screen name="privacidad" />
         <Tabs.Screen name="onboarding" />
