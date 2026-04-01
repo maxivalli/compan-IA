@@ -29,7 +29,6 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
-const TTS_NATIVE_MAX_CHARS = 110;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -128,22 +127,6 @@ export function splitEnOraciones(texto: string): string[] {
   const cola = texto.slice(lastIdx).trim();
   if (cola.length >= 4 && /\w/.test(cola)) oraciones.push(cola);
   return oraciones.filter(s => s.length > 0);
-}
-
-function normalizarTTS(texto: string): string {
-  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-}
-
-function esTTSUtilitario(texto: string, emotion?: string): boolean {
-  if (USAR_TTS_NATIVO) return true;
-  if ((emotion ?? 'neutral') !== 'neutral') return false;
-  if (!texto || texto.length > TTS_NATIVE_MAX_CHARS) return false;
-
-  const t = normalizarTTS(texto);
-  const esConversacional = /\b(te escucho|entiendo|estoy aca|contame|debe ser|que duro|que lindo|me alegra|ay,|uy,|hablamos|charlamos|si queres|si queres hablar|que disfrutes|descanses)\b/.test(t);
-  if (esConversacional) return false;
-
-  return /\b(hora|horas|fecha|dia|clima|temperatura|grados|lluv|pronostico|alarma|recordatorio|timer|minutos?|segundos?|linterna|luz|luces|apaga|prende|enciende|listo|hecho|ok|perfecto|aviso|recordare|recordare|ya esta|ya esta listo|volves|cuando volves)\b/.test(t);
 }
 
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
@@ -464,7 +447,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   async function precachearTexto(texto: string, emotion?: string) {
     const limpio = limpiarTextoParaTTS(texto);
     if (!limpio) return;
-    if (esTTSUtilitario(limpio, emotion)) return;
     const key = hashTexto(limpio + '|' + (emotion ?? ''));
     if (precacheInFlightRef.current.has(key)) return;
     precacheInFlightRef.current.add(key);
@@ -581,11 +563,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     d.estadoRef.current = 'hablando';
 
     texto = limpiarTextoParaTTS(texto);
-    const usarTTSNativo = esTTSUtilitario(texto, emotion);
-    logCliente('tts_route', { mode: usarTTSNativo ? 'native' : 'premium', chars: texto.length, emotion: emotion ?? 'none' });
 
     // ── TTS nativo (testing) ─────────────────────────────────────────────
-    if (usarTTSNativo) {
+    if (USAR_TTS_NATIVO) {
       d.setEstado('hablando');
       d.estadoRef.current = 'hablando';
       await new Promise<void>(resolve => {
