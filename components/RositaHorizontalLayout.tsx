@@ -202,69 +202,62 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                 <RelojHorizontalFullscreen />
               </View>
             ) : (
-              <TouchableOpacity
-                activeOpacity={1}
-                onPress={props.acciones.toggleTalkOrStopMusic}
-                onLongPress={props.acciones.triggerSOS}
-                delayLongPress={2000}
-                style={{ flex: 1 }}
-                {...panCaricia.panHandlers}
-              >
-                <View style={{
-                  width: screenW,
-                  height: screenH,
-                  overflow: 'hidden',
-                  alignItems: 'center',
-                  justifyContent: 'flex-start',
-                  paddingTop: Math.round(screenH * 0.05),
-                }}>
-                  <ExpresionOverlay
-                    capa="fondo"
-                    expresion={props.expresion}
-                    musicaActiva={props.musicaActiva}
-                    temperatura={props.climaObj?.temperatura}
-                    condicion={props.climaObj?.descripcion}
-                    modoNoche={props.modoNoche}
-                  />
-                  <RosaOjos
-                    estado={props.estado}
-                    expresion={props.expresion}
-                    modoNoche={props.modoNoche}
-                    bgColor={props.bgActual}
-                    silbando={props.silbando}
-                    noMolestar={props.noMolestar}
-                    onOjoPicado={props.onOjoPicado}
-                    scale={faceScale}
-                    amaneciendo={props.amaneciendo}
-                  />
-                  <ExpresionOverlay
-                    capa="frente"
-                    expresion={props.expresion}
-                    musicaActiva={props.musicaActiva}
-                    temperatura={props.climaObj?.temperatura}
-                    condicion={props.climaObj?.descripcion}
-                    modoNoche={props.modoNoche}
-                    silbando={props.silbando}
-                    onRelampago={props.onRelampago}
-                    esCumpleaños={props.esCumpleaños}
-                  />
-                </View>
+              <View style={{ flex: 1 }}>
+                <Pressable
+                  style={StyleSheet.absoluteFill}
+                  onPress={props.acciones.toggleTalkOrStopMusic}
+                  onLongPress={props.acciones.triggerSOS}
+                  delayLongPress={2000}
+                />
 
                 <View
-                  style={StyleSheet.absoluteFill}
+                  style={styles.faceTouchArea}
                   pointerEvents="box-none"
                   {...panCaricia.panHandlers}
-                />
-
-                <Pressable
-                  style={[styles.eyeHotspot, { top: eyeTop, left: leftEyeLeft, width: eyeBoxW, height: eyeBoxH }]}
-                  onPress={props.onOjoPicado}
-                />
-                <Pressable
-                  style={[styles.eyeHotspot, { top: eyeTop, left: rightEyeLeft, width: eyeBoxW, height: eyeBoxH }]}
-                  onPress={props.onOjoPicado}
-                />
-              </TouchableOpacity>
+                >
+                  <View style={{
+                    width: screenW,
+                    height: screenH,
+                    overflow: 'hidden',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    paddingTop: Math.round(screenH * 0.05),
+                  }}>
+                    <ExpresionOverlay
+                      capa="fondo"
+                      expresion={props.expresion}
+                      musicaActiva={props.musicaActiva}
+                      temperatura={props.climaObj?.temperatura}
+                      condicion={props.climaObj?.descripcion}
+                      modoNoche={props.modoNoche}
+                      modoHorizontal
+                    />
+                    <RosaOjos
+                      estado={props.estado}
+                      expresion={props.expresion}
+                      modoNoche={props.modoNoche}
+                      bgColor={props.bgActual}
+                      silbando={props.silbando}
+                      noMolestar={props.noMolestar}
+                      onOjoPicado={props.onOjoPicado}
+                      scale={faceScale}
+                      amaneciendo={props.amaneciendo}
+                    />
+                    <ExpresionOverlay
+                      capa="frente"
+                      expresion={props.expresion}
+                      musicaActiva={props.musicaActiva}
+                      temperatura={props.climaObj?.temperatura}
+                      condicion={props.climaObj?.descripcion}
+                      modoNoche={props.modoNoche}
+                      silbando={props.silbando}
+                      onRelampago={props.onRelampago}
+                      esCumpleaños={props.esCumpleaños}
+                      modoHorizontal
+                    />
+                  </View>
+                </View>
+              </View>
             )}
           </View>
 
@@ -347,8 +340,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
-  eyeHotspot: {
-    position: 'absolute',
+  faceTouchArea: {
+    ...StyleSheet.absoluteFillObject,
   },
   relojWrap: {
     flexDirection: 'row',

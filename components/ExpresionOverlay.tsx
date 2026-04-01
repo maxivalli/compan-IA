@@ -20,6 +20,7 @@ type Props = {
   capa?:        'fondo' | 'frente';
   silbando?:    boolean;
   onRelampago?: () => void;
+  modoHorizontal?: boolean;
 };
 
 // Detecta si hoy es cumpleaños o Navidad para mostrar el accesorio correspondiente
@@ -33,12 +34,13 @@ function detectarAccesorio(): 'bonete' | 'gorro' | null {
 
 export default function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
-  modoNoche, capa = 'frente', silbando = false, onRelampago,
+  modoNoche, capa = 'frente', silbando = false, onRelampago, modoHorizontal = false,
   esCumpleaños = false,
 }: Props & { esCumpleaños?: boolean }) {
   const fade = useRef(new Animated.Value(0)).current;
-  const { width: screenW } = useWindowDimensions();
+  const { width: screenW, height: screenH } = useWindowDimensions();
   const faceScale = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1;
+  const esHorizontalPantalla = modoHorizontal || screenW > screenH;
 
   const horaActual = new Date().getHours();
   const esNoche    = horaActual >= 20 || horaActual < 5;
@@ -91,12 +93,16 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
             {expresion === 'triste'      && <Lagrimas />}
             {expresion === 'feliz'       && <Corazones />}
             {expresion === 'mimada'      && <Corazones />}
-            {expresion === 'mimada'      && <Mejillas />}
+            {expresion === 'mimada'      && !esHorizontalPantalla && <Mejillas />}
             {expresion === 'sorprendida' && !esTormenta && <Exclamaciones />}
             {expresion === 'pensativa'   && <SignosPregunta />}
             {expresion === 'chiste'      && <Carcajada />}
             {expresion === 'enojada'     && <CenoEnojado />}
-            {expresion === 'enojada'     && <Grawlixes />}
+            {expresion === 'enojada'     && (
+              <View style={esHorizontalPantalla ? { transform: [{ translateY: 62 }] } : undefined}>
+                <Grawlixes />
+              </View>
+            )}
           </Animated.View>
         </View>
       </View>
