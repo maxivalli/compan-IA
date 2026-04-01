@@ -452,19 +452,24 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     const pideNoticias = !esConsultaHorario && /\b(como salio|salio|resultado|gano|perdio|partido|noticias|novedades|que paso|que hay|que se sabe|que esta pasando|actualidad|hoy en|contame algo|algo nuevo|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|copa|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formula|formulauno|f1|gran premio|carrera|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
     const pideBusqueda = esConsultaHorario || /\b(numero|telefono|direccion|donde queda|donde hay|comedor|municipalidad|municipio|farmacia|hospital|guardia|medico|odontologo|dentista|supermercado|colectivo|omnibus|horario|esta abierto|cerca de|cerca mia|cerca mio|cercano|cercana|mas cerca|banco|correo|correoargentino|renaper|anses|pami|cuando juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|heladeria|heladerias|restaurant|restaurante|pizzeria|panaderia|carniceria|verduleria|ferreteria|peluqueria|gimnasio|kiosco|confiteria|cafe|bar|veterinaria|optica|zapateria|ropa|tienda|negocio|local|comercio|donde puedo|donde compro|donde venden|estacion.{0,5}servicio|nafta|combustible|surtidor|ypf|shell|axion|hay .{3,30} en|intendente|municipio|googlea|googlear|googleame|googlea(me)?|busca|buscame|busca(me)?|busca en internet|buscar en internet|internet|en google|google)\b/.test(textoNorm);
     const preguntaLugarVivo = /\b(lugar donde vivo|ciudad donde vivo|donde vivo|pueblo donde vivo|barrio donde vivo|contame (del|sobre el|de mi|sobre mi) (lugar|ciudad|pueblo|barrio|zona)|que (me podes|podes|sabes|me sabes) contar (del|de mi|sobre) (lugar|ciudad|pueblo|barrio))\b/.test(textoNorm);
-    const pideWikipedia = !pideNoticias && !pideBusqueda && (preguntaLugarVivo || /\b(que es|qué es|que son|qué son|que fue|qué fue|quien es|quién es|quien fue|quién fue|quien era|quién era|contame (sobre|de)|explicame|explicá(me)?|me explicás|que significa|qué significa|historia de|origen de|como funciona|cómo funciona|para que sirve|para qué sirve|cuando naci[oó]|biografía|biografia|quien invento|quién inventó|wikipedia)\b/.test(textoNorm));
+    const esCierreConversacional = /\b(gracias|bueno|buena|listo|dale|despues|después|mas tarde|más tarde|seguimos|volvemos a charlar|te cuento|me voy|nos vemos|chau)\b/.test(textoNorm);
+    const pideWikipedia = !esCierreConversacional && !pideNoticias && !pideBusqueda && (preguntaLugarVivo || /\b(que es|qué es|que son|qué son|que fue|qué fue|quien es|quién es|quien fue|quién fue|quien era|quién era|contame (sobre|de)|explicame|explicá(me)?|me explicás|que significa|qué significa|historia de|origen de|como funciona|cómo funciona|para que sirve|para qué sirve|cuando naci[oó]|biografía|biografia|quien invento|quién inventó|wikipedia)\b/.test(textoNorm));
 
     let queryBusqueda = textoUsuario;
     let tipoLugar: string | null = null;
     if (pideBusqueda) {
+      const matchBusquedaExplicita = textoUsuario.match(/(?:busca(?:me)?|buscar(?:me)?|googlea(?:me)?|googlear)\s+(?:en\s+internet|en\s+google)?\s*(.+)$/i);
+      if (matchBusquedaExplicita?.[1]) {
+        queryBusqueda = matchBusquedaExplicita[1].trim();
+      }
       const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
       const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay|en mi ciudad|en la ciudad/.test(textoNorm);
       const esHorario  = esConsultaHorario || /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
       const ciudad     = d.ciudadRef.current;
-      if (esTelefono && ciudad)   queryBusqueda = `${textoUsuario} número de teléfono ${ciudad} Argentina`;
-      else if (esCerca && ciudad) queryBusqueda = `${textoUsuario} más cercano a ${ciudad} Argentina`;
-      else if (esHorario)         queryBusqueda = `${textoUsuario} fecha y hora confirmada`;
-      else if (ciudad)            queryBusqueda = `${textoUsuario} ${ciudad} Argentina`;
+      if (esTelefono && ciudad)   queryBusqueda = `${queryBusqueda} número de teléfono ${ciudad} Argentina`;
+      else if (esCerca && ciudad) queryBusqueda = `${queryBusqueda} más cercano a ${ciudad} Argentina`;
+      else if (esHorario)         queryBusqueda = `${queryBusqueda} fecha y hora confirmada`;
+      else if (ciudad)            queryBusqueda = `${queryBusqueda} ${ciudad} Argentina`;
 
       // Detectar tipo de lugar físico para usar Overpass en vez de Serper
       for (const { patron, tipo } of LUGAR_TIPOS) {
