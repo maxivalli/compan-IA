@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import RosaOjos, { BG, Expresion, ModoNoche } from './RosaOjos';
+import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
 import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
@@ -65,6 +65,7 @@ export interface RositaHorizontalProps {
 
   // Cumpleaños
   esCumpleaños: boolean;
+  onTriggerCumpleaños: () => void;
 
   // Acciones canónicas (touch y BLE llaman a lo mismo)
   acciones: AccionesRosita;
@@ -132,6 +133,12 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   // Escala para que los ojos (EYE_H=159px base) llenen ~90% de la altura.
   // A esta escala la boca (a ~239px base) queda bien fuera del área visible.
   const faceScale = (screenH * 0.90) / 159;
+  const faceW = (EYE_W * 2 + GAP + 32) * faceScale;
+  const eyeTop = Math.round(screenH * 0.05) + Math.round(60 * faceScale);
+  const leftEyeLeft = Math.round((screenW - faceW) / 2) + Math.round(18 * faceScale);
+  const eyeBoxW = Math.round(EYE_W * faceScale);
+  const eyeBoxH = Math.round(EYE_H * faceScale);
+  const rightEyeLeft = leftEyeLeft + eyeBoxW + Math.round(GAP * faceScale);
 
   // Gesto de caricia horizontal sobre la cara
   const panCaricia = useRef(PanResponder.create({
@@ -242,6 +249,21 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                     esCumpleaños={props.esCumpleaños}
                   />
                 </View>
+
+                <View
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="box-none"
+                  {...panCaricia.panHandlers}
+                />
+
+                <Pressable
+                  style={[styles.eyeHotspot, { top: eyeTop, left: leftEyeLeft, width: eyeBoxW, height: eyeBoxH }]}
+                  onPress={props.onOjoPicado}
+                />
+                <Pressable
+                  style={[styles.eyeHotspot, { top: eyeTop, left: rightEyeLeft, width: eyeBoxW, height: eyeBoxH }]}
+                  onPress={props.onOjoPicado}
+                />
               </TouchableOpacity>
             )}
           </View>
@@ -277,6 +299,12 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
               color="#ffffffcc"
             />
           </TouchableOpacity>
+
+          <TouchableOpacity
+            onLongPress={props.onTriggerCumpleaños}
+            delayLongPress={1200}
+            style={{ position: 'absolute', bottom: safeBottom + 54, right: safeRight + 74, width: 72, height: 72 }}
+          />
 
           {/* Waveform de detección de voz — centro inferior */}
           {props.detectandoSonido && props.estado === 'esperando' && !props.noMolestar && (
@@ -319,13 +347,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
+  eyeHotspot: {
+    position: 'absolute',
+  },
   relojWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   relojHora: {
-    color: '#ffffff80',
+    color: '#8f98a3',
     fontSize: 172,
     letterSpacing: 2,
     textShadowColor: '#00000055',

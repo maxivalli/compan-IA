@@ -382,6 +382,7 @@ export default function Index() {
         onClearFotoTelegram={() => setFotoTelegram(null)}
         flashAnim={flashAnim}
         esCumpleaños={esCumpleaños}
+        onTriggerCumpleaños={triggerCumpleaños}
         acciones={acciones}
         onOjoPicado={onOjoPicado}
         onCaricia={onCaricia}
