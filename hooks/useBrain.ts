@@ -520,7 +520,7 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const maxTokBase  = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
-    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -10 : -8;
+    const histSlice   = (pideCuento || pideJuego || pideChiste) ? -11 : -9;
     const msgSliceBase = nuevoHistorial.slice(histSlice);
     const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
     const cachedSystemChars = systemPreview
@@ -742,6 +742,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.tagPrincipal === 'MUSICA' && parsed.generoMusica) {
         d.setExpresion('neutral');
         const streamPromise = buscarRadio(parsed.generoMusica);
+        logCliente('rosita_msg', { tag: parsed.tagPrincipal ?? 'none', texto: parsed.respuesta.slice(0, 300) });
         await d.hablar(parsed.respuesta + ` Para pararla, tocá la pantalla.`);
         d.setEstado('pensando');
         d.estadoRef.current = 'pensando';
