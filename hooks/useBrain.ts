@@ -37,7 +37,7 @@ import {
 import {
   llamarClaude, llamarClaudeConStreaming,
   buscarWeb, buscarWikipedia, buscarLugares,
-  logCliente, sincronizarAnimo,
+  beginTurnTelemetry, getCurrentTurnMetrics, logCliente, sincronizarAnimo,
 } from '../lib/ai';
 import { Dispositivo } from '../lib/smartthings';
 import { DomoticaAction } from './useSmartThings';
@@ -401,6 +401,7 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
   // ── Responder con Claude ───────────────────────────────────────────────────────
   async function responderConClaude(textoUsuario: string) {
     const d = depsRef.current;
+    const turnId = beginTurnTelemetry();
     if (__DEV__) console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = d.perfilRef.current;
     if (!p) { console.log('[RC] sin perfil, saliendo'); return; }
@@ -503,6 +504,7 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     d.rcStartTsRef.current = Date.now();
     const lagSrMs = d.srResultTsRef.current ? d.rcStartTsRef.current - d.srResultTsRef.current : -1;
     logCliente('rc_start', { chars: textoUsuario.length, muletilla: catMuletilla ?? 'none', busqueda: pideBusqueda ? 'si' : 'no', wiki: pideWikipedia ? 'si' : 'no', lag_sr_ms: lagSrMs });
+    logCliente('turn_start', { turn_id: turnId, user_chars: textoUsuario.length });
     logCliente('user_msg', { texto: textoUsuario.slice(0, 200) });
 
     // ── Estado de streaming ───────────────────────────────────────────────────
@@ -935,6 +937,14 @@ REGLAS CRÍTICAS PARA RESPONDER:
       d.ultimaActividadRef.current = Date.now();
       const oracionesTotal = d.splitEnOraciones(parsed.respuesta);
       logCliente('rc_hablar', { oraciones: oracionesTotal.length, chars: parsed.respuesta.length, primeraReproducida: primeraFraseReproducida });
+      const turnMetrics = getCurrentTurnMetrics();
+      logCliente('turn_summary', {
+        turn_id: turnId,
+        e2e_first_audio_ms: turnMetrics.e2eFirstAudioMs ?? -1,
+        e2e_total_ms: turnMetrics.e2eNowMs ?? -1,
+        response_chars: parsed.respuesta.length,
+        oraciones: oracionesTotal.length,
+      });
       logCliente('rosita_msg', { tag: parsed.tagPrincipal ?? 'none', texto: parsed.respuesta.slice(0, 300) });
       if (oracionesTotal.length === 0 && !primeraFraseReproducida) {
         logCliente('rc_parse_vacio', { rawSlice: respuestaRaw.slice(0, 150) });

@@ -24,7 +24,16 @@ import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-spe
 import { Perfil } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { hashTexto, velocidadSegunEdad } from '../lib/claudeParser';
-import { transcribirAudio, sintetizarVoz, urlCartesiaStream, logCliente, VOICE_ID_FEMENINA, VOICE_ID_MASCULINA } from '../lib/ai';
+import {
+  getCurrentTurnMetrics,
+  markTurnFirstAudio,
+  transcribirAudio,
+  sintetizarVoz,
+  urlCartesiaStream,
+  logCliente,
+  VOICE_ID_FEMENINA,
+  VOICE_ID_MASCULINA,
+} from '../lib/ai';
 import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
 
 // ── Flag de testing ─────────────────────────────────────────────────────────
@@ -560,7 +569,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     const lagRcMs = d.rcStartTsRef.current ? Date.now() - d.rcStartTsRef.current : -1;
-    logCliente('hablar_start', { chars: texto.length, emotion: emotion ?? 'none', lag_rc_ms: lagRcMs });
+    const turnAudio = markTurnFirstAudio();
+    logCliente('hablar_start', {
+      chars: texto.length,
+      emotion: emotion ?? 'none',
+      lag_rc_ms: lagRcMs,
+      e2e_first_audio_ms: turnAudio.e2eFirstAudioMs ?? -1,
+      first_audio_turn: turnAudio.firstForTurn ? 'si' : 'no',
+    });
     ExpoSpeechRecognitionModule.stop();
     detenerSilbido();
     d.estadoRef.current = 'hablando';
@@ -638,7 +654,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
             if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
-            logCliente('hablar_end', { motivo, pos: Math.round(((player as any).currentTime ?? 0) * 1000), dur: Math.round(((player as any).duration ?? 0) * 1000) });
+            const turnMetrics = getCurrentTurnMetrics();
+            logCliente('hablar_end', {
+              motivo,
+              pos: Math.round(((player as any).currentTime ?? 0) * 1000),
+              dur: Math.round(((player as any).duration ?? 0) * 1000),
+              e2e_now_ms: turnMetrics.e2eNowMs ?? -1,
+            });
             resolve();
           };
 

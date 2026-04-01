@@ -9,6 +9,9 @@ type SystemBlock = TextBlock;
 // ── Device token (reemplaza la API key hardcodeada) ───────────────────────────
 
 let _cachedToken: string | null = null;
+let _currentTurnId: string | null = null;
+let _currentTurnStartedAt = 0;
+let _currentTurnFirstAudioAt = 0;
 
 export async function obtenerTokenDispositivo(): Promise<string> {
   if (_cachedToken) return _cachedToken;
@@ -34,12 +37,68 @@ export async function bootstrapDispositivo(): Promise<string> {
 
 async function jsonHeaders(): Promise<Record<string, string>> {
   const token = await obtenerTokenDispositivo();
-  return { 'Content-Type': 'application/json', 'x-device-token': token };
+  return {
+    'Content-Type': 'application/json',
+    'x-device-token': token,
+    ...(_currentTurnId ? { 'x-turn-id': _currentTurnId } : {}),
+  };
 }
 
 async function formHeaders(): Promise<Record<string, string>> {
   const token = await obtenerTokenDispositivo();
-  return { 'x-device-token': token };
+  return {
+    'x-device-token': token,
+    ...(_currentTurnId ? { 'x-turn-id': _currentTurnId } : {}),
+  };
+}
+
+function makeTurnId(): string {
+  return `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+}
+
+export function beginTurnTelemetry(): string {
+  _currentTurnId = makeTurnId();
+  _currentTurnStartedAt = Date.now();
+  _currentTurnFirstAudioAt = 0;
+  return _currentTurnId;
+}
+
+export function getCurrentTurnId(): string | null {
+  return _currentTurnId;
+}
+
+export function getCurrentTurnStartedAt(): number {
+  return _currentTurnStartedAt;
+}
+
+export function markTurnFirstAudio(): { turnId: string | null; e2eFirstAudioMs: number | null; firstForTurn: boolean } {
+  if (!_currentTurnId || !_currentTurnStartedAt) {
+    return { turnId: _currentTurnId, e2eFirstAudioMs: null, firstForTurn: false };
+  }
+  if (_currentTurnFirstAudioAt) {
+    return {
+      turnId: _currentTurnId,
+      e2eFirstAudioMs: _currentTurnFirstAudioAt - _currentTurnStartedAt,
+      firstForTurn: false,
+    };
+  }
+  _currentTurnFirstAudioAt = Date.now();
+  return {
+    turnId: _currentTurnId,
+    e2eFirstAudioMs: _currentTurnFirstAudioAt - _currentTurnStartedAt,
+    firstForTurn: true,
+  };
+}
+
+export function getCurrentTurnMetrics(): { turnId: string | null; e2eFirstAudioMs: number | null; e2eNowMs: number | null } {
+  if (!_currentTurnId || !_currentTurnStartedAt) {
+    return { turnId: _currentTurnId, e2eFirstAudioMs: null, e2eNowMs: null };
+  }
+  return {
+    turnId: _currentTurnId,
+    e2eFirstAudioMs: _currentTurnFirstAudioAt ? _currentTurnFirstAudioAt - _currentTurnStartedAt : null,
+    e2eNowMs: Date.now() - _currentTurnStartedAt,
+  };
 }
 
 // ── Claude ────────────────────────────────────────────────────────────────────
@@ -200,6 +259,7 @@ export function urlCartesiaStream(texto: string, voiceId: string, speed?: number
     speed:   String(speed ?? 0.92),
     k:       _cachedToken ?? '',
     ...(emotion ? { emotion } : {}),
+    ...(_currentTurnId ? { t: _currentTurnId } : {}),
   });
   return `${BACKEND_URL}/ai/tts-cartesia-stream?${params}`;
 }
@@ -356,10 +416,11 @@ export async function generarSonido(
 
 /** Fire-and-forget: loguea un evento de cliente en Railway. */
 export function logCliente(event: string, data?: Record<string, string | number | boolean>): void {
+  const payload = _currentTurnId ? { ...data, turn_id: _currentTurnId } : data;
   fetch(`${BACKEND_URL}/debug/log`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event, data }),
+    body: JSON.stringify({ event, data: payload }),
   }).catch(() => {});
 }
 
