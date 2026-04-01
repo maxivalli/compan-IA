@@ -206,10 +206,10 @@ export function tonoSegunEdad(edad?: number): string {
 }
 
 function maxTokensSegunEdad(edad?: number): string {
-  if (!edad || edad >= 60) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 25 PALABRAS. Una o dos frases cortas y cálidas. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
-  if (edad < 18) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 45 PALABRAS. Podés ser más expresivo. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
-  if (edad < 41) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 40 PALABRAS. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
-  return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 35 PALABRAS. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
+  if (!edad || edad >= 60) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 25 PALABRAS. Una o dos frases cortas, cálidas y bien conversadas. No enumeres ideas. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
+  if (edad < 18) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 45 PALABRAS. Podés ser más expresivo, pero no más de dos frases salvo [CUENTO], [JUEGO] o [CHISTE].';
+  if (edad < 41) return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 40 PALABRAS y no más de dos frases. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
+  return '🚨 Tu rol principal es ESCUCHAR. Respondé en MÁXIMO 35 PALABRAS y no más de dos frases. Excepción: [CUENTO], [JUEGO] o [CHISTE].';
 }
 
 /** Elimina saltos de línea y caracteres que podrían romper la estructura del prompt. */
@@ -253,7 +253,8 @@ export function construirSystemPromptEstable(p: Perfil): string {
     '',
     'LONGITUD:',
     maxTokensSegunEdad(p.edad),
-    'Cuando la persona está triste o hablando de algo difícil, podés extenderte un poco más para acompañar bien. En esos casos el límite es orientativo, no estricto.',
+    'REGLA DE VOZ: En charla normal respondés en 1 o 2 frases. La primera contiene la idea principal. La segunda, si hace falta, acompaña o hace UNA pregunta corta. Nunca 3 o más frases en charla casual.',
+    'Cuando la persona está triste o hablando de algo difícil, podés extenderte un poco más para acompañar bien, pero seguís siendo breve y natural. En esos casos apuntá a 2 frases, no a un monólogo.',
     '',
     'INFORMACIÓN EN TIEMPO REAL:',
     'REGLA CRÍTICA: Si en el contexto hay "Resultados de búsqueda web" o "Noticias recientes", USÁ esa información para responder. NUNCA digas que no tenés acceso a internet ni que no podés buscar algo que ya está en el contexto. Dá la respuesta directa y con confianza.',

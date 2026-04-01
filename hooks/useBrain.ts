@@ -163,6 +163,24 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   return null;
 }
 
+function compactarRespuestaParaVoz(
+  respuesta: string,
+  splitEnOraciones: (texto: string) => string[],
+  opciones?: { maxOraciones?: number; maxChars?: number },
+): string {
+  const maxOraciones = opciones?.maxOraciones ?? 2;
+  const maxChars = opciones?.maxChars ?? 170;
+  const oraciones = splitEnOraciones(respuesta);
+  if (oraciones.length === 0) return respuesta.trim();
+
+  let compacta = oraciones.slice(0, maxOraciones).join(' ').trim();
+  if (compacta.length <= maxChars) return compacta;
+
+  const corte = compacta.lastIndexOf(' ', maxChars);
+  const truncada = (corte > 40 ? compacta.slice(0, corte) : compacta.slice(0, maxChars)).trim();
+  return /[.!?]$/.test(truncada) ? truncada : `${truncada}.`;
+}
+
 // ── Interfaz de dependencias ───────────────────────────────────────────────────
 
 /** Tipo mínimo que useBrain necesita del audio player de música */
@@ -521,7 +539,13 @@ Usalas solo si ayudan de verdad a responder. Si la memoria no encaja con lo que 
     const contextoMemoria = await construirContextoMemoria(textoUsuario);
     const extraBase  = `${d.ultimaRadioRef.current ? `\nÚltima radio reproducida: "${d.ultimaRadioRef.current}" — cuando el usuario pida "la radio" o "la música" sin especificar, usá esa clave.` : ''}${contextoMemoria.texto}`;
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|guarda|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
-    const maxTokBase  = (pideCuento || pideJuego || pideChiste) ? 700 : pideAccion ? 300 : undefined;
+    const maxTokBase  = (pideCuento || pideJuego || pideChiste)
+      ? 700
+      : (pideNoticias || pideBusqueda || pideWikipedia)
+        ? 180
+        : pideAccion
+          ? 300
+          : 110;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -11 : -9;
     const msgSliceBase = nuevoHistorial.slice(histSlice);
     const systemPreview = getSystemBlocks(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
@@ -707,6 +731,25 @@ REGLAS CRÍTICAS PARA RESPONDER:
         p.telegramContactos ?? [],
         p.familiares ?? [],
       );
+
+      const mantenerLarga =
+        parsed.tagPrincipal === 'CUENTO'
+        || parsed.tagPrincipal === 'JUEGO'
+        || parsed.tagPrincipal === 'CHISTE'
+        || parsed.tagPrincipal === 'MUSICA'
+        || parsed.tagPrincipal === 'PARAR_MUSICA'
+        || parsed.tagPrincipal === 'LINTERNA';
+
+      if (!mantenerLarga) {
+        parsed.respuesta = compactarRespuestaParaVoz(
+          parsed.respuesta,
+          d.splitEnOraciones,
+          {
+            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 2 : 2,
+            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 190 : 150,
+          },
+        );
+      }
 
       if (resultadosBusqueda) {
         const sinPregunta = parsed.respuesta.replace(/¿[^?]+?\?\s*$/, '').trim();
