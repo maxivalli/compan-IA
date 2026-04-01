@@ -264,6 +264,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const silbidoIndexRef   = useRef(0);
   const silbidoTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function safeStopSpeechRecognition() {
+    try { ExpoSpeechRecognitionModule.stop(); } catch {}
+  }
+
   // ── Limpiar cache viejo (TTS files > 7 días) ─────────────────────────────
   async function limpiarCacheViejo() {
     try {
@@ -286,7 +290,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
-      try { ExpoSpeechRecognitionModule.stop(); } catch {}
+      safeStopSpeechRecognition();
       ExpoSpeechRecognitionModule.start({
         lang: 'es-AR',
         continuous: true,
@@ -384,7 +388,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     try {
       procesandoRef.current = true;
       procesandoDesdeRef.current = Date.now();
-      ExpoSpeechRecognitionModule.stop();
+      safeStopSpeechRecognition();
       const esRepeticion = enConversacion
         && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
         && ultimoAudioUriRef.current !== null;
@@ -657,7 +661,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       e2e_first_audio_ms: turnAudio.e2eFirstAudioMs ?? -1,
       first_audio_turn: turnAudio.firstForTurn ? 'si' : 'no',
     });
-    ExpoSpeechRecognitionModule.stop();
+    safeStopSpeechRecognition();
     detenerSilbido();
     d.estadoRef.current = 'hablando';
     hablandoDesdeRef.current = Date.now();
@@ -718,7 +722,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
       const isStream = !info.exists;
-      console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
+      if (__DEV__) console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
       const uri: string = info.exists
         ? cacheUri
         : urlCartesiaStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
@@ -853,7 +857,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     unduckMusica();
     d.setEstado('esperando');
     d.estadoRef.current = 'esperando';
-    await new Promise(r => setTimeout(r, 250));
     if (!enFlujoVozRef.current && !enColaHablaRef.current) iniciarSpeechRecognition();
   }
 
@@ -890,7 +893,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     enFlujoVozRef.current = true;
     try {
       if (d.musicaActivaRef.current) { playerMusica.pause(); d.setMusicaActiva(false); }
-      ExpoSpeechRecognitionModule.stop();
+      safeStopSpeechRecognition();
       await new Promise(r => setTimeout(r, 400));
       d.setEstado('escuchando');
       d.estadoRef.current = 'escuchando';

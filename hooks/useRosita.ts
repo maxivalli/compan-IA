@@ -55,7 +55,7 @@ export function useRosita() {
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
   const [camaraSilenciosa,  setCamaraSilenciosa]  = useState(false);
-  const [noMolestar,        setNoMolestar]        = useState(false);
+  const [noMolestar,        setNoMolestarState]   = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
   const [climaObj,          setClimaObj]          = useState<{ temperatura: number; descripcion: string } | null>(null);
@@ -78,6 +78,7 @@ export function useRosita() {
   const expresionTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ojoPicadoTimer      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const musicaNocheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const musicaNocheFollowupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const climaRef            = useRef<string>('');
   const ciudadRef           = useRef<string>('');
   const coordRef            = useRef<{ lat: number; lon: number } | null>(null);
@@ -108,6 +109,26 @@ export function useRosita() {
   // El pipeline necesita brain.responderConClaude pero brain se instancia después.
   // brainRef se actualiza en cada render y el pipeline lo lee sólo en callbacks async.
   const brainRef = useRef<ReturnType<typeof useBrain> | null>(null);
+
+  function safeStopSpeechRecognition() {
+    try { ExpoSpeechRecognitionModule.stop(); } catch {}
+  }
+
+  function setNoMolestar(v: boolean) {
+    noMolestarRef.current = v;
+    setNoMolestarState(v);
+  }
+
+  function clearMusicaNocheTimers() {
+    if (musicaNocheTimerRef.current) {
+      clearTimeout(musicaNocheTimerRef.current);
+      musicaNocheTimerRef.current = null;
+    }
+    if (musicaNocheFollowupTimerRef.current) {
+      clearTimeout(musicaNocheFollowupTimerRef.current);
+      musicaNocheFollowupTimerRef.current = null;
+    }
+  }
 
   // ── Pipeline de audio (SR, TTS, silbido, grabación manual) ───────────────────
   // flujoFoto y flujoLeerImagen son declaraciones de función (hoistadas) — definidas más abajo.
@@ -184,9 +205,9 @@ export function useRosita() {
   useEffect(() => {
     musicaActivaRef.current = musicaActiva;
     if (musicaActiva) {
-      ExpoSpeechRecognitionModule.stop();
+      safeStopSpeechRecognition();
       // Programar verificación nocturna: la música no debería quedar prendida de noche
-      if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
+      clearMusicaNocheTimers();
       musicaNocheTimerRef.current = setTimeout(async () => {
         if (!musicaActivaRef.current) return;
         const hAhora = new Date().getHours();
@@ -200,7 +221,7 @@ export function useRosita() {
           await pipeline.hablar(`¿Seguís ahí, ${nombre}? Son las ${hAhora} y tenés la música puesta.`);
         } catch {}
         // Esperar 2 minutos para ver si responde
-        musicaNocheTimerRef.current = setTimeout(() => {
+        musicaNocheFollowupTimerRef.current = setTimeout(() => {
           if (!musicaActivaRef.current) return;
           if (ultimaCharlaRef.current > tsAntes + 5000) return; // respondió
           pipeline.pararMusica();
@@ -208,17 +229,14 @@ export function useRosita() {
       }, 30 * 60 * 1000);
     } else {
       pipeline.detenerSilbido();
-      if (musicaNocheTimerRef.current) {
-        clearTimeout(musicaNocheTimerRef.current);
-        musicaNocheTimerRef.current = null;
-      }
+      clearMusicaNocheTimers();
       if (!pipeline.enFlujoVozRef.current) pipeline.iniciarSpeechRecognition();
     }
     return () => {
-      if (musicaNocheTimerRef.current) clearTimeout(musicaNocheTimerRef.current);
+      clearMusicaNocheTimers();
     };
   }, [musicaActiva]);
-  useEffect(() => { noMolestarRef.current  = noMolestar;  }, [noMolestar]);
+  useEffect(() => { noMolestarRef.current = noMolestar; }, [noMolestar]);
 
   // ── Hora actual (para fondo) ────────────────────────────────────────────────
   useEffect(() => {
@@ -333,7 +351,7 @@ export function useRosita() {
   useEffect(() => {
     inicializar().catch(() => { setCargando(false); pipeline.iniciarSpeechRecognition(); });
     return () => {
-      ExpoSpeechRecognitionModule.stop();
+      safeStopSpeechRecognition();
       if (climaTimerRef.current) clearTimeout(climaTimerRef.current);
     };
   }, []);
@@ -397,6 +415,13 @@ export function useRosita() {
     // Si falla, reintenta cada 30s. Una vez obtenido, refresca cada 60 min.
     async function intentarClima() {
       try {
+        const timeoutAt = Date.now() + 12000;
+        const conTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T | null> => {
+          return await Promise.race([
+            promise,
+            new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
+          ]);
+        };
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }
         const serviciosOn = await Location.hasServicesEnabledAsync().catch(() => false);
@@ -404,18 +429,20 @@ export function useRosita() {
         // 1) Posición en caché (instantáneo)
         let loc = await Location.getLastKnownPositionAsync({ maxAge: 10 * 60 * 1000, requiredAccuracy: 5000 }).catch(() => null);
         // 2) Balanced: red + GPS (~1-3s en interiores)
-        if (!loc) {
-          loc = await Promise.race([
+        if (!loc && Date.now() < timeoutAt) {
+          const restante = Math.max(1500, timeoutAt - Date.now());
+          loc = await conTimeout(
             Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-            new Promise<null>(r => setTimeout(() => r(null), 15000)),
-          ]);
+            Math.min(8000, restante),
+          );
         }
         // 3) Low: solo red celular (muy rápido pero menos preciso)
-        if (!loc) {
-          loc = await Promise.race([
+        if (!loc && Date.now() < timeoutAt) {
+          const restante = Math.max(1000, timeoutAt - Date.now());
+          loc = await conTimeout(
             Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }),
-            new Promise<null>(r => setTimeout(() => r(null), 10000)),
-          ]);
+            Math.min(4000, restante),
+          );
         }
         if (!loc) { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }
         const clima = await obtenerClima(loc.coords.latitude, loc.coords.longitude).catch(() => null);
@@ -490,6 +517,19 @@ export function useRosita() {
     }, 400);
   }
 
+  function pedirCapturaFoto(acciones?: { beforeOpen?: () => void; afterClose?: () => void }) {
+    return new Promise<string | null>(resolve => {
+      fotoResolverRef.current?.(null);
+      acciones?.beforeOpen?.();
+      fotoResolverRef.current = (base64: string | null) => {
+        fotoResolverRef.current = null;
+        acciones?.afterClose?.();
+        resolve(base64);
+      };
+      setMostrarCamara(true);
+    });
+  }
+
   // ── Noticias en tiempo real ─────────────────────────────────────────────────
   async function buscarNoticias(query: string): Promise<string | null> {
     try {
@@ -521,10 +561,12 @@ export function useRosita() {
       return;
     }
     if (!silencioso) await pipeline.hablar('Dale, mirá la pantalla, te saco una foto en tres segundos.');
-    setCamaraSilenciosa(silencioso);
-    const base64 = await new Promise<string | null>(resolve => {
-      fotoResolverRef.current = resolve;
-      setMostrarCamara(true);
+    const base64 = await pedirCapturaFoto({
+      beforeOpen: () => setCamaraSilenciosa(silencioso),
+      afterClose: () => {
+        setMostrarCamara(false);
+        setCamaraSilenciosa(false);
+      },
     });
     setMostrarCamara(false);
     setCamaraSilenciosa(false);
@@ -559,10 +601,12 @@ export function useRosita() {
       `Cuando estés ${g('lista', 'listo')}, quedate ${g('quieta', 'quieto')} y esperá hasta que cuente tres. ` +
       `Yo te digo todo lo que vea.`
     );
-    setCamaraFacing('back');
-    const base64 = await new Promise<string | null>(resolve => {
-      fotoResolverRef.current = resolve;
-      setMostrarCamara(true);
+    const base64 = await pedirCapturaFoto({
+      beforeOpen: () => setCamaraFacing('back'),
+      afterClose: () => {
+        setMostrarCamara(false);
+        setCamaraFacing('front');
+      },
     });
     setMostrarCamara(false);
     setCamaraFacing('front');
@@ -599,59 +643,58 @@ export function useRosita() {
   // responderConClaude → delegado a brain.responderConClaude() vía pipeline.onTextoReconocido
 
   // ── SOS ─────────────────────────────────────────────────────────────────────
-  async function dispararSOS() {
-    const ahora = Date.now();
-    if (ahora - ultimoSosRef.current < 60000) return;
-    ultimoSosRef.current = ahora;
-
-    const p = perfilRef.current;
-    const chatIds = (p?.telegramContactos ?? []).map(c => c.id);
-    const nombre  = p?.nombreAbuela ?? '';
-    const asistente = p?.nombreAsistente ?? 'Rosita';
-
-    if (musicaActivaRef.current) pipeline.pararMusica();
-
-    guardarEntradaAnimo('triste');
-    sincronizarAnimo('sos', Date.now());
-
-    if (chatIds.length) {
-      enviarAlertaTelegram(
-        chatIds,
-        `🆘 *ALERTA SOS* — ${nombre} necesita ayuda urgente.\n\nAbrí la app o llamala de inmediato.`,
-        asistente,
-      );
-      await pipeline.hablar(`${nombre}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`);
-    } else {
-      await pipeline.hablar(`${nombre}, no tenés familiares configurados en la app. No pude avisar a nadie. Pedile a alguien cercano que te ayude.`);
-    }
-  }
-
-  async function dispararSOSCaida() {
+  async function dispararAlertaFamilia(opciones: {
+    syncTag: 'sos' | 'caida';
+    telegramMensaje: string;
+    vozConFamilia: string;
+    vozSinFamilia: string;
+  }) {
     const ahora = Date.now();
     if (ahora - ultimoSosRef.current < 60000) return;
     ultimoSosRef.current = ahora;
 
     const p = perfilRef.current;
     if (!p?.nombreAbuela) return;
-    const chatIds   = (p.telegramContactos ?? []).map(c => c.id);
-    const nombre    = p.nombreAbuela;
+    const chatIds = (p?.telegramContactos ?? []).map(c => c.id);
     const asistente = p.nombreAsistente ?? 'Rosita';
 
     if (musicaActivaRef.current) pipeline.pararMusica();
 
     guardarEntradaAnimo('triste');
-    sincronizarAnimo('caida', Date.now());
+    sincronizarAnimo(opciones.syncTag, Date.now());
 
     if (chatIds.length) {
       enviarAlertaTelegram(
         chatIds,
-        `⚠️ *POSIBLE CAÍDA* — ${nombre}\n\nEl sensor del teléfono detectó un posible golpe o caída. Verificá que esté bien.`,
+        opciones.telegramMensaje,
         asistente,
       );
-      await pipeline.hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`);
+      await pipeline.hablar(opciones.vozConFamilia);
     } else {
-      await pipeline.hablar(`${nombre}, detecté un posible golpe. ¿Estás bien? No tenés familiares configurados, pedile a alguien cercano que te ayude.`);
+      await pipeline.hablar(opciones.vozSinFamilia);
     }
+  }
+
+  async function dispararSOS() {
+    const p = perfilRef.current;
+    if (!p?.nombreAbuela) return;
+    await dispararAlertaFamilia({
+      syncTag: 'sos',
+      telegramMensaje: `🆘 *ALERTA SOS* — ${p.nombreAbuela} necesita ayuda urgente.\n\nAbrí la app o llamala de inmediato.`,
+      vozConFamilia: `${p.nombreAbuela}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`,
+      vozSinFamilia: `${p.nombreAbuela}, no tenés familiares configurados en la app. No pude avisar a nadie. Pedile a alguien cercano que te ayude.`,
+    });
+  }
+
+  async function dispararSOSCaida() {
+    const p = perfilRef.current;
+    if (!p?.nombreAbuela) return;
+    await dispararAlertaFamilia({
+      syncTag: 'caida',
+      telegramMensaje: `⚠️ *POSIBLE CAÍDA* — ${p.nombreAbuela}\n\nEl sensor del teléfono detectó un posible golpe o caída. Verificá que esté bien.`,
+      vozConFamilia: `${p.nombreAbuela}, detecté un posible golpe. ¿Estás bien? Ya avisé a tu familia.`,
+      vozSinFamilia: `${p.nombreAbuela}, detecté un posible golpe. ¿Estás bien? No tenés familiares configurados, pedile a alguien cercano que te ayude.`,
+    });
   }
 
   // ── Bostezo por inactividad ──────────────────────────────────────────────────
