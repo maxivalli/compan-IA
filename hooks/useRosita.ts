@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, BackHandler, Platform } from 'react-native';
+import { Alert, Animated, BackHandler, Dimensions, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
 import { Accelerometer } from 'expo-sensors';
@@ -690,7 +690,9 @@ export function useRosita() {
     await pipeline.hablar(
       `Bueno${nombre ? ` ${nombre}` : ''}, apuntame la cámara a lo que querés que vea.`
     );
-    setCamaraFacing('back');
+    const { width: w, height: h } = Dimensions.get('window');
+    const facingVision = w > h ? 'front' : 'back';
+    setCamaraFacing(facingVision);
     modoVisionRef.current = true;
     setModoVision(true);
     // Esperar a que capturaVisionFnRef esté lista (la cámara tarda ~1s en iniciar)
