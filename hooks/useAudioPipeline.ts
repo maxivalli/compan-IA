@@ -393,7 +393,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       return;
     }
 
-    if (!mencionaNombre && !enConversacion && !esPreguntaDirecta) { unduckMusica(); return; }
+    if (!mencionaNombre && !enConversacion && !esPreguntaDirecta && !d.modoVisionRef.current) { unduckMusica(); return; }
 
     // Comando de silencio: "[nombre] hacé silencio" → activa modo no molestar
     if (mencionaNombre && /\b(silencio|callate|calla(te)?|no molestes|no hables|modo silencio|no molestar)\b/.test(textoNorm)) {
@@ -418,10 +418,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
         await d.onFlujoFoto();
       } else if (d.modoVisionRef.current) {
-        // En modo visión: "¿y ahora?" dispara nueva captura, "listo"/"cerrá" cierra
+        // En modo visión: "listo"/"cerrá" cierra; cualquier otra frase = nueva captura
         if (/\b(listo|cerra|cerr[aá]|gracias|ya est[aá]|no m[aá]s|sal[ií])\b/.test(textoNorm)) {
           d.onCerrarModoVision();
-        } else if (/\b(y\s+(ahora|esto|ac[aá]|ah[ií]|este|esta)|qu[eé]\s+(m[aá]s|ves|hay|dice|pone)|mir[aá]\s+(ac[aá]|esto|ah[ií]))\b/.test(textoNorm)) {
+        } else {
           await d.onNuevaCapturaVision();
         }
       } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá])\b/.test(textoNorm)) {
