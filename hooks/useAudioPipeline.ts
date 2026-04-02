@@ -29,7 +29,6 @@ import {
   markTurnFirstAudio,
   transcribirAudio,
   sintetizarVoz,
-  urlFishRealtimeStream,
   logCliente,
   VOICE_ID_FEMENINA,
   VOICE_ID_MASCULINA,
@@ -38,24 +37,11 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
-const TTS_SEGMENT_PADDING_MS = 80;
 const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v13';
-const USE_FISH_REALTIME_STREAM_EXPERIMENT = true;
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
-const FISH_REALTIME_COOLDOWN_MS = 2 * 60 * 1000;
-const FRASES_BUFFER_429 = [
-  'Un momentito...',
-  'Ya te sigo...',
-  'Dame un segundo...',
-  'Esperate un cachito...',
-  'Ahi voy...',
-  'Ya te respondo...',
-  'Un momento...',
-  'Enseguida...',
-] as const;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -210,11 +196,6 @@ function coincideConColaDelTTS(reconocido: string, hablado: string | null): bool
   return false;
 }
 
-function deberiaUsarFishRealtimeStream(texto: string, _emotion?: string): boolean {
-  if (!USE_FISH_REALTIME_STREAM_EXPERIMENT) return false;
-  if (texto.trim().length < 8) return false;
-  return true;
-}
 
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
 
@@ -268,7 +249,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const procesandoRef      = useRef(false);
   const procesandoDesdeRef = useRef<number>(0);
   const yaDetuvRef         = useRef(false);
-  const fishRealtimeCooldownUntilRef = useRef(0);
 
   // ── Refs de SR ────────────────────────────────────────────────────────────
   const srActivoRef           = useRef(false);
@@ -287,8 +267,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const precacheMuletillasRunningRef = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
-  const fishRealtimeInFlightRef    = useRef(0);
-  const fraseBufferIdxRef          = useRef(0);
 
   // ── Refs de silbido ──────────────────────────────────────────────────────
   const silbidoActivoRef  = useRef(false);
@@ -617,108 +595,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     } catch {}
   }
 
-  function cacheUriBuffer429(texto: string) {
-    const key = hashTexto(`buffer429|${texto}`);
-    return FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_buffer429_` + key + '.mp3';
-  }
-
-  async function precachearFrasesBuffer429() {
-    const p = depsRef.current.perfilRef.current;
-    const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-    for (const frase of FRASES_BUFFER_429) {
-      try {
-        const uri = cacheUriBuffer429(frase);
-        const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
-        if ((info as any).exists) continue;
-        const base64 = await sintetizarVoz(frase, voiceId, velocidadSegunEdad(p?.edad), 'neutral').catch(() => null);
-        if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
-      } catch {}
-    }
-  }
-
-  async function reproducirFallbackFishCacheado(): Promise<boolean> {
-    for (let intentos = 0; intentos < FRASES_BUFFER_429.length; intentos++) {
-      const idx = fraseBufferIdxRef.current % FRASES_BUFFER_429.length;
-      fraseBufferIdxRef.current += 1;
-      const frase = FRASES_BUFFER_429[idx];
-      const uri = cacheUriBuffer429(frase);
-      const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
-      if (!(info as any).exists) continue;
-      try {
-        player.replace({ uri });
-        player.play();
-        await new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 2500);
-          const poll = setInterval(() => {
-            const dur = (player as any).duration as number;
-            const pos = (player as any).currentTime as number;
-            if (dur > 0 && pos >= dur - 0.15) {
-              clearTimeout(timeout);
-              clearInterval(poll);
-              try { player.pause(); } catch {}
-              resolve();
-            }
-          }, 80);
-        });
-        return true;
-      } catch {}
-    }
-    return false;
-  }
-
-  async function fallbackVozUltimoRecurso(texto: string) {
-    const d = depsRef.current;
-    d.setEstado('hablando');
-    d.estadoRef.current = 'hablando';
-    const fishEnCooldown = Date.now() < fishRealtimeCooldownUntilRef.current;
-
-    // Si Fish acaba de devolver 429, no golpear el mismo proveedor otra vez por HTTP.
-    // En ese caso priorizamos una frase buffer ya cacheada con la voz de Rosita.
-    if (fishEnCooldown) {
-      const pudoCache = await reproducirFallbackFishCacheado().catch(() => false);
-      if (pudoCache) return;
-    }
-
-    // 1. Si Fish no está en cooldown, intentar sintetizar el texto real vía HTTP.
-    //    Esto preserva el contenido cuando el problema fue puntual del stream y no un 429.
-    if (!fishEnCooldown) {
-      try {
-        const p = d.perfilRef.current;
-        const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-        const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(p?.edad));
-        if (base64) {
-          const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_fallback_` + hashTexto(texto) + '.mp3';
-          await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-          player.replace({ uri: cacheUri });
-          player.play();
-          await new Promise<void>((resolve) => {
-            const safety = setTimeout(resolve, 30000);
-            const poll = setInterval(() => {
-              const dur = (player as any).duration as number;
-              const pos = (player as any).currentTime as number;
-              const durKnown = !isNaN(dur) && dur > 0 && isFinite(dur);
-              if (durKnown && pos >= dur - 0.15) {
-                clearTimeout(safety); clearInterval(poll);
-                try { player.pause(); } catch {}
-                resolve();
-              }
-            }, 150);
-          });
-          return;
-        }
-      } catch {}
-    }
-
-    // 2. Si no pudimos hablar el texto real, usar frase buffer de Rosita antes de
-    //    caer en voz nativa. Prioriza continuidad de voz sobre silencio/errores.
-    const pudoCache = await reproducirFallbackFishCacheado().catch(() => false);
-    if (pudoCache) return;
-
-    // 3. Última red: voz nativa del sistema.
-    await new Promise<void>((resolve) => {
-      Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
-    });
-  }
 
   // ── Pre-cache TTS ─────────────────────────────────────────────────────────
   async function precachearTexto(texto: string, emotion?: string) {
@@ -729,14 +605,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     precacheInFlightRef.current.add(key);
     const run = async () => {
       try {
-        if (fishRealtimeInFlightRef.current > 0) return;
-        if (
-          USE_FISH_REALTIME_STREAM_EXPERIMENT
-          && Date.now() >= fishRealtimeCooldownUntilRef.current
-          && deberiaUsarFishRealtimeStream(limpio, emotion)
-        ) {
-          return;
-        }
         const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + key + '.mp3';
         const info = await FileSystem.getInfoAsync(cacheUri);
         if (info.exists) return;
@@ -776,7 +644,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
       }
     }
-    await precachearFrasesBuffer429().catch(() => {});
     precacheMuletillasRunningRef.current = false;
   }
 
@@ -921,51 +788,43 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       return;
     }
 
-    let isStream = false;
-    let usaFishRealtime = false;
     try {
-      // ── TTS — cache disco o streaming Fish realtime ──────────────────────
+      // ── TTS — cache disco o REST Fish Audio ────────────────────────────��─
       const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-      isStream = !info.exists;
-      const fishRealtimeDisponible = Date.now() >= fishRealtimeCooldownUntilRef.current;
-      usaFishRealtime = isStream && fishRealtimeDisponible && deberiaUsarFishRealtimeStream(texto, emotion);
-      if (__DEV__) console.log(`[TTS-CACHE] ${isStream ? 'MISS' : 'HIT'} | chars:${texto.length}`);
-      if (isStream) {
-        logCliente('tts_path', {
-          chars: texto.length,
-          emotion: emotion ?? 'none',
-          provider: usaFishRealtime ? 'fish_realtime' : 'legacy_stream',
-        });
-      }
-      const uri: string = info.exists
-        ? cacheUri
-        : usaFishRealtime
-          ? urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion, { latency: 'balanced', chunkLength: 140 })
-          : '';
+      if (__DEV__) console.log(`[TTS-CACHE] ${info.exists ? 'HIT' : 'MISS'} | chars:${texto.length}`);
 
-      if (uri) {
-        if (usaFishRealtime) fishRealtimeInFlightRef.current += 1;
-        ultimoAudioUriRef.current = uri;
+      let playUri: string | null = info.exists ? cacheUri : null;
+
+      if (!playUri) {
+        logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_rest' });
+        try {
+          const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
+          if (base64) {
+            await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+            playUri = cacheUri;
+          }
+        } catch {}
+      }
+
+      if (playUri) {
+        ultimoAudioUriRef.current = playUri;
         try { player.pause(); } catch {}
-        player.replace({ uri });
+        player.replace({ uri: playUri });
         d.estadoRef.current = 'hablando';
         player.play();
         if (__DEV__) console.log('[TTS] play() llamado');
-        let finishReason: string | null = null;
         await new Promise<void>(resolve => {
           let resolved = false;
           const done = (motivo: string) => {
             if (resolved) return;
             resolved = true;
-            finishReason = motivo;
             cancelarHablaRef.current = null;
             clearInterval(pollInterval);
             if (durationTimer !== undefined) clearTimeout(durationTimer);
             if (posStableTimer !== undefined) clearTimeout(posStableTimer);
-            if (estimatedPlaybackTimer !== undefined) clearTimeout(estimatedPlaybackTimer);
             clearTimeout(safetyTimeout);
             clearTimeout(noStartTimer);
             if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
@@ -985,14 +844,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           let silenceCount = 0;
           let durationTimer: ReturnType<typeof setTimeout> | undefined;
           let posStableTimer: ReturnType<typeof setTimeout> | undefined;
-          let estimatedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
           let lastPos = -1;
           cancelarHablaRef.current = () => {
             try { player.pause(); } catch {}
             done('barge-in');
           };
 
-          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, isStream ? (usaFishRealtime ? 3000 : 10000) : 4000);
+          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, info.exists ? 4000 : 10000);
 
           const pollInterval = setInterval(() => {
             const playing = player.playing;
@@ -1001,7 +859,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             const durKnown = !isNaN(dur) && dur > 0 && isFinite(dur) && dur < 7200;
 
             if (started && durationTimer === undefined && durKnown) {
-              if (estimatedPlaybackTimer !== undefined) { clearTimeout(estimatedPlaybackTimer); estimatedPlaybackTimer = undefined; }
               durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
             }
 
@@ -1014,10 +871,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
                 if (durKnown) {
                   durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
-                } else if (isStream) {
-                  const estimatedMs = Math.max(2000, texto.length * 90);
-                  if (__DEV__) console.log('[TTS] estimatedPlaybackTimer:', estimatedMs, 'ms (', texto.length, 'chars)');
-                  estimatedPlaybackTimer = setTimeout(() => done('estimated-playback'), estimatedMs);
                 }
               }
             } else {
@@ -1054,27 +907,26 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             }
           }, 150);
         });
-        if (isStream && finishReason === 'no-start') {
-          if (usaFishRealtime) {
-            fishRealtimeCooldownUntilRef.current = Date.now() + FISH_REALTIME_COOLDOWN_MS;
-            logCliente('tts_rt_cooldown', { ms: FISH_REALTIME_COOLDOWN_MS, motivo: 'no-start' });
-          }
-          if (__DEV__) console.log('[TTS] no-start en stream, fallback a frase cacheada/native');
-          await fallbackVozUltimoRecurso(texto);
-        }
       } else {
-        if (__DEV__) console.log('[TTS] fallback a frase cacheada/native (sin URI de stream)');
-        await fallbackVozUltimoRecurso(texto);
+        // Fallback: voz nativa si sintetizarVoz falló
+        if (__DEV__) console.log('[TTS] sintetizarVoz falló, usando voz nativa');
+        await new Promise<void>(resolve => {
+          Speech.speak(texto, {
+            language: 'es-AR',
+            rate: velocidadSegunEdad(p?.edad),
+            onDone: resolve,
+            onError: () => resolve(),
+            onStopped: () => resolve(),
+          });
+        });
       }
     } catch (e: any) {
       if (__DEV__) console.log('[TTS] CATCH en hablar:', e?.message ?? e);
       try {
-        await fallbackVozUltimoRecurso(texto);
+        await new Promise<void>(resolve => {
+          Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
+        });
       } catch {}
-    } finally {
-      if (isStream && usaFishRealtime) {
-        fishRealtimeInFlightRef.current = Math.max(0, fishRealtimeInFlightRef.current - 1);
-      }
     }
 
     hablandoDesdeRef.current = 0;
@@ -1091,23 +943,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (oraciones.length === 0) return;
     enColaHablaRef.current = true;
     try {
-      if (oraciones.length === 1) {
-        await hablar(oraciones[0], emotion);
-      } else {
-        for (let i = 0; i < oraciones.length; i++) {
-          // Disparar el precache de la siguiente oración SIN esperar — corre en paralelo
-          // mientras se reproduce la oración actual. La cola interna de precacheQueueRef
-          // garantiza que solo va un request Fish a la vez.
-          if (i + 1 < oraciones.length) {
-            precachearTexto(oraciones[i + 1], emotion).catch(() => {});
-          }
-          await hablar(oraciones[i], emotion);
-          if (i + 1 < oraciones.length) {
-            await new Promise(r => setTimeout(r, TTS_SEGMENT_PADDING_MS));
-          }
-          depsRef.current.rcStartTsRef.current = Date.now();
-        }
-      }
+      await hablar(oraciones.join(' '), emotion);
     } finally {
       enColaHablaRef.current = false;
     }

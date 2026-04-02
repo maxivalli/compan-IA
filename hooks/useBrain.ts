@@ -1015,6 +1015,11 @@ export function useBrain(deps: BrainDeps) {
         ? d.reproducirMuletilla(catMuletillaEfectiva, muletillaAbort)
         : Promise.resolve(null);
 
+      // Tecleo arranca en canal separado (playerMusica) cuando hay búsqueda externa
+      // O cuando la muletilla es de búsqueda (ej. clima desde system prompt)
+      const usaTecleo = pideNoticias || pideBusqueda || pideWikipedia || catMuletillaEfectiva === 'busqueda';
+      const tecleoPromise = usaTecleo ? d.reproducirTecleo(tecleoAbort) : Promise.resolve();
+
       if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
         // ── Fast path ─────────────────────────────────────────────────────────
         // Para consultas de entretenimiento o charla social, la memoria episódica
@@ -1036,8 +1041,6 @@ export function useBrain(deps: BrainDeps) {
         });
       } else {
         // ── Slow path: búsqueda + memoria + tecleo corren todos en paralelo ──
-        // tecleo arranca INMEDIATAMENTE en playerMusica (canal separado de la muletilla)
-        const tecleoPromise = d.reproducirTecleo(tecleoAbort);
 
         const [[titulosNoticias, busquedaResult, wikiResult], contextoMemoria] = await Promise.all([
           Promise.all([
@@ -1111,30 +1114,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
       await muletillaPromise;
-
-      if (winner.kind === 'primera' && winner.t) {
-        primeraFraseReproducida = true;
-        const hablarPrimeraPromise = d.hablar(winner.t, tagDetectadoStreaming);
-
-        const rawParaPrecache = await claudePromise;
-
-        let precachePromise: Promise<void> | undefined;
-        if (rawParaPrecache) {
-          const p2 = parsearRespuesta(rawParaPrecache, p.telegramContactos ?? [], p.familiares ?? []);
-          const { resto } = d.extraerPrimeraFrase(p2.respuesta);
-          if (resto) {
-            const restOraciones = d.splitEnOraciones(resto);
-            if (restOraciones.length > 0) {
-              precachePromise = Promise.all(
-                restOraciones.map(s => d.precachearTexto(s, p2.expresion).catch(() => {}))
-              ).then(() => {});
-            }
-          }
-        }
-
-        await hablarPrimeraPromise;
-        if (precachePromise) await precachePromise;
-      }
+      // Parar tecleo si sigue (fast path con muletilla busqueda — slow path ya lo paró antes)
+      tecleoAbort.current = true;
+      await tecleoPromise;
 
       const respuestaRaw = winner.kind === 'claude'
         ? (winner.result.ok ? winner.result.value : await claudePromise)
