@@ -725,7 +725,7 @@ export function useBrain(deps: BrainDeps) {
     }
     const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: respuesta }].slice(-30);
     historialRef.current = nuevoHist;
-    await guardarHistorial(nuevoHist);
+    guardarHistorial(nuevoHist).catch(() => {});
     d.ultimaCharlaRef.current = Date.now();
   }
 
@@ -784,7 +784,7 @@ export function useBrain(deps: BrainDeps) {
       d.setExpresion('neutral');
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: respuesta }].slice(-30);
       historialRef.current = nuevoHist;
-      await guardarHistorial(nuevoHist);
+      guardarHistorial(nuevoHist).catch(() => {});
       d.ultimaCharlaRef.current = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'parar_musica', texto: respuesta });
@@ -825,7 +825,7 @@ export function useBrain(deps: BrainDeps) {
         d.setExpresion(EXPRESION_RAPIDA[catRapida]);
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: texto }].slice(-30);
         historialRef.current = nuevoHist;
-        await guardarHistorial(nuevoHist);
+        guardarHistorial(nuevoHist).catch(() => {});
         d.ultimaCharlaRef.current    = Date.now();
         d.ultimaActividadRef.current = Date.now();
         logCliente('rapida_msg', { cat: catRapida, texto });
@@ -840,7 +840,7 @@ export function useBrain(deps: BrainDeps) {
       d.setExpresion('neutral');
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: instantanea.texto }].slice(-24);
       historialRef.current = nuevoHist;
-      await guardarHistorial(nuevoHist);
+      guardarHistorial(nuevoHist).catch(() => {});
       d.ultimaCharlaRef.current    = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'instantanea', texto: instantanea.texto });
@@ -853,7 +853,7 @@ export function useBrain(deps: BrainDeps) {
       d.setExpresion(socialBreve.expresion);
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: socialBreve.texto }].slice(-24);
       historialRef.current = nuevoHist;
-      await guardarHistorial(nuevoHist);
+      guardarHistorial(nuevoHist).catch(() => {});
       d.ultimaCharlaRef.current = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'social_breve', texto: socialBreve.texto });
@@ -1138,7 +1138,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         sincronizarAnimo(parsedFallback.animoUsuario, Date.now());
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsedFallback.respuesta }].slice(-30);
         historialRef.current = nuevoHist;
-        await guardarHistorial(nuevoHist);
+        guardarHistorial(nuevoHist).catch(() => {});
         mensajesSesionRef.current += 2;
         d.ultimaCharlaRef.current    = Date.now();
         d.ultimaActividadRef.current = Date.now();
@@ -1186,7 +1186,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         d.setExpresion('neutral');
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
         historialRef.current = nuevoHist;
-        await guardarHistorial(nuevoHist);
+        guardarHistorial(nuevoHist).catch(() => {});
         d.ultimaCharlaRef.current   = Date.now();
         d.ultimaActividadRef.current = Date.now();
         await d.hablar(parsed.respuesta);
@@ -1346,7 +1346,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         d.ultimaActividadRef.current = Date.now();
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
         historialRef.current = nuevoHist;
-        await guardarHistorial(nuevoHist);
+        guardarHistorial(nuevoHist).catch(() => {});
         return;
       }
 
@@ -1356,7 +1356,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       sincronizarAnimo(parsed.animoUsuario, Date.now());
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
       historialRef.current = nuevoHist;
-      await guardarHistorial(nuevoHist);
+      guardarHistorial(nuevoHist).catch(() => {});
       mensajesSesionRef.current += 2;
       d.ultimaCharlaRef.current    = Date.now();
       d.ultimaActividadRef.current = Date.now();
