@@ -695,12 +695,14 @@ export function useRosita() {
     setCamaraFacing(facingVision);
     modoVisionRef.current = true;
     setModoVision(true);
-    // Esperar a que capturaVisionFnRef esté lista (la cámara tarda ~1s en iniciar)
+    // Esperar a que la cámara esté lista (onCameraReady setea el ref)
     let intentos = 0;
     while (!capturaVisionFnRef.current && intentos < 20) {
       await new Promise(r => setTimeout(r, 100));
       intentos++;
     }
+    // Pausa extra para que el usuario pueda apuntar la cámara
+    await new Promise(r => setTimeout(r, 2000));
     await capturarYDescribir();
   }
 
