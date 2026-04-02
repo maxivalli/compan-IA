@@ -21,18 +21,6 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const cuentaArrancoRef = useRef(false);
 
-  // Modo visión: exponer función de captura al padre vía ref
-  useEffect(() => {
-    if (!modoVision || !capturaVisionRef) return;
-    capturaVisionRef.current = async () => {
-      try {
-        const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6 });
-        if (foto?.base64) onCaptura(foto.base64);
-      } catch {}
-    };
-    return () => { if (capturaVisionRef) capturaVisionRef.current = null; };
-  }, [modoVision]);
-
   useEffect(() => {
     if (modoVision) return; // el modo visión no usa la lógica de countdown
     if (!visible) { setCuenta(3); capturedRef.current = false; cuentaArrancoRef.current = false; return; }
@@ -43,7 +31,18 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   }, [visible, permission?.granted, modoVision]);
 
   function onCameraReady() {
-    if (modoVision) return; // captura manual, no hay countdown
+    if (modoVision) {
+      // Cámara lista → exponer función de captura al padre
+      if (capturaVisionRef) {
+        capturaVisionRef.current = async () => {
+          try {
+            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6 });
+            if (foto?.base64) onCaptura(foto.base64);
+          } catch {}
+        };
+      }
+      return;
+    }
     if (cuentaArrancoRef.current) return;
     cuentaArrancoRef.current = true;
     if (silencioso) { setCuenta(0); return; }
@@ -57,7 +56,10 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   }
 
   useEffect(() => {
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (capturaVisionRef) capturaVisionRef.current = null;
+    };
   }, []);
 
   // Disparar cuando llega a 0 (solo en modo normal/silencioso)
