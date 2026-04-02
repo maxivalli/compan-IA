@@ -36,7 +36,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
       if (capturaVisionRef) {
         capturaVisionRef.current = async () => {
           try {
-            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6, shutterSound: false });
+            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6, shutterSound: false, skipProcessing: true });
             if (foto?.base64) onCaptura(foto.base64);
           } catch {}
         };
@@ -86,8 +86,8 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
       <Modal visible animationType="fade" statusBarTranslucent>
         <View style={styles.contenedor}>
           <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={onCameraReady} />
-          <TouchableOpacity style={styles.cancelar} onPress={onCancelar}>
-            <Text style={styles.cancelarTexto}>Cerrar cámara</Text>
+          <TouchableOpacity style={styles.cerrarVision} onPress={onCancelar}>
+            <Text style={styles.cerrarVisionX}>✕</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -131,4 +131,6 @@ const styles = StyleSheet.create({
   flash:      { fontSize: 100 },
   cancelar:   { position: 'absolute', bottom: 60, alignSelf: 'center', backgroundColor: '#00000088', borderRadius: 24, paddingHorizontal: 28, paddingVertical: 12 },
   cancelarTexto: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  cerrarVision:  { position: 'absolute', bottom: 60, alignSelf: 'center', backgroundColor: '#00000099', borderRadius: 999, width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  cerrarVisionX: { color: '#fff', fontSize: 22, fontWeight: '700', lineHeight: 26 },
 });
