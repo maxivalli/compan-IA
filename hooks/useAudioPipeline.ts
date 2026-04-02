@@ -29,6 +29,7 @@ import {
   markTurnFirstAudio,
   transcribirAudio,
   sintetizarVoz,
+  urlFishRealtimeStream,
   logCliente,
   VOICE_ID_FEMENINA,
   VOICE_ID_MASCULINA,
@@ -815,14 +816,26 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
 
       if (!playUri) {
-        logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_rest' });
+        // Stream directo: ExoPlayer empieza a reproducir cuando llegan los primeros chunks
+        // (~300-400ms) en vez de esperar la descarga completa (~850-1000ms).
+        // En paralelo, descargamos y cacheamos con sintetizarVoz para el próximo turn.
         try {
-          const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
-          if (base64) {
-            await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
-            playUri = cacheUri;
-          }
-        } catch {}
+          const streamUrl = urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
+          logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_stream' });
+          // Cache en background via precachearTexto (usa el in-flight map, evita double call)
+          precachearTexto(texto, emotion).catch(() => {});
+          playUri = streamUrl;
+        } catch {
+          // Fallback a REST si no se puede construir la URL de stream
+          logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_rest_fallback' });
+          try {
+            const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
+            if (base64) {
+              await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
+              playUri = cacheUri;
+            }
+          } catch {}
+        }
       }
 
       if (playUri) {
