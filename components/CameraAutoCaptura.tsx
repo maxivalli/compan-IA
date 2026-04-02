@@ -36,7 +36,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
       if (capturaVisionRef) {
         capturaVisionRef.current = async () => {
           try {
-            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6 });
+            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6, shutterSound: false });
             if (foto?.base64) onCaptura(foto.base64);
           } catch {}
         };
@@ -69,7 +69,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
     capturedRef.current = true;
     (async () => {
       try {
-        const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6 });
+        const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6, shutterSound: false });
         if (foto?.base64) onCaptura(foto.base64);
         else onCancelar();
       } catch {
