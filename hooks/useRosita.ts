@@ -59,7 +59,7 @@ export function useRosita() {
   const [noMolestar,        setNoMolestarState]   = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
-  const [climaObj,          setClimaObj]          = useState<{ temperatura: number; descripcion: string } | null>(null);
+  const [climaObj,          setClimaObj]          = useState<{ temperatura: number; descripcion: string; codigoActual: number } | null>(null);
   const [ciudadDetectada,   setCiudadDetectada]   = useState('');
   const [debugGPS,          setDebugGPS]          = useState('');
   const [listas,            setListas]            = useState<Lista[]>([]);
@@ -459,7 +459,7 @@ export function useRosita() {
           ciudadRef.current = clima.ciudad ?? '';
           setCiudadDetectada(clima.ciudad ?? '');
           if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
-          setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
+          setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion, codigoActual: clima.codigoActual });
           climaTimerRef.current = setTimeout(intentarClima, 60 * 60 * 1000); // refrescar en 1h
         } else {
           climaTimerRef.current = setTimeout(intentarClima, 30 * 1000);

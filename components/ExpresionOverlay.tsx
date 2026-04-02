@@ -50,6 +50,7 @@ export default function ExpresionOverlay({
   const esNieve   = !!condicion?.toLowerCase().match(/nieve|nevad|granizo/) || (temperatura !== undefined && temperatura <= 1);
   const esViento  = !!condicion?.toLowerCase().match(/viento|ventoso|ráfaga|rafaga/);
   const esCalor   = !esLluvia && !esNieve && (temperatura !== undefined && temperatura > 35);
+  const esParcial = !!condicion?.toLowerCase().match(/parcialmente/);
   const esNublado  = !!condicion?.toLowerCase().match(/nublado|nuboso|cubierto|parcial|algunas nubes/);
   const esSoleado  = !!condicion?.toLowerCase().match(/soleado|despejado|sol con|cielo claro/);
 
@@ -70,12 +71,12 @@ export default function ExpresionOverlay({
 
   if (capa === 'fondo') return (
     <View style={s.overlay} pointerEvents="none">
+      {!esNoche && !musicaActiva && !esLluvia && !esViento && !esNieve && (esSoleado || esParcial) && <Sol modoHorizontal={esHorizontalPantalla} />}
       {esLluvia                                                           && <GotasLluvia />}
       {esNieve                                                            && <Nieve />}
       {esViento                                                           && <Viento />}
       {esCalor                                                            && <CalorEfecto />}
-      {esNublado && !esLluvia                                             && <Nubes />}
-      {!esNoche && !musicaActiva && !esLluvia && !esNublado && !esNieve && !esViento && esSoleado && <Sol modoHorizontal={esHorizontalPantalla} />}
+      {(esNublado || esLluvia || esNieve)                                 && <Nubes />}
     </View>
   );
 

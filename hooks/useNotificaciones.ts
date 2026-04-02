@@ -41,7 +41,7 @@ export type NotificacionesRefs = {
   climaRef:              React.RefObject<string>;
   ciudadRef:             React.RefObject<string>;
   coordRef:              React.RefObject<{ lat: number; lon: number } | null>;
-  setClimaObj:           (c: { temperatura: number; descripcion: string } | null) => void;
+  setClimaObj:           (c: { temperatura: number; descripcion: string; codigoActual: number } | null) => void;
   setEstado:             (s: 'esperando' | 'escuchando' | 'pensando' | 'hablando') => void;
   hablar:                (texto: string) => Promise<void>;
   iniciarSpeechRecognition: () => void;
@@ -850,7 +850,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       climaRef.current  = climaATexto(clima);
       ciudadRef.current = clima.ciudad ?? '';
       if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
-      setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion });
+      setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion, codigoActual: clima.codigoActual });
     }
 
     async function tick() {

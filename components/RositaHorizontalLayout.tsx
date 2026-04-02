@@ -25,6 +25,7 @@ import { Globos } from './EfectosExpresion';
 import CameraAutoCaptura from './CameraAutoCaptura';
 import { EstadoRosita } from '../hooks/useBrain';
 import { AccionesRosita } from '../hooks/useAccionesRosita';
+import { CODIGOS_ADVERSOS } from '../lib/clima';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ export interface RositaHorizontalProps {
   esFondoNoche:   boolean;
   cieloTapado:    boolean;
   amaneciendo:    boolean;
-  climaObj:       { temperatura: number; descripcion: string } | null;
+  climaObj:       { temperatura: number; descripcion: string; codigoActual: number } | null;
 
   // Cámara
   mostrarCamara:    boolean;
@@ -82,7 +83,7 @@ export interface RositaHorizontalProps {
   apagarLinterna: () => void;
 }
 
-function RelojHorizontalFullscreen({ temperatura }: { temperatura?: number }) {
+function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
   const [fontsLoaded] = useFonts({ Poppins_700Bold });
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
@@ -93,7 +94,9 @@ function RelojHorizontalFullscreen({ temperatura }: { temperatura?: number }) {
   });
   const latido  = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const [mostrandoTemp, setMostrandoTemp] = useState(false);
+  const [infoIdx, setInfoIdx] = useState<0|1|2>(0);
+  const climaObjRef = useRef(climaObj);
+  useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -117,18 +120,23 @@ function RelojHorizontalFullscreen({ temperatura }: { temperatura?: number }) {
     return () => anim.stop();
   }, []);
 
-  // Alternar hora ↔ temperatura cada 5s (solo si hay temperatura)
+  // Alternar hora ↔ temperatura ↔ alerta cada 5s
   useEffect(() => {
-    if (temperatura == null) return;
+    if (climaObj?.temperatura == null) return;
     const id = setInterval(() => {
       Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(({ finished }) => {
         if (!finished) return;
-        setMostrandoTemp(prev => !prev);
+        setInfoIdx(prev => {
+           const co = climaObjRef.current;
+           const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
+           const max = hasAlert ? 2 : 1;
+           return prev >= max ? 0 : (prev + 1) as 0|1|2;
+        });
         Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
       });
     }, 5000);
     return () => clearInterval(id);
-  }, [temperatura]);
+  }, [climaObj?.temperatura]);
 
   const fontFamily = fontsLoaded ? 'Poppins_700Bold' : undefined;
 
@@ -136,16 +144,24 @@ function RelojHorizontalFullscreen({ temperatura }: { temperatura?: number }) {
   // Controlamos visibilidad con opacity + position absolute en la vista oculta.
   return (
     <Animated.View style={[styles.relojWrap, { opacity: fadeAnim }]}>
-      <View style={[{ flexDirection: 'row', alignItems: 'center' }, mostrandoTemp && { opacity: 0, position: 'absolute' }]}>
+      <View style={[infoIdx !== 0 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
         <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
         <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
         <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
       </View>
-      {temperatura != null && (
-        <View style={[!mostrandoTemp && { opacity: 0, position: 'absolute' }]}>
-          <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(temperatura)}°`}</Text>
+      {climaObj?.temperatura != null && (
+        <View style={[infoIdx !== 1 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
+          <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
+          {(!!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3))) ? (
+            <Ionicons name="warning" size={96} color="#FFD700" style={{ transform: [{ translateY: 6 }], marginLeft: 24 }} />
+          ) : null}
         </View>
       )}
+      <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
+        <Text style={[styles.relojHora, { fontFamily, fontSize: 72, textAlign: 'center' }]} adjustsFontSizeToFit numberOfLines={1}>
+          {climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : 'ALERTA METEOROLÓGICA'}
+        </Text>
+      </View>
     </Animated.View>
   );
 }
@@ -234,7 +250,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
             {props.modoReloj ? (
               <View style={styles.relojFullscreen}>
-                <RelojHorizontalFullscreen temperatura={props.climaObj?.temperatura} />
+                <RelojHorizontalFullscreen climaObj={props.climaObj} />
               </View>
             ) : (
               <View style={{ flex: 1 }}>

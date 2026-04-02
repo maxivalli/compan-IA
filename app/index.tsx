@@ -24,6 +24,7 @@ import { AnimacionMusica, ZZZ, CieloNoche, WaveformDetectando } from '../compone
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
+import { CODIGOS_ADVERSOS } from '../lib/clima';
 
 function RelojNoche() {
   const [fontsLoaded] = useFonts({ Poppins_700Bold });
@@ -152,6 +153,8 @@ export default function Index() {
   };
   const [horaMinuto, setHoraMinuto] = useState(fmtHoraMinuto);
   const [infoIdx, setInfoIdx]       = useState(0); // 0 = hora, 1 = temperatura
+  const climaObjRef = useRef(climaObj);
+  useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
 
   useEffect(() => {
     const id = setInterval(() => setHoraMinuto(fmtHoraMinuto()), 30_000);
@@ -190,7 +193,12 @@ export default function Index() {
       ]);
       hintAnimRef.current.start(({ finished }) => {
         if (!finished || !hintActiveRef.current || hintAnimSeqRef.current !== seq) return;
-        setInfoIdx(prev => (prev + 1) % 2);
+        setInfoIdx(prev => {
+           const co = climaObjRef.current;
+           const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
+           const max = hasAlert ? 2 : 1;
+           return prev >= max ? 0 : prev + 1;
+        });
         hintTranslate.setValue(30);
         hintAnimRef.current?.stop();
         hintAnimRef.current = Animated.parallel([
@@ -454,7 +462,7 @@ export default function Index() {
         const ms      = isTablet ? Math.min(screenW / 390, 1.6) : 1;
         const btnSize = Math.round(44 * ms);
         const icoSize = Math.round(22 * ms);
-        const topPos  = safeTop + 52;
+        const topPos  = 52; // igual que MenuFlotante — no suma safeTop
         return (
       <TouchableOpacity
         style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }, noMolestar && styles.btnNoMolestarFlotanteActivo]}
@@ -590,15 +598,22 @@ export default function Index() {
           : modoNoche !== 'despierta'
           ? <RelojNoche />
           : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%', alignItems: 'center' }}>
-              <Text
-                style={[styles.infoText, textScale !== 1 && { fontSize: fs(52) * textScale }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >{
-                infoIdx === 1 && climaObj?.temperatura != null
-                  ? `${Math.round(climaObj.temperatura)}°`
-                  : horaMinuto
-              }</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Text
+                  style={[styles.infoText, textScale !== 1 ? { fontSize: fs(52) * textScale } : {}, infoIdx === 2 && { fontSize: fs(32), textAlign: 'center' }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >{
+                  infoIdx === 2
+                    ? (climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : 'ALERTA METEOROLÓGICA')
+                    : infoIdx === 1 && climaObj?.temperatura != null
+                    ? `${Math.round(climaObj.temperatura)}°`
+                    : horaMinuto
+                }</Text>
+                {infoIdx === 1 && (!!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3))) ? (
+                  <Ionicons name="warning" size={fs(36)} color="#FFD700" style={{ transform: [{ translateY: 2 }] }} />
+                ) : null}
+              </View>
             </Animated.View>
         }
       </View>
