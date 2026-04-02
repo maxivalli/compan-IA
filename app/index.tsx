@@ -145,21 +145,24 @@ export default function Index() {
   const cieloTapado = /\bnublado\b/.test(desc) && !/parcial|algunas nubes/.test(desc)
     || /nuboso|cubierto|lluvia|lloviendo|llovizna|tormenta|nevada|nieve|granizo|niebla|chaparrón/.test(desc);
 
-  // ── Hints rotativos en modo espera ──────────────────────────────────────────
-  const HINTS = [
-    '¿Cómo estás hoy?',
-    '¿De qué te gustaría charlar?',
-    '¿Querés escuchar música?',
-    '¿Qué pasó hoy en las noticias?',
-    '¿Jugamos a algo?',
-    'Acá estoy para vos',
-  ];
-  const [hintIdx, setHintIdx] = useState(0);
-  const hintOpacity           = useRef(new Animated.Value(0)).current;
-  const hintTranslate         = useRef(new Animated.Value(30)).current;
-  const hintActiveRef         = useRef(false);
-  const hintAnimRef           = useRef<Animated.CompositeAnimation | null>(null);
-  const hintAnimSeqRef        = useRef(0);
+  // ── Hora + Temperatura alternando en modo espera ─────────────────────────────
+  const fmtHoraMinuto = () => {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
+  const [horaMinuto, setHoraMinuto] = useState(fmtHoraMinuto);
+  const [infoIdx, setInfoIdx]       = useState(0); // 0 = hora, 1 = temperatura
+
+  useEffect(() => {
+    const id = setInterval(() => setHoraMinuto(fmtHoraMinuto()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const hintOpacity    = useRef(new Animated.Value(0)).current;
+  const hintTranslate  = useRef(new Animated.Value(30)).current;
+  const hintActiveRef  = useRef(false);
+  const hintAnimRef    = useRef<Animated.CompositeAnimation | null>(null);
+  const hintAnimSeqRef = useRef(0);
 
   useEffect(() => {
     hintAnimSeqRef.current += 1;
@@ -187,7 +190,7 @@ export default function Index() {
       ]);
       hintAnimRef.current.start(({ finished }) => {
         if (!finished || !hintActiveRef.current || hintAnimSeqRef.current !== seq) return;
-        setHintIdx(prev => (prev + 1) % HINTS.length);
+        setInfoIdx(prev => (prev + 1) % 2);
         hintTranslate.setValue(30);
         hintAnimRef.current?.stop();
         hintAnimRef.current = Animated.parallel([
@@ -561,12 +564,16 @@ export default function Index() {
           ? <AnimacionMusica />
           : modoNoche !== 'despierta'
           ? <RelojNoche />
-          : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
+          : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%', alignItems: 'center' }}>
               <Text
-                style={[styles.hintText, textScale !== 1 && { fontSize: fs(27) * textScale, lineHeight: fs(35) * textScale }]}
+                style={[styles.infoText, textScale !== 1 && { fontSize: fs(52) * textScale }]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
-              >{HINTS[hintIdx]}</Text>
+              >{
+                infoIdx === 1 && climaObj?.temperatura != null
+                  ? `${Math.round(climaObj.temperatura)}°`
+                  : horaMinuto
+              }</Text>
             </Animated.View>
         }
       </View>
@@ -805,7 +812,7 @@ const styles = StyleSheet.create({
   botonNoMolestar:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ffffff33', marginTop: 8 },
   botonNoMolestarActivo: { backgroundColor: '#E85D24', borderColor: '#E85D24' },
   botonNoMolestarTexto:  { fontSize: fs(13), color: '#ffffffaa', fontWeight: '500' },
-  hintText:           { fontSize: fs(27), fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif', fontStyle: 'italic', color: '#ffffffdd', textAlign: 'center', paddingHorizontal: 32, lineHeight: fs(35) },
+  infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },
   relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
   onboardingOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 28 },

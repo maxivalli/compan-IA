@@ -1,5 +1,23 @@
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
+
+const EFECTO_SCALE       = 1.5;
+const EFECTO_TRANSLATE_X = 30;   // nudge derecha (horizontal)
+const EFECTO_TRANSLATE_Y = 50;   // nudge abajo   (horizontal)
+
+function useEfectoStyle() {
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const esHorizontal = screenW > screenH;
+  const shortEdge    = Math.min(screenW, screenH);
+  const esTablet     = esHorizontal && shortEdge >= 700;
+  const leftOffset   = esHorizontal
+    ? Math.round(Math.min(screenW * (esTablet ? 0.60 : 0.46), esTablet ? 312 : 240))
+    : 0;
+  const transform = esHorizontal
+    ? [{ scale: EFECTO_SCALE }, { translateX: EFECTO_TRANSLATE_X }, { translateY: EFECTO_TRANSLATE_Y }]
+    : [];
+  return { leftOffset, transform };
+}
 import { OW } from './EfectosExpresion';
 
 // ── Lluvia ────────────────────────────────────────────────────────────────────
@@ -109,12 +127,13 @@ function GotaFrente({ x, delay }: { x: number; delay: number }) {
 }
 
 export function GotasLluvia() {
+  const { leftOffset, transform } = useEfectoStyle();
   return (
-    <>
+    <View style={{ position: 'absolute', left: leftOffset, top: 0, bottom: 0, width: OW, transform }}>
       {GOTAS_FONDO.map((g, i)  => <GotaFondo   key={`f${i}`} x={g.x} delay={g.delay} />)}
       {GOTAS_FRENTE.map((g, i) => <GotaFrente  key={`p${i}`} x={g.x} delay={g.delay} />)}
       {GOTAS_FRENTE.map((g, i) => <SplashFrente key={`s${i}`} x={g.x + 1} startY={210} />)}
-    </>
+    </View>
   );
 }
 
@@ -173,12 +192,13 @@ function UnCopo({ x, delay, size, op, dur }: { x: number; delay: number; size: n
 }
 
 export function Nieve() {
+  const { leftOffset, transform } = useEfectoStyle();
   return (
-    <>
+    <View style={{ position: 'absolute', left: leftOffset, top: 0, bottom: 0, width: OW, transform }}>
       {COPOS_GRANDE.map((c, i) => <UnCopo key={`ng${i}`} {...c} size={10} op={0.7}  dur={3200} />)}
       {COPOS_MEDIO.map((c, i)  => <UnCopo key={`nm${i}`} {...c} size={7}  op={0.55} dur={2400} />)}
       {COPOS_CHICO.map((c, i)  => <UnCopo key={`nc${i}`} {...c} size={4}  op={0.40} dur={1800} />)}
-    </>
+    </View>
   );
 }
 
@@ -314,13 +334,14 @@ function OndaCalorGeo({ delay, radio }: { delay: number; radio: number }) {
 }
 
 export function CalorEfecto() {
+  const { leftOffset, transform } = useEfectoStyle();
   return (
-    <>
+    <View style={{ position: 'absolute', left: leftOffset, top: 0, bottom: 0, width: OW, transform }}>
       {PARTICULAS_CALOR.map((p, i) => <ParticulaCalor key={i} {...p} />)}
       <OndaCalorGeo delay={0}    radio={60} />
       <OndaCalorGeo delay={800}  radio={90} />
       <OndaCalorGeo delay={1600} radio={45} />
-    </>
+    </View>
   );
 }
 

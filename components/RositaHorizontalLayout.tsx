@@ -82,7 +82,7 @@ export interface RositaHorizontalProps {
   apagarLinterna: () => void;
 }
 
-function RelojHorizontalFullscreen() {
+function RelojHorizontalFullscreen({ temperatura }: { temperatura?: number }) {
   const [fontsLoaded] = useFonts({ Poppins_700Bold });
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
@@ -91,7 +91,9 @@ function RelojHorizontalFullscreen() {
       mm: String(now.getMinutes()).padStart(2, '0'),
     };
   });
-  const latido = useRef(new Animated.Value(1)).current;
+  const latido  = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [mostrandoTemp, setMostrandoTemp] = useState(false);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -108,21 +110,43 @@ function RelojHorizontalFullscreen() {
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(latido, { toValue: 0.15, duration: 500, useNativeDriver: true }),
-        Animated.timing(latido, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(latido, { toValue: 1,    duration: 500, useNativeDriver: true }),
       ])
     );
     anim.start();
     return () => anim.stop();
   }, []);
 
+  // Alternar hora ↔ temperatura cada 5s (solo si hay temperatura)
+  useEffect(() => {
+    if (temperatura == null) return;
+    const id = setInterval(() => {
+      Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(({ finished }) => {
+        if (!finished) return;
+        setMostrandoTemp(prev => !prev);
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+      });
+    }, 5000);
+    return () => clearInterval(id);
+  }, [temperatura]);
+
   const fontFamily = fontsLoaded ? 'Poppins_700Bold' : undefined;
 
+  // Nunca desmontar la vista de hora: el native driver pierde el nodo y el latido muere.
+  // Controlamos visibilidad con opacity + position absolute en la vista oculta.
   return (
-    <View style={styles.relojWrap}>
-      <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
-      <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
-      <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
-    </View>
+    <Animated.View style={[styles.relojWrap, { opacity: fadeAnim }]}>
+      <View style={[{ flexDirection: 'row', alignItems: 'center' }, mostrandoTemp && { opacity: 0, position: 'absolute' }]}>
+        <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
+        <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
+        <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
+      </View>
+      {temperatura != null && (
+        <View style={[!mostrandoTemp && { opacity: 0, position: 'absolute' }]}>
+          <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(temperatura)}°`}</Text>
+        </View>
+      )}
+    </Animated.View>
   );
 }
 
@@ -210,7 +234,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
             {props.modoReloj ? (
               <View style={styles.relojFullscreen}>
-                <RelojHorizontalFullscreen />
+                <RelojHorizontalFullscreen temperatura={props.climaObj?.temperatura} />
               </View>
             ) : (
               <View style={{ flex: 1 }}>
@@ -292,7 +316,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons
-              name={props.noMolestar ? 'notifications-off' : 'notifications-outline'}
+              name={props.noMolestar ? 'mic-off' : 'mic-outline'}
               size={24}
               color={props.noMolestar ? '#E85D24' : '#ffffffcc'}
             />
@@ -329,23 +353,22 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             style={{ position: 'absolute', bottom: safeBottom + 54, right: safeRight + 74, width: 72, height: 72 }}
           />
 
-          {/* Waveform de detección de voz — centro inferior */}
-          {props.detectandoSonido && props.estado === 'esperando' && !props.noMolestar && (
-            <View style={[styles.waveformWrap, { bottom: safeBottom + Math.max(96, Math.round(screenH * 0.20)) }]}>
-              <WaveformDetectando />
-            </View>
-          )}
 
-          {/* Indicator de estado texto — esquina inferior derecha, sutil */}
-          {props.estado !== 'esperando' && (
+          {/* Indicator de estado — esquina inferior derecha */}
+          {(props.estado !== 'esperando' || (props.detectandoSonido && !props.noMolestar)) && (
             <View style={[styles.estadoBadge, { bottom: safeBottom + 14, right: safeRight + 16 }]}>
-              <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
-              <Text style={styles.estadoTexto}>
-                {props.estado === 'escuchando' ? 'Escuchando'
-                  : props.estado === 'pensando' ? 'Pensando...'
-                  : props.estado === 'hablando' ? 'Hablando'
-                  : ''}
-              </Text>
+              {props.detectandoSonido && props.estado === 'esperando'
+                ? <WaveformDetectando />
+                : <>
+                    <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
+                    <Text style={styles.estadoTexto}>
+                      {props.estado === 'escuchando' ? 'Escuchando'
+                        : props.estado === 'pensando' ? 'Pensando...'
+                        : props.estado === 'hablando' ? 'Hablando'
+                        : ''}
+                    </Text>
+                  </>
+              }
             </View>
           )}
 
