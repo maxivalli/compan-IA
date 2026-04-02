@@ -402,12 +402,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   relojHora: {
-    color: '#8f98a3',
+    color: '#ffffffbf',
     fontSize: 172,
     letterSpacing: 2,
-    textShadowColor: '#00000055',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 18,
   },
   estadoRing: {
     position:    'absolute',
