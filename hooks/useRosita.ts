@@ -675,7 +675,7 @@ export function useRosita() {
     // Muletilla y Gemini en paralelo — la muletilla cubre la latencia
     const [resultado] = await Promise.all([
       verVision(base64),
-      pipeline.hablar('Esperate, que estoy mirando...'),
+      pipeline.hablar('Esperáte, que estoy mirando...'),
     ]);
     if (!resultado) {
       await pipeline.hablar('No pude ver bien. ¿Acercás un poco más la cámara?');
