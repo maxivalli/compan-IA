@@ -338,10 +338,8 @@ export default function Index() {
   const btnH      = isTablet ? Math.round(64 * textScale) : 64;
   const icoBtn    = Math.round(btnH * 0.46);
   const icoSOS    = Math.round(btnH * 0.50);
-  const icoNM     = isTablet ? 28 : 18;
   const btnFont   = isTablet ? fs(26) : fs(18);
   const sosFontTablet = fs(43);
-  const nmFont    = isTablet ? fs(24) : fs(13);
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
 
   // ── Color del dot / borde / glow según estado ───────────────────────────────
@@ -450,6 +448,33 @@ export default function Index() {
       style={[styles.contenedor, isTablet && { justifyContent: 'space-evenly', paddingVertical: tabletPadV }]}
     >
       <MenuFlotante oscuro />
+
+      {/* No molestar — espejo del botón de menú, arriba a la izquierda */}
+      {(() => {
+        const ms      = isTablet ? Math.min(screenW / 390, 1.6) : 1;
+        const btnSize = Math.round(44 * ms);
+        const icoSize = Math.round(22 * ms);
+        const topPos  = safeTop + 52;
+        return (
+      <TouchableOpacity
+        style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }, noMolestar && styles.btnNoMolestarFlotanteActivo]}
+        onPress={() => {
+          const nuevo = !noMolestar;
+          setNoMolestar(nuevo);
+          if (nuevo) {
+            ExpoSpeechRecognitionModule.stop();
+            detenerSilbido();
+          } else {
+            refs.iniciarSpeechRecognition();
+            chequearPendientesAlActivar();
+          }
+        }}
+        activeOpacity={0.75}
+      >
+        <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={icoSize} color={noMolestar ? '#E85D24' : '#ffffffcc'} />
+      </TouchableOpacity>
+        );
+      })()}
 
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
@@ -666,25 +691,6 @@ export default function Index() {
 
         </View>
 
-        {/* Fila inferior: No Molestar centrado */}
-        <TouchableOpacity
-          style={[styles.botonNoMolestar, noMolestar && styles.botonNoMolestarActivo, textScale !== 1 && { paddingHorizontal: Math.round(16 * textScale), paddingVertical: Math.round(8 * textScale), gap: Math.round(6 * textScale), borderRadius: Math.round(20 * textScale) }]}
-          onPress={() => {
-            const nuevo = !noMolestar;
-            setNoMolestar(nuevo);
-            if (nuevo) {
-              ExpoSpeechRecognitionModule.stop();
-              detenerSilbido();
-            } else {
-              refs.iniciarSpeechRecognition();
-              chequearPendientesAlActivar();
-            }
-          }}
-          activeOpacity={0.75}
-        >
-          <Ionicons name={noMolestar ? 'notifications-off' : 'notifications-outline'} size={icoNM} color={noMolestar ? '#fff' : '#ffffffaa'} />
-          <Text style={[styles.botonNoMolestarTexto, noMolestar && { color: '#fff' }, { fontSize: nmFont }]}>No molestar</Text>
-        </TouchableOpacity>
 
       </View>
 
@@ -809,9 +815,8 @@ const styles = StyleSheet.create({
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 28, paddingVertical: 40, paddingHorizontal: 44, alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20 },
   sosModalTitulo:       { fontSize: fs(32), fontWeight: '800', color: '#fff' },
   sosModalTexto:        { fontSize: fs(22), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(32) },
-  botonNoMolestar:       { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#ffffff33', marginTop: 8 },
-  botonNoMolestarActivo: { backgroundColor: '#E85D24', borderColor: '#E85D24' },
-  botonNoMolestarTexto:  { fontSize: fs(13), color: '#ffffffaa', fontWeight: '500' },
+  btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, width: 44, height: 44, borderRadius: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff1a' },
+  btnNoMolestarFlotanteActivo: { backgroundColor: '#ffffff1a' },
   infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },
   relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
