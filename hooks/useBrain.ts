@@ -1112,11 +1112,12 @@ REGLAS CRÍTICAS PARA RESPONDER:
         d.splitEnOraciones(ppc.respuesta).forEach(s => d.precachearTexto(s, ppc.expresion).catch(() => {}));
       }
 
-      // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
-      await muletillaPromise;
-      // Parar tecleo si sigue (fast path con muletilla busqueda — slow path ya lo paró antes)
+      // Claude ya llegó (winner lo confirma) — parar tecleo ahora para que no
+      // siga sonando durante la reproducción de la muletilla ni del TTS.
       tecleoAbort.current = true;
       await tecleoPromise;
+      // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
+      await muletillaPromise;
 
       const respuestaRaw = winner.kind === 'claude'
         ? (winner.result.ok ? winner.result.value : await claudePromise)
@@ -1280,8 +1281,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
 
       // ── DOMÓTICA ── delegado a useSmartThings
+      // Pre-cachear TTS en paralelo con el control SmartThings para eliminar la
+      // espera secuencial (POST controlar + GET estado ~2s) antes del audio.
       if (parsed.domotica) {
-        await d.ejecutarAccionDomotica(parsed.domotica);
+        await Promise.all([
+          d.ejecutarAccionDomotica(parsed.domotica),
+          parsed.respuesta ? d.precachearTexto(parsed.respuesta, parsed.expresion).catch(() => {}) : Promise.resolve(),
+        ]);
       }
 
       // ── LISTAS ──

@@ -263,7 +263,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Refs de muletillas y cache ────────────────────────────────────────────
   const ultimaMuletillaRef         = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
-  const precacheInFlightRef        = useRef<Set<string>>(new Set());
+  const precacheInFlightRef        = useRef<Map<string, Promise<void>>>(new Map());
   const precacheMuletillasRunningRef = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
@@ -597,15 +597,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
 
   // ── Pre-cache TTS ─────────────────────────────────────────────────────────
-  async function precachearTexto(texto: string, emotion?: string) {
+  async function precachearTexto(texto: string, emotion?: string): Promise<void> {
     const limpio = limpiarTextoParaTTS(texto);
     if (!limpio) return;
     const key = hashTexto(limpio + '|' + (emotion ?? ''));
-    if (precacheInFlightRef.current.has(key)) return;
-    precacheInFlightRef.current.add(key);
+    const existing = precacheInFlightRef.current.get(key);
+    if (existing !== undefined) return existing;
+    const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + key + '.mp3';
+    let resolveInFlight!: () => void;
+    const inFlightPromise = new Promise<void>(res => { resolveInFlight = res; });
+    precacheInFlightRef.current.set(key, inFlightPromise);
     const run = async () => {
       try {
-        const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + key + '.mp3';
         const info = await FileSystem.getInfoAsync(cacheUri);
         if (info.exists) return;
         const p = depsRef.current.perfilRef.current;
@@ -614,11 +617,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         if (base64) await FileSystem.writeAsStringAsync(cacheUri, base64, { encoding: 'base64' });
       } catch {} finally {
         precacheInFlightRef.current.delete(key);
+        resolveInFlight();
       }
     };
     precacheQueueRef.current = precacheQueueRef.current.catch(() => {}).then(run);
-    // Fire-and-forget: el caller no necesita esperar que el precache termine.
     // La cola garantiza que solo corre un request Fish Audio a la vez.
+    // inFlightPromise permite que hablar() espere el resultado en vez de lanzar un segundo request.
   }
 
   async function precachearMuletillas(voiceId?: string, nombre?: string) {
@@ -789,14 +793,26 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
 
     try {
-      // ── TTS — cache disco o REST Fish Audio ────────────────────────────��─
-      const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + hashTexto(texto + '|' + (emotion ?? '')) + '.mp3';
+      // ── TTS — cache disco o REST Fish Audio ──────────────────────────────
+      const cacheKey = hashTexto(texto + '|' + (emotion ?? ''));
+      const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + cacheKey + '.mp3';
       const info = await FileSystem.getInfoAsync(cacheUri);
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
       if (__DEV__) console.log(`[TTS-CACHE] ${info.exists ? 'HIT' : 'MISS'} | chars:${texto.length}`);
 
       let playUri: string | null = info.exists ? cacheUri : null;
+
+      if (!playUri) {
+        // Si precachearTexto ya está descargando este audio, esperar el resultado en vez de
+        // lanzar una segunda llamada Fish Audio (elimina el double-TTS por race condition).
+        const inFlight = precacheInFlightRef.current.get(cacheKey);
+        if (inFlight) {
+          try { await inFlight; } catch {}
+          const retry = await FileSystem.getInfoAsync(cacheUri);
+          if (retry.exists) playUri = cacheUri;
+        }
+      }
 
       if (!playUri) {
         logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_rest' });
