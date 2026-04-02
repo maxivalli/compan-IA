@@ -79,7 +79,7 @@ export default function Index() {
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, reanudarMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
-    mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada,
+    mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, modoVision, capturaVisionFnRef,
     refs, player,
     listas, borrarListaVoz,
     detectandoSonido,
@@ -486,7 +486,7 @@ export default function Index() {
 
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
-      <CameraAutoCaptura visible={mostrarCamara} facing={camaraFacing} silencioso={camaraSilenciosa} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
+      <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>

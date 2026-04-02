@@ -8,9 +8,12 @@ type Props = {
   onCancelar: () => void;
   facing?: 'front' | 'back';
   silencioso?: boolean;
+  // Modo visión: cámara siempre abierta, captura manual vía ref
+  modoVision?: boolean;
+  capturaVisionRef?: React.RefObject<(() => Promise<void>) | null>;
 };
 
-export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, facing = 'front', silencioso = false }: Props) {
+export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, facing = 'front', silencioso = false, modoVision = false, capturaVisionRef }: Props) {
   const [permission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [cuenta, setCuenta] = useState(3);
@@ -18,20 +21,32 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
   const intervalRef      = useRef<ReturnType<typeof setInterval> | null>(null);
   const cuentaArrancoRef = useRef(false);
 
+  // Modo visión: exponer función de captura al padre vía ref
   useEffect(() => {
+    if (!modoVision || !capturaVisionRef) return;
+    capturaVisionRef.current = async () => {
+      try {
+        const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6 });
+        if (foto?.base64) onCaptura(foto.base64);
+      } catch {}
+    };
+    return () => { if (capturaVisionRef) capturaVisionRef.current = null; };
+  }, [modoVision]);
+
+  useEffect(() => {
+    if (modoVision) return; // el modo visión no usa la lógica de countdown
     if (!visible) { setCuenta(3); capturedRef.current = false; cuentaArrancoRef.current = false; return; }
     if (!permission?.granted) { onCancelar(); return; }
-    // Silencioso: arrancar en 1 (no 0) para esperar a que la cámara esté lista.
-    // onCameraReady lo bajará a 0, disparando la captura recién cuando hay feed.
     setCuenta(silencioso ? 1 : 3);
     capturedRef.current = false;
     cuentaArrancoRef.current = false;
-  }, [visible, permission?.granted]);
+  }, [visible, permission?.granted, modoVision]);
 
   function onCameraReady() {
+    if (modoVision) return; // captura manual, no hay countdown
     if (cuentaArrancoRef.current) return;
     cuentaArrancoRef.current = true;
-    if (silencioso) { setCuenta(0); return; } // cámara lista → disparar captura
+    if (silencioso) { setCuenta(0); return; }
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = setInterval(() => {
       setCuenta(prev => {
@@ -45,8 +60,9 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
-  // Disparar cuando llega a 0
+  // Disparar cuando llega a 0 (solo en modo normal/silencioso)
   useEffect(() => {
+    if (modoVision) return;
     if (!visible || cuenta !== 0 || capturedRef.current) return;
     capturedRef.current = true;
     (async () => {
@@ -58,12 +74,25 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
         onCancelar();
       }
     })();
-  }, [cuenta, visible]);
+  }, [cuenta, visible, modoVision]);
 
   if (!visible) return null;
 
+  // Modo visión: pantalla completa con feed en vivo, sin countdown, botón Cerrar
+  if (modoVision) {
+    return (
+      <Modal visible animationType="fade" statusBarTranslucent>
+        <View style={styles.contenedor}>
+          <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={onCameraReady} />
+          <TouchableOpacity style={styles.cancelar} onPress={onCancelar}>
+            <Text style={styles.cancelarTexto}>Cerrar cámara</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    );
+  }
+
   if (silencioso) {
-    // Cámara invisible — sin modal, sin UI, captura sin interrumpir al usuario
     return (
       <View style={styles.invisible} pointerEvents="none">
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={onCameraReady} />
@@ -76,7 +105,6 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
       <View style={styles.contenedor}>
         <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} onCameraReady={onCameraReady} />
 
-        {/* Overlay oscuro con cuenta regresiva */}
         <View style={styles.overlay}>
           {cuenta > 0 ? (
             <Text style={styles.numero}>{cuenta}</Text>

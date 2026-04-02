@@ -223,6 +223,10 @@ export interface AudioPipelineDeps {
   onTextoReconocido:        (texto: string) => Promise<void>;
   onFlujoFoto:              () => Promise<void>;
   onFlujoLeerImagen:        () => Promise<void>;
+  onFlujoModoVision:        () => Promise<void>;
+  onNuevaCapturaVision:     () => Promise<void>;
+  onCerrarModoVision:       () => void;
+  modoVisionRef:            React.RefObject<boolean>;
   verificarCharlaProactiva: () => boolean;
 }
 
@@ -413,8 +417,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         await hablar(ultimoTextoHabladoRef.current!);
       } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
         await d.onFlujoFoto();
-      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso))\b/.test(textoNorm)) {
-        await d.onFlujoLeerImagen();
+      } else if (d.modoVisionRef.current) {
+        // En modo visión: "¿y ahora?" dispara nueva captura, "listo"/"cerrá" cierra
+        if (/\b(listo|cerra|cerr[aá]|gracias|ya est[aá]|no m[aá]s|sal[ií])\b/.test(textoNorm)) {
+          d.onCerrarModoVision();
+        } else if (/\b(y\s+(ahora|esto|ac[aá]|ah[ií]|este|esta)|qu[eé]\s+(m[aá]s|ves|hay|dice|pone)|mir[aá]\s+(ac[aá]|esto|ah[ií]))\b/.test(textoNorm)) {
+          await d.onNuevaCapturaVision();
+        }
+      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá])\b/.test(textoNorm)) {
+        await d.onFlujoModoVision();
       } else {
         await d.onTextoReconocido(texto);
       }

@@ -17,7 +17,7 @@ import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { obtenerClima, climaATexto } from '../lib/clima';
 import { getFeriadosCercanos } from '../lib/feriados';
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
-import { leerImagen, sincronizarAnimo, obtenerTokenDispositivo, logCliente, calentarCacheClaudeEnBackground } from '../lib/ai';
+import { leerImagen, verVision, sincronizarAnimo, obtenerTokenDispositivo, logCliente, calentarCacheClaudeEnBackground } from '../lib/ai';
 import { buildRositaSystemPayload } from '../lib/systemPayload';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
@@ -56,6 +56,7 @@ export function useRosita() {
   const [mostrarCamara,     setMostrarCamara]     = useState(false);
   const [camaraFacing,      setCamaraFacing]      = useState<'front' | 'back'>('front');
   const [camaraSilenciosa,  setCamaraSilenciosa]  = useState(false);
+  const [modoVision,        setModoVision]        = useState(false);
   const [noMolestar,        setNoMolestarState]   = useState(false);
   const [modoNoche,         setModoNoche]         = useState<ModoNoche>('despierta');
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
@@ -89,7 +90,10 @@ export function useRosita() {
   const timerVozRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
   const telegramOffsetRef   = useRef<number>(0);
   const flashAnim           = useRef(new Animated.Value(0)).current;
-  const fotoResolverRef     = useRef<((base64: string | null) => void) | null>(null);
+  const fotoResolverRef        = useRef<((base64: string | null) => void) | null>(null);
+  const capturaVisionFnRef     = useRef<(() => Promise<void>) | null>(null);
+  const visionResolverRef      = useRef<((base64: string | null) => void) | null>(null);
+  const modoVisionRef          = useRef(false);
 
   // ── Timestamps para medir lag percibido ──────────────────────────────────────
   const speechEndTsRef   = useRef(0);  // cuando el ASR detecta fin de voz del usuario
@@ -153,6 +157,10 @@ export function useRosita() {
     onTextoReconocido: (texto) => brainRef.current?.responderConClaude(texto) ?? Promise.resolve(),
     onFlujoFoto:              flujoFoto,
     onFlujoLeerImagen:        flujoLeerImagen,
+    onFlujoModoVision:        flujoModoVision,
+    onNuevaCapturaVision:     nuevaCapturaVision,
+    onCerrarModoVision:       cerrarModoVision,
+    modoVisionRef,
     verificarCharlaProactiva,
   });
 
@@ -638,14 +646,90 @@ export function useRosita() {
     await pipeline.hablar(textoFormateado);
   }
 
+  // ── Modo visión (cámara live con Gemini) ────────────────────────────────────
+
+  const DIGITOS_ES_VISION: Record<string, string> = {
+    '0': 'cero', '1': 'uno', '2': 'dos', '3': 'tres', '4': 'cuatro',
+    '5': 'cinco', '6': 'seis', '7': 'siete', '8': 'ocho', '9': 'nueve',
+  };
+
+  function formatearTextoVision(texto: string): string {
+    return texto.replace(/\d{2,}/g, m =>
+      m.split('').map(d => DIGITOS_ES_VISION[d] ?? d).join(', ')
+    );
+  }
+
+  function pedirFrameVision(): Promise<string | null> {
+    return new Promise(resolve => {
+      visionResolverRef.current = resolve;
+      capturaVisionFnRef.current?.();
+    });
+  }
+
+  async function capturarYDescribir() {
+    const base64 = await pedirFrameVision();
+    if (!base64) {
+      await pipeline.hablar('No pude sacar la foto. ¿Lo intentamos de nuevo?');
+      return;
+    }
+    await pipeline.hablar('A ver, déjame mirar...');
+    const resultado = await verVision(base64);
+    if (!resultado) {
+      await pipeline.hablar('No pude ver bien. ¿Acercás un poco más la cámara?');
+      return;
+    }
+    await pipeline.hablar(formatearTextoVision(resultado));
+  }
+
+  async function flujoModoVision() {
+    const p = perfilRef.current;
+    const nombre = p?.nombreAbuela ?? '';
+    await pipeline.hablar(
+      `Bueno${nombre ? ` ${nombre}` : ''}, apuntame la cámara a lo que querés que vea.`
+    );
+    setCamaraFacing('back');
+    modoVisionRef.current = true;
+    setModoVision(true);
+    // Esperar a que capturaVisionFnRef esté lista (la cámara tarda ~1s en iniciar)
+    let intentos = 0;
+    while (!capturaVisionFnRef.current && intentos < 20) {
+      await new Promise(r => setTimeout(r, 100));
+      intentos++;
+    }
+    await capturarYDescribir();
+  }
+
+  async function nuevaCapturaVision() {
+    if (!modoVisionRef.current) return;
+    await capturarYDescribir();
+  }
+
+  function cerrarModoVision() {
+    visionResolverRef.current?.(null);
+    visionResolverRef.current = null;
+    capturaVisionFnRef.current = null;
+    modoVisionRef.current = false;
+    setModoVision(false);
+    setCamaraFacing('front');
+  }
+
   function onFotoCapturada(base64: string) {
-    fotoResolverRef.current?.(base64);
-    fotoResolverRef.current = null;
+    if (modoVisionRef.current) {
+      visionResolverRef.current?.(base64);
+      visionResolverRef.current = null;
+    } else {
+      fotoResolverRef.current?.(base64);
+      fotoResolverRef.current = null;
+    }
   }
 
   function onFotoCancelada() {
-    fotoResolverRef.current?.(null);
-    fotoResolverRef.current = null;
+    if (modoVisionRef.current) {
+      cerrarModoVision();
+    } else {
+      fotoResolverRef.current?.(null);
+      fotoResolverRef.current = null;
+    }
   }
 
   // responderConClaude → delegado a brain.responderConClaude() vía pipeline.onTextoReconocido
@@ -825,6 +909,7 @@ export function useRosita() {
     detenerSilbido:  pipeline.detenerSilbido,
     reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, flujoFoto,
+    modoVision, capturaVisionFnRef,
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,

@@ -467,6 +467,22 @@ export async function buscarWikipedia(query: string): Promise<string | null> {
   }
 }
 
+/** Envía una imagen al backend (Gemini 2.0 Flash) en modo cámara live. */
+export async function verVision(base64: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/ver-vision`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ imagen: base64 }),
+    }, 25000, 'Vision');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.texto ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Envía una imagen al backend para que Claude Vision la lea/describa. */
 export async function leerImagen(base64: string): Promise<string | null> {
   try {
