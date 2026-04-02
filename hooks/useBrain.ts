@@ -958,7 +958,7 @@ export function useBrain(deps: BrainDeps) {
       : (pideNoticias || pideBusqueda || pideWikipedia)
         ? 150
         : pideAccion
-          ? 220
+          ? 120
           : 80;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
