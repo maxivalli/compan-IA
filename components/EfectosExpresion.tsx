@@ -847,9 +847,9 @@ export function GotaSudor() {
   }, []);
 
   return (
-    <Animated.View style={{ position: 'absolute', left: 280, top: 2, opacity, transform: [{ translateY: y }] }}>
-      <Svg width={20} height={28} viewBox="0 0 20 28">
-        <Path d="M 10,0 C 20,8 20,20 10,28 C 0,20 0,8 10,0 Z" fill="#90CAE8" />
+    <Animated.View style={{ position: 'absolute', left: 256, top: 0, opacity, transform: [{ translateY: y }] }}>
+      <Svg width={20} height={30} viewBox="0 0 20 30">
+        <Path d="M 10,0 C 19,4 20,14 20,20 A 10,10 0 0 1 0,20 C 0,14 1,4 10,0 Z" fill="#90CAE8" />
       </Svg>
     </Animated.View>
   );

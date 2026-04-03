@@ -118,6 +118,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         expresion === 'sorprendida' ? 20/BOCA_H :
         expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' || expresion === 'entusiasmada' ? 10/BOCA_H :
         expresion === 'enojada' ? 3/BOCA_H :
+        expresion === 'avergonzada' ? 3/BOCA_H :
         expresion === 'cansada' ? 8/BOCA_H :
         expresion === 'neutral' ? 1 : 5/BOCA_H;
 
@@ -145,6 +146,8 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
     : expresion === 'sorprendida'
     ? { borderTopLeftRadius: 48, borderTopRightRadius: 48, borderBottomLeftRadius: 2,  borderBottomRightRadius: 2  }
+    : expresion === 'avergonzada'
+    ? { borderTopLeftRadius: 3, borderTopRightRadius: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 }
     : expresion === 'neutral'
     ? { borderBottomLeftRadius: 42, borderBottomRightRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }
     : { borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 };
