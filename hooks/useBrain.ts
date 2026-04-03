@@ -1236,7 +1236,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
         || parsed.tagPrincipal === 'CHISTE'
         || parsed.tagPrincipal === 'MUSICA'
         || parsed.tagPrincipal === 'PARAR_MUSICA'
-        || parsed.tagPrincipal === 'LINTERNA';
+        || parsed.tagPrincipal === 'LINTERNA'
+        || ofrecerMenuAburrimiento;
 
       if (!mantenerLarga) {
         parsed.respuesta = compactarRespuestaParaVoz(
