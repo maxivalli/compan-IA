@@ -29,6 +29,7 @@ import {
   Perfil, TelegramContacto,
 } from '../lib/memoria';
 import { buscarRadio, getFallbackAlt, nombreRadioOGenero } from '../lib/musica';
+import { obtenerJuego, formatearJuegoParaClaude, obtenerChiste, formatearChisteParaClaude } from '../lib/juegos';
 import { Expresion } from '../components/RosaOjos';
 import {
   parsearRespuesta, respuestaOffline, hashTexto, detectarGenero,
@@ -631,14 +632,32 @@ export function useBrain(deps: BrainDeps) {
 
     const temas = temasPorMomento[momento];
     const esFeriadoHoy = d.feriadosRef.current?.startsWith('Hoy es feriado') ?? false;
-    const tema = esFeriadoHoy
-      ? `el feriado nacional de hoy (${d.feriadosRef.current}) — mencionalo con entusiasmo y calidez`
-      : temas[Math.floor(Math.random() * temas.length)];
+
+    // 25% de las veces proponer entretenimiento curado (juego o chiste)
+    const proponerEntretenimiento = !esFeriadoHoy && Math.random() < 0.25;
+    let extraProactivo = '';
+    let temaProactivo = '';
+
+    if (proponerEntretenimiento) {
+      if (Math.random() < 0.55) {
+        const juego = obtenerJuego();
+        extraProactivo = `\n\n${formatearJuegoParaClaude(juego)}`;
+        temaProactivo = 'proponer este juego o adivinanza de forma espontánea y cálida, como si se te ocurrió hacerlo en este momento';
+      } else {
+        const chiste = obtenerChiste();
+        extraProactivo = `\n\n${formatearChisteParaClaude(chiste)}`;
+        temaProactivo = 'arrancar contando este chiste de forma espontánea, como si se te ocurrió';
+      }
+    } else {
+      temaProactivo = esFeriadoHoy
+        ? `el feriado nacional de hoy (${d.feriadosRef.current}) — mencionalo con entusiasmo y calidez`
+        : temas[Math.floor(Math.random() * temas.length)];
+    }
 
     try {
       const frase = await llamarClaude({
-        maxTokens: 120,
-        system: getSystemPayload(p, d.climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${tema}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.`),
+        maxTokens: proponerEntretenimiento ? 180 : 120,
+        system: getSystemPayload(p, d.climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${temaProactivo}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.${extraProactivo}`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });
       if (frase) { await d.hablar(frase); d.ultimaCharlaRef.current = Date.now(); }
@@ -866,10 +885,16 @@ export function useBrain(deps: BrainDeps) {
       return;
     }
 
-    const pideJuego   = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
-    const pideChiste  = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
+    const expresaAburrimiento = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/.test(textoNorm);
+    const pideJuegoBase = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
+    const pideChisteBase = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
           && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
+    // Si expresa aburrimiento y no pidió algo específico, ofrecemos juego (65%) o chiste (35%)
+    const aburrOfreceJuego  = expresaAburrimiento && !pideJuegoBase && !pideChisteBase && Math.random() < 0.65;
+    const aburrOfreceChiste = expresaAburrimiento && !pideJuegoBase && !pideChisteBase && !aburrOfreceJuego;
+    const pideJuego  = pideJuegoBase  || aburrOfreceJuego;
+    const pideChiste = pideChisteBase || aburrOfreceChiste;
     const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|anotame|anotá|guarda|guardame|papelito|nota\b|nota me|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
@@ -1036,7 +1061,12 @@ export function useBrain(deps: BrainDeps) {
         if (!esConsultaLiviana && !episodicaCacheRef.current?.lastRelevant) {
           memoriaPromise.catch(() => {});
         }
-        const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}`;
+        const contenidoCurado = pideJuego
+          ? `\n\n${formatearJuegoParaClaude(obtenerJuego())}`
+          : pideChiste
+          ? `\n\n${formatearChisteParaClaude(obtenerChiste())}`
+          : '';
+        const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
         logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length });
         claudePromise = resolverClaudeConFallback({
