@@ -6,6 +6,7 @@ import {
   Linking,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -15,8 +16,9 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, cargarRecordatorios, borrarRecordatorio, Recordatorio, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
+import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
+import ScreenHeader from '../components/ScreenHeader';
 import { obtenerEstadoSmartThings, actualizarDispositivos, desvincularSmartThings, vincularPAT, Dispositivo } from '../lib/smartthings';
 import { obtenerTokenDispositivo } from '../lib/ai';
 
@@ -221,34 +223,6 @@ const cr = StyleSheet.create({
   checkActive:   { backgroundColor: M.primary, borderColor: M.primary },
 });
 
-// ── Recordatorio row ─────────────────────────────────────────────────────────
-function RecordatorioRow({ r, onDelete }: { r: Recordatorio; onDelete: () => void }) {
-  const fecha = new Date(r.fechaISO + 'T12:00:00');
-  const label = fecha.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return (
-    <View style={rr.row}>
-      <View style={rr.dot} />
-      <View style={rr.texts}>
-        <Text style={rr.texto}>{r.texto}</Text>
-        <Text style={rr.fecha}>{label}</Text>
-      </View>
-      <TouchableOpacity onPress={onDelete} style={rr.del} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Ionicons name="close" size={18} color={M.error} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-const rr = StyleSheet.create({
-  row:   { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, paddingHorizontal: 16 },
-  dot:   { width: 8, height: 8, borderRadius: 4, backgroundColor: M.primary, flexShrink: 0 },
-  texts: { flex: 1 },
-  texto: { fontSize: 14, fontWeight: '500', color: M.onSurface },
-  fecha: { fontSize: 12, color: M.onSurfaceVariant, marginTop: 2 },
-  del:   { padding: 4 },
-});
-
-
 // ── Pantalla principal ───────────────────────────────────────────────────────
 export default function Configuracion() {
   const router = useRouter();
@@ -271,7 +245,6 @@ export default function Configuracion() {
   const [buscando, setBuscando]           = useState(false);
   const [errorBusqueda, setErrorBusqueda] = useState('');
   const [guardado, setGuardado]           = useState(false);
-  const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([]);
   const [codigoRegistro, setCodigoRegistro] = useState<string | null>(null);
   const [pinOverlay, setPinOverlay]       = useState<'oculto' | 'verificar' | 'crear' | 'cambiar'>('oculto');
   const [pinConfigurado, setPinConfigurado] = useState(false);
@@ -279,6 +252,7 @@ export default function Configuracion() {
 
   const [horaInicioNoche, setHoraInicioNoche] = useState(23);
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
+  const [deteccionPresencia, setDeteccionPresencia] = useState(false);
 
   // ── Domótica ──
   const [stVinculado, setStVinculado]       = useState(false);
@@ -292,7 +266,6 @@ export default function Configuracion() {
       if (p) { setPinConfigurado(true); setPinDesbloqueado(false); setPinOverlay('verificar'); }
       else    { setPinConfigurado(false); setPinDesbloqueado(true); }
     });
-    cargarRecordatorios().then(setRecordatorios);
   }, []));
 
   useFocusEffect(useCallback(() => {
@@ -344,7 +317,6 @@ export default function Configuracion() {
   }
 
   useEffect(() => {
-    cargarRecordatorios().then(setRecordatorios);
     obtenerCodigoRegistro().then(setCodigoRegistro);
     cargarPerfil().then(p => {
       setPerfil(p);
@@ -370,6 +342,7 @@ export default function Configuracion() {
       }
       setHoraInicioNoche(p.horaInicioNoche ?? 23);
       setHoraFinNoche(p.horaFinNoche ?? 9);
+      setDeteccionPresencia(p.deteccionPresenciaActiva ?? false);
       setIdsActivos((p.telegramContactos || []).map(c => c.id));
       setContactos(p.telegramContactos || []);
     });
@@ -461,6 +434,7 @@ export default function Configuracion() {
       })(),
       telegramChatIds:   idsActivos,
       telegramContactos: contactosActivos,
+      deteccionPresenciaActiva: deteccionPresencia,
     });
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
@@ -477,15 +451,7 @@ export default function Configuracion() {
         pointerEvents={bloqueado ? 'none' : 'auto'}
       >
 
-        {/* ── Top bar ── */}
-        <View style={s.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={s.btnBack} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={24} color={M.onPrimary} />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={s.topTitle}>Configuración</Text>
-          </View>
-        </View>
+        <ScreenHeader titulo="Configuración" eyebrow="ajustes" icono="settings-outline" />
 
         {/* ── Hero card ── */}
         <View style={s.heroCard}>
@@ -803,26 +769,25 @@ export default function Configuracion() {
           )}
         </Surface>
 
-        {/* ── Recordatorios ── */}
-        {recordatorios.length > 0 && (
-          <>
-            <SectionLabel icon="alarm-outline" label="Recordatorios pendientes" />
-            <Surface>
-              {recordatorios.map((r, i) => (
-                <View key={r.id}>
-                  {i > 0 && <View style={s.divisorThin} />}
-                  <RecordatorioRow
-                    r={r}
-                    onDelete={async () => {
-                      await borrarRecordatorio(r.id);
-                      setRecordatorios(prev => prev.filter(x => x.id !== r.id));
-                    }}
-                  />
-                </View>
-              ))}
-            </Surface>
-          </>
-        )}
+        {/* ── Funciones avanzadas ── */}
+        <SectionLabel icon="eye-outline" label="Funciones avanzadas" />
+        <Surface>
+          <View style={s.switchRow}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.switchLabel}>Detección de presencia</Text>
+              <Text style={s.switchHint}>
+                La cámara frontal detecta si alguien se acerca y Rosita la saluda.
+                Se activa solo después de 30 min sin actividad.
+              </Text>
+            </View>
+            <Switch
+              value={deteccionPresencia}
+              onValueChange={setDeteccionPresencia}
+              trackColor={{ false: M.outlineVariant, true: M.primary }}
+              thumbColor={deteccionPresencia ? '#ffffff' : '#f4f4f4'}
+            />
+          </View>
+        </Surface>
 
         {/* ── Seguridad ── */}
         <SectionLabel icon="lock-closed-outline" label="Seguridad" />
@@ -885,15 +850,6 @@ export default function Configuracion() {
 const s = StyleSheet.create({
   fondo:    { flex: 1, backgroundColor: M.background },
   contenido: { paddingBottom: 16 },
-
-  topBar: {
-    backgroundColor: M.primary,
-    paddingTop: 52, paddingBottom: 16,
-    paddingHorizontal: 4,
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-  },
-  btnBack:   { padding: 12, borderRadius: 24 },
-  topTitle:  { fontSize: 22, fontWeight: '400', color: M.onPrimary, letterSpacing: 0 },
 
   heroCard: {
     marginHorizontal: 16, marginTop: 16, marginBottom: 8,
@@ -963,4 +919,9 @@ const s = StyleSheet.create({
 
   patInput:  { width: '100%', borderWidth: 1, borderColor: M.outline, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13, color: M.onSurface, backgroundColor: M.surface },
   patError:  { fontSize: 12, color: M.error, textAlign: 'center' },
+
+  // Funciones avanzadas
+  switchRow:   { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 16, paddingVertical: 14 },
+  switchLabel: { fontSize: 14, fontWeight: '500', color: M.onSurface, marginBottom: 2 },
+  switchHint:  { fontSize: 12, color: M.onSurfaceVariant, lineHeight: 17 },
 });

@@ -132,6 +132,7 @@ export type Perfil = {
   horaFinNoche?: number;            // hora en que termina el modo noche / arrancan charlas (default 9)
   telegramChatIds: string[];        // legacy — se migra automáticamente
   telegramContactos: TelegramContacto[];
+  deteccionPresenciaActiva?: boolean; // cámara frontal detecta presencia tras 30 min inactivo
 };
 
 export const perfilInicial: Perfil = {

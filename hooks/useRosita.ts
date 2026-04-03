@@ -31,6 +31,7 @@ import {
   useAudioPipeline, AudioPipelineDeps,
   slugNombre, limpiarTextoParaTTS, extraerPrimeraFrase, splitEnOraciones,
 } from './useAudioPipeline';
+import { useCamaraPresencia } from './useCamaraPresencia';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -212,6 +213,17 @@ export function useRosita() {
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
   brainRef.current = brain;
+
+  // ── Detección de presencia por cámara frontal ─────────────────────────────────
+  const hablarPresenciaRef = useRef<((texto: string) => Promise<void>) | null>(null);
+  useEffect(() => { hablarPresenciaRef.current = pipeline.hablar; });
+
+  const camaraPresencia = useCamaraPresencia({
+    ultimaActividadRef,
+    estadoRef,
+    hablarRef: hablarPresenciaRef,
+    perfilRef,
+  });
 
   // ── Sincronizar refs con estado ─────────────────────────────────────────────
   useEffect(() => { estadoRef.current      = estado;      }, [estado]);
@@ -919,6 +931,8 @@ export function useRosita() {
     reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, flujoFoto,
     modoVision, capturaVisionFnRef,
+    modoWatchingPresencia: camaraPresencia.modoWatching,
+    onPresenciaDetectada: camaraPresencia.onPresenciaDetectada,
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,

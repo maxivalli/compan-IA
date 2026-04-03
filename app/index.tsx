@@ -23,6 +23,7 @@ import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche, WaveformDetectando } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
+import CamaraPresenciaOverlay from '../components/CamaraPresenciaOverlay';
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
 
@@ -80,6 +81,7 @@ export default function Index() {
     iniciarEscucha, detenerEscucha, pararMusica, reanudarMusica, dispararSOS,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, modoVision, capturaVisionFnRef,
+    modoWatchingPresencia, onPresenciaDetectada,
     refs, player,
     listas, borrarListaVoz,
     detectandoSonido,
@@ -487,6 +489,7 @@ export default function Index() {
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
+      <CamaraPresenciaOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
