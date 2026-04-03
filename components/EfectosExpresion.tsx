@@ -273,10 +273,14 @@ const NOTAS = [
   { x: 255, delay: 150,  size: 28, nota: '♪' },
 ];
 
-function UnaNota({ x, delay, size, nota }: typeof NOTAS[0]) {
+function UnaNota({ x, delay, size, nota, horizontal }: typeof NOTAS[0] & { horizontal?: boolean }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const y       = useRef(new Animated.Value(0)).current;
   const scale   = useRef(new Animated.Value(0.6)).current;
+  // En horizontal el Face View está escalado 1.7x desde su centro, por lo que top:-20
+  // queda fuera de pantalla. Usamos top:130 + travelY corto para mantenernos visibles.
+  const baseTop   = horizontal ? 130 : -20;
+  const travelY   = horizontal ? -20 : -70;
 
   useEffect(() => {
     const anim = Animated.loop(
@@ -293,7 +297,7 @@ function UnaNota({ x, delay, size, nota }: typeof NOTAS[0]) {
             Animated.timing(scale, { toValue: 0.9, duration: 1000, useNativeDriver: true }),
             Animated.timing(scale, { toValue: 0.6, duration: 500,  useNativeDriver: true }),
           ]),
-          Animated.timing(y, { toValue: -70, duration: 1900, useNativeDriver: true }),
+          Animated.timing(y, { toValue: travelY, duration: 1900, useNativeDriver: true }),
         ]),
         Animated.parallel([
           Animated.timing(y,       { toValue: 0,   duration: 0, useNativeDriver: true }),
@@ -308,14 +312,14 @@ function UnaNota({ x, delay, size, nota }: typeof NOTAS[0]) {
   }, []);
 
   return (
-    <Animated.Text style={{ position: 'absolute', left: x, top: -20, fontSize: size, color: '#5DCAA5', opacity, transform: [{ scale }, { translateY: y }] }}>
+    <Animated.Text style={{ position: 'absolute', left: x, top: baseTop, fontSize: size, color: '#5DCAA5', opacity, transform: [{ scale }, { translateY: y }] }}>
       {nota}
     </Animated.Text>
   );
 }
 
-export function NotasMusica() {
-  return <>{NOTAS.map((n, i) => <UnaNota key={i} {...n} />)}</>;
+export function NotasMusica({ horizontal }: { horizontal?: boolean }) {
+  return <>{NOTAS.map((n, i) => <UnaNota key={i} {...n} horizontal={horizontal} />)}</>;
 }
 
 // ── Ceño enojado ──────────────────────────────────────────────────────────────

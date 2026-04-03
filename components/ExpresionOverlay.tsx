@@ -92,7 +92,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
           {accesorio === 'bonete' && <Bonete />}
           {accesorio === 'gorro'  && <GorroNavidad />}
 
-          {(musicaActiva || silbando) && <NotasMusica />}
+          {(musicaActiva || silbando) && <NotasMusica horizontal={esHorizontalPantalla} />}
 
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
             {expresion === 'triste'        && <Lagrimas />}
