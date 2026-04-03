@@ -54,7 +54,7 @@ export default function RecordatoriosScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: M.background }}>
-      <ScreenHeader titulo="Recordatorios" icono="alarm-outline" />
+      <ScreenHeader titulo="Recordatorios" eyebrow="agenda" icono="alarm-outline" />
 
       <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
         {recordatorios.length === 0 ? (

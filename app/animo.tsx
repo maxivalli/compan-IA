@@ -122,12 +122,7 @@ export default function Animo() {
     )}
     <ScrollView style={s.fondo} contentContainerStyle={{ paddingBottom: 48 }}>
 
-      <ScreenHeader
-        titulo="Estado de ánimo"
-        eyebrow="historial"
-        icono="happy-outline"
-        subtitulo={nombre ? `de ${nombre}` : undefined}
-      />
+      <ScreenHeader titulo="Estado de ánimo" eyebrow="historial" icono="happy-outline" />
 
       {/* ── Empty state ── */}
       {grupos.length === 0 && (
