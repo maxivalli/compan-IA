@@ -819,9 +819,41 @@ export function Confetti() {
   return <>{CONFETTI_DATA.map((c, i) => <UnConfetti key={i} {...c} />)}</>;
 }
 
+// ── Gota de sudor frío (avergonzada) ─────────────────────────────────────────
+
+export function GotaSudor() {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const y       = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
+          Animated.timing(y,       { toValue: 0, duration: 0, useNativeDriver: true }),
+        ]),
+        Animated.delay(500),
+        Animated.timing(opacity, { toValue: 1,   duration: 350, useNativeDriver: true }),
+        Animated.delay(1000),
+        Animated.parallel([
+          Animated.timing(opacity, { toValue: 0,  duration: 700, useNativeDriver: true }),
+          Animated.timing(y,       { toValue: 36, duration: 700, useNativeDriver: true }),
+        ]),
+        Animated.delay(900),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <Animated.View style={[s.sudorFrio, { opacity, transform: [{ translateY: y }] }]} />
+  );
+}
+
 // ── Estilos base ──────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
   lagrima:   { position: 'absolute', top: EYE_H + 2, width: 13, height: 20, borderRadius: 7, backgroundColor: '#7EB8D4' },
-  sudorFrio: { position: 'absolute', right: 6, top: 2, width: 16, height: 24, borderRadius: 8, backgroundColor: '#90CAE8' },
+  sudorFrio: { position: 'absolute', right: 8, top: -8, width: 20, height: 30, borderRadius: 10, backgroundColor: '#90CAE8' },
 });

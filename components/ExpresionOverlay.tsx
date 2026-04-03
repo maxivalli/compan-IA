@@ -4,7 +4,7 @@ import type { Expresion, ModoNoche } from './RosaOjos';
 import {
   Lagrimas, Corazones, Mejillas, SignosPregunta, Exclamaciones,
   Carcajada, NotasMusica, CenoEnojado, Grawlixes,
-  Bonete, GorroNavidad, Destellos, Confetti,
+  Bonete, GorroNavidad, Destellos, Confetti, GotaSudor,
 } from './EfectosExpresion';
 import {
   GotasLluvia, Nieve, Viento, CalorEfecto,
@@ -103,6 +103,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
             {expresion === 'mimada'        && !esHorizontalPantalla && <Mejillas />}
             {expresion === 'sorprendida'   && !esTormenta && <Exclamaciones />}
             {expresion === 'pensativa'     && <SignosPregunta />}
+            {expresion === 'avergonzada'    && <GotaSudor />}
             {expresion === 'chiste'        && <Carcajada />}
             {expresion === 'enojada'       && <CenoEnojado />}
             {expresion === 'enojada'       && (
