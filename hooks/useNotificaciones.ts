@@ -12,6 +12,7 @@ import {
   yaRecordo,
   marcarRecordado,
   cargarRecordatorios,
+  guardarRecordatorio,
   borrarRecordatorio,
   borrarRecordatoriosViejos,
   cargarEntradasAnimo,
@@ -1067,6 +1068,31 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           if (estadoRef.current !== 'esperando') continue;
           const destChatId = cmd.includes(':') ? cmd.split(':')[1] : undefined;
           try { await flujoFoto(true, destChatId); } catch {}
+        } else if (cmd.startsWith('recordatorio:')) {
+          try {
+            const payload = JSON.parse(cmd.slice('recordatorio:'.length)) as {
+              texto: string;
+              fechaISO: string;
+              timestampEpoch?: number;
+              chatId: string;
+              fromName: string;
+            };
+            if (!payload.texto || !payload.fechaISO) continue;
+            const rec = {
+              id: Date.now().toString(),
+              texto: payload.texto,
+              fechaISO: payload.fechaISO,
+              timestampEpoch: payload.timestampEpoch,
+              creadoEn: Date.now(),
+            };
+            await guardarRecordatorio(rec);
+            // Confirmar en voz alta
+            const conHora = payload.timestampEpoch
+              ? ` a las ${new Date(payload.timestampEpoch).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' })}`
+              : '';
+            await hablar(`${payload.fromName} te dejó un recordatorio: "${payload.texto}" para el ${payload.fechaISO.split('-').reverse().join('/')}${conHora}.`);
+            ultimaCharlaRef.current = Date.now();
+          } catch (e) { logClaudeError('chequearComandos/recordatorio', e); }
         }
       }
     }
