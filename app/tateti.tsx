@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import * as Speech from 'expo-speech';
+import { useAudioPlayer } from 'expo-audio';
 import {
   tableroInicial,
   calcularMovimientoIA,
@@ -25,7 +26,8 @@ import {
 // ── Constantes ──────────────────────────────────────────────────────────────────
 
 const { width, height } = Dimensions.get('window');
-const CELL_SIZE = Math.min((Math.min(width, height) - 80) / 3, 160);
+const CELL_SIZE  = Math.min((Math.min(width, height) - 80) / 3, 160);
+const CLICK_ASSET = require('../assets/audio/click.mp3');
 
 const M = {
   bg:      '#0f172a',
@@ -179,6 +181,11 @@ export default function TatetiScreen() {
   const iaRef       = useRef(false);
   const hablandoRef = useRef(false);
   const overlayAnim = useRef(new Animated.Value(0)).current;
+  const clickPlayer = useAudioPlayer(CLICK_ASSET);
+
+  function playClick() {
+    try { clickPlayer.seekTo(0); clickPlayer.play(); } catch {}
+  }
 
   // ── TTS feedback ────────────────────────────────────────────────────────────
 
@@ -249,6 +256,7 @@ export default function TatetiScreen() {
       if (prev[idx] !== null || fase !== 'jugando') return prev;
       const nuevo = [...prev] as Tablero;
       nuevo[idx] = 'X';
+      playClick();
       const resultado = verificarGanador(nuevo);
 
       if (resultado === 'X') {
@@ -277,6 +285,7 @@ export default function TatetiScreen() {
           if (movIA === -1) { iaRef.current = false; return prev2; }
           const t2 = [...prev2] as Tablero;
           t2[movIA] = 'O';
+          playClick();
           const res2 = verificarGanador(t2);
           if (res2 === 'O') {
             setLinea(lineaGanadora(t2));
