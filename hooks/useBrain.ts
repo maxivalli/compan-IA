@@ -49,7 +49,7 @@ import { enviarAlertaTelegram } from '../lib/telegram';
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'default';
+export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion';
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
@@ -91,6 +91,10 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     femenina:  ['A ver...', 'Mmm...', 'Claro.'],
     masculina: ['A ver...', 'Mmm...', 'Claro.'],
   },
+  latencia: {
+    femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...'],
+    masculina: ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...'],
+  },
 };
 
 export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculina: string[]; emotion: string }> = {
@@ -129,7 +133,9 @@ const EXPRESION_RAPIDA: Record<CategoriaRapida, Expresion> = {
   afirmacion: 'feliz',
 };
 
-const INTERLOCUTOR_TTL_MS = 2 * 60 * 1000;
+const INTERLOCUTOR_TTL_MS   = 2 * 60 * 1000;
+// Si la muletilla terminó y Claude aún no llegó, reproducir aviso de espera tras este delay
+const LATENCIA_THRESHOLD_MS = 7_000;
 const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
   'yo', 'aca', 'acá', 'hola', 'buenas', 'buenos', 'soy', 'llamo', 'nombre',
   'novia', 'novio', 'marido', 'esposa', 'mama', 'mamá', 'papa', 'papá',
@@ -1206,6 +1212,10 @@ REGLAS CRÍTICAS PARA RESPONDER:
         .then(t => ({ ok: true as const, value: t }))
         .catch(error => ({ ok: false as const, error }));
 
+      // Flag para saber si Claude ya resolvió cuando chequemos después de await muletillaPromise
+      let claudeResuelto = false;
+      claudeOutcomePromise.then(() => { claudeResuelto = true; });
+
       const winner = await Promise.race([
         primeraFraseDisparada.then(t => ({ kind: 'primera' as const, t })),
         claudeOutcomePromise.then(result => ({ kind: 'claude' as const, result })),
@@ -1224,9 +1234,28 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
       await muletillaPromise;
 
+      // ── Sprint B: latencia extendida ──────────────────────────────────────────
+      // Si la muletilla terminó pero Claude aún no llegó, reproducir aviso de espera
+      // tras LATENCIA_THRESHOLD_MS. El timer se cancela si Claude llega antes.
+      const latenciaAbort = { current: false };
+      const latenciaPromise: Promise<void> = claudeResuelto
+        ? Promise.resolve()
+        : new Promise<void>(resolve => {
+            const timer = setTimeout(() => {
+              if (latenciaAbort.current) { resolve(); return; }
+              d.reproducirMuletilla('latencia', latenciaAbort).then(() => resolve(), () => resolve());
+            }, LATENCIA_THRESHOLD_MS);
+            claudeOutcomePromise.then(() => {
+              clearTimeout(timer);
+              latenciaAbort.current = true;
+              resolve();
+            });
+          });
+
       const respuestaRaw = winner.kind === 'claude'
         ? (winner.result.ok ? winner.result.value : await claudePromise)
         : await claudePromise;
+      await latenciaPromise;
       if (!esRespuestaUtil(respuestaRaw)) {
         const fallbackHumano = respuestaFallbackIA(
           p.nombreAbuela,

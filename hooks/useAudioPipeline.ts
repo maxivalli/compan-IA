@@ -655,7 +655,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
         const muletillaEmotion: Record<CategoriaMuletilla, string> = {
           empatico: 'triste', alegria: 'feliz', salud: 'neutral', busqueda: 'neutral',
-          musica: 'feliz', recordatorio: 'neutral', nostalgia: 'triste', comando: 'feliz', default: 'neutral',
+          musica: 'feliz', recordatorio: 'neutral', nostalgia: 'triste', comando: 'feliz',
+          default: 'neutral', latencia: 'neutral',
         };
         const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
