@@ -479,7 +479,6 @@ export interface BrainDeps {
   climaRef:           React.MutableRefObject<string>;
   ciudadRef:          React.MutableRefObject<string>;
   coordRef:           React.MutableRefObject<{ lat: number; lon: number } | null>;
-  feriadosRef:        React.MutableRefObject<string>;
   perfilRef:          React.MutableRefObject<Perfil | null>;
   ultimaRadioRef:     React.MutableRefObject<string | null>;
   dispositivosTuyaRef:React.MutableRefObject<Dispositivo[]>;
@@ -501,6 +500,7 @@ export interface BrainDeps {
   playerMusica:        AudioPlayerLike;
   iniciarSpeechRecognition: () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
+  lanzarJuego?: (tipo: 'tateti' | 'ahorcado') => void;
 }
 
 // ── useBrain ───────────────────────────────────────────────────────────────────
@@ -591,7 +591,6 @@ export function useBrain(deps: BrainDeps) {
       extraTemporal: extra,
       ciudad: d.ciudadRef.current,
       coords: d.coordRef.current,
-      feriados: d.feriadosRef.current,
       memoriaEpisodica: episodicaCacheRef.current?.text ?? '',
     });
   }
@@ -719,7 +718,9 @@ export function useBrain(deps: BrainDeps) {
     };
 
     const temas = temasPorMomento[momento];
-    const esFeriadoHoy = d.feriadosRef.current?.startsWith('Hoy es feriado') ?? false;
+    // El feriado de hoy ya está en el system prompt (backend lo calcula).
+    // La charla proactiva puede mencionar el feriado si Claude lo considera relevante.
+    const esFeriadoHoy = false; // no se expone al frontend; Claude lo sabe desde el backend
 
     // 25% de las veces proponer entretenimiento curado (juego o chiste)
     const proponerEntretenimiento = !esFeriadoHoy && Math.random() < 0.25;
@@ -752,9 +753,7 @@ export function useBrain(deps: BrainDeps) {
         temaProactivo = 'arrancar contando este chiste de forma espontánea, como si se te ocurrió';
       }
     } else {
-      temaProactivo = esFeriadoHoy
-        ? `el feriado nacional de hoy (${d.feriadosRef.current}) — mencionalo con entusiasmo y calidez`
-        : temas[Math.floor(Math.random() * temas.length)];
+      temaProactivo = temas[Math.floor(Math.random() * temas.length)];
     }
 
     try {
@@ -996,7 +995,9 @@ export function useBrain(deps: BrainDeps) {
     }
 
     const expresaAburrimiento = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/.test(textoNorm);
-    const pideJuegoBase = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
+    const pideTateti  = /\b(tateti|ta.?te.?ti|tres en raya|tres en linea|tic.?tac.?toe)\b/.test(textoNorm);
+    const pideAhorcado = /\b(ahorcado|juego del ahorcado|adivinar la palabra)\b/.test(textoNorm);
+    const pideJuegoBase = pideTateti || pideAhorcado || /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
     const pideChisteBase = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
           && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
@@ -1020,14 +1021,43 @@ export function useBrain(deps: BrainDeps) {
       if (matchBusquedaExplicita?.[1]) {
         queryBusqueda = matchBusquedaExplicita[1].trim();
       }
-      const esTelefono = /telefono|numero de|numero tel/.test(textoNorm);
-      const esCerca    = /cerca|cercano|cercana|mas cerca|donde hay|en mi ciudad|en la ciudad/.test(textoNorm);
-      const esHorario  = esConsultaHorario || /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
-      const ciudad     = d.ciudadRef.current;
-      if (esTelefono && ciudad)   queryBusqueda = `${queryBusqueda} número de teléfono ${ciudad} Argentina`;
-      else if (esCerca && ciudad) queryBusqueda = `${queryBusqueda} más cercano a ${ciudad} Argentina`;
-      else if (esHorario)         queryBusqueda = `${queryBusqueda} fecha y hora confirmada`;
-      else if (ciudad)            queryBusqueda = `${queryBusqueda} ${ciudad} Argentina`;
+
+      // Si el mensaje es corto y vago (confirmación + verbo), recuperar el contexto del historial
+      const esConfirmacionVaga = queryBusqueda.length < 35 &&
+        /^\s*(si|sí|dale|ok|oka|bueno|siga|vamos|busca|buscá|andá|encontra|encontrá|probá|proba)\b/i.test(queryBusqueda.trim());
+      if (esConfirmacionVaga) {
+        // Buscar el último mensaje del asistente que tenga contenido sustancial
+        const ultimaRespuesta = [...historialRef.current]
+          .reverse()
+          .find(m => m.role === 'assistant')?.content ?? '';
+        // Extraer el tema principal quitando tags y frases meta
+        const temaCandidato = String(ultimaRespuesta)
+          .replace(/\[[^\]]+\]/g, '')
+          .replace(/\b(buscar|encontré|encontrar|tengo|puedo|ahora|vamos a|busco|intento|resultados?|recetas?|paso a paso|completa|detallada|lamentablemente|disponibles?|ahora|no me traen|que me llegan)\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 80);
+        if (temaCandidato.length > 10) {
+          queryBusqueda = temaCandidato;
+        }
+      }
+
+      const esTelefono  = /telefono|numero de|numero tel/.test(textoNorm);
+      const esCerca     = /cerca|cercano|cercana|mas cerca|donde hay|en mi ciudad|en la ciudad/.test(textoNorm);
+      const esHorario   = esConsultaHorario || /cuando juega|a que hora|proxim|horario de|calendario/.test(textoNorm);
+      const ciudad      = d.ciudadRef.current;
+
+      // Solo agregar la ciudad a búsquedas genuinamente locales (servicios, instituciones,
+      // negocios, dónde/cómo llegar). No a recetas, clima, definiciones, etc.
+      const esBusquedaLocal = esTelefono || esCerca ||
+        /\b(farmacia|hospital|guardia|banco|correo|municipalidad|anses|pami|renaper|comisaria|kiosco|supermercado|carniceria|verduleria|panaderia|heladeria|restaurant|pizzeria|hotel|hospedaje|colectivo|omnibus|taxi|remis|combustible|ypf|shell|axion|surtidor|peluqueria|optica|zapateria|ferreteria|veterinaria|intendente|municipio)\b/.test(textoNorm);
+
+      if (esTelefono && ciudad)        queryBusqueda = `${queryBusqueda} número de teléfono ${ciudad} Argentina`;
+      else if (esCerca && ciudad)      queryBusqueda = `${queryBusqueda} más cercano a ${ciudad} Argentina`;
+      else if (esHorario)              queryBusqueda = `${queryBusqueda} fecha y hora confirmada`;
+      else if (esBusquedaLocal && ciudad) queryBusqueda = `${queryBusqueda} ${ciudad} Argentina`;
+      // Para todo lo demás (recetas, definiciones, noticias generales, etc.): Serper ya usa gl:ar
+
 
       // Detectar tipo de lugar físico para usar Overpass en vez de Serper
       for (const { patron, tipo } of LUGAR_TIPOS) {
@@ -1183,8 +1213,12 @@ export function useBrain(deps: BrainDeps) {
         if (!esConsultaLiviana && !episodicaCacheRef.current?.lastRelevant) {
           memoriaPromise.catch(() => {});
         }
-        const contenidoCurado = pideJuego
-          ? `\n\n${formatearJuegoParaClaude(obtenerJuego())}`
+        const contenidoCurado = pideTateti
+          ? `\n\nDIRECTIVA: El usuario quiere jugar al ta-te-ti. Respondé con entusiasmo confirmando que van a jugar y terminá con el tag [JUGAR_TATETI].`
+          : pideAhorcado
+          ? `\n\nDIRECTIVA: El usuario quiere jugar al ahorcado. Respondé con entusiasmo confirmando que van a jugar y terminá con el tag [JUGAR_AHORCADO].`
+          : pideJuego
+          ? `\n\nDIRECTIVA JUEGO: El usuario quiere jugar. Podés proponer: a) Ta-te-ti (mencionalo y usá [JUGAR_TATETI]), b) Ahorcado (mencionalo y usá [JUGAR_AHORCADO]), o c) una trivia/adivinanza/refrán/trabalengua inline. Si propone ta-te-ti o ahorcado, confirmá con entusiasmo y usá el tag correspondiente al final.\n\n${formatearJuegoParaClaude(obtenerJuego())}`
           : pideChiste
           ? `\n\n${formatearChisteParaClaude(obtenerChiste())}`
           : ofrecerMenuAburrimiento
@@ -1194,7 +1228,7 @@ export function useBrain(deps: BrainDeps) {
                 ? `\nNOTICIAS DEL DÍA DISPONIBLES:\n${nots.map((n, i) => `${i + 1}. "${n.titulo}" — ${n.resumen}`).join('\n')}`
                 : '';
               const opcionNoticias = nots.length > 0 ? ', contarle algo interesante que pasó hoy (tenés noticias del día para compartir)' : '';
-              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario está aburrido. OBLIGATORIO: tu respuesta DEBE mencionar por nombre las opciones disponibles. NO respondas solo con "¿qué querés hacer?" ni preguntas abiertas genéricas — eso no sirve. PROPONÉ vos las opciones nombrándolas: 1) jugar a algo (trivia, adivinanza, refrán, trabalengua, cálculo mental)${opcionNoticias}, 2) música o radio, 3) charlar de lo que quiera. Sé cálida y breve, pero nombrá al menos 2 opciones concretas.${noticiasBloque}`;
+              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario está aburrido. OBLIGATORIO: tu respuesta DEBE mencionar por nombre las opciones disponibles. NO respondas solo con "¿qué querés hacer?" ni preguntas abiertas genéricas — eso no sirve. PROPONÉ vos las opciones nombrándolas: 1) jugar al ta-te-ti [JUGAR_TATETI] o al ahorcado [JUGAR_AHORCADO] o a una trivia/adivinanza${opcionNoticias}, 2) música o radio, 3) charlar de lo que quiera. Sé cálida y breve, pero nombrá al menos 2 opciones concretas.${noticiasBloque}`;
             })()
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
@@ -1382,6 +1416,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
         await d.hablar(parsed.respuesta);
         if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
         d.expresionTimerRef.current = setTimeout(() => d.setExpresion('neutral'), 20000);
+        return;
+      }
+
+      // ── JUEGOS ──
+      if (parsed.jugarTateti || parsed.jugarAhorcado) {
+        await d.hablar(parsed.respuesta);
+        d.lanzarJuego?.(parsed.jugarTateti ? 'tateti' : 'ahorcado');
         return;
       }
 

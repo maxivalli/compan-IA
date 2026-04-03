@@ -42,6 +42,8 @@ export type RespuestaParsed = {
   listaNueva?: { nombre: string; items: string[] };
   listaAgregar?: { nombre: string; item: string };
   listaBorrar?: string;
+  jugarTateti?: boolean;
+  jugarAhorcado?: boolean;
 };
 
 const ANIMOS_VALIDOS: ExpresionAnimo[] = ['feliz', 'triste', 'sorprendida', 'pensativa', 'neutral'];
@@ -527,6 +529,11 @@ export function parsearRespuesta(
     : fallbackAnimo;
   respuesta = respuesta.replace(/\[ANIMO_USUARIO:[^\]]*\]?\s*/i, '').trim();
 
+  // ── JUGAR ──
+  const jugarTateti  = /\[JUGAR_TATETI\]/i.test(raw);
+  const jugarAhorcado = /\[JUGAR_AHORCADO\]/i.test(raw);
+  respuesta = respuesta.replace(/\[JUGAR_TATETI\]\s*/gi, '').replace(/\[JUGAR_AHORCADO\]\s*/gi, '').trim();
+
   // ── LLAMAR_FAMILIA ──
   const alertaMatch = respuesta.match(/\[LLAMAR_FAMILIA:\s*([^\]]*)\]?/i);
   const llamarFamilia = alertaMatch?.[1]?.trim();
@@ -569,5 +576,7 @@ export function parsearRespuesta(
     listaNueva,
     listaAgregar,
     listaBorrar,
+    jugarTateti: jugarTateti || undefined,
+    jugarAhorcado: jugarAhorcado || undefined,
   };
 }

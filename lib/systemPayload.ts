@@ -28,7 +28,6 @@ export type RositaSystemPayload = {
   extraTemporal?: string;
   ciudad?: string | null;
   coords?: { lat: number; lon: number } | null;
-  feriados?: string | null;
   memoriaEpisodica?: string;
 };
 
@@ -39,10 +38,9 @@ export function buildRositaSystemPayload(params: {
   extraTemporal?: string;
   ciudad?: string | null;
   coords?: { lat: number; lon: number } | null;
-  feriados?: string | null;
   memoriaEpisodica?: string;
 }): RositaSystemPayload {
-  const { perfil, dispositivos = [], climaTexto, extraTemporal = '', ciudad = null, coords = null, feriados = null, memoriaEpisodica = '' } = params;
+  const { perfil, dispositivos = [], climaTexto, extraTemporal = '', ciudad = null, coords = null, memoriaEpisodica = '' } = params;
   return {
     version: 'v1',
     perfil: {
@@ -70,7 +68,6 @@ export function buildRositaSystemPayload(params: {
     extraTemporal,
     ciudad,
     coords,
-    feriados,
     memoriaEpisodica,
   };
 }

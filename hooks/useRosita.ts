@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, Dimensions, Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
 import { Accelerometer } from 'expo-sensors';
@@ -15,7 +16,7 @@ import {
 } from '../lib/memoria';
 import { Expresion, ModoNoche } from '../components/RosaOjos';
 import { obtenerClima, climaATexto } from '../lib/clima';
-import { getFeriadosCercanos } from '../lib/feriados';
+
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
 import { leerImagen, verVision, sincronizarAnimo, obtenerTokenDispositivo, logCliente, calentarCacheClaudeEnBackground } from '../lib/ai';
 import { buildRositaSystemPayload } from '../lib/systemPayload';
@@ -42,6 +43,8 @@ const HORA_FIN           = 21;
 // CategoriaMuletilla, CategoriaRapida, Mensaje, EstadoRosita → importados arriba
 
 export function useRosita() {
+  const router = useRouter();
+
   useEffect(() => {
     activateKeepAwakeAsync();
     return () => { deactivateKeepAwake(); };
@@ -86,7 +89,7 @@ export function useRosita() {
   const ciudadRef           = useRef<string>('');
   const coordRef            = useRef<{ lat: number; lon: number } | null>(null);
   const climaTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const feriadosRef         = useRef<string>('');
+
   const duckTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
   const timerVozRef         = useRef<ReturnType<typeof setTimeout> | null>(null);
   const telegramOffsetRef   = useRef<number>(0);
@@ -189,7 +192,7 @@ export function useRosita() {
     climaRef,
     ciudadRef,
     coordRef,
-    feriadosRef,
+  // feriadosRef eliminado — el backend calcula los feriados de forma autónoma
     perfilRef,
     ultimaRadioRef,
     dispositivosTuyaRef:      smartthings.dispositivosTuyaRef,
@@ -209,6 +212,7 @@ export function useRosita() {
     playerMusica:             pipeline.playerMusica,
     iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
+    lanzarJuego: (tipo) => router.push((tipo === 'tateti' ? '/tateti' : '/ahorcado') as any),
   });
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
@@ -492,9 +496,7 @@ export function useRosita() {
 
     smartthings.inicializar();
 
-    getFeriadosCercanos().then(texto => {
-      feriadosRef.current = texto;
-    }).catch(() => {});
+
 
     brain.cargarNoticiasDiarias().catch(() => {});
   }
