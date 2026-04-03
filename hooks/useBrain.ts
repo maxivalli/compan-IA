@@ -49,31 +49,47 @@ import { enviarAlertaTelegram } from '../lib/telegram';
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaMuletilla = 'empatico' | 'busqueda' | 'nostalgia' | 'comando' | 'default';
+export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'default';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion';
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Estoy acá.', 'Te escucho.', 'Contame.'],
-    masculina: ['Estoy acá.', 'Te escucho.', 'Contame.'],
+    femenina:  ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...'],
+    masculina: ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...'],
+  },
+  alegria: {
+    femenina:  ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...'],
+    masculina: ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...'],
+  },
+  salud: {
+    femenina:  ['Vamos a mirar esto con cuidado, dame un segundito...', 'Tranqui, dame un instante que reviso esa información...'],
+    masculina: ['Vamos a mirar esto con cuidado, dame un segundito...', 'Tranqui, dame un instante que reviso esa información...'],
   },
   busqueda: {
-    femenina:  ['A ver...', 'Ya miro.', 'Un segundito.'],
-    masculina: ['A ver...', 'Ya miro.', 'Un segundito.'],
+    femenina:  ['Bancame un cachito que me fijo...', 'A ver qué dice por acá, dame un instante...'],
+    masculina: ['Bancame un cachito que me fijo...', 'A ver qué dice por acá, dame un instante...'],
+  },
+  musica: {
+    femenina:  ['Dejame que preparo todo para que escuchemos un poco...', 'Vamos a buscar unos buenos acordes, dame un segundo...'],
+    masculina: ['Dejame que preparo todo para que escuchemos un poco...', 'Vamos a buscar unos buenos acordes, dame un segundo...'],
+  },
+  recordatorio: {
+    femenina:  ['Anotado, dame un segundito que lo guardo bien así no se nos pasa...', 'Dejame que lo dejo por escrito acá...'],
+    masculina: ['Anotado, dame un segundito que lo guardo bien así no se nos pasa...', 'Dejame que lo dejo por escrito acá...'],
   },
   nostalgia: {
-    femenina:  ['Mirá vos.', 'Qué lindo.', 'Te escucho.'],
-    masculina: ['Mirá vos.', 'Qué interesante.', 'Te escucho.'],
+    femenina:  ['Qué lindo recuerdo, dejame repasar un poquito eso en MemorIA...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
+    masculina: ['Qué lindo recuerdo, dejame repasar un poquito eso en MemorIA...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
   },
   comando: {
-    femenina:  ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
-    masculina: ['¡Dale!', '¡Ahora mismo!', '¡Claro!'],
+    femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
+    masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
   },
   default: {
-    femenina:  ['Te sigo...', 'Decime...', 'Sí...'],
-    masculina: ['Te sigo...', 'Decime...', 'Sí...'],
+    femenina:  ['A ver...', 'Mmm...', 'Claro.'],
+    masculina: ['A ver...', 'Mmm...', 'Claro.'],
   },
 };
 
@@ -124,10 +140,14 @@ const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
 
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
 export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
-export const PATRON_EMPATICO  = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|médico|ambulancia|hospital|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
-export const PATRON_BUSQUEDA  = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|mucho calor|mucho frío|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
-export const PATRON_NOSTALGIA = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
-export const PATRON_COMANDO   = /pon[eé]|apag[aá]|prend[eé]|par[aá]\b|música|la radio|una canción|las luces?|la luz|una alarma|un recordatorio|un timer|despertame|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
+export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
+export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|nació\b|embarazada|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
+export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
+export const PATRON_BUSQUEDA     = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|mucho calor|mucho frío|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
+export const PATRON_MUSICA       = /\b(música|canción|canciones|folklore|tango|cumbia|cuarteto|zamba|chacarera|bolero|vals|bailar|cantame|cantá una)\b|la radio\b/i;
+export const PATRON_RECORDATORIO = /\b(acordame|recordame|anotá(me)?|no te olvid|que no se me olvide|recordatorio|agend[aá](me)?|que quede (anotado|guardado)|una alarma|un timer|despertame)\b/i;
+export const PATRON_NOSTALGIA    = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
+export const PATRON_COMANDO      = /pon[eé]|apag[aá]|prend[eé]|par[aá]\b|las luces?|la luz|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
 
 // Mapeo de texto del usuario → tipo OSM (para Overpass API)
 export const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
@@ -157,19 +177,27 @@ export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (texto.length <= 30 && PATRON_SKIP.test(texto)) return null;
   if (/\b(hablemos de otra cosa|otra cosa|cambiemos de tema|dejemos eso|dej[aá] eso|despu[eé]s hablamos|despues hablamos|charlamos despu[eé]s|charlamos despues)\b/i.test(texto)) return null;
   if (/\b(comer|hambre|comprar|pizza|sanguch|sanguche|sanguchito|cocinar|almorz|cenar)\b/i.test(texto) && texto.length <= 90) return null;
-  if (PATRON_EMPATICO.test(texto))  return 'empatico';
-  if (PATRON_BUSQUEDA.test(texto))  return 'busqueda';
-  if (PATRON_NOSTALGIA.test(texto)) return 'nostalgia';
-  if (PATRON_COMANDO.test(texto))   return 'comando';
+  if (PATRON_EMPATICO.test(texto))     return 'empatico';
+  if (PATRON_ALEGRIA.test(texto))      return 'alegria';
+  if (PATRON_SALUD.test(texto))        return 'salud';
+  if (PATRON_BUSQUEDA.test(texto))     return 'busqueda';
+  if (PATRON_MUSICA.test(texto))       return 'musica';
+  if (PATRON_RECORDATORIO.test(texto)) return 'recordatorio';
+  if (PATRON_NOSTALGIA.test(texto))    return 'nostalgia';
+  if (PATRON_COMANDO.test(texto))      return 'comando';
   if (texto.length <= 15) return null;
   return 'default';
 }
 
 export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (texto.length > 50) return null;
-  if (PATRON_EMPATICO.test(texto))  return null;
-  if (PATRON_BUSQUEDA.test(texto))  return null;
-  if (PATRON_COMANDO.test(texto))   return null;
+  if (PATRON_EMPATICO.test(texto))     return null;
+  if (PATRON_ALEGRIA.test(texto))      return null;
+  if (PATRON_SALUD.test(texto))        return null;
+  if (PATRON_BUSQUEDA.test(texto))     return null;
+  if (PATRON_MUSICA.test(texto))       return null;
+  if (PATRON_RECORDATORIO.test(texto)) return null;
+  if (PATRON_COMANDO.test(texto))      return null;
   // Si hay una pregunta o contenido sustancial después del saludo, dejar que Claude responda
   if (/[¿?]/.test(texto) || /,\s*\w/.test(texto)) return null;
   if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';

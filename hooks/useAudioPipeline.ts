@@ -39,7 +39,7 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
 const TTS_CACHE_VERSION = 'v5';
-const MULETILLA_CACHE_VERSION = 'v13';
+const MULETILLA_CACHE_VERSION = 'v14';
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
@@ -654,7 +654,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         if (info.exists) continue;
         const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
         const muletillaEmotion: Record<CategoriaMuletilla, string> = {
-          empatico: 'triste', busqueda: 'neutral', nostalgia: 'triste', comando: 'feliz', default: 'neutral',
+          empatico: 'triste', alegria: 'feliz', salud: 'neutral', busqueda: 'neutral',
+          musica: 'feliz', recordatorio: 'neutral', nostalgia: 'triste', comando: 'feliz', default: 'neutral',
         };
         const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
         if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
