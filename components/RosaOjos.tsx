@@ -17,7 +17,7 @@ const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 const AnimatedRect    = Animated.createAnimatedComponent(Rect);
 const AnimatedPath    = Animated.createAnimatedComponent(Path);
 
-export type Expresion = 'neutral' | 'feliz' | 'triste' | 'sorprendida' | 'pensativa' | 'chiste' | 'enojada' | 'avergonzada' | 'cansada' | 'bostezando' | 'mimada';
+export type Expresion = 'neutral' | 'feliz' | 'triste' | 'sorprendida' | 'pensativa' | 'chiste' | 'enojada' | 'avergonzada' | 'cansada' | 'bostezando' | 'mimada' | 'ternura' | 'preocupada' | 'entusiasmada';
 type Estado = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 
 export const BG = '#0D0D14';
@@ -37,17 +37,20 @@ const CY = EYE_H * 0.58;     // ~80 — iris centrado en mitad baja
 
 
 const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: number; lower: number; ceno: number; gapOffset: number }> = {
-  neutral:     { pxL: 0,   pxR: 0,   py: 0,   upper: EYE_H * 0.06, lower: 0,            ceno: 0,            gapOffset: 0  },
-  feliz:       { pxL: 0,   pxR: 0,   py: -4,  upper: EYE_H * 0.30, lower: EYE_H * 0.20, ceno: 0,            gapOffset: 0  },
-  triste:      { pxL: 5,   pxR: -5,  py: 7,   upper: EYE_H * 0.28, lower: 0,            ceno: 0,            gapOffset: 0  },
-  sorprendida: { pxL: 0,   pxR: 0,   py: -7,  upper: 0,             lower: 0,            ceno: 0,            gapOffset: 8  },
-  pensativa:   { pxL: -6,  pxR: -6,  py: -9,  upper: EYE_H * 0.12, lower: 0,            ceno: 0,            gapOffset: -4 },
-  chiste:      { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.48, lower: EYE_H * 0.32, ceno: 0,            gapOffset: 0  },
-  enojada:     { pxL: -3,  pxR: 3,   py: 5,   upper: EYE_H * 0.15, lower: 0,            ceno: EYE_H * 0.28, gapOffset: -6 },
-  avergonzada: { pxL: 3,   pxR: -3,  py: 14,  upper: EYE_H * 0.38, lower: 0,            ceno: EYE_H * 0.08, gapOffset: 0  },
-  cansada:     { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.42, lower: EYE_H * 0.06, ceno: 0,            gapOffset: 0  },
-  bostezando:  { pxL: 0,   pxR: 0,   py: 10,  upper: EYE_H * 0.56, lower: EYE_H * 0.12, ceno: 0,            gapOffset: 0  },
-  mimada:      { pxL: 0,   pxR: 0,   py: -4,  upper: EYE_H * 0.38, lower: EYE_H * 0.24, ceno: 0,            gapOffset: 0  },
+  neutral:      { pxL: 0,   pxR: 0,   py: 0,   upper: EYE_H * 0.06, lower: 0,            ceno: 0,            gapOffset: 0  },
+  feliz:        { pxL: 0,   pxR: 0,   py: -6,  upper: EYE_H * 0.14, lower: EYE_H * 0.20, ceno: 0,            gapOffset: 4  },
+  ternura:      { pxL: 0,   pxR: 0,   py: -4,  upper: EYE_H * 0.30, lower: EYE_H * 0.20, ceno: 0,            gapOffset: 0  },
+  triste:       { pxL: 5,   pxR: -5,  py: 7,   upper: EYE_H * 0.28, lower: 0,            ceno: 0,            gapOffset: 0  },
+  sorprendida:  { pxL: 0,   pxR: 0,   py: -7,  upper: 0,             lower: 0,            ceno: 0,            gapOffset: 8  },
+  pensativa:    { pxL: -6,  pxR: -6,  py: -9,  upper: EYE_H * 0.12, lower: 0,            ceno: 0,            gapOffset: -4 },
+  chiste:       { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.48, lower: EYE_H * 0.32, ceno: 0,            gapOffset: 0  },
+  enojada:      { pxL: -3,  pxR: 3,   py: 5,   upper: EYE_H * 0.15, lower: 0,            ceno: EYE_H * 0.28, gapOffset: -6 },
+  avergonzada:  { pxL: 3,   pxR: -3,  py: 14,  upper: EYE_H * 0.38, lower: 0,            ceno: EYE_H * 0.08, gapOffset: 0  },
+  cansada:      { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.42, lower: EYE_H * 0.06, ceno: 0,            gapOffset: 0  },
+  bostezando:   { pxL: 0,   pxR: 0,   py: 10,  upper: EYE_H * 0.56, lower: EYE_H * 0.12, ceno: 0,            gapOffset: 0  },
+  mimada:       { pxL: 0,   pxR: 0,   py: -4,  upper: EYE_H * 0.38, lower: EYE_H * 0.24, ceno: 0,            gapOffset: 0  },
+  preocupada:   { pxL: 4,   pxR: -4,  py: 3,   upper: EYE_H * 0.18, lower: 0,            ceno: EYE_H * 0.18, gapOffset: -3 },
+  entusiasmada: { pxL: 0,   pxR: 0,   py: -8,  upper: EYE_H * 0.06, lower: EYE_H * 0.10, ceno: 0,            gapOffset: 7  },
 };
 
 // ── Boca ─────────────────────────────────────────────────────────────────────

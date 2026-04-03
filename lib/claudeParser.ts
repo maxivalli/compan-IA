@@ -9,7 +9,8 @@ export type TagPrincipal =
   | 'LINTERNA'
   | 'MUSICA'
   | 'FELIZ' | 'TRISTE' | 'SORPRENDIDA' | 'PENSATIVA' | 'NEUTRAL'
-  | 'CUENTO' | 'JUEGO' | 'CHISTE' | 'ENOJADA' | 'AVERGONZADA' | 'CANSADA';
+  | 'CUENTO' | 'JUEGO' | 'CHISTE' | 'ENOJADA' | 'AVERGONZADA' | 'CANSADA'
+  | 'TERNURA' | 'PREOCUPADA' | 'ENTUSIASMADA';
 
 export type Dispositivo = {
   id: string;
@@ -61,12 +62,18 @@ function expresionSegunTag(tag: TagPrincipal): Expresion {
       return 'cansada';
     case 'FELIZ':
       return 'feliz';
+    case 'TERNURA':
+      return 'ternura';
     case 'TRISTE':
       return 'triste';
     case 'SORPRENDIDA':
       return 'sorprendida';
     case 'PENSATIVA':
       return 'pensativa';
+    case 'PREOCUPADA':
+      return 'preocupada';
+    case 'ENTUSIASMADA':
+      return 'entusiasmada';
     case 'NEUTRAL':
     default:
       return 'neutral';
@@ -298,7 +305,7 @@ function esFechaISOValida(fechaISO: string): boolean {
 }
 
 function normalizarTagPrincipalInline(respuestaRaw: string): string {
-  const tagInline = respuestaRaw.match(/\[(PARAR_MUSICA|LINTERNA|MUSICA:\s*[^\]]+|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]/i);
+  const tagInline = respuestaRaw.match(/\[(PARAR_MUSICA|LINTERNA|MUSICA:\s*[^\]]+|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA)\]/i);
   if (!tagInline || tagInline.index === undefined || tagInline.index <= 0 || tagInline.index >= 80) return respuestaRaw;
   const prefix = respuestaRaw.slice(0, tagInline.index).trim();
   const suffix = respuestaRaw.slice(tagInline.index + tagInline[0].length).trim();
@@ -321,7 +328,7 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[LISTA_NUEVA:[^\]]*\]?\s*/gi, '')
     .replace(/\[LISTA_AGREGAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[LISTA_BORRAR:[^\]]*\]?\s*/gi, '')
-    .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]/gi, '')
+    .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA)\]/gi, '')
     .trim();
 }
 
@@ -378,7 +385,7 @@ export function parsearRespuesta(
   // Ej: "¡Claro! [MUSICA: tango]..." → "[MUSICA: tango]..."
   // Solo hacer el slice si el bracket abre un TAG PRINCIPAL — evita tirar el texto
   // hablable cuando el primer "[" es un tag secundario como [ANIMO_USUARIO:].
-  const PATRON_TAG_PRINCIPAL = /^\[(?:PARAR_MUSICA|LINTERNA|MUSICA:|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)/i;
+  const PATRON_TAG_PRINCIPAL = /^\[(?:PARAR_MUSICA|LINTERNA|MUSICA:|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA)/i;
   const firstBracket = respuestaNormalizada.indexOf('[');
   const raw = firstBracket > 0 && firstBracket < 80 && PATRON_TAG_PRINCIPAL.test(respuestaNormalizada.slice(firstBracket))
     ? respuestaNormalizada.slice(firstBracket)
@@ -492,7 +499,7 @@ export function parsearRespuesta(
   }
 
   // ── Tag de emoción principal ──
-  const matchTag = raw.match(/^\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA)\]\s*/i);
+  const matchTag = raw.match(/^\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA)\]\s*/i);
   const tagRaw = matchTag?.[1]?.toUpperCase() as TagPrincipal ?? 'NEUTRAL';
   const expresion = expresionSegunTag(tagRaw);
 

@@ -4,7 +4,7 @@ import type { Expresion, ModoNoche } from './RosaOjos';
 import {
   Lagrimas, Corazones, Mejillas, SignosPregunta, Exclamaciones,
   Carcajada, NotasMusica, CenoEnojado, Grawlixes,
-  Bonete, GorroNavidad,
+  Bonete, GorroNavidad, Destellos, Confetti,
 } from './EfectosExpresion';
 import {
   GotasLluvia, Nieve, Viento, CalorEfecto,
@@ -95,15 +95,17 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
           {(musicaActiva || silbando) && <NotasMusica />}
 
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
-            {expresion === 'triste'      && <Lagrimas />}
-            {expresion === 'feliz'       && <Corazones />}
-            {expresion === 'mimada'      && <Corazones />}
-            {expresion === 'mimada'      && !esHorizontalPantalla && <Mejillas />}
-            {expresion === 'sorprendida' && !esTormenta && <Exclamaciones />}
-            {expresion === 'pensativa'   && <SignosPregunta />}
-            {expresion === 'chiste'      && <Carcajada />}
-            {expresion === 'enojada'     && <CenoEnojado />}
-            {expresion === 'enojada'     && (
+            {expresion === 'triste'        && <Lagrimas />}
+            {expresion === 'ternura'       && <Corazones />}
+            {expresion === 'feliz'         && <Destellos />}
+            {expresion === 'entusiasmada'  && <Confetti />}
+            {expresion === 'mimada'        && <Corazones />}
+            {expresion === 'mimada'        && !esHorizontalPantalla && <Mejillas />}
+            {expresion === 'sorprendida'   && !esTormenta && <Exclamaciones />}
+            {expresion === 'pensativa'     && <SignosPregunta />}
+            {expresion === 'chiste'        && <Carcajada />}
+            {expresion === 'enojada'       && <CenoEnojado />}
+            {expresion === 'enojada'       && (
               <View style={esHorizontalPantalla ? { transform: [{ translateY: 62 }] } : undefined}>
                 <Grawlixes />
               </View>

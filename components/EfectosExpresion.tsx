@@ -698,6 +698,127 @@ const sn = StyleSheet.create({
   },
 });
 
+// ── Destellos (feliz — estrellas doradas que suben suave) ────────────────────
+
+const DESTELLOS = [
+  { x: 10,  delay: 0,   size: 30, color: '#FFD700' },
+  { x: 55,  delay: 280, size: 24, color: '#FFC107' },
+  { x: 110, delay: 140, size: 34, color: '#FFD700' },
+  { x: 165, delay: 420, size: 26, color: '#FFEB3B' },
+  { x: 215, delay: 210, size: 30, color: '#FFC107' },
+  { x: 258, delay: 560, size: 22, color: '#FFD700' },
+];
+
+function UnDestello({ x, delay, size, color }: typeof DESTELLOS[0]) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale   = useRef(new Animated.Value(0.4)).current;
+  const y       = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(opacity, { toValue: 1,   duration: 200,  useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.8, duration: 800,  useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0,   duration: 300,  useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(scale, { toValue: 1.2, duration: 200,  useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.0, duration: 800,  useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.4, duration: 300,  useNativeDriver: true }),
+          ]),
+          Animated.timing(y, { toValue: -70, duration: 1300, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(y,       { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 0.4, duration: 0, useNativeDriver: true }),
+        ]),
+        Animated.delay(400),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  return (
+    <Animated.Text style={{ position: 'absolute', left: x, top: EYE_H + 4, fontSize: size, color, opacity, transform: [{ scale }, { translateY: y }] }}>
+      ✦
+    </Animated.Text>
+  );
+}
+
+export function Destellos() {
+  return <>{DESTELLOS.map((d, i) => <UnDestello key={i} {...d} />)}</>;
+}
+
+// ── Confetti (entusiasmada — piezas coloridas que suben rápido) ───────────────
+
+const CONFETTI_DATA = [
+  { x: 8,   delay: 0,   size: 20, color: '#FF6B6B', symbol: '✦' },
+  { x: 45,  delay: 120, size: 24, color: '#FFD93D', symbol: '●' },
+  { x: 88,  delay: 60,  size: 18, color: '#6BCB77', symbol: '✦' },
+  { x: 130, delay: 220, size: 22, color: '#4D96FF', symbol: '●' },
+  { x: 172, delay: 90,  size: 20, color: '#FF6BFF', symbol: '✦' },
+  { x: 210, delay: 180, size: 24, color: '#FF9F45', symbol: '●' },
+  { x: 250, delay: 40,  size: 18, color: '#C77DFF', symbol: '✦' },
+];
+
+function UnConfetti({ x, delay, size, color, symbol }: typeof CONFETTI_DATA[0]) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale   = useRef(new Animated.Value(0.3)).current;
+  const y       = useRef(new Animated.Value(0)).current;
+  const rotate  = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.sequence([
+            Animated.timing(opacity, { toValue: 1,   duration: 150, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.9, duration: 600, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0,   duration: 250, useNativeDriver: true }),
+          ]),
+          Animated.sequence([
+            Animated.timing(scale, { toValue: 1.4, duration: 150, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+            Animated.timing(scale, { toValue: 0.3, duration: 250, useNativeDriver: true }),
+          ]),
+          Animated.timing(y, { toValue: -90, duration: 1000, useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(rotate, { toValue: 1,  duration: 500, useNativeDriver: true }),
+            Animated.timing(rotate, { toValue: -1, duration: 500, useNativeDriver: true }),
+          ]),
+        ]),
+        Animated.parallel([
+          Animated.timing(y,       { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0,   duration: 0, useNativeDriver: true }),
+          Animated.timing(scale,   { toValue: 0.3, duration: 0, useNativeDriver: true }),
+          Animated.timing(rotate,  { toValue: 0,   duration: 0, useNativeDriver: true }),
+        ]),
+        Animated.delay(300),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
+
+  const rotateInterp = rotate.interpolate({ inputRange: [-1, 1], outputRange: ['-30deg', '30deg'] });
+
+  return (
+    <Animated.Text style={{ position: 'absolute', left: x, top: EYE_H, fontSize: size, color, opacity, transform: [{ scale }, { translateY: y }, { rotate: rotateInterp }] }}>
+      {symbol}
+    </Animated.Text>
+  );
+}
+
+export function Confetti() {
+  return <>{CONFETTI_DATA.map((c, i) => <UnConfetti key={i} {...c} />)}</>;
+}
+
 // ── Estilos base ──────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
