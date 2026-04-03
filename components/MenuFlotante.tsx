@@ -7,10 +7,11 @@ import { cargarPerfil } from '../lib/memoria';
 import { obtenerEstadoSmartThings } from '../lib/smartthings';
 
 const ITEMS = [
-  { ruta: '/',              label: 'ASISTENTE',       sub: 'Pantalla principal',    icono: 'heart',            color: '#7C5200', bg: '#FFE0A0' },
-  { ruta: '/animo',         label: 'Estado de ánimo', sub: 'Registro del día',      icono: 'happy-outline',    color: '#004785', bg: '#D3E4FF' },
-  { ruta: '/configuracion', label: 'Configuración',   sub: 'Perfil y preferencias', icono: 'settings-outline', color: '#1B5E28', bg: '#C8EFCE' },
-  { ruta: '/guia',          label: 'Guía de uso',     sub: 'Funciones y comandos',  icono: 'book-outline',     color: '#6A0D91', bg: '#F0DEFF' },
+  { ruta: '/',               label: 'ASISTENTE',       sub: 'Pantalla principal',    icono: 'heart',            color: '#7C5200', bg: '#FFE0A0' },
+  { ruta: '/animo',          label: 'Estado de ánimo', sub: 'Registro del día',      icono: 'happy-outline',    color: '#004785', bg: '#D3E4FF' },
+  { ruta: '/recordatorios',  label: 'Recordatorios',   sub: 'Avisos y pendientes',   icono: 'alarm-outline',    color: '#7D2D00', bg: '#FFDCC8' },
+  { ruta: '/configuracion',  label: 'Configuración',   sub: 'Perfil y preferencias', icono: 'settings-outline', color: '#1B5E28', bg: '#C8EFCE' },
+  { ruta: '/guia',           label: 'Guía de uso',     sub: 'Funciones y comandos',  icono: 'book-outline',     color: '#6A0D91', bg: '#F0DEFF' },
 ] as const;
 
 const M3 = {
@@ -95,8 +96,9 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
         ITEMS[0],
         ITEMS[1],
         ITEMS[2],
-        { ruta: '/smartlink', label: 'SmartLink', sub: 'Luces y dispositivos', icono: 'bulb-outline', color: '#8E5A00', bg: '#FFE7BE' },
         ITEMS[3],
+        { ruta: '/smartlink', label: 'SmartLink', sub: 'Luces y dispositivos', icono: 'bulb-outline', color: '#8E5A00', bg: '#FFE7BE' },
+        ITEMS[4],
       ]
     : ITEMS;
 

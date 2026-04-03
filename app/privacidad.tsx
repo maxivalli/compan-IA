@@ -1,20 +1,12 @@
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import ScreenHeader from '../components/ScreenHeader';
 
 const M = { primary: '#0097b2', onPrimary: '#ffffff', onSurface: '#171d1e', onSurfaceVariant: '#3f484a', background: '#f5fafb' };
 
 export default function Privacidad() {
-  const router = useRouter();
-
   return (
     <View style={{ flex: 1, backgroundColor: M.background }}>
-      <View style={s.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={s.btnBack} activeOpacity={0.7}>
-          <Ionicons name="arrow-back" size={24} color={M.onPrimary} />
-        </TouchableOpacity>
-        <Text style={s.topTitle}>Términos y privacidad</Text>
-      </View>
+      <ScreenHeader titulo="Términos y privacidad" eyebrow="legal" icono="shield-checkmark-outline" />
 
       <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
         <Text style={s.fecha}>Última actualización: marzo 2026</Text>
@@ -119,9 +111,6 @@ export default function Privacidad() {
 }
 
 const s = StyleSheet.create({
-  topBar:    { backgroundColor: M.primary, paddingTop: 52, paddingBottom: 16, paddingHorizontal: 4, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  btnBack:   { padding: 12, borderRadius: 24 },
-  topTitle:  { fontSize: 20, fontWeight: '400', color: M.onPrimary },
   seccion:   { fontSize: 13, fontWeight: '700', color: M.primary, letterSpacing: 1.2, marginTop: 8, marginBottom: 4 },
   contenido: { padding: 20 },
   fecha:     { fontSize: 12, color: M.onSurfaceVariant, marginBottom: 20 },
