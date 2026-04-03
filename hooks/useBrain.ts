@@ -882,17 +882,24 @@ export function useBrain(deps: BrainDeps) {
       return;
     }
 
-    const pideMusicaDirecta = /\b(pon[eé]|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b|\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|vida|del plata|delplata|lt8|lv3|tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop)\b/.test(textoNorm);
+    const pideMusicaDirecta = /\b(pon[eé]|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b|\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|vida|del plata|delplata|lt8|lv3|tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical)\b/.test(textoNorm);
     const generoDirecto = detectarGenero(textoNorm);
-    if (pideMusicaDirecta && generoDirecto) {
-      const nombreRadio = nombreRadioOGenero(generoDirecto);
-      const respuesta = /^radio|^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|vida|delplata|lt8)$/.test(generoDirecto)
-        ? `¡Claro! Va ${nombreRadio}.`
-        : `¡Dale! Pongo ${nombreRadio}.`;
-      d.ultimaActividadRef.current = Date.now();
-      logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
-      await ejecutarMusica(generoDirecto, respuesta, nuevoHistorial);
-      return;
+    if (pideMusicaDirecta) {
+      // Si detectarGenero matcheó una clave conocida, usarla — si no, pasar el texto limpio
+      // directamente a buscarRadio como búsqueda abierta en Radio Browser.
+      const claveMusica = generoDirecto || textoNorm
+        .replace(/\b(pon[eé]|pone|quiero|mand[aá]|dej[aá]|pone|poné|quiero escuchar|pon[eé]me|poneme)\b/gi, '')
+        .replace(/\b(musica|música|radio|fm|la radio|una radio)\b/gi, '')
+        .trim();
+      if (claveMusica) {
+        const nombreRadio = nombreRadioOGenero(claveMusica);
+        const esRadioNombrada = /^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|vida|delplata|lt8)$/.test(claveMusica);
+        const respuesta = esRadioNombrada ? `¡Claro! Va ${nombreRadio}.` : `¡Dale! Pongo ${nombreRadio}.`;
+        d.ultimaActividadRef.current = Date.now();
+        logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
+        await ejecutarMusica(claveMusica, respuesta, nuevoHistorial);
+        return;
+      }
     }
 
     // ── Respuestas rápidas: saltear Claude para mensajes cortos y predecibles ──

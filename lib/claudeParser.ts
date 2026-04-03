@@ -136,18 +136,22 @@ export function detectarGenero(tag: string): string {
     ['delplata',    ['delplata', 'del plata', 'radio del plata']],
     ['lt8',         ['lt8', 'lt 8']],
     // Géneros
-    ['tango',     ['tango', 'milonga', 'piazzolla']],
-    ['bolero',    ['bolero', 'besame', 'trio']],
-    ['folklore',  ['folklore', 'folclore', 'folklo', 'chacarera', 'zamba', 'chamame']],
-    ['romantica', ['romantica', 'balada', 'romantico', 'amor']],
-    ['clasica',   ['clasica', 'classical', 'clasico', 'beethoven', 'mozart', 'opera']],
+    ['tango',     ['tango', 'milonga', 'piazzolla', 'gardel']],
+    ['bolero',    ['bolero', 'besame', 'trio los panchos']],
+    ['folklore',  ['folklore', 'folclore', 'folklo', 'chacarera', 'zamba', 'chamame', 'cueca', 'vidala']],
+    ['romantica', ['romantica', 'romantico', 'balada', 'baladas']],
+    ['clasica',   ['clasica', 'classical', 'clasico', 'beethoven', 'mozart', 'opera', 'orquesta']],
     ['jazz',      ['jazz', 'swing', 'blues']],
-    ['pop',       ['pop', 'rock', 'moderna', 'moderno', 'contemporanea', 'contemporaneo']],
+    ['cumbia',    ['cumbia', 'tropical', 'bailanta', 'cuarteto cordobes']],
+    ['cuarteto',  ['cuarteto']],
+    ['rock',      ['rock nacional', 'rock argentino', 'rock and roll']],
+    ['salsa',     ['salsa', 'merengue', 'bachata']],
+    ['pop',       ['pop', 'moderna', 'moderno', 'contemporanea', 'contemporaneo']],
   ];
   for (const [genero, palabras] of mapa) {
     if (palabras.some(p => t.includes(p))) return genero;
   }
-  return ''; // sin match: buscarRadio recibirá string vacío y fallará limpiamente
+  return ''; // sin match → la clave vacía se maneja con búsqueda abierta en useBrain
 }
 
 export function respuestaOffline(
