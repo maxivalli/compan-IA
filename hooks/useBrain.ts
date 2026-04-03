@@ -269,11 +269,16 @@ function compactarRespuestaParaVoz(
   const oraciones = splitEnOraciones(respuesta);
   if (oraciones.length === 0) return respuesta.trim();
 
-  let compacta = oraciones.slice(0, maxOraciones).join(' ').trim();
-  if (compacta.length <= maxChars) return compacta;
+  // Reducir número de oraciones hasta que quepan en maxChars (nunca cortar mid-oración)
+  for (let n = maxOraciones; n >= 1; n--) {
+    const compacta = oraciones.slice(0, n).join(' ').trim();
+    if (compacta.length <= maxChars) return compacta;
+  }
 
-  const corte = compacta.lastIndexOf(' ', maxChars);
-  const truncada = (corte > 40 ? compacta.slice(0, corte) : compacta.slice(0, maxChars)).trim();
+  // Ni una sola oración cabe: cortar la primera a límite de palabra
+  const primera = oraciones[0].trim();
+  const corte = primera.lastIndexOf(' ', maxChars);
+  const truncada = (corte > 40 ? primera.slice(0, corte) : primera.slice(0, maxChars)).trim();
   return /[.!?]$/.test(truncada) ? truncada : `${truncada}.`;
 }
 
