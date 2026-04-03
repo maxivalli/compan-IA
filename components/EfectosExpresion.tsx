@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Dimensions, StyleSheet, View, useWindowDimensions } from 'react-native';
-import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
+import Svg, { Defs, RadialGradient, Stop, Ellipse, Path } from 'react-native-svg';
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
@@ -847,7 +847,11 @@ export function GotaSudor() {
   }, []);
 
   return (
-    <Animated.View style={[s.sudorFrio, { opacity, transform: [{ translateY: y }] }]} />
+    <Animated.View style={{ position: 'absolute', left: 280, top: 2, opacity, transform: [{ translateY: y }] }}>
+      <Svg width={20} height={28} viewBox="0 0 20 28">
+        <Path d="M 10,0 C 20,8 20,20 10,28 C 0,20 0,8 10,0 Z" fill="#90CAE8" />
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -855,5 +859,4 @@ export function GotaSudor() {
 
 const s = StyleSheet.create({
   lagrima:   { position: 'absolute', top: EYE_H + 2, width: 13, height: 20, borderRadius: 7, backgroundColor: '#7EB8D4' },
-  sudorFrio: { position: 'absolute', right: 8, top: -8, width: 20, height: 30, borderRadius: 10, backgroundColor: '#90CAE8' },
 });
