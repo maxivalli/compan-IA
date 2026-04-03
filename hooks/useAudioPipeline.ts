@@ -1039,7 +1039,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const texto = await transcribirAudio(uri);
       await muletillaPromise;
       if (__DEV__) console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
-      if (!texto.trim()) { await hablar('No te escuché bien, ¿podés repetir?'); return; }
+      if (!texto.trim()) {
+        const noEntendido = Math.random() < 0.5
+          ? 'Perdoname, me distraje un cachito, ¿me lo repetís?'
+          : 'Uy, se me cortó un poquito, ¿qué me decías?';
+        await hablar(noEntendido); return;
+      }
       await d.onTextoReconocido(texto);
     } catch (e: any) {
       if (__DEV__) console.log('[AUDIO] CATCH:', e?.message ?? e);
