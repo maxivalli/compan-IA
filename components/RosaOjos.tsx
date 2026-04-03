@@ -119,7 +119,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' || expresion === 'entusiasmada' ? 10/BOCA_H :
         expresion === 'enojada' ? 3/BOCA_H :
         expresion === 'avergonzada' ? 3/BOCA_H :
-        expresion === 'cansada' ? 8/BOCA_H :
+        expresion === 'cansada' ? 4/BOCA_H :
         expresion === 'neutral' ? 1 : 5/BOCA_H;
 
       const reposoScaleX =
@@ -140,6 +140,8 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     ? { borderTopLeftRadius: 50, borderTopRightRadius: 50, borderBottomLeftRadius: 50, borderBottomRightRadius: 50 }
     : expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' || expresion === 'entusiasmada'
     ? { borderTopLeftRadius: 3,  borderTopRightRadius: 3,  borderBottomLeftRadius: 32, borderBottomRightRadius: 32 }
+    : expresion === 'cansada'
+    ? { borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 3,  borderBottomRightRadius: 3  }
     : expresion === 'triste' || expresion === 'enojada'
     ? { borderTopLeftRadius: 32, borderTopRightRadius: 32, borderBottomLeftRadius: 3,  borderBottomRightRadius: 3  }
     : expresion === 'bostezando'
