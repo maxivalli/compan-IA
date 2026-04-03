@@ -1101,10 +1101,11 @@ export function useBrain(deps: BrainDeps) {
           : ofrecerMenuAburrimiento
           ? (() => {
               const nots = noticiasDiariaRef.current;
-              const noticiasExtra = nots.length > 0
-                ? `, contarle algo interesante que pasó hoy (tenés estas noticias disponibles:\n${nots.map((n, i) => `${i + 1}. "${n.titulo}" — ${n.resumen}`).join('\n')})`
+              const noticiasBloque = nots.length > 0
+                ? `\nNOTICIAS DEL DÍA DISPONIBLES:\n${nots.map((n, i) => `${i + 1}. "${n.titulo}" — ${n.resumen}`).join('\n')}`
                 : '';
-              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario expresa que está aburrido. No lances ninguna actividad todavía. Proponele amablemente que elija qué quiere hacer: podés ofrecerle jugar a algo (trivia, adivinanzas, refranes, trabalenguas, cálculo mental o memoria de palabras), escuchar música o radio${noticiasExtra}, o simplemente charlar de lo que quiera. Mencioná las opciones de forma cálida y natural, sin listar en formato tabla.`;
+              const opcionNoticias = nots.length > 0 ? ', contarle algo interesante que pasó hoy (tenés noticias del día para compartir)' : '';
+              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario está aburrido. OBLIGATORIO: tu respuesta DEBE mencionar por nombre las opciones disponibles. NO respondas solo con "¿qué querés hacer?" ni preguntas abiertas genéricas — eso no sirve. PROPONÉ vos las opciones nombrándolas: 1) jugar a algo (trivia, adivinanza, refrán, trabalengua, cálculo mental)${opcionNoticias}, 2) música o radio, 3) charlar de lo que quiera. Sé cálida y breve, pero nombrá al menos 2 opciones concretas.${noticiasBloque}`;
             })()
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
