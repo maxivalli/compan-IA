@@ -315,20 +315,6 @@ export function urlTTSStream(texto: string, voiceId: string, speed?: number): st
   return `${BACKEND_URL}/ai/tts-stream?${params}`;
 }
 
-/** Construye la URL del endpoint de streaming de TTS — Cartesia Sonic (baja latencia).
- *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
-export function urlCartesiaStream(texto: string, voiceId: string, speed?: number, emotion?: string): string {
-  if (!_cachedToken) throw new Error('Device token unavailable for Cartesia stream');
-  const params = new URLSearchParams({
-    text:    texto,
-    voiceId,
-    speed:   String(speed ?? 0.92),
-    k:       _cachedToken,
-    ...(emotion ? { emotion } : {}),
-    ...(_currentTurnId ? { t: _currentTurnId } : {}),
-  });
-  return `${BACKEND_URL}/ai/tts-cartesia-stream?${params}`;
-}
 
 /** Construye la URL del endpoint experimental de Fish realtime streaming.
  *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente. */
