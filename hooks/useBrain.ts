@@ -890,11 +890,10 @@ export function useBrain(deps: BrainDeps) {
     const pideChisteBase = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
           && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
-    // Si expresa aburrimiento y no pidió algo específico, ofrecemos juego (65%) o chiste (35%)
-    const aburrOfreceJuego  = expresaAburrimiento && !pideJuegoBase && !pideChisteBase && Math.random() < 0.65;
-    const aburrOfreceChiste = expresaAburrimiento && !pideJuegoBase && !pideChisteBase && !aburrOfreceJuego;
-    const pideJuego  = pideJuegoBase  || aburrOfreceJuego;
-    const pideChiste = pideChisteBase || aburrOfreceChiste;
+    // Si expresa aburrimiento y no pidió algo específico, Rosita propone un menú de opciones
+    const ofrecerMenuAburrimiento = expresaAburrimiento && !pideJuegoBase && !pideChisteBase;
+    const pideJuego  = pideJuegoBase;
+    const pideChiste = pideChisteBase;
     const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|anotame|anotá|guarda|guardame|papelito|nota\b|nota me|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
@@ -985,11 +984,13 @@ export function useBrain(deps: BrainDeps) {
       : `\nSi no sabés quién habla, no uses nombres propios.`;
     const maxTokBase  = (pideCuento || pideJuego || pideChiste)
       ? 700
-      : (pideNoticias || pideBusqueda || pideWikipedia)
+      : ofrecerMenuAburrimiento
         ? 150
-        : pideAccion
-          ? 120
-          : 80;
+        : (pideNoticias || pideBusqueda || pideWikipedia)
+          ? 150
+          : pideAccion
+            ? 120
+            : 80;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
 
@@ -1054,7 +1055,7 @@ export function useBrain(deps: BrainDeps) {
         // ── Fast path ─────────────────────────────────────────────────────────
         // Para consultas de entretenimiento o charla social, la memoria episódica
         // no aporta valor y genera ~800ms de espera innecesaria. Usamos string vacío.
-        const esConsultaLiviana = pideCuento || pideChiste || pideJuego || esCharlaSocialBreve(textoNorm);
+        const esConsultaLiviana = pideCuento || pideChiste || pideJuego || ofrecerMenuAburrimiento || esCharlaSocialBreve(textoNorm);
         const contextoMemoria = esConsultaLiviana
           ? { texto: '', count: 0, chars: 0 }
           : (episodicaCacheRef.current?.lastRelevant?.result ?? { texto: '', count: 0, chars: 0 });
@@ -1065,6 +1066,8 @@ export function useBrain(deps: BrainDeps) {
           ? `\n\n${formatearJuegoParaClaude(obtenerJuego())}`
           : pideChiste
           ? `\n\n${formatearChisteParaClaude(obtenerChiste())}`
+          : ofrecerMenuAburrimiento
+          ? `\n\nDIRECTIVA ABURRIMIENTO: El usuario expresa que está aburrido. No lances ninguna actividad todavía. Proponele amablemente que elija qué quiere hacer: podés ofrecerle jugar a algo (tenés trivia, adivinanzas, refranes, trabalenguas, cálculo mental o memoria de palabras), escuchar música o radio, o simplemente charlar de lo que quiera. Mencioná las opciones de forma cálida y natural, sin listar en formato tabla.`
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
