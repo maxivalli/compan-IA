@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import * as Speech from 'expo-speech';
 import {
   tableroInicial,
   calcularMovimientoIA,
@@ -27,17 +28,65 @@ const { width, height } = Dimensions.get('window');
 const CELL_SIZE = Math.min((Math.min(width, height) - 80) / 3, 160);
 
 const M = {
-  bg:       '#0f172a',
-  surface:  '#1e293b',
-  border:   '#334155',
-  x:        '#38bdf8',
-  o:        '#f472b6',
-  win:      '#fbbf24',
-  text:     '#f1f5f9',
-  sub:      '#94a3b8',
-  btn:      '#0097b2',
-  btnText:  '#ffffff',
-  overlay:  'rgba(0,0,0,0.85)',
+  bg:      '#0f172a',
+  surface: '#1e293b',
+  border:  '#334155',
+  x:       '#38bdf8',
+  o:       '#f472b6',
+  text:    '#f1f5f9',
+  sub:     '#94a3b8',
+  btn:     '#0097b2',
+  btnText: '#ffffff',
+  overlay: 'rgba(0,0,0,0.85)',
+};
+
+// ── Frases de feedback ──────────────────────────────────────────────────────────
+
+function al<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+const FRASES = {
+  movUsuario: [
+    'Mmm... me estás complicando.',
+    'Aah, no me lo esperaba por ahí.',
+    'Interesante movimiento.',
+    '¿Me estás desafiando?',
+    'Uy, qué jugada.',
+    'Pensé que ibas a otro lado.',
+    'Bien puesto, che.',
+    'Hay que pensar...',
+    'No me des tanta ventaja.',
+  ],
+  movIA: [
+    '¿Y ahora qué hacés?',
+    '¡Mirá eso!',
+    'Ahí va la mía, a ver cómo la resolvés.',
+    'Te compliqué un poco, ¿no?',
+    'Siguiente.',
+    'Dale, te toca a vos.',
+    '¿Qué pensás hacer ahora?',
+    'Esto se pone lindo.',
+  ],
+  ganaste: [
+    '¡Felicitaciones! Me ganaste bien. Hay que reconocerlo.',
+    '¡Muy bien jugado! Esta vez no te pude parar.',
+    '¡Ganaste! Te salió de diez.',
+    '¡Bravo! Esa última jugada no la vi venir.',
+    '¡Vos ganaste! Hubo que pensar bien, ¿no?',
+  ],
+  perdi: [
+    '¡Esta vez gané yo! ¿Le damos de nuevo?',
+    '¡Jajá! Era mi turno de ganar. ¿Revancha?',
+    '¡Mía! Aunque no te descuides que la próxima puede ser tuya.',
+    '¡Gané! Pero igual jugaste muy bien.',
+    '¡Me salió! ¿Jugamos otra?',
+  ],
+  empate: [
+    '¡Empatamos! Somos los dos igual de buenos.',
+    '¡Ninguno ganó! Eso quiere decir que sos difícil de vencer.',
+    '¡Empate! No hay caso, estamos muy parejos.',
+    '¡Tablas! ¿Jugamos una más a ver quién gana?',
+    'Empatamos. Para mí que te contuviste un poco.',
+  ],
 };
 
 // ── Parseo de posición por voz ──────────────────────────────────────────────────
@@ -109,11 +158,6 @@ function CeldaView({
           {valor}
         </Animated.Text>
       )}
-      {!valor && !disabled && (
-        <View style={s.labelNumero}>
-          <Text style={s.numLabel}>{index + 1}</Text>
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -132,34 +176,54 @@ export default function TatetiScreen() {
   const [linea, setLinea]           = useState<number[] | null>(null);
   const [escuchando, setEscuchando] = useState(false);
   const [textoVoz, setTextoVoz]     = useState('');
-  const iaRef = useRef(false);        // IA en proceso
+  const iaRef       = useRef(false);
+  const hablandoRef = useRef(false);
   const overlayAnim = useRef(new Animated.Value(0)).current;
+
+  // ── TTS feedback ────────────────────────────────────────────────────────────
+
+  function decir(texto: string, onDone?: () => void) {
+    Speech.stop();
+    hablandoRef.current = true;
+    try { ExpoSpeechRecognitionModule.stop(); } catch {}
+    setEscuchando(false);
+
+    Speech.speak(texto, {
+      language: 'es-AR',
+      rate: 0.92,
+      onDone: () => {
+        hablandoRef.current = false;
+        onDone?.();
+        // Reiniciar SR solo si el juego sigue
+        setFase(f => {
+          if (f === 'jugando') setTimeout(() => iniciarSR(), 400);
+          return f;
+        });
+      },
+      onStopped: () => { hablandoRef.current = false; },
+      onError: () => { hablandoRef.current = false; },
+    });
+  }
 
   // ── SR ──────────────────────────────────────────────────────────────────────
 
   useSpeechRecognitionEvent('result', e => {
     const txt = e.results?.[0]?.transcript ?? '';
     setTextoVoz(txt);
-    if (fase !== 'jugando' || turno !== 'X' || iaRef.current) return;
+    if (fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current) return;
     const idx = parsearPosicionVoz(txt);
     if (idx !== null) realizarMovimiento(idx);
   });
 
   useSpeechRecognitionEvent('end', () => {
     setEscuchando(false);
-    // Reiniciar SR automáticamente mientras el juego sigue
-    if (fase === 'jugando') {
-      setTimeout(() => iniciarSR(), 600);
-    }
+    if (fase === 'jugando' && !hablandoRef.current) setTimeout(() => iniciarSR(), 600);
   });
 
   function iniciarSR() {
+    if (hablandoRef.current) return;
     try {
-      ExpoSpeechRecognitionModule.start({
-        lang: 'es-AR',
-        interimResults: false,
-        continuous: false,
-      });
+      ExpoSpeechRecognitionModule.start({ lang: 'es-AR', interimResults: false, continuous: false });
       setEscuchando(true);
     } catch {}
   }
@@ -171,7 +235,10 @@ export default function TatetiScreen() {
 
   useEffect(() => {
     iniciarSR();
-    return () => { detenerSR(); };
+    return () => {
+      Speech.stop();
+      detenerSR();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -183,26 +250,31 @@ export default function TatetiScreen() {
       const nuevo = [...prev] as Tablero;
       nuevo[idx] = 'X';
       const resultado = verificarGanador(nuevo);
+
       if (resultado === 'X') {
         setLinea(lineaGanadora(nuevo));
         setFase('ganaste');
         detenerSR();
         mostrarOverlay();
+        decir(al(FRASES.ganaste));
         return nuevo;
       }
       if (resultado === 'empate') {
         setFase('empate');
         detenerSR();
         mostrarOverlay();
+        decir(al(FRASES.empate));
         return nuevo;
       }
+
+      // Comentario al movimiento del usuario, luego IA
       setTurno('O');
-      // IA mueve después de un breve delay
       iaRef.current = true;
-      setTimeout(() => {
+      decir(al(FRASES.movUsuario), () => {
+        // Mover IA después de que termina el comentario
         setTablero(prev2 => {
           const movIA = calcularMovimientoIA(prev2);
-          if (movIA === -1) return prev2;
+          if (movIA === -1) { iaRef.current = false; return prev2; }
           const t2 = [...prev2] as Tablero;
           t2[movIA] = 'O';
           const res2 = verificarGanador(t2);
@@ -211,17 +283,22 @@ export default function TatetiScreen() {
             setFase('perdi');
             detenerSR();
             mostrarOverlay();
+            decir(al(FRASES.perdi));
           } else if (res2 === 'empate') {
             setFase('empate');
             detenerSR();
             mostrarOverlay();
+            decir(al(FRASES.empate));
           } else {
             setTurno('X');
+            // Comentario al movimiento de la IA (después de mostrarlo)
+            setTimeout(() => decir(al(FRASES.movIA)), 200);
           }
           iaRef.current = false;
           return t2;
         });
-      }, 700);
+      });
+
       return nuevo;
     });
   }, [fase]);
@@ -231,6 +308,7 @@ export default function TatetiScreen() {
   }
 
   function reiniciar() {
+    Speech.stop();
     overlayAnim.setValue(0);
     setTablero(tableroInicial());
     setTurno('X');
@@ -238,6 +316,7 @@ export default function TatetiScreen() {
     setLinea(null);
     setTextoVoz('');
     iaRef.current = false;
+    hablandoRef.current = false;
     setTimeout(() => iniciarSR(), 300);
   }
 
@@ -249,7 +328,7 @@ export default function TatetiScreen() {
     fase === 'ganaste' ? '¡Ganaste! 🎉' :
     fase === 'perdi'   ? 'Ganó Rosita 🤖' :
     fase === 'empate'  ? '¡Empate! 🤝' :
-    turno === 'X'      ? 'Tu turno — tocá o decí el número' :
+    turno === 'X'      ? 'Tu turno' :
                          'Rosita está pensando...';
 
   const overlayMsg =
@@ -259,9 +338,10 @@ export default function TatetiScreen() {
 
   return (
     <SafeAreaView style={[s.safe, { paddingTop: insets.top }]}>
+
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => { detenerSR(); router.replace('/'); }} style={s.btnSalir}>
+        <TouchableOpacity onPress={() => { Speech.stop(); detenerSR(); router.replace('/'); }} style={s.btnSalir}>
           <Text style={s.btnSalirTexto}>✕ Salir</Text>
         </TouchableOpacity>
         <Text style={s.titulo}>TA-TE-TI</Text>
@@ -282,34 +362,28 @@ export default function TatetiScreen() {
             valor={celda}
             index={i}
             enLinea={lineaSet.has(i)}
-            disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current}
+            disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current}
             onPress={() => realizarMovimiento(i)}
           />
         ))}
       </View>
 
-      {/* Leyenda voz */}
-      <View style={s.vozGuia}>
-        <Text style={s.vozGuiaTitulo}>Por voz: decí el número de la celda</Text>
-        <View style={s.vozGrid}>
-          {['1\narriba izq', '2\narriba', '3\narriba der', '4\nizquierda', '5\ncentro', '6\nderecha', '7\nabajo izq', '8\nabajo', '9\nabajo der'].map((lbl, i) => (
-            <Text key={i} style={s.vozGridItem}>{lbl}</Text>
-          ))}
-        </View>
-      </View>
-
       {/* Overlay resultado */}
-      <Animated.View style={[s.overlay, { opacity: overlayAnim }]} pointerEvents={fase === 'jugando' ? 'none' : 'auto'}>
+      <Animated.View
+        style={[s.overlay, { opacity: overlayAnim }]}
+        pointerEvents={fase === 'jugando' ? 'none' : 'auto'}
+      >
         <View style={s.overlayCard}>
           <Text style={s.overlayMsg}>{overlayMsg}</Text>
           <TouchableOpacity style={s.btnOtra} onPress={reiniciar}>
             <Text style={s.btnOtraTexto}>Jugar otra vez</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.btnVolver} onPress={() => { detenerSR(); router.replace('/'); }}>
+          <TouchableOpacity style={s.btnVolver} onPress={() => { Speech.stop(); detenerSR(); router.replace('/'); }}>
             <Text style={s.btnVolverTexto}>Volver a Rosita</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
+
     </SafeAreaView>
   );
 }
@@ -317,10 +391,11 @@ export default function TatetiScreen() {
 // ── Estilos ─────────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: M.bg, alignItems: 'center' },
+  safe: { flex: 1, backgroundColor: M.bg, alignItems: 'center', justifyContent: 'center' },
 
   header: {
-    width: '100%', flexDirection: 'row', alignItems: 'center',
+    position: 'absolute', top: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12,
   },
   btnSalir: { backgroundColor: M.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
@@ -329,9 +404,9 @@ const s = StyleSheet.create({
   srDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: M.border },
   srDotActive: { backgroundColor: '#4ade80' },
 
-  statusWrap: { marginVertical: 10, alignItems: 'center', minHeight: 52 },
-  statusTexto: { color: M.text, fontSize: 18, fontWeight: '600', textAlign: 'center' },
-  vozTexto: { color: M.sub, fontSize: 13, marginTop: 4, fontStyle: 'italic' },
+  statusWrap: { marginBottom: 24, alignItems: 'center', minHeight: 28 },
+  statusTexto: { color: M.text, fontSize: 20, fontWeight: '600', textAlign: 'center' },
+  vozTexto: { color: M.sub, fontSize: 13, marginTop: 6, fontStyle: 'italic' },
 
   tablero: {
     width: CELL_SIZE * 3,
@@ -347,14 +422,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   celdaGanadora: { backgroundColor: '#fbbf2422' },
-  simbolo: { fontSize: CELL_SIZE * 0.6, fontWeight: '900', lineHeight: CELL_SIZE * 0.75 },
-  labelNumero: { position: 'absolute', bottom: 6, right: 8 },
-  numLabel: { color: M.border, fontSize: 14, fontWeight: '600' },
-
-  vozGuia: { marginTop: 20, alignItems: 'center', paddingHorizontal: 16 },
-  vozGuiaTitulo: { color: M.sub, fontSize: 12, marginBottom: 8, letterSpacing: 0.4 },
-  vozGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 4 },
-  vozGridItem: { color: M.sub, fontSize: 11, textAlign: 'center', width: 72, lineHeight: 16 },
+  simbolo: { fontSize: CELL_SIZE * 0.62, fontWeight: '900', lineHeight: CELL_SIZE * 0.78 },
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -371,8 +439,8 @@ const s = StyleSheet.create({
     width: '80%',
   },
   overlayMsg: { color: M.text, fontSize: 28, fontWeight: '800', textAlign: 'center', lineHeight: 38 },
-  btnOtra: { backgroundColor: M.btn, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 16, width: '100%', alignItems: 'center' },
-  btnOtraTexto: { color: M.btnText, fontSize: 18, fontWeight: '700' },
-  btnVolver: { borderWidth: 2, borderColor: M.border, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14, width: '100%', alignItems: 'center' },
+  btnOtra:  { backgroundColor: M.btn, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 16, width: '100%', alignItems: 'center' },
+  btnOtraTexto:  { color: M.btnText, fontSize: 18, fontWeight: '700' },
+  btnVolver:     { borderWidth: 2, borderColor: M.border, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14, width: '100%', alignItems: 'center' },
   btnVolverTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
 });
