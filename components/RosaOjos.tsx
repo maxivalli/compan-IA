@@ -42,7 +42,7 @@ const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: num
   ternura:      { pxL: 0,   pxR: 0,   py: -4,  upper: EYE_H * 0.30, lower: EYE_H * 0.20, ceno: 0,            gapOffset: 0  },
   triste:       { pxL: 5,   pxR: -5,  py: 7,   upper: EYE_H * 0.28, lower: 0,            ceno: 0,            gapOffset: 0  },
   sorprendida:  { pxL: 0,   pxR: 0,   py: -7,  upper: 0,             lower: 0,            ceno: 0,            gapOffset: 8  },
-  pensativa:    { pxL: -6,  pxR: -6,  py: -9,  upper: EYE_H * 0.12, lower: 0,            ceno: 0,            gapOffset: -4 },
+  pensativa:    { pxL: -6,  pxR: -6,  py: -9,  upper: EYE_H * 0.34, lower: 0,            ceno: 0,            gapOffset: -4 },
   chiste:       { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.48, lower: EYE_H * 0.32, ceno: 0,            gapOffset: 0  },
   enojada:      { pxL: -3,  pxR: 3,   py: 5,   upper: EYE_H * 0.15, lower: 0,            ceno: EYE_H * 0.28, gapOffset: -6 },
   avergonzada:  { pxL: 3,   pxR: -3,  py: 14,  upper: EYE_H * 0.38, lower: 0,            ceno: EYE_H * 0.08, gapOffset: 0  },
