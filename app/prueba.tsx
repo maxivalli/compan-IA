@@ -6,8 +6,9 @@ import ExpresionOverlay from '../components/ExpresionOverlay';
 import type { ModoNoche } from '../components/RosaOjos';
 
 const EXPRESIONES: Expresion[] = [
-  'neutral', 'feliz', 'triste', 'sorprendida', 'pensativa',
-  'chiste', 'enojada', 'avergonzada', 'cansada', 'bostezando', 'mimada',
+  'neutral', 'feliz', 'ternura', 'entusiasmada', 'triste', 'sorprendida',
+  'pensativa', 'preocupada', 'chiste', 'enojada', 'avergonzada',
+  'cansada', 'bostezando', 'mimada',
 ];
 
 const ESTADOS = ['esperando', 'escuchando', 'pensando', 'hablando'] as const;
