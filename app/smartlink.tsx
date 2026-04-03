@@ -20,6 +20,7 @@ import {
   obtenerEstadoSmartThings,
 } from '../lib/smartthings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 
 const M = {
   primary: '#0097b2',
@@ -109,18 +110,7 @@ export default function SmartLinkScreen() {
         contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 28 }]}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={() => cargar('refresh')} tintColor={M.primary} />}
       >
-        <View style={[s.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.75}>
-            <Ionicons name="arrow-back" size={22} color={M.onPrimary} />
-          </TouchableOpacity>
-          <View style={s.headerTextos}>
-            <Text style={s.eyebrow}>Panel del hogar</Text>
-            <Text style={s.title}>SmartLink</Text>
-          </View>
-          <View style={s.headerIcono}>
-            <Ionicons name="bulb-outline" size={28} color={M.onPrimary} style={{ opacity: 0.6 }} />
-          </View>
-        </View>
+        <ScreenHeader titulo="SmartLink" eyebrow="Panel del hogar" icono="bulb-outline" />
 
         <View style={s.intro}>
           <Ionicons name="flash-outline" size={16} color={M.primary} />
@@ -209,27 +199,6 @@ export default function SmartLinkScreen() {
 const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: M.surface },
   content: { paddingBottom: 28 },
-  header: {
-    backgroundColor: M.primary,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#ffffff22',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  headerTextos: { flex: 1 },
-  eyebrow: { fontSize: 11, color: '#ffffffaa', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1.4 },
-  title: { fontSize: 28, fontWeight: '300', color: M.onPrimary, letterSpacing: -0.3, lineHeight: 34 },
-  headerIcono: { marginBottom: 2 },
   intro: {
     flexDirection: 'row',
     alignItems: 'center',

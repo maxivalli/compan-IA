@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 import {
   cargarEntradasAnimo,
   cargarPerfil,
@@ -66,7 +66,6 @@ function emocionPredominante(entradas: EntradaAnimo[], masc: boolean): EmojiEntr
 
 export default function Animo() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [grupos,          setGrupos]          = useState<GrupoDia[]>([]);
   const [nombre,          setNombre]          = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('la asistente');
@@ -123,30 +122,12 @@ export default function Animo() {
     )}
     <ScrollView style={s.fondo} contentContainerStyle={{ paddingBottom: 48 }}>
 
-      {/* ── Hero top bar ── */}
-      <View style={[s.topBar, { paddingTop: insets.top + 16 }]}>
-        <Pressable
-          onPress={() => router.back()}
-          style={({ pressed }) => [s.btnIcono, pressed && { backgroundColor: '#ffffff22' }]}
-          android_ripple={{ color: '#ffffff44', radius: 20, borderless: true }}
-        >
-          <Ionicons name="arrow-back" size={24} color={M3.onPrimary} />
-        </Pressable>
-
-        <View style={s.topBarHero}>
-          <View style={s.avatarRing}>
-            <View style={s.avatar}>
-              <Ionicons name="happy" size={22} color={M3.primary} />
-            </View>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.topBarEyebrow}>historial</Text>
-            <Text style={s.topBarTitulo}>Estado de ánimo</Text>
-            {nombre ? <Text style={s.topBarSub}>de {nombre}</Text> : null}
-          </View>
-        </View>
-
-      </View>
+      <ScreenHeader
+        titulo="Estado de ánimo"
+        eyebrow="historial"
+        icono="happy-outline"
+        subtitulo={nombre ? `de ${nombre}` : undefined}
+      />
 
       {/* ── Empty state ── */}
       {grupos.length === 0 && (
@@ -206,26 +187,6 @@ export default function Animo() {
 
 const s = StyleSheet.create({
   fondo: { flex: 1, backgroundColor: M3.surface },
-
-  topBar: {
-    backgroundColor: M3.primary,
-    paddingBottom: 24,
-    paddingHorizontal: 8,
-    elevation: 2,
-    shadowColor: M3.surfaceTint,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  btnIcono:   { padding: 10, borderRadius: 100, overflow: 'hidden' },
-  topBarHero: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 8, marginTop: 8 },
-
-  avatarRing: { width: 52, height: 52, borderRadius: 26, backgroundColor: '#ffffff22', alignItems: 'center', justifyContent: 'center' },
-  avatar:     { width: 42, height: 42, borderRadius: 21, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
-
-  topBarEyebrow: { fontSize: 11, fontWeight: '500', color: '#ffffffaa', textTransform: 'uppercase', letterSpacing: 1.6 },
-  topBarTitulo:  { fontSize: 28, fontWeight: '300', color: '#ffffff', letterSpacing: -0.3, lineHeight: 32 },
-  topBarSub:     { fontSize: 12, color: '#ffffffcc', marginTop: 2, letterSpacing: 0.2 },
 
   vacioCont:      { alignItems: 'center', marginTop: 80, paddingHorizontal: 32, gap: 12 },
   vacioIconoCont: { width: 80, height: 80, borderRadius: 40, backgroundColor: M3.primaryContainer, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },

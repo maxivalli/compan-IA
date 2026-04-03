@@ -1,7 +1,8 @@
 import { ScrollView, StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import ScreenHeader from '../components/ScreenHeader';
 import { useState, useMemo } from 'react';
 
 const M = {
@@ -468,19 +469,7 @@ export default function GuiaScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: M.surface }}>
-      {/* Header */}
-      <View style={[st.header, { paddingTop: insets.top + 16 }]}>
-        <Pressable onPress={() => router.back()} style={st.backBtn} hitSlop={12}>
-          <Ionicons name="arrow-back" size={22} color={M.onPrimary} />
-        </Pressable>
-        <View style={st.headerTextos}>
-          <Text style={st.headerEyebrow}>Cómo usar la app</Text>
-          <Text style={st.headerTitulo}>Guía de uso</Text>
-        </View>
-        <View style={st.headerIcono}>
-          <Ionicons name="book-outline" size={28} color={M.onPrimary} style={{ opacity: 0.6 }} />
-        </View>
-      </View>
+      <ScreenHeader titulo="Guía de uso" eyebrow="Cómo usar la app" icono="book-outline" />
 
       {/* Intro */}
       <View style={st.intro}>
@@ -553,27 +542,6 @@ export default function GuiaScreen() {
 }
 
 const st = StyleSheet.create({
-  header: {
-    backgroundColor: M.primary,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 12,
-  },
-  backBtn: {
-    width: 36, height: 36,
-    borderRadius: 18,
-    backgroundColor: '#ffffff22',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
-  },
-  headerTextos: { flex: 1 },
-  headerEyebrow: { fontSize: 11, color: '#ffffffaa', fontWeight: '500', textTransform: 'uppercase', letterSpacing: 1.4 },
-  headerTitulo:  { fontSize: 28, fontWeight: '300', color: '#ffffff', letterSpacing: -0.3, lineHeight: 34 },
-  headerIcono:   { marginBottom: 2 },
-
   intro: {
     flexDirection: 'row',
     alignItems: 'center',
