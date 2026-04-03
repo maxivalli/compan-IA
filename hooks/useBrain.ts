@@ -1003,10 +1003,13 @@ export function useBrain(deps: BrainDeps) {
     const esLugarLocal = !!tipoLugar && !!d.coordRef.current;
 
     const catMuletilla = categorizarMuletilla(textoUsuario);
+    // Clima usa el contexto del sistema (no hay fetch externo), pero Claude igual tarda
+    // ~1s+ → conservar la muletilla para no dejar al usuario en silencio.
+    const esConsultaClima = /\b(clima|llover|llueve|lluvia|temperatura|pronóstico|pronostico|calor|frío|frio|nublado|soleado|va a llover|va a hacer)\b/i.test(textoUsuario);
     // Si el regex de búsqueda disparó la categoría 'busqueda' pero ninguna búsqueda
     // real se va a ejecutar, bajar a null para no añadir el delay de "Un segundito"
     // antes de lo que en realidad va a ser una respuesta rápida de Claude.
-    const catMuletillaEfectiva = (catMuletilla === 'busqueda' && !pideBusqueda && !pideWikipedia && !pideNoticias)
+    const catMuletillaEfectiva = (catMuletilla === 'busqueda' && !pideBusqueda && !pideWikipedia && !pideNoticias && !esConsultaClima)
       ? null
       : catMuletilla;
     d.rcStartTsRef.current = Date.now();
