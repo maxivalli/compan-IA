@@ -9,7 +9,7 @@ export default function Privacidad() {
       <ScreenHeader titulo="Términos y privacidad" eyebrow="legal" icono="shield-checkmark-outline" />
 
       <ScrollView contentContainerStyle={s.contenido} showsVerticalScrollIndicator={false}>
-        <Text style={s.fecha}>Última actualización: marzo 2026</Text>
+        <Text style={s.fecha}>Última actualización: abril 2026</Text>
 
         {/* ── TÉRMINOS Y CONDICIONES ── */}
         <Text style={s.seccion}>TÉRMINOS Y CONDICIONES DE USO</Text>
@@ -32,7 +32,8 @@ export default function Privacidad() {
           Al usar la aplicación, el usuario consiente expresamente que:{'\n'}
           • Sus conversaciones pueden ser resumidas y compartidas con los contactos familiares que configure en la app.{'\n'}
           • Su estado de ánimo registrado por la asistente puede ser visible para dichos contactos.{'\n'}
-          • Su audio de voz y texto pueden ser procesados por servicios de terceros (Anthropic, OpenAI, Fish Audio, SmartThings, Open-Meteo y Telegram, según la función utilizada) exclusivamente para el funcionamiento del servicio.
+          • Su audio de voz y texto pueden ser procesados por servicios de terceros (Anthropic, OpenAI, Fish Audio, SmartThings, Open-Meteo y Telegram, según la función utilizada) exclusivamente para el funcionamiento del servicio.{'\n'}
+          • Si habilitó la función de detección de presencia, la cámara frontal del dispositivo puede activarse periódicamente para detectar rostros. Este procesamiento es local y no involucra servidores externos.
         </Text>
 
         <Text style={s.titulo}>4. Uso previsto</Text>
@@ -64,7 +65,8 @@ export default function Privacidad() {
           <Text style={s.negrita}>Texto y conversación:</Text> Las respuestas conversacionales se generan con Anthropic Claude exclusivamente para operar la asistente.{'\n\n'}
           <Text style={s.negrita}>Ubicación:</Text> Se usa exclusivamente para obtener el pronóstico del tiempo local mediante Open-Meteo. No se comparte ni almacena.{'\n\n'}
           <Text style={s.negrita}>Perfil y conversaciones:</Text> El nombre, gustos, medicamentos y fechas importantes se guardan únicamente en el dispositivo (AsyncStorage). Las conversaciones no se almacenan en ningún servidor como cuentas personales.{'\n\n'}
-          <Text style={s.negrita}>Identificador de dispositivo:</Text> Se genera un ID anónimo (UUID) para asociar tu dispositivo con tu familia en nuestro servidor. No contiene información personal.
+          <Text style={s.negrita}>Identificador de dispositivo:</Text> Se genera un ID anónimo (UUID) para asociar tu dispositivo con tu familia en nuestro servidor. No contiene información personal.{'\n\n'}
+          <Text style={s.negrita}>Cámara frontal (detección de presencia):</Text> Si activás la función "Detección de presencia" en Configuración, la cámara frontal captura imágenes periódicas para detectar rostros mediante el sistema de reconocimiento facial del dispositivo (ML Kit en Android, Vision Framework en iOS). El procesamiento ocurre <Text style={s.negrita}>exclusivamente en el dispositivo</Text>, sin enviar imágenes a ningún servidor. Las imágenes son descartadas inmediatamente después del análisis y no se almacenan en ningún lugar.
         </Text>
 
         <Text style={s.titulo}>Datos que no recopilamos</Text>
