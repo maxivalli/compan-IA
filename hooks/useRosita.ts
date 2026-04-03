@@ -483,6 +483,8 @@ export function useRosita() {
     getFeriadosCercanos().then(texto => {
       feriadosRef.current = texto;
     }).catch(() => {});
+
+    brain.cargarNoticiasDiarias().catch(() => {});
   }
 
   function verificarCharlaProactiva(): boolean {

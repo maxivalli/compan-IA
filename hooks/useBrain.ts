@@ -39,6 +39,7 @@ import {
   llamarClaude, llamarClaudeConStreaming,
   buscarWeb, buscarWikipedia, buscarLugares,
   beginTurnTelemetry, getCurrentTurnMetrics, logCliente, sincronizarAnimo,
+  fetchNoticiasDiarias, NoticiasDia,
 } from '../lib/ai';
 import { Dispositivo } from '../lib/smartthings';
 import { DomoticaAction } from './useSmartThings';
@@ -462,8 +463,33 @@ export function useBrain(deps: BrainDeps) {
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
   const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
+  const noticiasDiariaRef  = useRef<NoticiasDia[]>([]);
   const timerVozSeqRef     = useRef(0);
   const listaOpsRef        = useRef<Promise<void>>(Promise.resolve());
+
+  async function cargarNoticiasDiarias(): Promise<void> {
+    if (new Date().getHours() < 8) return;
+    const hoy = new Date().toISOString().slice(0, 10);
+    const key = `noticias_diarias_${hoy}`;
+    try {
+      const stored = await AsyncStorage.getItem(key);
+      if (stored) {
+        noticiasDiariaRef.current = JSON.parse(stored);
+        return;
+      }
+      const noticias = await fetchNoticiasDiarias();
+      if (noticias.length > 0) {
+        noticiasDiariaRef.current = noticias;
+        await AsyncStorage.setItem(key, JSON.stringify(noticias));
+        // Limpiar claves de días anteriores
+        const keys = await AsyncStorage.getAllKeys();
+        const viejas = keys.filter(k => k.startsWith('noticias_diarias_') && k !== key);
+        if (viejas.length) await AsyncStorage.multiRemove(viejas);
+      }
+    } catch (e: any) {
+      if (__DEV__) console.log('[Noticias] error carga:', e?.message);
+    }
+  }
 
   function encolarOperacionListas(op: () => Promise<void>): Promise<void> {
     const next = listaOpsRef.current
@@ -639,7 +665,13 @@ export function useBrain(deps: BrainDeps) {
     let temaProactivo = '';
 
     if (proponerEntretenimiento) {
-      if (Math.random() < 0.55) {
+      const nots = noticiasDiariaRef.current;
+      const rand = Math.random();
+      if (nots.length > 0 && rand < 0.20) {
+        const noticia = nots[Math.floor(Math.random() * nots.length)];
+        extraProactivo = `\n\nNOTICIA DEL DÍA: Título: "${noticia.titulo}". Resumen: ${noticia.resumen}`;
+        temaProactivo = 'comentar esta noticia de forma espontánea y cálida, como si la acabaras de leer y quisieras compartirla';
+      } else if (rand < (nots.length > 0 ? 0.64 : 0.55)) {
         const juego = obtenerJuego();
         extraProactivo = `\n\n${formatearJuegoParaClaude(juego)}`;
         temaProactivo = 'proponer este juego o adivinanza de forma espontánea y cálida, como si se te ocurrió hacerlo en este momento';
@@ -1067,7 +1099,13 @@ export function useBrain(deps: BrainDeps) {
           : pideChiste
           ? `\n\n${formatearChisteParaClaude(obtenerChiste())}`
           : ofrecerMenuAburrimiento
-          ? `\n\nDIRECTIVA ABURRIMIENTO: El usuario expresa que está aburrido. No lances ninguna actividad todavía. Proponele amablemente que elija qué quiere hacer: podés ofrecerle jugar a algo (tenés trivia, adivinanzas, refranes, trabalenguas, cálculo mental o memoria de palabras), escuchar música o radio, o simplemente charlar de lo que quiera. Mencioná las opciones de forma cálida y natural, sin listar en formato tabla.`
+          ? (() => {
+              const nots = noticiasDiariaRef.current;
+              const noticiasExtra = nots.length > 0
+                ? `, contarle algo interesante que pasó hoy (tenés estas noticias disponibles:\n${nots.map((n, i) => `${i + 1}. "${n.titulo}" — ${n.resumen}`).join('\n')})`
+                : '';
+              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario expresa que está aburrido. No lances ninguna actividad todavía. Proponele amablemente que elija qué quiere hacer: podés ofrecerle jugar a algo (trivia, adivinanzas, refranes, trabalenguas, cálculo mental o memoria de palabras), escuchar música o radio${noticiasExtra}, o simplemente charlar de lo que quiera. Mencioná las opciones de forma cálida y natural, sin listar en formato tabla.`;
+            })()
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
@@ -1484,5 +1522,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
     responderConClaude,
     arrancarCharlaProactiva,
     generarResumenSesion,
+    cargarNoticiasDiarias,
   };
 }

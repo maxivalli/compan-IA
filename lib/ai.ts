@@ -453,6 +453,25 @@ export async function buscarWikipedia(query: string): Promise<string | null> {
   }
 }
 
+export type NoticiasDia = { titulo: string; resumen: string; url: string };
+
+/** Trae las 4 noticias blandas del día desde el backend. */
+export async function fetchNoticiasDiarias(): Promise<NoticiasDia[]> {
+  try {
+    const res = await fetchConTimeout(
+      `${BACKEND_URL}/ai/noticias-del-dia`,
+      { method: 'POST', headers: await jsonHeaders() },
+      12000,
+      'Noticias del día',
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.noticias) ? data.noticias : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Envía una imagen al backend (Gemini 2.0 Flash) en modo cámara live. */
 export async function verVision(base64: string): Promise<string | null> {
   try {
