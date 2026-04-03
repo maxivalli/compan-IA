@@ -10,11 +10,11 @@ import type { Lista } from '../lib/memoria';
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
 
 export const POSTIT_COLORES = [
-  { bg: '#FEF9C3', text: '#713F12', linea: '#EAB308' },  // amarillo
-  { bg: '#FCE7F3', text: '#831843', linea: '#EC4899' },  // rosa
-  { bg: '#DCFCE7', text: '#14532D', linea: '#22C55E' },  // verde
-  { bg: '#DBEAFE', text: '#1E3A8A', linea: '#3B82F6' },  // azul
-  { bg: '#F3E8FF', text: '#4A1D96', linea: '#A855F7' },  // violeta
+  { bg: '#FEF9C3', text: '#5C3D00', tape: '#ddd9a8', fold: '#ede880' },  // amarillo
+  { bg: '#FCE7F3', text: '#6B1040', tape: '#d9b8cc', fold: '#f0bedd' },  // rosa
+  { bg: '#DCFCE7', text: '#14532D', tape: '#a8d4b8', fold: '#aaecbf' },  // verde
+  { bg: '#DBEAFE', text: '#1E3A8A', tape: '#a8c4e0', fold: '#a8ccf4' },  // azul
+  { bg: '#F3E8FF', text: '#4A1D96', tape: '#c8b0e4', fold: '#d8b8f8' },  // violeta
 ] as const;
 
 type Props = {
@@ -36,7 +36,6 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
 
   useEffect(() => { listasRef.current = listas; }, [listas]);
 
-  // Ajustar idx si listas se reduce mientras está abierto
   useEffect(() => {
     if (!showing) return;
     if (listas.length === 0) {
@@ -48,7 +47,6 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
     }
   }, [listas.length]);
 
-  // Abrir / cerrar
   useEffect(() => {
     if (visible) {
       setIdx(0);
@@ -98,9 +96,6 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
     });
   }
 
-  // Gesto nativo via RNGH — coexiste correctamente con ScrollView
-  // activeOffsetX: activa solo tras 25px horizontal
-  // failOffsetY:   falla si hay movimiento vertical mayor a 15px (cede al ScrollView)
   const swipeGesture = Gesture.Pan()
     .runOnJS(true)
     .activeOffsetX([-25, 25])
@@ -117,37 +112,61 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
 
   const c = POSTIT_COLORES[idx % POSTIT_COLORES.length];
 
+  function handleBorrar() {
+    const nombre   = lista.nombre;
+    const esUltima = listas.length <= 1;
+    onBorrar(nombre);
+    if (esUltima) {
+      cerrar();
+    } else {
+      const newIdx  = idx > 0 ? idx - 1 : 0;
+      const salida  = idx > 0 ? 420 : -420;
+      const entrada = idx > 0 ? -420 : 420;
+      idxRef.current = newIdx;
+      Animated.timing(slideX, { toValue: salida, duration: 200, useNativeDriver: true }).start(() => {
+        setIdx(Math.min(newIdx, listasRef.current.length - 1));
+        idxRef.current = Math.min(newIdx, listasRef.current.length - 1);
+        slideX.setValue(entrada);
+        Animated.spring(slideX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 22 }).start();
+      });
+    }
+  }
+
   return (
     <Modal visible={showing} transparent animationType="none" onRequestClose={cerrar} statusBarTranslucent>
-      {/* GestureHandlerRootView necesario dentro del Modal para que RNGH funcione */}
       <GestureHandlerRootView style={{ flex: 1 }}>
         <Animated.View style={[s.backdrop, { opacity: opacityAnim }]}>
 
-          {/* Toque en el fondo cierra — Pressable no compite con RNGH */}
           <Pressable style={StyleSheet.absoluteFill} onPress={cerrar} />
 
           <View style={s.sheet}>
             <GestureDetector gesture={swipeGesture}>
-              <Animated.View
-                style={{
-                  transform: [{ scale: scaleAnim }, { translateX: slideX }],
-                }}
-              >
-                <View style={[s.card, { backgroundColor: c.bg }]}>
-                  {/* Franja de color */}
-                  <View style={[s.franja, { backgroundColor: c.linea }]} />
+              <Animated.View style={{ transform: [{ scale: scaleAnim }, { translateX: slideX }] }}>
 
-                  {/* Header */}
-                  <View style={s.header}>
-                    <Text style={[s.titulo, { color: c.text }]} numberOfLines={2}>
-                      {lista.nombre}
-                    </Text>
-                    <TouchableOpacity onPress={cerrar} hitSlop={12}>
-                      <Ionicons name="close-circle" size={28} color={c.text + 'aa'} />
-                    </TouchableOpacity>
+                <View style={[s.card, { backgroundColor: c.bg }]}>
+
+                  {/* Cinta adhesiva centrada arriba */}
+                  <View style={s.tapeWrap} pointerEvents="none">
+                    <View style={[s.tape, { backgroundColor: c.tape }]} />
                   </View>
 
-                  {/* Ítems */}
+                  {/* Ícono tacho en círculo — arriba a la derecha */}
+                  <TouchableOpacity
+                    style={[s.trashBtn, { borderColor: c.text + '55' }]}
+                    onPress={handleBorrar}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={c.text} />
+                  </TouchableOpacity>
+
+                  {/* Título en mayúsculas bold */}
+                  <View style={s.headerArea}>
+                    <Text style={[s.titulo, { color: c.text }]} numberOfLines={2}>
+                      {lista.nombre.toUpperCase()}:
+                    </Text>
+                  </View>
+
+                  {/* Ítems con bullet e itálica */}
                   <ScrollView
                     style={s.scroll}
                     contentContainerStyle={s.scrollContent}
@@ -158,42 +177,17 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
                     ) : (
                       lista.items.map((item, i) => (
                         <View key={i} style={s.itemRow}>
-                          <View style={[s.itemCirculo, { borderColor: c.text + '55' }]} />
+                          <Text style={[s.bullet, { color: c.text }]}>•</Text>
                           <Text style={[s.itemTexto, { color: c.text }]}>{item}</Text>
                         </View>
                       ))
                     )}
                   </ScrollView>
 
-                  {/* Footer */}
-                  <View style={s.footer}>
-                    <TouchableOpacity
-                      style={[s.btnBorrar, { borderColor: c.text + '33', backgroundColor: c.text + '11' }]}
-                      onPress={() => {
-                        const nombre   = lista.nombre;
-                        const esUltima = listas.length <= 1;
-                        onBorrar(nombre);
-                        if (esUltima) {
-                          cerrar();
-                        } else {
-                          const newIdx  = idx > 0 ? idx - 1 : 0;
-                          const salida  = idx > 0 ? 420 : -420;
-                          const entrada = idx > 0 ? -420 : 420;
-                          idxRef.current = newIdx;
-                          Animated.timing(slideX, { toValue: salida, duration: 200, useNativeDriver: true }).start(() => {
-                            setIdx(Math.min(newIdx, listasRef.current.length - 1));
-                            idxRef.current = Math.min(newIdx, listasRef.current.length - 1);
-                            slideX.setValue(entrada);
-                            Animated.spring(slideX, { toValue: 0, useNativeDriver: true, tension: 200, friction: 22 }).start();
-                          });
-                        }
-                      }}
-                    >
-                      <Ionicons name="trash-outline" size={16} color={c.text} />
-                      <Text style={[s.btnBorrarTexto, { color: c.text }]}>Borrar esta lista</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <View style={{ height: 20 }} />
+
                 </View>
+
               </Animated.View>
             </GestureDetector>
 
@@ -222,70 +216,98 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
 const s = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.52)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  card: {
-    width: 320,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.38,
-    shadowRadius: 24,
-    elevation: 22,
-  },
   sheet: {
     alignItems: 'center',
-    gap: 14,
+    gap: 18,
   },
-  franja: {
-    height: 8,
-    borderTopLeftRadius: 10,
-    borderTopRightRadius: 10,
+
+  // ── Card ──────────────────────────────────────────────────────────────────
+  card: {
+    width: 300,
+    height: 300,
+    borderRadius: 0,
+    borderBottomRightRadius: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 3, height: 14 },
+    shadowOpacity: 0.30,
+    shadowRadius: 22,
+    elevation: 20,
+    overflow: 'hidden',
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+
+  // ── Cinta adhesiva ────────────────────────────────────────────────────────
+  tapeWrap: {
+    position: 'absolute',
+    top: -20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  tape: {
+    width: 72,
+    height: 38,
+    borderRadius: 2,
+    opacity: 0.72,
+    transform: [{ rotate: '-1deg' }],
+  },
+
+  // ── Trash button ──────────────────────────────────────────────────────────
+  trashBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
+
+  // ── Contenido ─────────────────────────────────────────────────────────────
+  headerArea: {
+    paddingTop: 36,
     paddingHorizontal: 22,
-    paddingTop: 18,
     paddingBottom: 10,
+    paddingRight: 60,
   },
   titulo: {
-    fontSize: fs(26),
+    fontSize: fs(30),
     fontWeight: '800',
-    textTransform: 'capitalize',
-    flex: 1,
-    marginRight: 10,
-    lineHeight: fs(33),
+    letterSpacing: 0.6,
+    lineHeight: fs(38),
   },
+
   scroll: {
-    flexGrow: 0,
-    maxHeight: 310,
+    flex: 1,
     paddingHorizontal: 22,
   },
   scrollContent: {
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   itemRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-    gap: 14,
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    gap: 10,
   },
-  itemCirculo: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    flexShrink: 0,
+  bullet: {
+    fontSize: fs(28),
+    lineHeight: fs(40),
+    fontWeight: '700',
   },
   itemTexto: {
-    fontSize: fs(21),
-    fontWeight: '700',
+    fontSize: fs(28),
+    fontStyle: 'italic',
     flex: 1,
-    lineHeight: fs(29),
+    lineHeight: fs(40),
   },
   vacio: {
     fontSize: fs(15),
@@ -293,12 +315,8 @@ const s = StyleSheet.create({
     marginVertical: 24,
     fontStyle: 'italic',
   },
-  footer: {
-    paddingHorizontal: 22,
-    paddingTop: 14,
-    paddingBottom: 22,
-    alignItems: 'center',
-  },
+
+  // ── Dots de navegación ────────────────────────────────────────────────────
   dotsOutside: {
     flexDirection: 'row',
     gap: 6,
@@ -309,18 +327,5 @@ const s = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
-  },
-  btnBorrar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  btnBorrarTexto: {
-    fontSize: fs(14),
-    fontWeight: '600',
   },
 });

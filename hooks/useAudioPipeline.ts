@@ -39,7 +39,7 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
 const TTS_CACHE_VERSION = 'v5';
-const MULETILLA_CACHE_VERSION = 'v15';
+const MULETILLA_CACHE_VERSION = 'v17';
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
@@ -300,12 +300,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── SR: iniciar ──────────────────────────────────────────────────────────
   function iniciarSpeechRecognition() {
+    const ahora = Date.now();
+    if (ahora - ultimaActivacionSrRef.current < 1500) return;
+    // Actualizar antes de cualquier check para que llamadas concurrentes vean el lock
+    ultimaActivacionSrRef.current = ahora;
     if (enFlujoVozRef.current) return;
     if (depsRef.current.estadoRef.current !== 'esperando') return;
     if (depsRef.current.noMolestarRef.current) return;
     if (enColaHablaRef.current) return;
-    const ahora = Date.now();
-    if (ahora - ultimaActivacionSrRef.current < 1500) return;
     try {
       safeStopSpeechRecognition();
       ExpoSpeechRecognitionModule.start({
@@ -322,8 +324,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     } catch {
       srActivoRef.current = false;
       logCliente('sr_start_error', { estado: depsRef.current.estadoRef.current });
-    } finally {
-      ultimaActivacionSrRef.current = ahora;
     }
   }
 
@@ -656,6 +656,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         const muletillaEmotion: Record<CategoriaMuletilla, string> = {
           empatico: 'triste', alegria: 'entusiasmada', salud: 'preocupada', busqueda: 'neutral',
           musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura', comando: 'feliz',
+          lista: 'neutral', juego: 'entusiasmada', chiste: 'feliz', aburrimiento: 'entusiasmada',
           default: 'neutral', latencia: 'neutral',
         };
         const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);

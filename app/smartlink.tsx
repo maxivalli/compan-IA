@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -86,6 +87,17 @@ export default function SmartLinkScreen() {
   useFocusEffect(useCallback(() => {
     cargar('inicial');
   }, [cargar]));
+
+  useFocusEffect(useCallback(() => {
+    let sub: ReturnType<typeof BackHandler.addEventListener> | null = null;
+    const id = setTimeout(() => {
+      sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        router.replace('/');
+        return true;
+      });
+    }, 0);
+    return () => { clearTimeout(id); sub?.remove(); };
+  }, [router]));
 
   async function toggleDispositivo(dispositivo: Dispositivo, valor: boolean) {
     if (!dispositivo.online || updatingId) return;

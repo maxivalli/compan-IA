@@ -1,9 +1,9 @@
-import { ScrollView, StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
+import { BackHandler, ScrollView, StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScreenHeader from '../components/ScreenHeader';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 
 const M = {
   primary:          '#0097b2',
@@ -444,6 +444,17 @@ export default function GuiaScreen() {
   const router = useRouter();
   const [busqueda, setBusqueda] = useState('');
   const [expandidos, setExpandidos] = useState<Record<string, boolean>>({});
+
+  useFocusEffect(useCallback(() => {
+    let sub: ReturnType<typeof BackHandler.addEventListener> | null = null;
+    const id = setTimeout(() => {
+      sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        router.replace('/');
+        return true;
+      });
+    }, 0);
+    return () => { clearTimeout(id); sub?.remove(); };
+  }, [router]));
 
   function toggleGrupo(titulo: string) {
     setExpandidos(prev => ({ ...prev, [titulo]: !prev[titulo] }));

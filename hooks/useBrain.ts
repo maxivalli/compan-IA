@@ -49,7 +49,7 @@ import { enviarAlertaTelegram } from '../lib/telegram';
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'default' | 'latencia';
+export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'lista' | 'juego' | 'chiste' | 'aburrimiento' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion';
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
@@ -86,6 +86,22 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
   comando: {
     femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
     masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
+  },
+  lista: {
+    femenina:  ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...'],
+    masculina: ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...'],
+  },
+  juego: {
+    femenina:  ['¡Me encanta! Dejame que preparo algo divertido...', 'Buenísimo, dame un segundito que armo el juego...'],
+    masculina: ['¡Me encanta! Dejame que preparo algo divertido...', 'Buenísimo, dame un segundito que armo el juego...'],
+  },
+  chiste: {
+    femenina:  ['¡Jaja, dale! A ver si me sale uno bueno...', 'Esperame que busco uno que te haga reír...'],
+    masculina: ['¡Jaja, dale! A ver si me sale uno bueno...', 'Esperame que busco uno que te haga reír...'],
+  },
+  aburrimiento: {
+    femenina:  ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
+    masculina: ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
   },
   default: {
     femenina:  ['A ver...', 'Mmm...', 'Claro.'],
@@ -154,6 +170,10 @@ export const PATRON_MUSICA       = /\b(música|canción|canciones|folklore|tango
 export const PATRON_RECORDATORIO = /\b(acordame|recordame|anotá(me)?|no te olvid|que no se me olvide|recordatorio|agend[aá](me)?|que quede (anotado|guardado)|una alarma|un timer|despertame)\b/i;
 export const PATRON_NOSTALGIA    = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
 export const PATRON_COMANDO      = /pon[eé]|apag[aá]|prend[eé]|par[aá]\b|las luces?|la luz|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
+export const PATRON_LISTA        = /\b(lista\s+de|una lista|nueva lista|agrega(me|le)?\s+(a\s+la\s+lista|esto|eso)|pone\s+en\s+la\s+lista|anota\s+(esto|eso)|post.?it|nota\s+de\s+compra|compras:|la lista\s+de)\b/i;
+export const PATRON_JUEGO        = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|trabalengua|cuenta|cuantos|cuanto es|matematica|acertijo|rompecabeza|charada)\b/i;
+export const PATRON_CHISTE       = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|cuento corto|cuento\b|historia graciosa|reírme|me rei)\b/i;
+export const PATRON_ABURRIMIENTO = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/i;
 
 // Mapeo de texto del usuario → tipo OSM (para Overpass API)
 export const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
@@ -191,6 +211,10 @@ export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (PATRON_RECORDATORIO.test(texto)) return 'recordatorio';
   if (PATRON_NOSTALGIA.test(texto))    return 'nostalgia';
   if (PATRON_COMANDO.test(texto))      return 'comando';
+  if (PATRON_LISTA.test(texto))        return 'lista';
+  if (PATRON_JUEGO.test(texto))        return 'juego';
+  if (PATRON_CHISTE.test(texto))       return 'chiste';
+  if (PATRON_ABURRIMIENTO.test(texto)) return 'aburrimiento';
   if (texto.length <= 15) return null;
   return 'default';
 }
@@ -1022,6 +1046,10 @@ export function useBrain(deps: BrainDeps) {
       (catMuletilla === 'busqueda' && !hayBusquedaReal && !esConsultaClima) ? null
       // Si hay fetch real pero el categorizador no lo detectó (ej. "quién es X" → wiki), forzar busqueda
       : (hayBusquedaReal && (catMuletilla === 'default' || catMuletilla === null)) ? 'busqueda'
+      // Forzar categoría entretenimiento si el categorizador no la detectó
+      : (pideJuego && (catMuletilla === 'default' || catMuletilla === null)) ? 'juego'
+      : (pideChiste && (catMuletilla === 'default' || catMuletilla === null)) ? 'chiste'
+      : (ofrecerMenuAburrimiento && (catMuletilla === 'default' || catMuletilla === null)) ? 'aburrimiento'
       : catMuletilla;
     d.rcStartTsRef.current = Date.now();
     const lagSrMs = d.srResultTsRef.current ? d.rcStartTsRef.current - d.srResultTsRef.current : -1;

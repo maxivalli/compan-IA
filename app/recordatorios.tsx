@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { BackHandler, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ScreenHeader from '../components/ScreenHeader';
 import { cargarRecordatorios, borrarRecordatorio, Recordatorio, cargarPerfil } from '../lib/memoria';
@@ -78,6 +78,7 @@ function RecordatorioRow({ r, onDelete }: { r: Recordatorio; onDelete: () => voi
 }
 
 export default function RecordatoriosScreen() {
+  const router = useRouter();
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([]);
   const [medicamentos,  setMedicamentos]  = useState<string[]>([]);
 
@@ -87,6 +88,17 @@ export default function RecordatoriosScreen() {
       cargarPerfil().then(p => setMedicamentos(p.medicamentos ?? []));
     }, [])
   );
+
+  useFocusEffect(useCallback(() => {
+    let sub: ReturnType<typeof BackHandler.addEventListener> | null = null;
+    const id = setTimeout(() => {
+      sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        router.replace('/');
+        return true;
+      });
+    }, 0);
+    return () => { clearTimeout(id); sub?.remove(); };
+  }, [router]));
 
   const sinNada = recordatorios.length === 0 && medicamentos.length === 0;
 
