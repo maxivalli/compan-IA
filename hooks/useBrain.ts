@@ -1009,8 +1009,12 @@ export function useBrain(deps: BrainDeps) {
     // Si el regex de búsqueda disparó la categoría 'busqueda' pero ninguna búsqueda
     // real se va a ejecutar, bajar a null para no añadir el delay de "Un segundito"
     // antes de lo que en realidad va a ser una respuesta rápida de Claude.
-    const catMuletillaEfectiva = (catMuletilla === 'busqueda' && !pideBusqueda && !pideWikipedia && !pideNoticias && !esConsultaClima)
-      ? null
+    const hayBusquedaReal = pideBusqueda || pideWikipedia || pideNoticias;
+    const catMuletillaEfectiva =
+      // Si busqueda matcheó el patrón pero no hay fetch real (ej. clima del sistema), anular
+      (catMuletilla === 'busqueda' && !hayBusquedaReal && !esConsultaClima) ? null
+      // Si hay fetch real pero el categorizador no lo detectó (ej. "quién es X" → wiki), forzar busqueda
+      : (hayBusquedaReal && (catMuletilla === 'default' || catMuletilla === null)) ? 'busqueda'
       : catMuletilla;
     d.rcStartTsRef.current = Date.now();
     const lagSrMs = d.srResultTsRef.current ? d.rcStartTsRef.current - d.srResultTsRef.current : -1;
@@ -1304,8 +1308,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
           parsed.respuesta,
           d.splitEnOraciones,
           {
-            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 4 : 2,
-            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 350 : 150,
+            maxOraciones: (pideNoticias || pideBusqueda || pideWikipedia) ? 4 : ofrecerMenuAburrimiento ? 5 : 2,
+            maxChars: (pideNoticias || pideBusqueda || pideWikipedia) ? 350 : ofrecerMenuAburrimiento ? 400 : 150,
           },
         );
       }
