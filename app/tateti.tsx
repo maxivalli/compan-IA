@@ -187,11 +187,18 @@ export default function TatetiScreen() {
   const router      = useRouter();
   const insets      = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
+  // En horizontal reducimos todo para que el tablero entre sin scrollear
+  const tituloSize = isLandscape ? 26 : 42;
+  const statusSize = isLandscape ? 15 : 22;
+  const hdrVPad    = isLandscape ? 5  : 14;
+  const reservedV  = isLandscape ? 90 : 180;
 
   // Tamaño de celda reactivo (portrait y landscape)
   const cellSize = Math.min(
-    (height - insets.top - insets.bottom - 180) / 3,  // espacio vertical disponible
-    (width  - insets.left - insets.right - 40)  / 3,  // espacio horizontal disponible
+    (height - insets.top - insets.bottom - reservedV) / 3,
+    (width  - insets.left - insets.right - 40)  / 3,
     150,
   );
 
@@ -319,31 +326,35 @@ export default function TatetiScreen() {
       setTurno('O');
       iaRef.current = true;
       decir(al(FRASES.movUsuario), () => {
-        setTablero(prev2 => {
-          const movIA = calcularMovimientoIA(prev2);
-          if (movIA === -1) { iaRef.current = false; return prev2; }
-          const t2 = [...prev2] as Tablero;
-          t2[movIA] = 'O';
-          playClick();
-          const res2 = verificarGanador(t2);
-          if (res2 === 'O') {
-            setLinea(lineaGanadora(t2));
-            setFase('perdi');
-            detenerSR();
-            mostrarOverlay();
-            decir(al(FRASES.perdi));
-          } else if (res2 === 'empate') {
-            setFase('empate');
-            detenerSR();
-            mostrarOverlay();
-            decir(al(FRASES.empate));
-          } else {
-            setTurno('X');
-            setTimeout(() => decir(al(FRASES.movIA)), 200);
-          }
-          iaRef.current = false;
-          return t2;
-        });
+        // Pausa de "pensamiento" antes de que la IA mueva (600–1400 ms)
+        const pensar = 600 + Math.random() * 800;
+        setTimeout(() => {
+          setTablero(prev2 => {
+            const movIA = calcularMovimientoIA(prev2);
+            if (movIA === -1) { iaRef.current = false; return prev2; }
+            const t2 = [...prev2] as Tablero;
+            t2[movIA] = 'O';
+            playClick();
+            const res2 = verificarGanador(t2);
+            if (res2 === 'O') {
+              setLinea(lineaGanadora(t2));
+              setFase('perdi');
+              detenerSR();
+              mostrarOverlay();
+              decir(al(FRASES.perdi));
+            } else if (res2 === 'empate') {
+              setFase('empate');
+              detenerSR();
+              mostrarOverlay();
+              decir(al(FRASES.empate));
+            } else {
+              setTurno('X');
+              setTimeout(() => decir(al(FRASES.movIA)), 200);
+            }
+            iaRef.current = false;
+            return t2;
+          });
+        }, pensar);
       });
 
       return nuevo;
@@ -386,7 +397,7 @@ export default function TatetiScreen() {
     <View style={[s.safe, { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
 
       {/* Header — solo Salir y dot de SR */}
-      <View style={s.header}>
+      <View style={[s.header, { paddingVertical: hdrVPad }]}>
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
           style={s.btnSalir}
@@ -398,10 +409,10 @@ export default function TatetiScreen() {
       </View>
 
       {/* Título grande */}
-      <Text style={s.titulo}>TA-TE-TI</Text>
+      <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: isLandscape ? 4 : 10 }]}>TA-TE-TI</Text>
 
       {/* Status */}
-      <Text style={s.statusTexto}>{statusTexto}</Text>
+      <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
       {textoVoz ? <Text style={s.vozTexto}>🎤 "{textoVoz}"</Text> : null}
 
       {/* Tablero centrado */}
@@ -449,7 +460,7 @@ const s = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
+    paddingHorizontal: 20,
   },
   btnSalir: {
     backgroundColor: M.surface, borderRadius: 12,

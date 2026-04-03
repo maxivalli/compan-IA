@@ -2,52 +2,93 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { useAudioPlayer } from 'expo-audio';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   estadoInicial,
   procesarLetra,
   estaGanado,
   estaPerdido,
-  palabraConMascaras,
   parsearLetraDesdeVoz,
   type EstadoAhorcado,
 } from '../lib/ahorcado';
+import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
+import { cargarPerfil } from '../lib/memoria';
 
 // ── Paleta ──────────────────────────────────────────────────────────────────────
 
 const M = {
-  bg:       '#0f172a',
-  surface:  '#1e293b',
-  border:   '#334155',
-  text:     '#f1f5f9',
-  sub:      '#94a3b8',
-  correcta: '#4ade80',
-  errada:   '#f87171',
-  btn:      '#0097b2',
-  btnText:  '#ffffff',
-  vida:     '#f43f5e',
-  overlay:  'rgba(0,0,0,0.88)',
-  letrabg:  '#1e293b',
+  bg:          '#0f172a',
+  surface:     '#1e293b',
+  border:      '#334155',
+  text:        '#f1f5f9',
+  sub:         '#94a3b8',
+  correcta:    '#4ade80',
+  errada:      '#f87171',
+  btn:         '#0097b2',
+  btnText:     '#ffffff',
+  overlay:     'rgba(0,0,0,0.88)',
+  letrabg:     '#1e293b',
   letraBorder: '#475569',
 };
 
 const MAX_ERRORES = 6;
-
-// Todas las letras del español (sin Ñ al final para acomodar el grid de 9 cols)
 const LETRAS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÑ'.split('');
+const COLS = 6; // letras por fila — botones más grandes para adultos mayores
+
+// ── Frases de feedback ──────────────────────────────────────────────────────────
+
+function al<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+const FRASES = {
+  correcta: [
+    '¡Bien, está la letra!',
+    '¡Encontraste una!',
+    '¡Eso es, seguí así!',
+    '¡Muy bien! Hay más.',
+    '¡Esa sí va!',
+  ],
+  errada: [
+    'Esa no está...',
+    'No, esa no va.',
+    'Hmm, esa no está.',
+    'No, pero seguí intentando.',
+    'Esa no.',
+  ],
+  ganaste: [
+    '¡Felicitaciones! ¡Adivinaste la palabra!',
+    '¡Muy bien! ¡La encontraste!',
+    '¡Bravo! ¡Sabías cuál era!',
+    '¡Lo lograste! ¡Muy bien!',
+  ],
+  perdi: [
+    'Se acabaron los intentos. ¡Pero la próxima la adivinas!',
+    'No llegamos... La próxima va a ser tuya.',
+    'Esta vez no pudo ser. ¿Jugamos otra?',
+    'Uy, casi. ¡La próxima!',
+  ],
+};
+
+const TODAS_LAS_FRASES = [
+  ...FRASES.correcta,
+  ...FRASES.errada,
+  ...FRASES.ganaste,
+  ...FRASES.perdi,
+];
 
 // ── Vidas (corazones animados) ──────────────────────────────────────────────────
 
-function Vidas({ errores }: { errores: number }) {
+function Vidas({ errores, corazonSize }: { errores: number; corazonSize: number }) {
   const anims = useRef(
     Array.from({ length: MAX_ERRORES }, () => new Animated.Value(1))
   ).current;
@@ -71,7 +112,7 @@ function Vidas({ errores }: { errores: number }) {
         return (
           <Animated.Text
             key={i}
-            style={[sv.corazon, { transform: [{ scale: anims[i] }], opacity: viva ? 1 : 0.18 }]}
+            style={[sv.corazon, { fontSize: corazonSize, transform: [{ scale: anims[i] }], opacity: viva ? 1 : 0.18 }]}
           >
             ❤️
           </Animated.Text>
@@ -84,11 +125,12 @@ function Vidas({ errores }: { errores: number }) {
 // ── Botón de letra ──────────────────────────────────────────────────────────────
 
 function LetraBtn({
-  letra, estado, onPress,
+  letra, estado, onPress, btnSize,
 }: {
   letra: string;
   estado: 'libre' | 'correcta' | 'errada';
   onPress: () => void;
+  btnSize: number;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -109,15 +151,21 @@ function LetraBtn({
     estado === 'correcta' ? '#052e16' :
     estado === 'errada'   ? '#fff1f2' :
     M.text;
+  const borderColor = estado === 'libre' ? M.letraBorder : bg;
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <Pressable
         onPress={handlePress}
         disabled={estado !== 'libre'}
-        style={[sv.letraBtn, { backgroundColor: bg, borderColor: estado === 'libre' ? M.letraBorder : bg }]}
+        style={{
+          width: btnSize, height: btnSize + 4,
+          borderRadius: 10, borderWidth: 2,
+          backgroundColor: bg, borderColor,
+          alignItems: 'center', justifyContent: 'center',
+        }}
       >
-        <Text style={[sv.letraTxt, { color }]}>{letra}</Text>
+        <Text style={{ fontSize: btnSize * 0.44, fontWeight: '800', color }}>{letra}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -128,16 +176,35 @@ function LetraBtn({
 type Fase = 'jugando' | 'ganaste' | 'perdi';
 
 export default function AhorcadoScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
+  const router    = useRouter();
+  const insets    = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
+  // Tamaños adaptativos
+  const tituloSize    = isLandscape ? 26  : 42;
+  const hdrVPad       = isLandscape ? 5   : 12;
+  const corazonSize   = isLandscape ? 22  : 30;
+  const letraWordSize = isLandscape ? 28  : 38;
+  const pistaSize     = isLandscape ? 13  : 14;
+  const statusSize    = isLandscape ? 14  : 16;
+
+  // Ancho disponible para la grilla de letras
+  const gridAvailW = isLandscape
+    ? (width / 2 - insets.right - 24)
+    : (width - insets.left - insets.right - 24);
+  const btnSize = Math.min(Math.floor((gridAvailW - (COLS - 1) * 5) / COLS), isLandscape ? 52 : 62);
 
   const [juego, setJuego]           = useState<EstadoAhorcado>(estadoInicial());
   const [fase, setFase]             = useState<Fase>('jugando');
   const [escuchando, setEscuchando] = useState(false);
   const [textoVoz, setTextoVoz]     = useState('');
-  const overlayAnim                 = useRef(new Animated.Value(0)).current;
+  const overlayAnim  = useRef(new Animated.Value(0)).current;
+  const hablandoRef  = useRef(false);
+  const feedbackPlayer = useAudioPlayer(null);
+  const phraseCache    = useRef<Record<string, string>>({});
 
-  // Animación de letra correcta en la palabra
+  // Animaciones de letras reveladas
   const letraRevealAnims = useRef<Record<string, Animated.Value>>({});
   function getLetraAnim(letra: string) {
     if (!letraRevealAnims.current[letra]) {
@@ -146,22 +213,65 @@ export default function AhorcadoScreen() {
     return letraRevealAnims.current[letra];
   }
 
+  // ── Pre-cacheo de frases con Fish Audio ──────────────────────────────────────
+
+  useEffect(() => {
+    async function cachear() {
+      const perfil  = await cargarPerfil().catch(() => null);
+      const voiceId = perfil?.vozId ?? VOICE_ID_FEMENINA;
+      for (const frase of TODAS_LAS_FRASES) {
+        if (phraseCache.current[frase]) continue;
+        const base64 = await sintetizarVoz(frase, voiceId, 1.0, 'neutral').catch(() => null);
+        if (!base64) continue;
+        const slug = frase.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+        const uri  = `${FileSystem.cacheDirectory}ahorcado_${slug}.mp3`;
+        await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
+        phraseCache.current[frase] = uri;
+      }
+    }
+    cachear();
+  }, []);
+
+  // ── TTS feedback ─────────────────────────────────────────────────────────────
+
+  function decir(texto: string, onDone?: () => void) {
+    hablandoRef.current = true;
+    try { ExpoSpeechRecognitionModule.stop(); } catch {}
+    setEscuchando(false);
+
+    const uri = phraseCache.current[texto];
+    if (uri) {
+      feedbackPlayer.replace({ uri });
+      feedbackPlayer.play();
+      const durMs = Math.max(texto.length * 65, 800);
+      setTimeout(() => {
+        hablandoRef.current = false;
+        onDone?.();
+        setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
+      }, durMs);
+    } else {
+      hablandoRef.current = false;
+      onDone?.();
+    }
+  }
+
   // ── SR ────────────────────────────────────────────────────────────────────────
 
   useSpeechRecognitionEvent('result', e => {
     const txt = e.results?.[0]?.transcript ?? '';
     setTextoVoz(txt);
-    if (fase !== 'jugando') return;
+    if (fase !== 'jugando' || hablandoRef.current) return;
     const letra = parsearLetraDesdeVoz(txt);
     if (letra) jugarLetra(letra);
   });
 
   useSpeechRecognitionEvent('end', () => {
     setEscuchando(false);
-    if (fase === 'jugando') setTimeout(() => iniciarSR(), 600);
+    if (fase === 'jugando' && !hablandoRef.current) setTimeout(iniciarSR, 600);
   });
 
   function iniciarSR() {
+    if (hablandoRef.current) return;
     try {
       ExpoSpeechRecognitionModule.start({ lang: 'es-AR', interimResults: false, continuous: false });
       setEscuchando(true);
@@ -176,7 +286,7 @@ export default function AhorcadoScreen() {
   useEffect(() => {
     iniciarSR();
     return () => { detenerSR(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Lógica ───────────────────────────────────────────────────────────────────
@@ -188,7 +298,6 @@ export default function AhorcadoScreen() {
 
       const esCorrecta = prev.palabra.includes(letra.toUpperCase());
       if (esCorrecta) {
-        // Animar la letra que aparece
         const anim = getLetraAnim(letra.toUpperCase());
         anim.setValue(0);
         Animated.spring(anim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }).start();
@@ -198,11 +307,16 @@ export default function AhorcadoScreen() {
         setFase('ganaste');
         detenerSR();
         mostrarOverlay();
+        decir(al(FRASES.ganaste));
       } else if (estaPerdido(nuevo)) {
         setFase('perdi');
         detenerSR();
         mostrarOverlay();
+        decir(al(FRASES.perdi));
+      } else {
+        decir(esCorrecta ? al(FRASES.correcta) : al(FRASES.errada));
       }
+
       return nuevo;
     });
   }
@@ -214,16 +328,16 @@ export default function AhorcadoScreen() {
   function reiniciar() {
     overlayAnim.setValue(0);
     letraRevealAnims.current = {};
+    hablandoRef.current = false;
     setJuego(estadoInicial());
     setFase('jugando');
     setTextoVoz('');
-    setTimeout(() => iniciarSR(), 300);
+    setTimeout(iniciarSR, 300);
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render helpers ────────────────────────────────────────────────────────────
 
-  const errores  = juego.letrasErradas.size;
-  const mascaras = juego.palabra.split(''); // letras individuales para animar
+  const errores = juego.letrasErradas.size;
 
   const statusTexto =
     fase === 'ganaste' ? '¡Adivinaste! 🎉' :
@@ -234,30 +348,20 @@ export default function AhorcadoScreen() {
     fase === 'ganaste' ? `¡Felicitaciones!\n"${juego.palabra}" 🎉` :
                          `Era "${juego.palabra}"\n¡La próxima! 💪`;
 
-  return (
-    <SafeAreaView style={[sv.safe, { paddingTop: insets.top }]}>
+  // Panel de info (title + lives + hint + status + word)
+  const infoPanel = (
+    <View style={[sv.infoPanel, isLandscape && sv.infoPanelLandscape]}>
+      <Text style={[sv.titulo, { fontSize: tituloSize }]}>AHORCADO</Text>
 
-      {/* Header */}
-      <View style={sv.header}>
-        <TouchableOpacity onPress={() => { detenerSR(); router.replace('/'); }} style={sv.btnSalir}>
-          <Text style={sv.btnSalirTexto}>✕ Salir</Text>
-        </TouchableOpacity>
-        <Text style={sv.titulo}>AHORCADO</Text>
-        <View style={[sv.srDot, escuchando && sv.srDotActive]} />
-      </View>
+      <Vidas errores={errores} corazonSize={corazonSize} />
 
-      {/* Vidas */}
-      <Vidas errores={errores} />
+      <Text style={[sv.pista, { fontSize: pistaSize }]}>💡 {juego.pista}</Text>
 
-      {/* Pista */}
-      <Text style={sv.pista}>💡 {juego.pista}</Text>
-
-      {/* Estado */}
-      <Text style={sv.statusTexto}>{statusTexto}</Text>
+      <Text style={[sv.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
 
       {/* Palabra con máscaras */}
       <View style={sv.palabraRow}>
-        {mascaras.map((letra, i) => {
+        {juego.palabra.split('').map((letra, i) => {
           const adivinada = juego.letrasAdivinadas.has(letra);
           const anim = getLetraAnim(letra);
           return (
@@ -265,6 +369,7 @@ export default function AhorcadoScreen() {
               <Animated.Text
                 style={[
                   sv.letraTexto,
+                  { fontSize: letraWordSize, lineHeight: letraWordSize + 8 },
                   adivinada
                     ? { color: M.correcta, transform: [{ scale: anim }] }
                     : { color: 'transparent' },
@@ -278,39 +383,74 @@ export default function AhorcadoScreen() {
         })}
       </View>
 
-      {/* Texto reconocido por voz */}
       {textoVoz ? <Text style={sv.vozTexto}>🎤 "{textoVoz}"</Text> : null}
-
-      {/* Letras erradas */}
       {juego.letrasErradas.size > 0 && (
         <Text style={sv.erradas}>
-          Letras usadas: {[...juego.letrasErradas].join('  ')}
+          Letras: {[...juego.letrasErradas].join('  ')}
         </Text>
       )}
+    </View>
+  );
 
-      {/* Teclado — grilla de letras grandes */}
-      <ScrollView
-        contentContainerStyle={sv.tecladoWrap}
-        showsVerticalScrollIndicator={false}
-        style={{ flex: 1 }}
-      >
-        <View style={sv.teclado}>
-          {LETRAS.map(letra => {
-            const estado =
-              juego.letrasAdivinadas.has(letra) ? 'correcta' :
-              juego.letrasErradas.has(letra)    ? 'errada'   :
-              'libre';
-            return (
-              <LetraBtn
-                key={letra}
-                letra={letra}
-                estado={estado}
-                onPress={() => jugarLetra(letra)}
-              />
-            );
-          })}
+  // Grilla de letras
+  const gridPanel = (
+    <ScrollView
+      contentContainerStyle={[sv.tecladoWrap, { padding: isLandscape ? 8 : 12 }]}
+      showsVerticalScrollIndicator={false}
+      style={isLandscape ? sv.gridLandscape : sv.gridPortrait}
+    >
+      <View style={[sv.teclado, { gap: 5 }]}>
+        {LETRAS.map(letra => {
+          const estado =
+            juego.letrasAdivinadas.has(letra) ? 'correcta' :
+            juego.letrasErradas.has(letra)    ? 'errada'   :
+            'libre';
+          return (
+            <LetraBtn
+              key={letra}
+              letra={letra}
+              estado={estado}
+              btnSize={btnSize}
+              onPress={() => jugarLetra(letra)}
+            />
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+
+  return (
+    <View style={[sv.safe, {
+      paddingTop:    insets.top,
+      paddingBottom: insets.bottom,
+      paddingLeft:   insets.left,
+      paddingRight:  insets.right,
+    }]}>
+
+      {/* Header */}
+      <View style={[sv.header, { paddingVertical: hdrVPad }]}>
+        <TouchableOpacity
+          onPress={() => { detenerSR(); router.replace('/'); }}
+          style={sv.btnSalir}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={sv.btnSalirTexto}>✕ Salir</Text>
+        </TouchableOpacity>
+        <View style={[sv.srDot, escuchando && sv.srDotActive]} />
+      </View>
+
+      {/* Contenido principal — column en portrait, row en landscape */}
+      {isLandscape ? (
+        <View style={sv.bodyLandscape}>
+          {infoPanel}
+          {gridPanel}
         </View>
-      </ScrollView>
+      ) : (
+        <>
+          {infoPanel}
+          {gridPanel}
+        </>
+      )}
 
       {/* Overlay resultado */}
       <Animated.View
@@ -328,65 +468,74 @@ export default function AhorcadoScreen() {
         </View>
       </Animated.View>
 
-    </SafeAreaView>
+    </View>
   );
 }
 
 // ── Estilos ──────────────────────────────────────────────────────────────────────
 
 const sv = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: M.bg, alignItems: 'center' },
+  safe: { flex: 1, backgroundColor: M.bg },
 
   header: {
-    width: '100%', flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingHorizontal: 20,
   },
-  btnSalir: { backgroundColor: M.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  btnSalirTexto: { color: M.sub, fontSize: 15, fontWeight: '600' },
-  titulo: { color: M.text, fontSize: 22, fontWeight: '800', letterSpacing: 3 },
-  srDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: M.border },
+  btnSalir: { backgroundColor: M.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
+  btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
+  srDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
   srDotActive: { backgroundColor: '#4ade80' },
 
-  vidasRow: { flexDirection: 'row', gap: 8, marginVertical: 8 },
-  corazon: { fontSize: 32 },
+  bodyLandscape: { flex: 1, flexDirection: 'row' },
 
-  pista: { color: M.sub, fontSize: 14, fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 24, marginBottom: 4 },
-  statusTexto: { color: M.text, fontSize: 16, fontWeight: '600', marginBottom: 12 },
+  infoPanel: { alignItems: 'center', paddingHorizontal: 12 },
+  infoPanelLandscape: { flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
+
+  titulo: {
+    color: M.text, fontWeight: '900', letterSpacing: 4,
+    textAlign: 'center', marginBottom: 8,
+  },
+
+  vidasRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
+  corazon: { lineHeight: 36 },
+
+  pista: { color: M.sub, fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 16, marginBottom: 4 },
+  statusTexto: { color: M.text, fontWeight: '600', marginBottom: 8 },
 
   palabraRow: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
-    gap: 8, paddingHorizontal: 16, marginBottom: 8,
+    gap: 6, paddingHorizontal: 12, marginBottom: 6,
   },
-  letraCelda: { alignItems: 'center', minWidth: 32 },
-  letraTexto: { fontSize: 36, fontWeight: '900', lineHeight: 44 },
+  letraCelda: { alignItems: 'center', minWidth: 28 },
+  letraTexto: { fontWeight: '900' },
   letraLinea: { width: '100%', height: 3, backgroundColor: M.border, borderRadius: 2, marginTop: 2 },
 
   vozTexto: { color: M.sub, fontSize: 13, fontStyle: 'italic', marginBottom: 4 },
-  erradas: { color: M.errada, fontSize: 14, fontWeight: '600', marginBottom: 8, letterSpacing: 1 },
+  erradas: { color: M.errada, fontSize: 14, fontWeight: '600', letterSpacing: 1 },
 
-  tecladoWrap: { paddingBottom: 16, paddingHorizontal: 8 },
-  teclado: {
-    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6,
-  },
-  letraBtn: {
-    width: 48, height: 52, borderRadius: 10, borderWidth: 2,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  letraTxt: { fontSize: 22, fontWeight: '800' },
+  gridPortrait: { flex: 1 },
+  gridLandscape: { flex: 1 },
+  tecladoWrap: { paddingBottom: 8 },
+  teclado: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: M.overlay,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
   overlayCard: {
     backgroundColor: M.surface, borderRadius: 24, padding: 32,
     alignItems: 'center', gap: 16, width: '82%',
   },
   overlayMsg: { color: M.text, fontSize: 26, fontWeight: '800', textAlign: 'center', lineHeight: 36 },
-  btnOtra: { backgroundColor: M.btn, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 16, width: '100%', alignItems: 'center' },
+  btnOtra: {
+    backgroundColor: M.btn, borderRadius: 16,
+    paddingHorizontal: 28, paddingVertical: 16, width: '100%', alignItems: 'center',
+  },
   btnOtraTexto: { color: M.btnText, fontSize: 18, fontWeight: '700' },
-  btnVolver: { borderWidth: 2, borderColor: M.border, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14, width: '100%', alignItems: 'center' },
+  btnVolver: {
+    borderWidth: 2, borderColor: M.border, borderRadius: 16,
+    paddingHorizontal: 28, paddingVertical: 14, width: '100%', alignItems: 'center',
+  },
   btnVolverTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
 });
