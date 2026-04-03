@@ -522,6 +522,7 @@ export function useRosita() {
     if (ojoPicadoTimer.current) clearTimeout(ojoPicadoTimer.current);
     setExpresion('enojada');
     ojoPicadoTimer.current = setTimeout(() => setExpresion('neutral'), 3000);
+    pipeline.hablar('¡Ey, eso duele!');
   }
 
   function onCaricia() {
