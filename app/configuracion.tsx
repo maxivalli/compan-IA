@@ -238,6 +238,7 @@ export default function Configuracion() {
   const [mascotas,   setMascotas]         = useState('');
   const [gustos, setGustos]               = useState('');
   const [medicamentos, setMedicamentos]   = useState('');
+  const [condicionFisica, setCondicionFisica] = useState('');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [fechas, setFechas]               = useState('');
   const [idsActivos, setIdsActivos]       = useState<string[]>([]);
@@ -335,6 +336,7 @@ export default function Configuracion() {
       setMascotas(findCat('mascotas'));
       setGustos(p.gustos.join(', '));
       setMedicamentos(p.medicamentos.join(', '));
+      setCondicionFisica(p.condicionFisica ?? '');
       setFechas(p.fechasImportantes.join(', '));
       if (p.fechaNacimiento) {
         const [mm, dd] = p.fechaNacimiento.split('-');
@@ -435,6 +437,7 @@ export default function Configuracion() {
       telegramChatIds:   idsActivos,
       telegramContactos: contactosActivos,
       deteccionPresenciaActiva: deteccionPresencia,
+      condicionFisica: condicionFisica.trim() || undefined,
     });
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
@@ -581,6 +584,7 @@ export default function Configuracion() {
         {/* ── Salud ── */}
         <SectionLabel icon="medkit-outline" label="Salud" />
         <M3Input label="Medicamentos y horarios" hint="Separados por coma" value={medicamentos} onChangeText={setMedicamentos} multiline placeholder="Enalapril 8hs, Aspirina 12hs" />
+        <M3Input label="Condición física" hint="Limitaciones de movilidad para ejercicios guiados" value={condicionFisica} onChangeText={setCondicionFisica} multiline placeholder="ej: usa andador, no puede doblar rodillas" />
         <M3Input label="Fechas importantes" hint="Separados por coma" value={fechas} onChangeText={setFechas} multiline placeholder="cumpleaños Juan 15 marzo" />
 
         {/* ── Telegram ── */}

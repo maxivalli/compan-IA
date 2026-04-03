@@ -15,6 +15,7 @@ export type RositaSystemPayload = {
     fechasImportantes: string[];
     recuerdos: string[];
     fechaNacimiento?: string;
+    condicionFisica?: string;
   };
   dispositivos: Array<{
     id: string;
@@ -56,6 +57,7 @@ export function buildRositaSystemPayload(params: {
       fechasImportantes: [...(perfil.fechasImportantes ?? [])],
       recuerdos: [...(perfil.recuerdos ?? [])],
       fechaNacimiento: perfil.fechaNacimiento,
+      condicionFisica: perfil.condicionFisica,
     },
     dispositivos: dispositivos.map(d => ({
       id: d.id,

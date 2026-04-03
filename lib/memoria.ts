@@ -133,6 +133,7 @@ export type Perfil = {
   telegramChatIds: string[];        // legacy — se migra automáticamente
   telegramContactos: TelegramContacto[];
   deteccionPresenciaActiva?: boolean; // cámara frontal detecta presencia tras 30 min inactivo
+  condicionFisica?: string;           // ej: "usa andador, no puede doblar rodillas" — guía los ejercicios proactivos
 };
 
 export const perfilInicial: Perfil = {

@@ -49,7 +49,7 @@ import { enviarAlertaTelegram } from '../lib/telegram';
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'lista' | 'juego' | 'chiste' | 'aburrimiento' | 'default' | 'latencia';
+export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'lista' | 'juego' | 'chiste' | 'aburrimiento' | 'ejercicio' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion';
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
@@ -102,6 +102,10 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
   aburrimiento: {
     femenina:  ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
     masculina: ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
+  },
+  ejercicio: {
+    femenina:  ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntas, dame un momento...'],
+    masculina: ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntos, dame un momento...'],
   },
   default: {
     femenina:  ['A ver...', 'Mmm...', 'Claro.'],
@@ -719,10 +723,19 @@ export function useBrain(deps: BrainDeps) {
 
     // 25% de las veces proponer entretenimiento curado (juego o chiste)
     const proponerEntretenimiento = !esFeriadoHoy && Math.random() < 0.25;
+    // 12% de las veces (solo mañana/tarde) proponer ejercicios livianos guiados
+    const esHoraEjercicio = hora >= 9 && hora < 20;
+    const proponerEjercicio = esHoraEjercicio && !esFeriadoHoy && !proponerEntretenimiento && Math.random() < 0.12;
     let extraProactivo = '';
     let temaProactivo = '';
 
-    if (proponerEntretenimiento) {
+    if (proponerEjercicio) {
+      const condFisica = p.condicionFisica?.trim();
+      const restricciones = condFisica
+        ? `IMPORTANTE — limitaciones físicas de la persona: "${condFisica}". Propone SOLO ejercicios compatibles con esas limitaciones (ej: si usa andador no propongas pararse sola; si tiene rodilla mal no propongas sentadillas).`
+        : 'No hay limitaciones físicas anotadas en el perfil, podés proponer ejercicios livianos variados.';
+      temaProactivo = `proponer hacer juntas unos ejercicios físicos muy livianos y guiados (ej: mover los brazos, rotación de cuello, respiración profunda, estiramientos sentada). ${restricciones} Que suene espontáneo y entusiasta, no como una orden. Una sola frase corta invitando a hacerlos ahora. Si acepta, guiala paso a paso en los turnos siguientes.`;
+    } else if (proponerEntretenimiento) {
       const nots = noticiasDiariaRef.current;
       const rand = Math.random();
       if (nots.length > 0 && rand < 0.20) {
@@ -746,7 +759,7 @@ export function useBrain(deps: BrainDeps) {
 
     try {
       const frase = await llamarClaude({
-        maxTokens: proponerEntretenimiento ? 180 : 120,
+        maxTokens: proponerEntretenimiento ? 180 : proponerEjercicio ? 100 : 120,
         system: getSystemPayload(p, d.climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${temaProactivo}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.${extraProactivo}`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });

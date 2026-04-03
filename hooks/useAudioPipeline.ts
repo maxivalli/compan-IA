@@ -39,7 +39,7 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, Es
 // ── Flag de testing ─────────────────────────────────────────────────────────
 const USAR_TTS_NATIVO = false;
 const TTS_CACHE_VERSION = 'v5';
-const MULETILLA_CACHE_VERSION = 'v17';
+const MULETILLA_CACHE_VERSION = 'v18';
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
 const BARGE_IN_MIN_CHARS = 110;
@@ -657,6 +657,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           empatico: 'triste', alegria: 'entusiasmada', salud: 'preocupada', busqueda: 'neutral',
           musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura', comando: 'feliz',
           lista: 'neutral', juego: 'entusiasmada', chiste: 'feliz', aburrimiento: 'entusiasmada',
+          ejercicio: 'entusiasmada',
           default: 'neutral', latencia: 'neutral',
         };
         const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
