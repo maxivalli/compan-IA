@@ -750,16 +750,20 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
 
     async function chequearRecordatorios() {
-      if (noMolestarRef.current) return;
       if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') return;
       const hora = new Date().getHours();
-      if (hora < 9 || hora >= 21) return;
       const hoy = fechaLocal();
       const ahora = Date.now();
       const todos = await cargarRecordatorios();
       const pendientes = todos.filter(r => {
         if (r.fechaISO !== hoy) return false;
-        if (r.timestampEpoch) return ahora >= r.timestampEpoch;
+        if (r.timestampEpoch) {
+          // Con hora exacta: respetar el timestamp sin importar modo noche ni horario
+          return ahora >= r.timestampEpoch;
+        }
+        // Sin hora: solo en horario diurno y sin modo no molestar
+        if (noMolestarRef.current) return false;
+        if (hora < 9 || hora >= 21) return false;
         return true;
       });
       for (const r of pendientes) {
