@@ -144,6 +144,7 @@ export default function MemoriaScreen() {
   const ts          = isTablet ? 1.5 : 1;
 
   // ── Tamaño de fichas ──────────────────────────────────────────────────────────
+  const tituloSize   = Math.round((isLandscape ? 26 : 36) * ts);
   const TILE_GAP     = Math.round((isTablet ? 12 : 8));
   const hdrH         = Math.round(52 * ts);
   const questCardH   = Math.round(90 * ts);
@@ -238,6 +239,7 @@ export default function MemoriaScreen() {
 
   // ── SR ────────────────────────────────────────────────────────────────────────
   useSpeechRecognitionEvent('result', e => {
+    if (hablandoRef.current) return; // ignorar mientras Rosita habla
     const txt = (e.results?.[0]?.transcript ?? '')
       .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (/\b(salir|basta|volver|terminar|chau|me voy)\b/.test(txt)) {
@@ -436,7 +438,7 @@ export default function MemoriaScreen() {
       paddingRight:  insets.right,
     }]}>
 
-      {/* Header */}
+      {/* Header — igual que tateti/ahorcado: solo Salir + dot */}
       <View style={[sm.header, { height: hdrH }]}>
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
@@ -445,7 +447,6 @@ export default function MemoriaScreen() {
         >
           <Text style={[sm.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
         </TouchableOpacity>
-        <Text style={[sm.titulo, { fontSize: Math.round(20 * ts) }]}>MEMORIA</Text>
         <View style={[sm.srDot, escuchando && sm.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
@@ -453,7 +454,8 @@ export default function MemoriaScreen() {
       {isLandscape ? (
         <View style={sm.bodyLandscape}>
           <View style={sm.colLeft}>
-            <Text style={[sm.statusText, { fontSize: Math.round(16 * ts) }]}>{statusText}</Text>
+            <Text style={[sm.titulo, { fontSize: tituloSize }]}>MEMORIA</Text>
+            <Text style={[sm.statusText, { fontSize: Math.round(15 * ts) }]}>{statusText}</Text>
             {questionCard}
             {scoreLine}
           </View>
@@ -463,7 +465,8 @@ export default function MemoriaScreen() {
         </View>
       ) : (
         <View style={sm.bodyPortrait}>
-          <Text style={[sm.statusText, { fontSize: Math.round(16 * ts) }]}>{statusText}</Text>
+          <Text style={[sm.titulo, { fontSize: tituloSize }]}>MEMORIA</Text>
+          <Text style={[sm.statusText, { fontSize: Math.round(15 * ts) }]}>{statusText}</Text>
           {questionCard}
           {scoreLine}
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -517,7 +520,7 @@ const sm = StyleSheet.create({
   },
   btnSalir:      { backgroundColor: M.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
   btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
-  titulo:        { color: M.text, fontWeight: '900', letterSpacing: 4 },
+  titulo:        { color: M.text, fontWeight: '900', letterSpacing: 4, textAlign: 'center', marginBottom: 4 },
   srDot:         { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
   srDotActive:   { backgroundColor: '#4ade80' },
 

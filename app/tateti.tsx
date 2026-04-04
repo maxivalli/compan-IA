@@ -269,6 +269,7 @@ export default function TatetiScreen() {
   // ── SR ────────────────────────────────────────────────────────────────────────
 
   useSpeechRecognitionEvent('result', e => {
+    if (hablandoRef.current) return;
     const txt = (e.results?.[0]?.transcript ?? '')
       .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
