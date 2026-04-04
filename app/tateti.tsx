@@ -195,10 +195,9 @@ export default function TatetiScreen() {
   const hdrVPad    = isLandscape ? 5  : 14;
   const reservedV  = isLandscape ? 160 : 180;
 
-  // Tamaño de celda reactivo (portrait y landscape)
   const cellSize = isLandscape
     ? Math.min(
-        (height - insets.top - insets.bottom - 20) / 3, // less vertical padding
+        (height - insets.top - insets.bottom - 80) / 3, // account for header to not overflow
         ((width - insets.left - insets.right) * 0.55) / 3,
         200 // larger cells allowed on landscape tablets
       )
@@ -399,8 +398,8 @@ export default function TatetiScreen() {
   return (
     <View style={[s.safe, { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
 
-      {/* Header — posicionado absoluto para no empujar el centro del layout */}
-      <View style={[s.header, { top: hdrVPad }]} pointerEvents="box-none">
+      {/* Header */}
+      <View style={[s.header, { paddingVertical: hdrVPad }]}>
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
           style={s.btnSalir}
@@ -484,9 +483,6 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: M.bg },
 
   header: {
-    ...StyleSheet.absoluteFillObject,
-    bottom: undefined,
-    zIndex: 10,
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
