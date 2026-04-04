@@ -412,7 +412,7 @@ export default function TatetiScreen() {
 
       {/* Cuerpo Principal */}
       {isLandscape ? (
-        <View style={[s.bodyLandscape, { paddingTop: 40 }]}>
+        <View style={s.bodyLandscape}>
           <View style={s.colLeft}>
             <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 4 }]}>TA-TE-TI</Text>
             <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
