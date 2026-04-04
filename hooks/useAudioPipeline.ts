@@ -451,7 +451,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current) {
           if (!d.verificarCharlaProactiva()) iniciarSpeechRecognition();
         }
-      }, 1500);
+      }, 800);
     }
   });
 

@@ -247,10 +247,27 @@ export default function AhorcadoScreen() {
       feedbackPlayer.play();
     }
     const durMs = Math.max(texto.length * 85, 800) + 600;
-    setTimeout(() => {
+
+    function terminate() {
       hablandoRef.current = false;
       onDone?.();
       setTimeout(iniciarSR, 400);
+    }
+
+    setTimeout(() => {
+      if (uri && feedbackPlayer.playing) {
+        // Audio más largo que la estimación: esperar a que realmente pare
+        const poll = setInterval(() => {
+          if (!feedbackPlayer.playing) {
+            clearInterval(poll);
+            terminate();
+          }
+        }, 150);
+        // Seguridad: máximo 4 segundos extra de espera
+        setTimeout(() => { clearInterval(poll); terminate(); }, 4000);
+      } else {
+        terminate();
+      }
     }, durMs);
   }
 
