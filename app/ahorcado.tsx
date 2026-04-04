@@ -28,18 +28,18 @@ import { cargarPerfil } from '../lib/memoria';
 // ── Paleta ──────────────────────────────────────────────────────────────────────
 
 const M = {
-  bg:          '#0f172a',
-  surface:     '#1e293b',
-  border:      '#334155',
-  text:        '#f1f5f9',
-  sub:         '#94a3b8',
-  correcta:    '#4ade80',
-  errada:      '#f87171',
+  bg:          '#f8fafc',
+  surface:     '#ffffff',
+  border:      '#cbd5e1',
+  text:        '#0f172a',
+  sub:         '#475569',
+  correcta:    '#22c55e',
+  errada:      '#ef4444',
   btn:         '#0097b2',
   btnText:     '#ffffff',
-  overlay:     'rgba(0,0,0,0.88)',
-  letrabg:     '#1e293b',
-  letraBorder: '#475569',
+  overlay:     'rgba(0,0,0,0.7)',
+  letrabg:     '#f1f5f9',
+  letraBorder: '#e2e8f0',
 };
 
 const MAX_ERRORES = 6;
@@ -148,8 +148,8 @@ function LetraBtn({
     estado === 'errada'   ? M.errada   :
     M.letrabg;
   const color =
-    estado === 'correcta' ? '#052e16' :
-    estado === 'errada'   ? '#fff1f2' :
+    estado === 'correcta' ? '#ffffff' :
+    estado === 'errada'   ? '#ffffff' :
     M.text;
   const borderColor = estado === 'libre' ? M.letraBorder : bg;
 
@@ -186,7 +186,7 @@ export default function AhorcadoScreen() {
   const hdrVPad       = isLandscape ? 5   : 12;
   const corazonSize   = isLandscape ? 22  : 30;
   const letraWordSize = isLandscape ? 28  : 38;
-  const pistaSize     = isLandscape ? 13  : 14;
+  const pistaSize     = isLandscape ? 18  : 14;
   const statusSize    = isLandscape ? 14  : 16;
 
   // Ancho disponible para la grilla de letras
@@ -243,7 +243,7 @@ export default function AhorcadoScreen() {
     if (uri) {
       feedbackPlayer.replace({ uri });
       feedbackPlayer.play();
-      const durMs = Math.max(texto.length * 65, 800);
+      const durMs = Math.max(texto.length * 85, 800) + 600;
       setTimeout(() => {
         hablandoRef.current = false;
         onDone?.();
@@ -395,7 +395,7 @@ export default function AhorcadoScreen() {
   // Grilla de letras
   const gridPanel = (
     <ScrollView
-      contentContainerStyle={[sv.tecladoWrap, { padding: isLandscape ? 8 : 12 }]}
+      contentContainerStyle={[sv.tecladoWrap, { padding: isLandscape ? 8 : 12, paddingBottom: isLandscape ? 40 : 12 }]}
       showsVerticalScrollIndicator={false}
       style={isLandscape ? sv.gridLandscape : sv.gridPortrait}
     >

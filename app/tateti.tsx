@@ -31,16 +31,16 @@ const CLICK_ASSET = require('../assets/audio/click.mp3');
 // ── Paleta ──────────────────────────────────────────────────────────────────────
 
 const M = {
-  bg:      '#0f172a',
-  surface: '#1e293b',
-  border:  '#334155',
-  x:       '#38bdf8',
-  o:       '#f472b6',
-  text:    '#f1f5f9',
-  sub:     '#94a3b8',
+  bg:      '#f8fafc',
+  surface: '#ffffff',
+  border:  '#cbd5e1',
+  x:       '#0284c7',
+  o:       '#db2777',
+  text:    '#0f172a',
+  sub:     '#475569',
   btn:     '#0097b2',
   btnText: '#ffffff',
-  overlay: 'rgba(0,0,0,0.85)',
+  overlay: 'rgba(0,0,0,0.7)',
 };
 
 // ── Frases de feedback ──────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ export default function TatetiScreen() {
   const tituloSize = isLandscape ? 26 : 42;
   const statusSize = isLandscape ? 15 : 22;
   const hdrVPad    = isLandscape ? 5  : 14;
-  const reservedV  = isLandscape ? 90 : 180;
+  const reservedV  = isLandscape ? 160 : 180;
 
   // Tamaño de celda reactivo (portrait y landscape)
   const cellSize = Math.min(
@@ -246,7 +246,7 @@ export default function TatetiScreen() {
       feedbackPlayer.replace({ uri });
       feedbackPlayer.play();
       // expo-audio no tiene onDone, lo simulamos con duración estimada
-      const durMs = Math.max(texto.length * 65, 800);
+      const durMs = Math.max(texto.length * 85, 800) + 600;
       setTimeout(() => {
         hablandoRef.current = false;
         onDone?.();

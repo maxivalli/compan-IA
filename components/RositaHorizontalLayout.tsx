@@ -210,7 +210,10 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
     <>
       <Pressable
         style={{ flex: 1 }}
-        onPress={() => { if (props.linternaActiva) props.apagarLinterna(); }}
+        onPress={() => {
+          if (props.linternaActiva) { props.apagarLinterna(); return; }
+          props.acciones.toggleTalkOrStopMusic();
+        }}
       >
         <LinearGradient
           colors={props.degradadoCielo}
@@ -256,7 +259,6 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
               <View style={{ flex: 1 }}>
                 <Pressable
                   style={StyleSheet.absoluteFill}
-                  onPress={props.acciones.toggleTalkOrStopMusic}
                   onLongPress={props.acciones.triggerSOS}
                   delayLongPress={2000}
                 />

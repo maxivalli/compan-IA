@@ -145,7 +145,8 @@ export function procesarLetra(estado: EstadoAhorcado, letra: string): EstadoAhor
  * Devuelve true si todas las letras de la palabra fueron adivinadas.
  */
 export function estaGanado(estado: EstadoAhorcado): boolean {
-  return [...estado.palabra].every((l) => estado.letrasAdivinadas.has(l));
+  const palabraLimpia = estado.palabra.replace(/\s+/g, '').trim();
+  return [...palabraLimpia].every((l) => estado.letrasAdivinadas.has(l));
 }
 
 /**
@@ -219,8 +220,10 @@ const NOMBRES_FONETIKOS: Record<string, string> = {
 export function parsearLetraDesdeVoz(texto: string): string | null {
   if (!texto) return null;
 
-  const norm = texto.trim().toLowerCase()
+  let norm = texto.trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  norm = norm.replace(/^(a ver|bueno|dale|eh|ah|uh|y|vamos con|probemos|con)\s+/, '');
 
   // Patrón "la letra X" o "letra X"
   const matchLetra = norm.match(/^(?:la\s+)?letra\s+([a-zñ]+)$/);
@@ -238,8 +241,9 @@ export function parsearLetraDesdeVoz(texto: string): string | null {
     return norm.toUpperCase();
   }
 
-  // Nombre fonético directo (ej. "eme", "ese", "pe")
-  const fonetico = NOMBRES_FONETIKOS[norm];
+  // Nombre fonético directo (ej. "eme", "ese", "pe") o con "la" ("la pe")
+  const normSinLa = norm.replace(/^la\s+/, '');
+  const fonetico = NOMBRES_FONETIKOS[normSinLa] || NOMBRES_FONETIKOS[norm];
   if (fonetico) return fonetico;
 
   // "digo la X" / "pongo la X" / "elijo la X"

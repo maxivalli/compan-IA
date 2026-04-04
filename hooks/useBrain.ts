@@ -1014,6 +1014,19 @@ export function useBrain(deps: BrainDeps) {
     const esCierreConversacional = /\b(gracias|bueno|buena|listo|dale|despues|después|mas tarde|más tarde|seguimos|volvemos a charlar|te cuento|me voy|nos vemos|chau)\b/.test(textoNorm);
     const pideWikipedia = !esCierreConversacional && !pideNoticias && !pideBusqueda && (preguntaLugarVivo || /\b(que es|qué es|que son|qué son|que fue|qué fue|quien es|quién es|quien fue|quién fue|quien era|quién era|contame (sobre|de)|explicame|explicá(me)?|me explicás|que significa|qué significa|historia de|origen de|como funciona|cómo funciona|para que sirve|para qué sirve|cuando naci[oó]|biografía|biografia|quien invento|quién inventó|wikipedia|conoc[eé]s (la |el |a |una? )|sab[eé]s (algo (de|sobre)|de (la|el )|sobre (la|el ))|la serie|la pelicula|la película|el show|el documental|el libro|la novela|el actor|la actriz|el director|el musico|el músico|el artista|la banda|la obra)\b/.test(textoNorm));
 
+    // ── Intercepción Inmediata de Juegos ──
+    if (!pideBusqueda && (pideTateti || pideAhorcado)) {
+      d.setExpresion('entusiasmada');
+      const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: '¡Qué lindo, dale! Juguemos un rato...' }].slice(-24);
+      historialRef.current = nuevoHist;
+      guardarHistorial(nuevoHist).catch(() => {});
+      d.ultimaCharlaRef.current = Date.now();
+      d.ultimaActividadRef.current = Date.now();
+      await d.hablar('¡Qué lindo, dale! Juguemos un rato...', 'entusiasmada');
+      d.lanzarJuego?.(pideTateti ? 'tateti' : 'ahorcado');
+      return;
+    }
+
     let queryBusqueda = textoUsuario;
     let tipoLugar: string | null = null;
     if (pideBusqueda) {
