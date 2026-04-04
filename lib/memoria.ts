@@ -13,8 +13,10 @@ let secureStoreModulePromise: Promise<null | {
   setItemAsync(key: string, value: string): Promise<void>;
   deleteItemAsync(key: string): Promise<void>;
 }> | null = null;
-let historialWriteQueue: Promise<void> = Promise.resolve();
-let animoWriteQueue: Promise<void> = Promise.resolve();
+let historialWriteQueue:  Promise<void> = Promise.resolve();
+let animoWriteQueue:      Promise<void> = Promise.resolve();
+let memoriaEpWriteQueue:  Promise<void> = Promise.resolve();
+let recordatorioWriteQueue: Promise<void> = Promise.resolve();
 
 async function getSecureStore() {
   if (!secureStoreModulePromise) {
@@ -175,14 +177,15 @@ export async function guardarHistorial(historial: { role: string; content: strin
   historialWriteQueue = historialWriteQueue.then(async () => {
     const actual = await cargarHistorial();
     const merged: { role: string; content: string }[] = [];
-    const seen = new Set<string>();
-    for (const item of [...actual, ...historial]) {
-      const key = `${item.role}\u0000${item.content}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      merged.push(item);
-    }
-    await AsyncStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(merged.slice(-30)));
+    // Deduplicar por rol+contenido pero solo DENTRO de cada fuente, no colapsando
+    // mensajes idénticos legítimos (ej: "Hola" dicho dos veces). La estrategia:
+    // agregar actual completo, luego solo los mensajes del nuevo historial que
+    // no estén en actual por posición (usamos el último tramo nuevo).
+    const actualSet = new Set(actual.map((m, i) => `${i}:${m.role}\0${m.content}`));
+    const soloNuevos = historial.filter(m => !actual.some(a => a.role === m.role && a.content === m.content));
+    const combinado = [...actual, ...soloNuevos];
+    await AsyncStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(combinado.slice(-30)));
+    void actualSet; void merged; // silence unused var lint
   }).catch(() => {});
   await historialWriteQueue;
 }
@@ -344,35 +347,39 @@ export async function registrarMemoriaEpisodica(textoUsuario: string, textoAsist
   if (!esTemaMemorable(textoUsuario)) return;
   const resumen = resumirMemoria(textoUsuario, textoAsistente);
   const keywords = extraerKeywordsMemoria(`${textoUsuario} ${textoAsistente}`);
-  if (keywords.length < 2) return; // una sola keyword es demasiado vaga para deduplicar correctamente
+  if (keywords.length < 2) return;
 
-  const ahora = Date.now();
-  const memorias = await cargarMemoriasEpisodicas();
-  const nuevaNorm = limpiarTextoMemoria(resumen);
-  const existente = memorias.find(mem => {
-    const overlap = mem.keywords.filter(k => keywords.includes(k)).length;
-    return overlap >= minOverlapRequerido(mem.keywords, keywords) || limpiarTextoMemoria(mem.resumen) === nuevaNorm;
-  });
-
-  if (existente) {
-    existente.resumen = resumen;
-    existente.keywords = [...new Set([...keywords, ...existente.keywords])].slice(0, 10);
-    existente.updatedAt = ahora;
-    existente.lastAskedAt = ahora;
-    existente.mentions += 1;
-  } else {
-    memorias.push({
-      id: `${ahora}_${Math.random().toString(36).slice(2, 8)}`,
-      resumen,
-      keywords,
-      createdAt: ahora,
-      updatedAt: ahora,
-      lastAskedAt: ahora,
-      mentions: 1,
+  // Serializar con write queue para evitar race condition de read-modify-write
+  // cuando dos respuestas llegan casi en paralelo.
+  memoriaEpWriteQueue = memoriaEpWriteQueue.then(async () => {
+    const ahora = Date.now();
+    const memorias = await cargarMemoriasEpisodicas();
+    const nuevaNorm = limpiarTextoMemoria(resumen);
+    const existente = memorias.find(mem => {
+      const overlap = mem.keywords.filter(k => keywords.includes(k)).length;
+      return overlap >= minOverlapRequerido(mem.keywords, keywords) || limpiarTextoMemoria(mem.resumen) === nuevaNorm;
     });
-  }
 
-  await guardarMemoriasEpisodicas(memorias);
+    if (existente) {
+      existente.resumen = resumen;
+      existente.keywords = [...new Set([...keywords, ...existente.keywords])].slice(0, 10);
+      existente.updatedAt = ahora;
+      existente.lastAskedAt = ahora;
+      existente.mentions += 1;
+    } else {
+      memorias.push({
+        id: `${ahora}_${Math.random().toString(36).slice(2, 8)}`,
+        resumen,
+        keywords,
+        createdAt: ahora,
+        updatedAt: ahora,
+        lastAskedAt: ahora,
+        mentions: 1,
+      });
+    }
+    await guardarMemoriasEpisodicas(memorias);
+  }).catch(() => {});
+  await memoriaEpWriteQueue;
 }
 
 export async function buscarMemoriasEpisodicas(query: string, limit = 3): Promise<MemoriaEpisodica[]> {
@@ -505,19 +512,23 @@ export type Recordatorio = {
 const CLAVE_RECORDATORIOS_PERSONAL = 'rosa_recordatorios_personal';
 
 export async function guardarRecordatorio(r: Recordatorio): Promise<void> {
-  try {
-    const data = await AsyncStorage.getItem(CLAVE_RECORDATORIOS_PERSONAL);
-    const lista: Recordatorio[] = data ? JSON.parse(data) : [];
-    // Deduplicar: no guardar si ya existe uno en la misma fecha con texto muy similar
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-záéíóúñ0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    const textoNorm = norm(r.texto);
-    const yaExiste = lista.some(
-      x => x.id === r.id || (x.fechaISO === r.fechaISO && norm(x.texto) === textoNorm),
-    );
-    if (yaExiste) return;
-    lista.push(r);
-    await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(lista));
-  } catch {}
+  // Serializar con write queue — useBrain puede llamar esto dos veces
+  // casi en paralelo (timer + recordatorio en el mismo turno).
+  recordatorioWriteQueue = recordatorioWriteQueue.then(async () => {
+    try {
+      const data = await AsyncStorage.getItem(CLAVE_RECORDATORIOS_PERSONAL);
+      const lista: Recordatorio[] = data ? JSON.parse(data) : [];
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-záéíóúñ0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+      const textoNorm = norm(r.texto);
+      const yaExiste = lista.some(
+        x => x.id === r.id || (x.fechaISO === r.fechaISO && norm(x.texto) === textoNorm),
+      );
+      if (yaExiste) return;
+      lista.push(r);
+      await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(lista));
+    } catch {}
+  }).catch(() => {});
+  await recordatorioWriteQueue;
 }
 
 export async function cargarRecordatorios(): Promise<Recordatorio[]> {

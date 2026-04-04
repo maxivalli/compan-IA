@@ -8,8 +8,9 @@
  * llaman a estas funciones — nunca directamente a los callbacks de useRosita.
  */
 
+// ExpoSpeechRecognitionModule eliminado — el SR se gestiona exclusivamente
+// a través de pararSRIntencional (centraliza intentionalStopRef + srActivoRef).
 import { useCallback, useRef } from 'react';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { EstadoRosita } from './useBrain';
 
 export interface AccionesRositaDeps {
@@ -22,6 +23,9 @@ export interface AccionesRositaDeps {
   dispararSOS:                 () => Promise<void>;
   setNoMolestar:               (v: boolean) => void;
   iniciarSpeechRecognition:    () => void;
+  // Centralizado en pipeline — setea intentionalStopRef + srActivoRef para evitar
+  // que el handler 'end' interprete el stop como un corte inesperado (backoff + restart).
+  pararSRIntencional:          () => void;
   detenerSilbido:              () => void;
   chequearPendientesAlActivar: () => void;
 }
@@ -31,16 +35,6 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
 
-  const safeStopSpeechRecognition = useCallback(() => {
-    try {
-      ExpoSpeechRecognitionModule.stop();
-      return true;
-    } catch (error) {
-      console.warn('[AccionesRosita] No pude detener SR al activar no molestar:', error);
-      return false;
-    }
-  }, []);
-
   /**
    * Acción principal: hablar si está esperando, parar grabación si está
    * escuchando, o parar música si está sonando.
@@ -49,11 +43,14 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
     const d = depsRef.current;
     if (d.musicaActiva)            { d.pararMusica();    return; }
     if (d.estado === 'escuchando') { d.detenerEscucha(); return; }
-    if (d.estado === 'esperando')  { d.iniciarEscucha();         }
+    // iniciarEscucha puede fallar por permisos revocados — capturar para no
+    // silenciar el error y poder loguearlo si hace falta.
+    if (d.estado === 'esperando')  { d.iniciarEscucha().catch(() => {}); }
   }, []);
 
   /** Envía alerta SOS a todos los contactos familiares. */
   const triggerSOS = useCallback(() => {
+    // El SOS se dispara aunque noMolestar esté activo — es intencional.
     depsRef.current.dispararSOS();
   }, []);
 
@@ -62,8 +59,10 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
     const d = depsRef.current;
     const nuevo = !d.noMolestar;
     if (nuevo) {
-      const stopped = safeStopSpeechRecognition();
-      if (!stopped) return;
+      // pararSRIntencional centraliza el flag intentionalStopRef en el pipeline:
+      // evita que el handler 'end' interprete el stop como corte inesperado
+      // (que incrementaría el backoff y reiniciaría el SR en modo No Molestar).
+      d.pararSRIntencional();
       d.setNoMolestar(true);
       d.detenerSilbido();
     } else {
@@ -71,7 +70,7 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
       d.iniciarSpeechRecognition();
       d.chequearPendientesAlActivar();
     }
-  }, [safeStopSpeechRecognition]);
+  }, []);
 
   return { toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb };
 }

@@ -23,14 +23,15 @@ type Props = {
   modoHorizontal?: boolean;
 };
 
-// Detecta si hoy es cumpleaños o Navidad para mostrar el accesorio correspondiente
-function detectarAccesorio(): 'bonete' | 'gorro' | null {
+// Detecta si hoy es Navidad para mostrar el gorro navideño
+// (fuera del componente: solo cambia una vez por día, no necesita recalcular en cada render)
+const ACCESORIO_GLOBAL: 'bonete' | 'gorro' | null = (() => {
   const ahora = new Date();
   const mes   = ahora.getMonth() + 1;
   const dia   = ahora.getDate();
   if (mes === 12 && dia === 25) return 'gorro';
   return null;
-}
+})();
 
 export default function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
@@ -43,9 +44,8 @@ export default function ExpresionOverlay({
   const faceScale = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1;
   const esHorizontalPantalla = modoHorizontal || screenW > screenH;
 
-  const horaActual = new Date().getHours();
-  const esNoche    = horaActual >= 20 || horaActual < 5;
   const esLluvia  = !!condicion?.toLowerCase().match(/lluvia|lloviendo|llovizna|chaparrón|tormenta/);
+
   const esTormenta= !!condicion?.toLowerCase().match(/tormenta/);
   const esNieve   = !!condicion?.toLowerCase().match(/nieve|nevad|granizo/) || (temperatura !== undefined && temperatura <= 1);
   const esViento  = !!condicion?.toLowerCase().match(/viento|ventoso|ráfaga|rafaga/);
@@ -55,8 +55,11 @@ export default function ExpresionOverlay({
   const esSoleado  = !!condicion?.toLowerCase().match(/soleado|despejado|sol con|cielo claro/);
 
   // Accesorio: cumpleaños tiene prioridad sobre Navidad
-  const accesorioFallback = detectarAccesorio();
-  const accesorio: 'bonete' | 'gorro' | null = esCumpleaños ? 'bonete' : accesorioFallback;
+  const accesorio: 'bonete' | 'gorro' | null = esCumpleaños ? 'bonete' : ACCESORIO_GLOBAL;
+
+  // Usar modoNoche (la fuente de verdad reactiva) en lugar de new Date().getHours()
+  // que solo se evaluaba al montar y nunca actualizaba.
+  const esNocheEfectiva = modoNoche !== 'despierta';
 
   useEffect(() => {
     fadeAnimRef.current?.stop();
@@ -71,7 +74,7 @@ export default function ExpresionOverlay({
 
   if (capa === 'fondo') return (
     <View style={s.overlay} pointerEvents="none">
-      {!esNoche && !musicaActiva && !esLluvia && !esViento && !esNieve && (esSoleado || esParcial) && <Sol modoHorizontal={esHorizontalPantalla} />}
+      {!esNocheEfectiva && !musicaActiva && !esLluvia && !esViento && !esNieve && (esSoleado || esParcial) && <Sol modoHorizontal={esHorizontalPantalla} />}
       {esLluvia                                                           && <GotasLluvia />}
       {esNieve                                                            && <Nieve />}
       {esViento                                                           && <Viento />}

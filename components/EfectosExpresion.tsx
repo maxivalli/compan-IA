@@ -400,13 +400,17 @@ export function Grawlixes() {
 
 export function Mejillas() {
   const animacion = useRef(new Animated.Value(0)).current;
+  // ID único por instancia para que los dos RadialGradient no colisionen en el DOM SVG
+  const idRef = useRef(`glowMejilla_${Math.random().toString(36).slice(2)}`).current;
 
   useEffect(() => {
-    Animated.sequence([
+    const anim = Animated.sequence([
       Animated.timing(animacion, { toValue: 1, duration: 700,  useNativeDriver: true }),
       Animated.delay(1800),
       Animated.timing(animacion, { toValue: 0, duration: 900,  useNativeDriver: true }),
-    ]).start();
+    ]);
+    anim.start();
+    return () => anim.stop(); // cleanup por si el componente se desmonta antes de terminar
   }, [animacion]);
 
   const w = 120;
@@ -420,13 +424,13 @@ export function Mejillas() {
   const MejillaSvg = () => (
     <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
       <Defs>
-        <RadialGradient id="glowMejilla" cx="50%" cy="50%" rx="50%" ry="50%" gradientUnits="objectBoundingBox">
+        <RadialGradient id={idRef} cx="50%" cy="50%" rx="50%" ry="50%" gradientUnits="objectBoundingBox">
           <Stop offset="0%"   stopColor={colorGlow} stopOpacity={0.8} />
           <Stop offset="40%"  stopColor={colorGlow} stopOpacity={0.4} />
           <Stop offset="100%" stopColor={colorGlow} stopOpacity={0}   />
         </RadialGradient>
       </Defs>
-      <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill="url(#glowMejilla)" />
+      <Ellipse cx={cx} cy={cy} rx={rx} ry={ry} fill={`url(#${idRef})`} />
     </Svg>
   );
 
@@ -851,7 +855,7 @@ export function GotaSudor() {
   }, []);
 
   return (
-    <Animated.View style={{ position: 'absolute', left: 256, top: 0, opacity, transform: [{ translateY: y }] }}>
+    <Animated.View style={{ position: 'absolute', right: 0, top: 0, opacity, transform: [{ translateY: y }] }}>
       <Svg width={20} height={30} viewBox="0 0 20 30">
         <Path d="M 10,0 C 19,4 20,14 20,20 A 10,10 0 0 1 0,20 C 0,14 1,4 10,0 Z" fill="#90CAE8" />
       </Svg>

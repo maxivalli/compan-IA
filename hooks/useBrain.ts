@@ -19,7 +19,8 @@ import { Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Brightness from 'expo-brightness';
 import * as Location from 'expo-location';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+// ExpoSpeechRecognitionModule eliminado — el SR se gestiona exclusivamente en useAudioPipeline
+// a través de pararSRIntencional (centraliza intentionalStopRef + srActivoRef).
 import {
   cargarPerfil, guardarHistorial, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, borrarRecordatorio,
@@ -499,6 +500,7 @@ export interface BrainDeps {
   pararMusica:         () => void;
   playerMusica:        AudioPlayerLike;
   iniciarSpeechRecognition: () => void;
+  pararSRIntencional: () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
   lanzarJuego?: (tipo: 'tateti' | 'ahorcado') => void;
 }
@@ -526,8 +528,11 @@ export function useBrain(deps: BrainDeps) {
   const charlaProactivaRef = useRef(false);
   const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
   const noticiasDiariaRef  = useRef<NoticiasDia[]>([]);
-  const timerVozSeqRef     = useRef(0);
-  const listaOpsRef        = useRef<Promise<void>>(Promise.resolve());
+  const timerVozSeqRef      = useRef(0);
+  const listaOpsRef         = useRef<Promise<void>>(Promise.resolve());
+  // Ref cancelable para el timer de fallback de radio (10s) — evita que un stream
+  // anterior siga corriendo cuando el usuario pide otra música antes de que pasen los 10s.
+  const musicaFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function cargarNoticiasDiarias(): Promise<void> {
     if (new Date().getHours() < 8) return;
@@ -795,12 +800,18 @@ export function useBrain(deps: BrainDeps) {
   async function ejecutarMusica(generoMusica: string, respuesta: string, nuevoHistorial: Mensaje[]): Promise<void> {
     const d = depsRef.current;
     d.setExpresion('neutral');
+    // Cancelar el timer de fallback de un stream anterior si todavía está pendiente
+    if (musicaFallbackTimerRef.current) {
+      clearTimeout(musicaFallbackTimerRef.current);
+      musicaFallbackTimerRef.current = null;
+    }
     const streamPromise = buscarRadio(generoMusica);
     logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 300) });
     await d.hablar(`${respuesta} Para pararla, tocá la pantalla.`);
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
-    ExpoSpeechRecognitionModule.stop();
+    // Stop intencional: setar flag para que el handler 'end' no dispare restart
+    d.pararSRIntencional();
     const urlStream = await streamPromise;
     if (urlStream) {
       try {
@@ -818,7 +829,11 @@ export function useBrain(deps: BrainDeps) {
         d.iniciarSpeechRecognition();
         if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
         d.expresionTimerRef.current = setTimeout(() => d.setExpresion('neutral'), 5000);
-        setTimeout(async () => {
+        // Timer cancelable: si el usuario pide otra radio antes de 10s,
+        // la ref se limpiará en el siguiente ejecutarMusica antes de reprogramar.
+        if (musicaFallbackTimerRef.current) clearTimeout(musicaFallbackTimerRef.current);
+        musicaFallbackTimerRef.current = setTimeout(async () => {
+          musicaFallbackTimerRef.current = null;
           if (!d.musicaActivaRef.current) return;
           if (d.playerMusica.currentTime >= 0.5) return;
           const altUrl = getFallbackAlt(generoMusica, urlStream);
@@ -875,6 +890,9 @@ export function useBrain(deps: BrainDeps) {
     let pensativaTimer: ReturnType<typeof setTimeout> | null = null;
     let neutralTimerProgramado = false;
     d.detenerSilbido();
+    // Cancelar cualquier timer de expresión pendiente del turno anterior antes de
+    // aplicar la nueva (ej. el 20s de PARAR_MUSICA pisaba expresiones del siguiente turno).
+    if (d.expresionTimerRef.current) { clearTimeout(d.expresionTimerRef.current); d.expresionTimerRef.current = null; }
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
     // Feedback visual inmediato — estilo Alexa/Google
@@ -907,11 +925,14 @@ export function useBrain(deps: BrainDeps) {
     if (esPararMusicaDirecto && d.musicaActivaRef.current) {
       const respuesta = 'Listo, apago la música.';
       d.pararMusica();
+      // Detener SR antes de hablar: el effect [musicaActiva] reinicia el SR con 400ms
+      // delay que podría capturar el audio del TTS como input del usuario.
+      d.pararSRIntencional();
       d.setExpresion('neutral');
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: respuesta }].slice(-30);
       historialRef.current = nuevoHist;
       guardarHistorial(nuevoHist).catch(() => {});
-      d.ultimaCharlaRef.current = Date.now();
+      d.ultimaCharlaRef.current    = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'parar_musica', texto: respuesta });
       await d.hablar(respuesta);
@@ -963,6 +984,12 @@ export function useBrain(deps: BrainDeps) {
         d.ultimaActividadRef.current = Date.now();
         logCliente('rapida_msg', { cat: catRapida, texto });
         await d.hablar(texto, emotion);
+        // Timer de vuelta a neutral — sin esto la expresión ('feliz', etc.) quedaba
+        // pegada indefinidamente porque este path retorna sin pasar por el timer normal.
+        if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+        d.expresionTimerRef.current = setTimeout(() => {
+          if (d.estadoRef.current === 'esperando') d.setExpresion('neutral');
+        }, 6000);
         return;
       }
     }
@@ -991,6 +1018,11 @@ export function useBrain(deps: BrainDeps) {
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'social_breve', texto: socialBreve.texto });
       await d.hablar(socialBreve.texto, socialBreve.emotion);
+      // Timer de vuelta a neutral — sin esto 'cansada' o 'feliz' quedaba pegada.
+      if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+      d.expresionTimerRef.current = setTimeout(() => {
+        if (d.estadoRef.current === 'esperando') d.setExpresion('neutral');
+      }, 6000);
       return;
     }
 
@@ -1024,6 +1056,12 @@ export function useBrain(deps: BrainDeps) {
       d.ultimaActividadRef.current = Date.now();
       await d.hablar('¡Qué lindo, dale! Juguemos un rato...', 'entusiasmada');
       d.lanzarJuego?.(pideTateti ? 'tateti' : 'ahorcado');
+      // Timer de vuelta a neutral — la pantalla del juego carga sobre Rosita;
+      // si el usuario vuelve, la cara no debe quedar en 'entusiasmada'.
+      if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+      d.expresionTimerRef.current = setTimeout(() => {
+        if (d.estadoRef.current === 'esperando') d.setExpresion('neutral');
+      }, 8000);
       return;
     }
 
@@ -1212,7 +1250,9 @@ export function useBrain(deps: BrainDeps) {
 
       // Tecleo arranca en canal separado (playerMusica) cuando hay búsqueda externa
       // O cuando la muletilla es de búsqueda (ej. clima desde system prompt)
-      const usaTecleo = pideNoticias || pideBusqueda || pideWikipedia || catMuletillaEfectiva === 'busqueda';
+      const usaTecleo = pideNoticias || pideBusqueda || pideWikipedia;
+      // catMuletillaEfectiva puede ser 'busqueda' para clima (que usa el system prompt,
+      // no una búsqueda real) — no activar tecleo en ese caso.
       const tecleoPromise = usaTecleo ? d.reproducirTecleo(tecleoAbort) : Promise.resolve();
 
       if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
@@ -1420,6 +1460,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.tagPrincipal === 'PARAR_MUSICA') {
         d.playerMusica.pause();
         d.setMusicaActiva(false);
+        // Detener SR antes de hablar: el effect [musicaActiva] reinicia el SR con 400ms
+        // delay que podría capturar el audio del TTS como input del usuario.
+        d.pararSRIntencional();
         d.setExpresion('neutral');
         const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: parsed.respuesta }].slice(-30);
         historialRef.current = nuevoHist;
@@ -1597,6 +1640,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
 
       // ── Respuesta normal ──
+      // Cancelar el timer de 'pensativa' antes de aplicar la expresión real de la respuesta.
+      // Si Claude responde en < 600ms, el setTimeout podría pisar parsed.expresion con 'pensativa'.
+      if (pensativaTimer) { clearTimeout(pensativaTimer); pensativaTimer = null; }
       d.setExpresion(parsed.expresion);
       guardarEntradaAnimo(parsed.animoUsuario);
       sincronizarAnimo(parsed.animoUsuario, Date.now());
@@ -1607,6 +1653,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
       d.ultimaCharlaRef.current    = Date.now();
       d.ultimaActividadRef.current = Date.now();
       const oracionesTotal = d.splitEnOraciones(parsed.respuesta);
+      // Pre-cachear oraciones[1+] para evitar gaps — saltar [0] que se streameará directo
+      oracionesTotal.slice(1).forEach(s => d.precachearTexto(s, parsed.expresion).catch(() => {}));
       logCliente('rc_hablar', { oraciones: oracionesTotal.length, chars: parsed.respuesta.length, primeraReproducida: primeraFraseReproducida });
       const turnMetrics = getCurrentTurnMetrics();
       logCliente('turn_summary', {
@@ -1656,11 +1704,14 @@ REGLAS CRÍTICAS PARA RESPONDER:
         await AsyncStorage.removeItem('medPendiente').catch(() => {});
       }
 
+      // El timer de vuelta a neutral se programa DESPUÉS de que hablarConCola termina,
+      // es decir, cuando el audio ya finalizó. Así la expresión no cambia mientras Rosita
+      // todavía está hablando (el timer anterior de 8s podía pisar el audio si era largo).
       if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
       neutralTimerProgramado = true;
       d.expresionTimerRef.current = setTimeout(() => {
         if (d.estadoRef.current === 'esperando') d.setExpresion('neutral');
-      }, 8000);
+      }, 6000); // 6s desde que TERMINÓ el audio
 
     } catch (e: any) {
       resolverPrimeraFrase(null);

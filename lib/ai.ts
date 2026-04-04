@@ -235,7 +235,7 @@ export async function llamarClaudeConStreaming(options: {
         if (!primeraFired && tagDetected && STREAMING_SAFE_TAGS.has(tagDetected)) {
           const sinTag = fullText.replace(/^\[[^\]]+\]\s*/, '');
           if (sinTag.length >= 10) {
-            const m = sinTag.match(/^.{8,}?[.!?](?:\s+|$)/);
+            const m = sinTag.match(/^.{8,}?[.!?](?:["'”]*)(?:\s+|$)/);
             // Antes requería segunda oración (sinTag.length > m[0].length).
             // Ahora dispara aunque sea la única oración → precachearTexto arranca antes.
             if (m) {
@@ -305,7 +305,12 @@ export async function transcribirAudio(uri: string): Promise<string> {
 /** Construye la URL del endpoint de streaming de TTS — ElevenLabs (para expo-audio directo).
  *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
 export function urlTTSStream(texto: string, voiceId: string, speed?: number): string {
-  if (!_cachedToken) throw new Error('Device token unavailable for TTS stream');
+  if (!_cachedToken) {
+    // Token aún no disponible (bootstrap no terminó): devolver URL vacía
+    // en vez de lanzar. El pipeline de audio deberá manejar el string vacío.
+    if (__DEV__) console.warn('[TTS] urlTTSStream llamada sin token cacheado');
+    return '';
+  }
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
@@ -325,7 +330,10 @@ export function urlFishRealtimeStream(
   emotion?: string,
   options?: { latency?: 'normal' | 'balanced'; chunkLength?: number },
 ): string {
-  if (!_cachedToken) throw new Error('Device token unavailable for Fish realtime stream');
+  if (!_cachedToken) {
+    if (__DEV__) console.warn('[TTS] urlFishRealtimeStream llamada sin token cacheado');
+    return '';
+  }
   const params = new URLSearchParams({
     text: texto,
     voiceId,

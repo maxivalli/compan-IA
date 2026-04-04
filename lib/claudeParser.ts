@@ -151,7 +151,13 @@ export function detectarGenero(tag: string): string {
     ['pop',       ['pop', 'moderna', 'moderno', 'contemporanea', 'contemporaneo']],
   ];
   for (const [genero, palabras] of mapa) {
-    if (palabras.some(p => t.includes(p))) return genero;
+    // Usar word-boundary check para evitar falsos positivos de substring:
+    // 'pop' no debe matchear 'popular' ni 'proponés'; 'rock' no debe matchear 'barrock'.
+    if (palabras.some(p => {
+      // Palabras simples de 3+ chars: usar regex con \b; las más cortas o con espacios: includes exacto
+      if (p.length <= 3 || p.includes(' ')) return t.includes(p);
+      try { return new RegExp(`\\b${p}\\b`).test(t); } catch { return t.includes(p); }
+    })) return genero;
   }
   return ''; // sin match → la clave vacía se maneja con búsqueda abierta en useBrain
 }
@@ -329,6 +335,10 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[ALARMA:[^\]]*\]?\s*/gi, '')
     .replace(/\[TIMER:\s*\d+\]?\s*/gi, '')
     .replace(/\[LINTERNA\]\s*/gi, '')
+    .replace(/\[PARAR_MUSICA\]\s*/gi, '')
+    .replace(/\[MUSICA:[^\]]*\]?\s*/gi, '')
+    .replace(/\[JUGAR_TATETI\]\s*/gi, '')
+    .replace(/\[JUGAR_AHORCADO\]\s*/gi, '')
     .replace(/\[DOMOTICA[^\]]*\]?\s*/gi, '')
     .replace(/\[DOMOTICA_ESTADO:[^\]]*\]?\s*/gi, '')
     .replace(/\[LISTA_NUEVA:[^\]]*\]?\s*/gi, '')
@@ -553,7 +563,8 @@ export function parsearRespuesta(
     const nombreDestino = mensajeMatch[1].trim();
     const textoMensaje  = mensajeMatch[2].trim();
     const contacto = resolverContacto(nombreDestino, contactos, familiares);
-    respuesta = limpiarTagsFinales(raw.replace(/^\[.*?\]\s*/, ''));
+    // Usar 'respuesta' ya procesada (tags ya eliminados) en vez de re-parsear 'raw'
+    // con /^\[.*?\]\s*/ que podía eliminar contenido legítimo si el primer tag era secundario.
     mensajeFamiliar = { nombreDestino: contacto?.nombre ?? nombreDestino, texto: textoMensaje };
   }
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAudioPlayer } from 'expo-audio';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+// ExpoSpeechRecognitionModule eliminado — usamos pararSRIntencional de los refs
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Perfil,
@@ -54,6 +54,7 @@ export type NotificacionesRefs = {
   reanudarMusica:        () => void;
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
+  pararSRIntencional:    (() => void) | undefined;
   flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
   mostrarFoto:           (urlFoto: string, descripcion: string) => void;
 };
@@ -158,7 +159,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
-    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, flujoFoto, mostrarFoto,
+    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional, flujoFoto, mostrarFoto,
   } = refs;
 
   // Grabador para respuestas de voz
@@ -172,7 +173,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // ── Escuchar una respuesta de sí/no por voz ────────────────────────────────
   async function escucharRespuesta(): Promise<string> {
     try {
-      ExpoSpeechRecognitionModule.stop();
+      // Detener SR de forma intencional para no disparar restart espurio
+      pararSRIntencional?.();
       await waitMs(200);
 
       setEstado('escuchando');
@@ -276,7 +278,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     nombreAbuela: string,
   ): Promise<'respondido' | 'rechazado' | 'ignorado'> {
     enFlujoVozRef.current = true;
-    ExpoSpeechRecognitionModule.stop();
+    // Detener SR de forma intencional
+    pararSRIntencional?.();
 
     // Pausar música si está activa
     const habiaMusica = musicaActivaRef.current;
@@ -346,7 +349,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     nombreAbuela: string,
   ): Promise<'respondido' | 'rechazado' | 'ignorado'> {
     enFlujoVozRef.current = true;
-    ExpoSpeechRecognitionModule.stop();
+    // Detener SR de forma intencional
+    pararSRIntencional?.();
 
     const habiaMusica = musicaActivaRef.current;
     if (habiaMusica) pararMusica();
@@ -386,7 +390,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     nombreAbuela: string,
   ): Promise<'respondido' | 'rechazado' | 'ignorado'> {
     enFlujoVozRef.current = true;
-    ExpoSpeechRecognitionModule.stop();
+    // Detener SR de forma intencional
+    pararSRIntencional?.();
 
     const habiaMusica = musicaActivaRef.current;
     if (habiaMusica) pararMusica();
@@ -858,20 +863,28 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion, codigoActual: clima.codigoActual });
     }
 
-    async function tick() {
-      depurarDisparados();
-      await chequearAlarmas();
-      await chequearMedicamentos();
-      await chequearFechas();
-      await cumpleañosMatutino();
-      await saludoMatutino();
-      await chequearRecordatorios();
-      await enviarResumenDiario();
-      await resetearAnimo();
-      await chequearClima();
-      await actualizarClima();
+    // Envuelve cada tarea async con un timeout individual (30s).
+    // Si una función queda colgada (ej: hablar() no resuelve),
+    // el tick sigue corriendo las demás en lugar de bloquearse.
+    function conTimeout<T>(fn: () => Promise<T>, ms = 30000): Promise<T | void> {
+      return Promise.race([fn(), new Promise<void>(r => setTimeout(r, ms))]);
     }
 
+    async function tick() {
+      depurarDisparados();
+      await conTimeout(chequearAlarmas);
+      await conTimeout(chequearMedicamentos);
+      await conTimeout(chequearFechas);
+      await conTimeout(cumpleañosMatutino);
+      await conTimeout(saludoMatutino);
+      await conTimeout(chequearRecordatorios);
+      await conTimeout(enviarResumenDiario);
+      await conTimeout(resetearAnimo);
+      await conTimeout(chequearClima);
+      await conTimeout(actualizarClima);
+    }
+
+    tick(); // evaluar inmediatamente al montar
     const id = setInterval(tick, 60000);
     return () => clearInterval(id);
   }, []);

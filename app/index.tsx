@@ -10,7 +10,8 @@ import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
+// ExpoSpeechRecognitionModule eliminado — el SR se gestiona en useAudioPipeline
+// a través de pararSRIntencional. No hay llamadas directas al módulo acquí.
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRosita } from '../hooks/useRosita';
 import { useNotificaciones } from '../hooks/useNotificaciones';
@@ -45,7 +46,7 @@ function RelojNoche() {
         hh: String(now.getHours()).padStart(2, '0'),
         mm: String(now.getMinutes()).padStart(2, '0'),
       });
-    }, 10000);
+    }, 60000); // 60s: los minutos no cambian más rápido, 10s era desperdicio de CPU
     return () => clearInterval(id);
   }, []);
 
@@ -79,6 +80,7 @@ export default function Index() {
     linternaActiva, apagarLinterna,
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     iniciarEscucha, detenerEscucha, pararMusica, reanudarMusica, dispararSOS,
+    resetExpresion,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, modoVision, capturaVisionFnRef,
     modoWatchingPresencia, onPresenciaDetectada,
@@ -97,9 +99,10 @@ export default function Index() {
   // Al salir (onboarding, configuración, etc.) detener SR para que no escuche
   // en segundo plano mientras el tab sigue montado.
   useFocusEffect(useCallback(() => {
+    resetExpresion();
     if (cargando) reactivar();
     else recargarPerfil();
-    return () => { ExpoSpeechRecognitionModule.stop(); };
+    return () => { refs.pararSRIntencional?.(); };
   }, [cargando]));
 
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
@@ -107,8 +110,11 @@ export default function Index() {
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Cleanup del timer al desmontar
-  useEffect(() => () => { if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current); }, []);
+  // Cleanup de ambos timers al desmontar
+  useEffect(() => () => {
+    if (fotoTimerRef.current)  clearTimeout(fotoTimerRef.current);
+    if (hintTimerRef.current)  clearTimeout(hintTimerRef.current);
+  }, []);
 
   function mostrarFoto(urlFoto: string, descripcion: string) {
     if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current);
@@ -117,7 +123,7 @@ export default function Index() {
   }
 
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
-  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, mostrarFoto }, player);
+  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional: refs.pararSRIntencional, mostrarFoto }, player);
 
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
@@ -199,9 +205,12 @@ export default function Index() {
            const co = climaObjRef.current;
            const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
            const max = hasAlert ? 2 : 1;
-           return prev >= max ? 0 : prev + 1;
+           const next = prev >= max ? 0 : prev + 1;
+           // Wrap-around (2→0): entra desde la izquierda. Avance normal: desde la derecha.
+           hintTranslate.setValue(next < prev ? -30 : 30);
+           return next;
         });
-        hintTranslate.setValue(30);
+        // No setear hintTranslate.setValue(30) acá: ya se hizo dentro del updater de estado.
         hintAnimRef.current?.stop();
         hintAnimRef.current = Animated.parallel([
           Animated.timing(hintOpacity,   { toValue: 1, duration: 500, useNativeDriver: true }),
@@ -375,6 +384,7 @@ export default function Index() {
     iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
     setNoMolestar,
     iniciarSpeechRecognition: refs.iniciarSpeechRecognition,
+    pararSRIntencional:       refs.pararSRIntencional,
     detenerSilbido,
     chequearPendientesAlActivar,
   });
@@ -468,17 +478,7 @@ export default function Index() {
         return (
       <TouchableOpacity
         style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }, noMolestar && styles.btnNoMolestarFlotanteActivo]}
-        onPress={() => {
-          const nuevo = !noMolestar;
-          setNoMolestar(nuevo);
-          if (nuevo) {
-            ExpoSpeechRecognitionModule.stop();
-            detenerSilbido();
-          } else {
-            refs.iniciarSpeechRecognition();
-            chequearPendientesAlActivar();
-          }
-        }}
+        onPress={acciones.toggleDoNotDisturb}
         activeOpacity={0.75}
       >
         <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={icoSize} color={noMolestar ? '#E85D24' : '#ffffffcc'} />
@@ -514,6 +514,11 @@ export default function Index() {
                 source={{ uri: fotoTelegram.url }}
                 style={{ width: '100%', aspectRatio: 1, resizeMode: 'cover', borderRadius: 2 }}
               />
+              {!!fotoTelegram.descripcion && (
+                <Text style={{ marginTop: 10, fontSize: fs(13), color: '#555', textAlign: 'center', fontWeight: '500' }}>
+                  {fotoTelegram.descripcion}
+                </Text>
+              )}
             </View>
           </TouchableOpacity>
         </Modal>
@@ -662,7 +667,7 @@ export default function Index() {
             <Animated.View style={{ width: btnW, height: btnH, borderRadius: btnH / 2 }}>
               <TouchableOpacity
                 style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
-                onPress={musicaActiva ? pararMusica : escuchando ? detenerEscucha : iniciarEscucha}
+                onPress={acciones.toggleTalkOrStopMusic}
                 activeOpacity={0.85}
                 disabled={botonDisabled && !musicaActiva}
               >

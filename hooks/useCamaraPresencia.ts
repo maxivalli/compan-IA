@@ -36,6 +36,7 @@ export function useCamaraPresencia({ ultimaActividadRef, estadoRef, hablarRef, p
       }
     }
 
+    tick(); // evaluar inmediatamente al montar (no esperar 15s)
     const id = setInterval(tick, POLL_MS);
     return () => clearInterval(id);
   }, [ultimaActividadRef, perfilRef]);
@@ -49,10 +50,11 @@ export function useCamaraPresencia({ ultimaActividadRef, estadoRef, hablarRef, p
     if (ahora - ultimaDeteccion.current < COOLDOWN_MS) return;
     ultimaDeteccion.current = ahora;
 
-    // Salir del modo watching inmediatamente para no disparar de nuevo
+    // Salir del modo watching — resetear ultimaActividad para que el polling
+    // no reactive watching inmediatamente antes de que el usuario responda.
     modoWatchingRef.current = false;
     setModoWatching(false);
-    // El timer de inactividad lo volverá a activar en 30 min si no hay actividad
+    ultimaActividadRef.current = ahora;
 
     const perfil = perfilRef.current;
     const nombre = perfil?.nombreAbuela ?? '';
@@ -70,7 +72,7 @@ export function useCamaraPresencia({ ultimaActividadRef, estadoRef, hablarRef, p
 
     const texto = frases[Math.floor(Math.random() * frases.length)];
     hablarRef.current?.(texto).catch(() => {});
-  }, [estadoRef, hablarRef, perfilRef]);
+  }, [estadoRef, hablarRef, perfilRef, ultimaActividadRef]);
 
   return { modoWatching, onPresenciaDetectada };
 }

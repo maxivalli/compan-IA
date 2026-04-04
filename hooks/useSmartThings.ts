@@ -51,7 +51,9 @@ export function useSmartThings(deps: SmartThingsDeps) {
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/[_-]+/g, ' ')
-      .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+      // Evitar \p{L} y \p{N}: Hermes <0.12 (Android 10-) no soporta
+      // Unicode property escapes en regex. Usar allow-list explícita.
+      .replace(/[^a-záéíóúüñA-ZÁÉÍÓÚÜÑ0-9\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
@@ -161,6 +163,7 @@ export function useSmartThings(deps: SmartThingsDeps) {
         dispositivosRef.current = dispositivos.map(dv =>
           dv.online ? { ...dv, estado: false } : dv
         );
+        await depsRef.current.hablar('Listo, apagué todos los dispositivos de SmartThings.');
       } else {
         await depsRef.current.hablar('No pude apagar los dispositivos de SmartThings.');
       }
@@ -181,14 +184,14 @@ export function useSmartThings(deps: SmartThingsDeps) {
           return;
         }
 
-        const ok = await controlarDispositivo(dispositivo.id, Boolean(valor));
+      const ok = await controlarDispositivo(dispositivo.id, Boolean(valor));
         if (ok) {
           const est = await obtenerEstadoDispositivo(dispositivo.id).catch(() => null);
           const encendida = est?.['switch'];
           const esperado = Boolean(valor);
 
           dispositivosRef.current = dispositivos.map(dv =>
-            dv.id === dispositivo.id
+            dv.id === dispositivo!.id
               ? { ...dv, estado: typeof encendida === 'boolean' ? encendida : esperado }
               : dv
           );
@@ -196,6 +199,10 @@ export function useSmartThings(deps: SmartThingsDeps) {
           if (typeof encendida === 'boolean' && encendida !== esperado) {
             const estadoTexto = encendida ? 'encendida' : 'apagada';
             await depsRef.current.hablar(`Le mandé la orden a ${dispositivo.nombre}, pero SmartThings todavía la muestra ${estadoTexto}.`);
+          } else if (encendida === null || encendida === undefined) {
+            // GET de verificación falló — no hablar del estado real, el control
+            // igual se envió (ok === true). El estado local queda con 'esperado'.
+            if (__DEV__) console.log('[SmartThings] GET estado post-control falló, usando valor esperado');
           }
         } else {
           await depsRef.current.hablar(`No pude controlar ${dispositivo.nombre} desde SmartThings.`);
@@ -212,7 +219,9 @@ export function useSmartThings(deps: SmartThingsDeps) {
         dispositivos = await refrescarDispositivos();
       }
       let dispositivo = findDispositivo(dispositivoNombre, dispositivos);
-      if (!dispositivo) {
+      // Solo refrescar si hay dispositivos pero el nombre no matchea:
+      // si el primer refresh ya vino vacío, un segundo fetch no va a ayudar.
+      if (!dispositivo && dispositivos.length > 0) {
         dispositivos = await refrescarDispositivos();
         dispositivo = findDispositivo(dispositivoNombre, dispositivos);
       }
@@ -227,11 +236,14 @@ export function useSmartThings(deps: SmartThingsDeps) {
               ? `La ${dispositivo.nombre} está apagada.`
               : `No pude determinar el estado de ${dispositivo.nombre}.`;
           dispositivosRef.current = dispositivos.map(dv =>
-            dv.id === dispositivo.id
+            dv.id === dispositivo!.id
               ? { ...dv, estado: typeof encendida === 'boolean' ? encendida : dv.estado }
               : dv
           );
           await depsRef.current.hablar(descripcion);
+        } else {
+          // GET falló (timeout, red caída, etc.) — sin feedback el usuario queda en silencio
+          await depsRef.current.hablar(`No pude consultar el estado de ${dispositivo.nombre} ahora mismo.`);
         }
       } else if (dispositivos.length > 0) {
         await depsRef.current.hablar('No encontré ese dispositivo en SmartThings.');

@@ -111,18 +111,20 @@ export function useRosita() {
   // ── Última radio reproducida ──────────────────────────────────────────────────
   const ultimaRadioRef = useRef<string | null>(null);
 
-  const sinConexionRef          = useRef(false);
-  const ultimoSosRef            = useRef<number>(0);
-  const alertaInactividadRef    = useRef<number>(0);
+  const sinConexionRef           = useRef(false);
+  const ultimoSosRef             = useRef<number>(0);
+  const alertaInactividadRef     = useRef<number>(0);
+  // Intervalo actual del acelerómetro — ref mutable para actualizarlo dentro del listener
+  // sin recrear el efecto. Sin esto, la const `intervalo` nunca cambiaba (siempre 300ms).
+  const acelerometroIntervaloRef = useRef<number>(300);
 
   // ── Ref para brain (rompe dependencia circular con pipeline) ──────────────────
   // El pipeline necesita brain.responderConClaude pero brain se instancia después.
   // brainRef se actualiza en cada render y el pipeline lo lee sólo en callbacks async.
   const brainRef = useRef<ReturnType<typeof useBrain> | null>(null);
 
-  function safeStopSpeechRecognition() {
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-  }
+  // safeStopSpeechRecognition local ELIMINADA — usar pipeline.pararSpeechRecognitionIntencional()
+  // que centraliza el intentionalStopRef + srActivoRef.
 
   function setNoMolestar(v: boolean) {
     noMolestarRef.current = v;
@@ -211,6 +213,7 @@ export function useRosita() {
     pararMusica:              pipeline.pararMusica,
     playerMusica:             pipeline.playerMusica,
     iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
+    pararSRIntencional:       pipeline.pararSpeechRecognitionIntencional,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
     lanzarJuego: (tipo) => router.push((tipo === 'tateti' ? '/tateti' : '/ahorcado') as any),
   });
@@ -234,7 +237,8 @@ export function useRosita() {
   useEffect(() => {
     musicaActivaRef.current = musicaActiva;
     if (musicaActiva) {
-      safeStopSpeechRecognition();
+      // Stop intencional: usar pipeline para que el handler 'end' no dispare un restart espurio
+      pipeline.pararSpeechRecognitionIntencional();
       // Programar verificación nocturna: la música no debería quedar prendida de noche
       clearMusicaNocheTimers();
       musicaNocheTimerRef.current = setTimeout(async () => {
@@ -259,7 +263,15 @@ export function useRosita() {
     } else {
       pipeline.detenerSilbido();
       clearMusicaNocheTimers();
-      if (!pipeline.enFlujoVozRef.current) pipeline.iniciarSpeechRecognition();
+      if (!pipeline.enFlujoVozRef.current) {
+        // Delay de 400ms: misma razón que en hablar() — AudioSession de Android necesita
+        // tiempo para liberar el foco del altavoz y devolver el mic al SR.
+        setTimeout(() => {
+          if (!pipeline.enFlujoVozRef.current && !musicaActivaRef.current) {
+            pipeline.iniciarSpeechRecognition();
+          }
+        }, 400);
+      }
     }
     return () => {
       clearMusicaNocheTimers();
@@ -278,13 +290,23 @@ export function useRosita() {
     if (__DEV__) return;
     const id = setTimeout(async () => {
       try {
-        if (__DEV__) console.log('[OTA] chequeando update...');
         const check = await Updates.checkForUpdateAsync();
-        if (__DEV__) console.log('[OTA] isAvailable:', check.isAvailable);
         if (!check.isAvailable) return;
-        if (__DEV__) console.log('[OTA] descargando...');
         await Updates.fetchUpdateAsync();
-        if (__DEV__) console.log('[OTA] descargado, recargando...');
+        // Esperar a que la app esté idle antes de recargar para no cortar conversaciones.
+        // Máximo 2 minutos: después recarga igual para no bloquear el update indefinidamente.
+        const TIMEOUT_MAX = 2 * 60 * 1000;
+        const inicio = Date.now();
+        await new Promise<void>(resolve => {
+          const check = setInterval(() => {
+            const idle = estadoRef.current === 'esperando'
+              && (Date.now() - ultimaCharlaRef.current) > 10000;
+            if (idle || Date.now() - inicio > TIMEOUT_MAX) {
+              clearInterval(check);
+              resolve();
+            }
+          }, 1000);
+        });
         await Updates.reloadAsync();
       } catch (e: any) {
         if (__DEV__) console.log('[OTA] error:', e?.message ?? e);
@@ -369,7 +391,9 @@ export function useRosita() {
   useEffect(() => {
     if (linternaActiva) return; // la linterna maneja su propio brillo
     if (modoNoche !== 'despierta') {
-      Brightness.setBrightnessAsync(0).catch(() => {});
+      // Brillo mínimo 0.03: suficiente para ver el reloj nocturno sin molestar,
+      // pero no completamente negro (confuso para adultos mayores que miran la hora).
+      Brightness.setBrightnessAsync(0.03).catch(() => {});
     } else {
       Brightness.restoreSystemBrightnessAsync().catch(() => {});
     }
@@ -380,7 +404,8 @@ export function useRosita() {
   useEffect(() => {
     inicializar().catch(() => { setCargando(false); pipeline.iniciarSpeechRecognition(); });
     return () => {
-      safeStopSpeechRecognition();
+      // Stop intencional en cleanup de inicialización
+      pipeline.pararSpeechRecognitionIntencional();
       if (climaTimerRef.current) clearTimeout(climaTimerRef.current);
     };
   }, []);
@@ -509,7 +534,14 @@ export function useRosita() {
     // No arrancar charla proactiva si hay una alarma en las próximas 2 horas
     const alarmaProxima = proximaAlarmaRef.current;
     if (alarmaProxima && alarmaProxima - Date.now() < 2 * 60 * 60 * 1000) return false;
-    if (dentroDeHorario && minutosSinCharla >= MINUTOS_SIN_CHARLA) { brain.arrancarCharlaProactiva(); return true; }
+    if (dentroDeHorario && minutosSinCharla >= MINUTOS_SIN_CHARLA) {
+      // Actualizar ANTES de llamar: actúa como cooldown.
+      // Si arrancarCharlaProactiva falla (red caída), el watchdog del pipeline (cada 5s)
+      // habría vuelto a disparar el proactivo en el próximo tick.
+      ultimaCharlaRef.current = Date.now();
+      brain.arrancarCharlaProactiva();
+      return true;
+    }
     return false;
   }
 
@@ -524,7 +556,9 @@ export function useRosita() {
     if (ojoPicadoTimer.current) clearTimeout(ojoPicadoTimer.current);
     setExpresion('enojada');
     ojoPicadoTimer.current = setTimeout(() => setExpresion('neutral'), 3000);
-    pipeline.hablar('¡Ey, eso duele!');
+    // Solo hablar si está en reposo: si Rosita está respondiendo, pisar el audio
+    // a mitad de oración (hablar() pausa el player) sería confuso.
+    if (estadoRef.current === 'esperando') pipeline.hablar('¡Ey, eso duele!');
   }
 
   function onCaricia() {
@@ -551,8 +585,13 @@ export function useRosita() {
   }
 
   function pedirCapturaFoto(acciones?: { beforeOpen?: () => void; afterClose?: () => void }) {
+    // Cancelar captura anterior FUERA de la Promise para que el resolver previo
+    // reciba null inmediatamente y no quede colgado si dos flujos se solapan.
+    if (fotoResolverRef.current) {
+      fotoResolverRef.current(null);
+      fotoResolverRef.current = null;
+    }
     return new Promise<string | null>(resolve => {
-      fotoResolverRef.current?.(null);
       acciones?.beforeOpen?.();
       fotoResolverRef.current = (base64: string | null) => {
         fotoResolverRef.current = null;
@@ -775,6 +814,9 @@ export function useRosita() {
     const asistente = p.nombreAsistente ?? 'Rosita';
 
     if (musicaActivaRef.current) pipeline.pararMusica();
+    // Detener SR explícitamente: el effect [musicaActiva] reinicia el SR con 400ms de delay,
+    // que podría capturar el audio del TTS del SOS como input del usuario.
+    pipeline.pararSpeechRecognitionIntencional();
 
     guardarEntradaAnimo('triste');
     sincronizarAnimo(opciones.syncTag, Date.now());
@@ -814,11 +856,15 @@ export function useRosita() {
   }
 
   // ── Bostezo por inactividad ──────────────────────────────────────────────────
-  const ultimoBostezRef = useRef<number>(0);
-  const CINCO_MIN       = 5 * 60 * 1000;
+  const ultimoBostezRef  = useRef<number>(0);
+  // Guarda los timers de los bostezos diferidos para cancelarlos en cleanup o si
+  // el usuario vuelve a activarse antes de que corran.
+  const bostezDelayedRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const CINCO_MIN        = 5 * 60 * 1000;
 
   function bostezar() {
     if (estadoRef.current !== 'esperando') return;
+    if (modoNocheRef.current !== 'despierta') return;
     setExpresion('bostezando');
     setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
   }
@@ -831,12 +877,19 @@ export function useRosita() {
       if (musicaActivaRef.current) return;
       if ((Date.now() - ultimaActividadRef.current) < CINCO_MIN) return;
       if ((Date.now() - ultimoBostezRef.current) < 10 * 60 * 1000) return;
+      // Cancelar bostezos diferidos anteriores que aún no hayan corrido
+      bostezDelayedRef.current.forEach(t => clearTimeout(t));
       ultimoBostezRef.current = Date.now();
       bostezar();
-      setTimeout(bostezar, 5000);
-      setTimeout(bostezar, 10000);
+      bostezDelayedRef.current = [
+        setTimeout(bostezar, 5000),
+        setTimeout(bostezar, 10000),
+      ];
     }, 60 * 1000);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      bostezDelayedRef.current.forEach(t => clearTimeout(t));
+    };
   }, []);
 
   // ── Detección de sacudida y caída ────────────────────────────────────────────
@@ -858,14 +911,19 @@ export function useRosita() {
     let conteo = 0;
     let timerReset: ReturnType<typeof setTimeout> | null = null;
 
-    // 300ms: 3× menos CPU que 100ms, sigue siendo suficiente para caídas y sacudidas
-    // En modo durmiendo baja a 1000ms para ahorrar más batería
-    const intervalo = modoNocheRef.current === 'durmiendo' ? 1000 : 300;
-    Accelerometer.setUpdateInterval(intervalo);
+    // 300ms: 3× menos CPU que 100ms, suficiente para caídas y sacudidas.
+    // En modo durmiendo baja a 1000ms. Se usa acelerometroIntervaloRef (un ref mutable)
+    // para que la comparación dentro del listener pueda detectar el cambio; con la
+    // constante local `intervalo` la condición nunca era verdadera.
+    const initIntervalo = modoNocheRef.current === 'durmiendo' ? 1000 : 300;
+    acelerometroIntervaloRef.current = initIntervalo;
+    Accelerometer.setUpdateInterval(initIntervalo);
     const sub = Accelerometer.addListener(({ x, y, z }) => {
-      // Actualizar intervalo dinámicamente si cambió el modo noche
       const nuevoIntervalo = modoNocheRef.current === 'durmiendo' ? 1000 : 300;
-      if (nuevoIntervalo !== intervalo) Accelerometer.setUpdateInterval(nuevoIntervalo);
+      if (nuevoIntervalo !== acelerometroIntervaloRef.current) {
+        acelerometroIntervaloRef.current = nuevoIntervalo;
+        Accelerometer.setUpdateInterval(nuevoIntervalo);
+      }
       const magnitud = Math.sqrt(x * x + y * y + z * z);
 
       if (magnitud < UMBRAL_CAIDA_LIBRE && !enCaidaLibre) {
@@ -887,6 +945,9 @@ export function useRosita() {
       }
 
       if (magnitud > UMBRAL_SACUDIDA) {
+        // No contar sacudidas si hay música: las vibraciones del altavoz pueden
+        // generar falsos positivos y disparar SOS accidentalmente.
+        if (musicaActivaRef.current) return;
         conteo++;
         if (timerReset) clearTimeout(timerReset);
         timerReset = setTimeout(() => { conteo = 0; }, VENTANA_SACUDIDA);
@@ -928,6 +989,10 @@ export function useRosita() {
       setExpresion('bostezando');
       setTimeout(() => { if (estadoRef.current === 'esperando') setExpresion('neutral'); }, 2800);
     },
+    resetExpresion: () => {
+      if (expresionTimerRef.current) clearTimeout(expresionTimerRef.current);
+      setExpresion('neutral');
+    },
     onOjoPicado, onCaricia, onRelampago,
     iniciarSilbido:  pipeline.iniciarSilbido,
     detenerSilbido:  pipeline.detenerSilbido,
@@ -942,6 +1007,7 @@ export function useRosita() {
       telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
       musicaActivaRef, enFlujoVozRef: pipeline.enFlujoVozRef, proximaAlarmaRef,
       setEstado, hablar: pipeline.hablar, iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
+      pararSRIntencional: pipeline.pararSpeechRecognitionIntencional,
       modoNoche, iniciarSilbido: pipeline.iniciarSilbido, detenerSilbido: pipeline.detenerSilbido, flujoFoto,
       reanudarMusica: pipeline.reanudarMusica,
     },

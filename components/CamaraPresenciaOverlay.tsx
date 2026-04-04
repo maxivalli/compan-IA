@@ -51,11 +51,16 @@ export default function CamaraPresenciaOverlay({ activo, onPresenciaDetectada }:
         }
       } catch {
         // Ignorar errores de captura (ej. cámara ocupada por foto Telegram)
+      } finally {
+        // setTimeout recursivo en lugar de setInterval:
+        // evita que dos takePictureAsync se superpongan si la cámara tarda > 2s.
+        if (corriendo.current) setTimeout(detectar, INTERVALO_MS);
       }
     }
 
-    const id = setInterval(detectar, INTERVALO_MS);
-    return () => { corriendo.current = false; clearInterval(id); };
+    // Arrancar el ciclo
+    const arranque = setTimeout(detectar, INTERVALO_MS);
+    return () => { corriendo.current = false; clearTimeout(arranque); };
   }, [activo, onPresenciaDetectada]);
 
   if (!activo) return null;

@@ -82,7 +82,7 @@ function numToSpanish(n: number): string {
 
 /** Limpia texto para TTS: recorta, elimina markup, expande unidades. Pura y determinista. */
 export function limpiarTextoParaTTS(texto: string): string {
-  const MAX_CHARS = 450;
+  const MAX_CHARS = 700; // subido de 450: evita truncar respuestas largas de Claude en hablarConCola
   if (texto.length > MAX_CHARS) {
     const corte = texto.lastIndexOf('.', MAX_CHARS);
     texto = corte > 40 ? texto.slice(0, corte + 1) : texto.slice(0, MAX_CHARS).trimEnd();
@@ -250,11 +250,17 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const enColaHablaRef     = useRef(false);
   const procesandoRef      = useRef(false);
   const procesandoDesdeRef = useRef<number>(0);
+  const hablarCancelledRef = useRef(false); // true solo cuando cancelarHablaRef cancela efectivamente (barge-in real)
   const yaDetuvRef         = useRef(false);
 
   // ── Refs de SR ────────────────────────────────────────────────────────────
-  const srActivoRef           = useRef(false);
-  const ultimaActivacionSrRef = useRef<number>(0);
+  const srActivoRef            = useRef(false);
+  const ultimaActivacionSrRef  = useRef<number>(0);
+  // Previene que el evento 'end' del stop() interno de iniciarSpeechRecognition()
+  // dispare un restart espurio (root cause del loop de sr_start mudo).
+  const intentionalStopRef     = useRef(false);
+  // Cuenta cuántos 'end' consecutivos hubo sin result; alimenta el backoff exponencial.
+  const srConsecutiveEndsRef   = useRef(0);
 
   // ── Refs de TTS ──────────────────────────────────────────────────────────
   const ultimoAudioUriRef     = useRef<string | null>(null);
@@ -273,10 +279,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Refs de silbido ──────────────────────────────────────────────────────
   const silbidoActivoRef  = useRef(false);
   const silbidoIndexRef   = useRef(0);
-  const silbidoTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const silbidoTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref para el auto-stop de 8s en iniciarEscucha — permite cancelarlo si el usuario
+  // pulsa el botón de detener antes de que se agote el tiempo.
+  const escuchaAutoDetenerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // safeStopSpeechRecognition centraliza TODO stop del SR:
+  // - setea intentionalStopRef si el SR estaba activo → el handler 'end' lo ignora
+  // - resetea srActivoRef para que el watchdog no crea que sigue corriendo
   function safeStopSpeechRecognition() {
+    if (srActivoRef.current) intentionalStopRef.current = true;
     try { ExpoSpeechRecognitionModule.stop(); } catch {}
+    srActivoRef.current = false;
   }
 
   // ── Limpiar cache viejo (TTS files > 7 días) ─────────────────────────────
@@ -296,16 +310,31 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   // ── SR: iniciar ──────────────────────────────────────────────────────────
-  function iniciarSpeechRecognition() {
+  function iniciarSpeechRecognition(fromBargeIn = false) {
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     // Actualizar antes de cualquier check para que llamadas concurrentes vean el lock
     ultimaActivacionSrRef.current = ahora;
     if (enFlujoVozRef.current) return;
-    if (depsRef.current.estadoRef.current !== 'esperando') return;
-    if (depsRef.current.noMolestarRef.current) return;
-    if (enColaHablaRef.current) return;
+    
+    // Si no es barge-in, solo puede arrancar si está 'esperando'. 
+    // Si es barge-in, debe estar 'hablando'.
+    const d = depsRef.current;
+    if (fromBargeIn) {
+      if (d.estadoRef.current !== 'hablando') return;
+    } else {
+      if (d.estadoRef.current !== 'esperando') return;
+      if (enColaHablaRef.current) return;
+    }
+    
+    if (d.noMolestarRef.current) return;
+
+    if (d.estadoRef.current === 'esperando') {
+      d.speechEndTsRef.current = 0;
+      d.srResultTsRef.current = 0;
+    }
     try {
+      // safeStopSpeechRecognition() ya maneja el intentionalStopRef internamente.
       safeStopSpeechRecognition();
       ExpoSpeechRecognitionModule.start({
         lang: 'es-AR',
@@ -319,6 +348,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       srActivoRef.current = true;
       logCliente('sr_start', { estado: depsRef.current.estadoRef.current });
     } catch {
+      intentionalStopRef.current = false;
       srActivoRef.current = false;
       logCliente('sr_start_error', { estado: depsRef.current.estadoRef.current });
     }
@@ -328,6 +358,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   useSpeechRecognitionEvent('result', async (event) => {
     const d = depsRef.current;
+    srConsecutiveEndsRef.current = 0; // result exitoso → resetear contador de backoff
     const texto = event.results?.[0]?.transcript?.trim();
     if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', d.estadoRef.current, '| asistente:', d.nombreAsistenteRef.current);
     if (procesandoRef.current) return;
@@ -353,7 +384,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const mencionaNombre = nombreRegex.test(textoNorm);
     const esNoche = d.modoNocheRef.current !== 'despierta';
     const tiempoDesdeUltimaCharla = Date.now() - d.ultimaCharlaRef.current;
-    const enConversacion = d.musicaActivaRef.current ? false : tiempoDesdeUltimaCharla < 30 * 1000;
+    // 60s (antes 30s): adultos mayores necesitan más tiempo para procesar y responder
+    // sin tener que mencionar el nombre del asistente explícitamente.
+    const enConversacion = d.musicaActivaRef.current ? false : tiempoDesdeUltimaCharla < 60 * 1000;
 
     const _imp    = /^(pone|pon|avisa(me)?|recorda(me)?|acordate|apaga|prende|encende|enciende|llama|manda|busca)\b/.test(textoNorm);
     const _info   = /(que hora|que dia|que fecha|que tiempo (hace|va|esta)|va a llover|que temperatura|cuanto (es|son|vale|valen))/.test(textoNorm);
@@ -444,14 +477,29 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   useSpeechRecognitionEvent('end', () => {
     const d = depsRef.current;
     srActivoRef.current = false;
+
+    // Si el 'end' viene del stop() que nosotros mismos lanzamos dentro de
+    // iniciarSpeechRecognition(), ignorarlo para no crear un restart espurio
+    // (era la causa principal del loop de sr_start mudo post-hablar_end).
+    if (intentionalStopRef.current) {
+      intentionalStopRef.current = false;
+      return;
+    }
+
     if (enFlujoVozRef.current) return;
+    if (enColaHablaRef.current) return;  // hablarConCola aún corriendo — no iniciar SR entre oraciones
     if (!d.perfilRef.current?.nombreAbuela) return;
     if (d.estadoRef.current === 'esperando' && !procesandoRef.current) {
+      // Backoff exponencial: cada 'end' sin result aumenta la espera.
+      // Base 2 s (> lock de 1500 ms para garantizar que el lock nunca bloquee
+      // un restart legítimo). Crece hasta 10 s tras múltiples fallas seguidas.
+      srConsecutiveEndsRef.current += 1;
+      const delay = Math.min(2000 * Math.pow(1.4, srConsecutiveEndsRef.current - 1), 10000);
       setTimeout(() => {
-        if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current) {
+        if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current) {
           if (!d.verificarCharlaProactiva()) iniciarSpeechRecognition();
         }
-      }, 800);
+      }, delay);
     }
   });
 
@@ -459,12 +507,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const d = depsRef.current;
     if (__DEV__) console.log('[SR] error:', event.error);
     srActivoRef.current = false;
+    intentionalStopRef.current = false; // limpiar por si acaso
     if (enFlujoVozRef.current) return;
+    if (enColaHablaRef.current) return;  // hablarConCola corriendo — no reiniciar
     if (!d.perfilRef.current?.nombreAbuela) return;
     if (d.estadoRef.current === 'esperando' && !procesandoRef.current) {
-      const delay = event.error === 'network' ? 3000 : 1000;
+      srConsecutiveEndsRef.current += 1;
+      const delay = event.error === 'network' ? 5000 : Math.min(2000 * Math.pow(1.4, srConsecutiveEndsRef.current - 1), 10000);
       setTimeout(() => {
-        if (!procesandoRef.current && !enFlujoVozRef.current && !d.verificarCharlaProactiva()) {
+        if (!procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current && !d.verificarCharlaProactiva()) {
           iniciarSpeechRecognition();
         }
       }, delay);
@@ -472,6 +523,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   });
 
   function activarFeedbackSonido() {
+    // Side-effect intencional: actualizar ultimaActivacionSrRef evita que el watchdog
+    // reinicie el SR justo mientras el usuario está hablando (los 1500ms de lock).
     ultimaActivacionSrRef.current = Date.now();
     if (depsRef.current.estadoRef.current === 'esperando') {
       setDetectandoSonido(true);
@@ -555,14 +608,27 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       silbidoIndexRef.current = (silbidoIndexRef.current + 1) % SILBIDOS_ASSETS.length;
       player.replace(asset);
       player.play();
-      for (let i = 0; i < 90; i++) {
-        await new Promise(r => setTimeout(r, 50));
-        if (!silbidoActivoRef.current || depsRef.current.musicaActivaRef.current) {
-          try { player.pause(); } catch {}
-          return;
-        }
-      }
+      // Polling basado en duración real del audio (en lugar de un loop fijo de 4.5s)
+      await new Promise<void>(resolve => {
+        const safety = setTimeout(() => resolve(), 6000);
+        const poll = setInterval(() => {
+          if (!silbidoActivoRef.current || depsRef.current.musicaActivaRef.current) {
+            clearTimeout(safety); clearInterval(poll);
+            try { player.pause(); } catch {}
+            resolve(); return;
+          }
+          const dur = (player as any).duration as number;
+          const pos = (player as any).currentTime as number;
+          if (!isNaN(dur) && dur > 0 && isFinite(dur) && pos >= dur - 0.15) {
+            clearTimeout(safety); clearInterval(poll); resolve();
+          }
+        }, 100);
+      });
     } catch {}
+    // Loop: programar el siguiente silbido con pausa entre ellos
+    if (silbidoActivoRef.current) {
+      silbidoTimerRef.current = setTimeout(() => reproducirSilbido(), 1500);
+    }
   }
 
   function iniciarSilbido() {
@@ -591,17 +657,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       playerMusica.play();
       await new Promise<void>(resolve => {
         const poll = setInterval(() => {
-          if (abort.current) {
-            clearInterval(poll);
-            resolve();
-          }
+          if (abort.current) { clearInterval(poll); resolve(); }
         }, 80);
       });
     } catch {}
-    try {
-      (playerMusica as any).loop = false;
-      playerMusica.pause();
-    } catch {}
+    finally {
+      // Siempre limpiar loop aunque el try haya rechazado —
+      // si no, el próximo uso de playerMusica (ej. música) loopea indefinidamente.
+      try { (playerMusica as any).loop = false; playerMusica.pause(); } catch {}
+    }
   }
 
 
@@ -727,6 +791,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── TTS principal ─────────────────────────────────────────────────────────
   async function hablar(texto: string, emotion?: string) {
     const d = depsRef.current;
+    // Hubo interacción exitosa: resetear el contador de backoff exponencial del SR.
+    srConsecutiveEndsRef.current = 0;
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     const lagRcMs = d.rcStartTsRef.current ? Date.now() - d.rcStartTsRef.current : -1;
@@ -755,7 +821,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (shouldArmBargeIn) {
       bargeInTimerRef.current = setTimeout(() => {
         if (depsRef.current.estadoRef.current === 'hablando' && !depsRef.current.noMolestarRef.current) {
-          iniciarSpeechRecognition();
+          iniciarSpeechRecognition(true);
           logCliente('barge_in_listening', { chars: texto.length });
         }
       }, BARGE_IN_ARM_DELAY_MS);
@@ -846,11 +912,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           let lastPos = -1;
           cancelarHablaRef.current = () => {
             try { player.pause(); } catch {}
+            hablarCancelledRef.current = true;
             done('barge-in');
           };
 
           const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, info.exists ? 4000 : 10000);
 
+          let playRetries = 0;
           const pollInterval = setInterval(() => {
             const playing = player.playing;
             const dur = (player as any).duration as number;
@@ -870,6 +938,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
                 if (__DEV__) console.log('[TTS] audio arrancó, dur:', dur?.toFixed(2), 's');
                 if (durKnown) {
                   durationTimer = setTimeout(() => done('duration-timer'), (dur + 0.8) * 1000);
+                }
+              } else {
+                playRetries++;
+                // Si ExoPlayer ignora el play() síncrono inicial (frecuente al cambiar rápido de URIs)
+                // forzamos el play de nuevo cada ~600ms
+                if (playRetries % 4 === 0) {
+                  if (__DEV__) console.log('[TTS] forzando play() en ExoPlayer...');
+                  try { player.play(); } catch {}
                 }
               }
             } else {
@@ -919,15 +995,41 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     unduckMusica();
     d.setEstado('esperando');
     d.estadoRef.current = 'esperando';
-    if (!enFlujoVozRef.current && !enColaHablaRef.current) iniciarSpeechRecognition();
+    // Delay de 400 ms: le da tiempo al Android AudioSession de liberar el
+    // hardware del altavoz y devolver el foco de audio al micrófono antes de
+    // arrancar el SR. Sin esto, el SR puede terminar inmediatamente sin result.
+    if (!enFlujoVozRef.current && !enColaHablaRef.current) {
+      setTimeout(() => {
+        if (
+          depsRef.current.estadoRef.current === 'esperando'
+          && !enFlujoVozRef.current
+          && !enColaHablaRef.current
+        ) iniciarSpeechRecognition();
+      }, 400);
+    } else if (enColaHablaRef.current) {
+      // Si estamos en un loop (hablarConCola), agregar una pequeña pausa síncrona
+      // para forzar al event loop a ceder el control y permitir que ExoPlayer
+      // resetee su pipeline de audio. Sin esto, un play() inmediato en la
+      // siguiente iteración puede ser ignorado silenciosamente causando 'no-start'.
+      // Detener SR durante la pausa para evitar falsos positivos de barge-in.
+      if (srActivoRef.current) safeStopSpeechRecognition();
+      await new Promise(r => setTimeout(r, 250));
+    }
   }
 
   // ── Cola de oraciones TTS ─────────────────────────────────────────────────
   async function hablarConCola(oraciones: string[], emotion?: string) {
     if (oraciones.length === 0) return;
     enColaHablaRef.current = true;
+    hablarCancelledRef.current = false; // reset: solo cortamos si un barge-in real cancela esta cola
     try {
-      await hablar(oraciones.join(' '), emotion);
+      for (const oracion of oraciones) {
+        if (!oracion.trim()) continue;
+        await hablar(oracion, emotion);
+        // Cortar solo si cancelarHablaRef fue invocado (barge-in real del usuario),
+        // no por el simple hecho de que procesandoRef sea true durante el turn.
+        if (hablarCancelledRef.current) break;
+      }
     } finally {
       enColaHablaRef.current = false;
     }
@@ -948,7 +1050,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       await recorderConv.prepareToRecordAsync();
       recorderConv.record();
       yaDetuvRef.current = false;
-      setTimeout(() => { if (!yaDetuvRef.current) detenerEscucha(); }, 8000);
+      if (escuchaAutoDetenerRef.current) clearTimeout(escuchaAutoDetenerRef.current);
+      escuchaAutoDetenerRef.current = setTimeout(() => {
+        escuchaAutoDetenerRef.current = null;
+        if (!yaDetuvRef.current) detenerEscucha();
+      }, 8000);
     } catch {
       enFlujoVozRef.current = false;
       d.setEstado('esperando');
@@ -960,6 +1066,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const d = depsRef.current;
     if (yaDetuvRef.current) return;
     yaDetuvRef.current = true;
+    // Cancelar el auto-stop de 8s si el usuario presionó detener manualmente
+    if (escuchaAutoDetenerRef.current) { clearTimeout(escuchaAutoDetenerRef.current); escuchaAutoDetenerRef.current = null; }
     try {
       await recorderConv.stop();
       const uri = recorderConv.uri;
@@ -1041,6 +1149,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     // SR y escucha manual
     iniciarSpeechRecognition,
+    /** Detiene el SR marcando el stop como intencional para que el handler 'end' no
+     *  dispare un restart espurio. Delegado a safeStopSpeechRecognition() que ya
+     *  centraliza la lógica de flag + srActivoRef. */
+    pararSpeechRecognitionIntencional(): void { safeStopSpeechRecognition(); },
     iniciarEscucha,
     detenerEscucha,
   };

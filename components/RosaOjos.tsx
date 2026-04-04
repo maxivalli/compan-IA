@@ -734,10 +734,14 @@ export default function RosaOjos({
       noMolestarLoopRef.current.start();
       return () => {
         noMolestarLoopRef.current?.stop();
+        // Usar expresionRef.current (actualizado por el effect [expresion]) para restaurar
+        // los párpados al valor correcto de la expresión activa mientras estaba en no-molestar.
         const c = EXPR[expresionRef.current];
         expresionAnimRef.current?.stop();
         expresionAnimRef.current = Animated.parallel([
           Animated.timing(upperLid, { toValue: c.upper, duration: 400, useNativeDriver: false }),
+          Animated.timing(lowerLid, { toValue: c.lower, duration: 400, useNativeDriver: false }),
+          Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 400, useNativeDriver: false }),
           Animated.timing(cenoLid,  { toValue: 0,       duration: 400, useNativeDriver: false }),
         ]);
         expresionAnimRef.current.start();
