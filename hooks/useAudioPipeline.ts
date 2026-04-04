@@ -18,7 +18,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as Speech from 'expo-speech';
 import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from 'expo-audio';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { Perfil } from '../lib/memoria';
@@ -36,8 +35,6 @@ import {
 } from '../lib/ai';
 import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
 
-// ── Flag de testing ─────────────────────────────────────────────────────────
-const USAR_TTS_NATIVO = false;
 const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v18';
 const BARGE_IN_ARM_DELAY_MS = 2600;
@@ -638,7 +635,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   async function precachearMuletillas(voiceId?: string, nombre?: string) {
-    if (USAR_TTS_NATIVO) return;
     if (precacheMuletillasRunningRef.current) return;
     precacheMuletillasRunningRef.current = true;
     const p = depsRef.current.perfilRef.current;
@@ -668,7 +664,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   async function precachearRespuestasRapidas(nombre?: string) {
-    if (USAR_TTS_NATIVO) return;
     const p = depsRef.current.perfilRef.current;
     const vozGenero = p?.vozGenero ?? 'femenina';
     const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
@@ -767,46 +762,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
 
     texto = limpiarTextoParaTTS(texto);
-
-    // ── TTS nativo (testing) ─────────────────────────────────────────────
-    if (USAR_TTS_NATIVO) {
-      d.setEstado('hablando');
-      d.estadoRef.current = 'hablando';
-      await new Promise<void>(resolve => {
-        let resolved = false;
-        let started = false;
-        let pollInterval: ReturnType<typeof setInterval>;
-        const done = () => {
-          if (resolved) return;
-          resolved = true;
-          clearInterval(pollInterval);
-          clearTimeout(safety);
-          resolve();
-        };
-        const estimado = Math.min(texto.split(' ').length * 400 + 3000, 20000);
-        const safety = setTimeout(done, estimado);
-        Speech.speak(texto, {
-          language: 'es-AR',
-          rate: velocidadSegunEdad(d.perfilRef.current?.edad),
-          onDone:    () => done(),
-          onError:   () => done(),
-          onStopped: () => done(),
-        });
-        pollInterval = setInterval(async () => {
-          try {
-            const speaking = await Speech.isSpeakingAsync();
-            if (!started && speaking) { started = true; }
-            else if (started && !speaking) { done(); }
-          } catch { done(); }
-        }, 300);
-        setTimeout(() => { if (!started) done(); }, 3000);
-      });
-      unduckMusica();
-      d.setEstado('esperando');
-      d.estadoRef.current = 'esperando';
-      if (!enFlujoVozRef.current && !enColaHablaRef.current) iniciarSpeechRecognition();
-      return;
-    }
 
     try {
       // ── TTS — cache disco o REST Fish Audio ──────────────────────────────
@@ -952,25 +907,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           }, 150);
         });
       } else {
-        // Fallback: voz nativa si sintetizarVoz falló
-        if (__DEV__) console.log('[TTS] sintetizarVoz falló, usando voz nativa');
-        await new Promise<void>(resolve => {
-          Speech.speak(texto, {
-            language: 'es-AR',
-            rate: velocidadSegunEdad(p?.edad),
-            onDone: resolve,
-            onError: () => resolve(),
-            onStopped: () => resolve(),
-          });
-        });
+        if (__DEV__) console.log('[TTS] sintetizarVoz falló, sin audio');
       }
     } catch (e: any) {
       if (__DEV__) console.log('[TTS] CATCH en hablar:', e?.message ?? e);
-      try {
-        await new Promise<void>(resolve => {
-          Speech.speak(texto, { language: 'es-AR', rate: 0.9, onDone: resolve, onError: () => resolve(), onStopped: () => resolve() });
-        });
-      } catch {}
     }
 
     hablandoDesdeRef.current = 0;

@@ -175,9 +175,9 @@ export default function TatetiScreen() {
   // Tamaño de celda reactivo con Math.floor para evitar rotura de grid por sub-píxeles
   const rawCellSize = isLandscape
     ? Math.min(
-        (height - insets.top - insets.bottom - 80) / 3, // account for header to not overflow
-        ((width - insets.left - insets.right) * 0.55) / 3,
-        200 // larger cells allowed on landscape tablets
+        (height - insets.top - insets.bottom - 52) / 3, // header ~50px en landscape
+        ((width - insets.left - insets.right) * 0.62) / 3,
+        220
       )
     : Math.min(
         (height - insets.top - insets.bottom - 180) / 3,
@@ -474,7 +474,7 @@ const s = StyleSheet.create({
 
   bodyLandscape: { flex: 1, flexDirection: 'row' },
   colLeft: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  colRight: { flex: 1.2, justifyContent: 'center', alignItems: 'center' },
+  colRight: { flex: 1.4, justifyContent: 'center', alignItems: 'center' },
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
