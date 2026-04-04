@@ -201,6 +201,7 @@ export default function TatetiScreen() {
   const [escuchando, setEscuchando] = useState(false);
   const iaRef           = useRef(false);
   const hablandoRef     = useRef(false);
+  const lastSpokeRef    = useRef(0);
   const overlayAnim     = useRef(new Animated.Value(0)).current;
   const clickPlayer     = useAudioPlayer(CLICK_ASSET);
   const feedbackPlayer  = useAudioPlayer(null);
@@ -241,8 +242,9 @@ export default function TatetiScreen() {
 
     function terminate() {
       hablandoRef.current = false;
+      lastSpokeRef.current = Date.now();
       onDone?.();
-      setTimeout(iniciarSR, 400);
+      setTimeout(iniciarSR, 800);
     }
 
     setTimeout(() => {
@@ -270,6 +272,7 @@ export default function TatetiScreen() {
 
   useSpeechRecognitionEvent('result', e => {
     if (hablandoRef.current) return;
+    if (Date.now() - lastSpokeRef.current < 1000) return;
     const txt = (e.results?.[0]?.transcript ?? '')
       .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {

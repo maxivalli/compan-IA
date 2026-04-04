@@ -213,6 +213,7 @@ export default function AhorcadoScreen() {
   const [juegoKey, setJuegoKey]     = useState(0); // cambia en cada reinicio para remount de Vidas
   const overlayAnim  = useRef(new Animated.Value(0)).current;
   const hablandoRef  = useRef(false);
+  const lastSpokeRef = useRef(0);
   const feedbackPlayer = useAudioPlayer(null);
   const phraseCache    = useRef<Record<string, string>>({});
 
@@ -260,8 +261,9 @@ export default function AhorcadoScreen() {
 
     function terminate() {
       hablandoRef.current = false;
+      lastSpokeRef.current = Date.now();
       onDone?.();
-      setTimeout(iniciarSR, 400);
+      setTimeout(iniciarSR, 800);
     }
 
     setTimeout(() => {
@@ -285,6 +287,7 @@ export default function AhorcadoScreen() {
 
   useSpeechRecognitionEvent('result', e => {
     if (hablandoRef.current) return;
+    if (Date.now() - lastSpokeRef.current < 1000) return;
     const txt = (e.results?.[0]?.transcript ?? '')
       .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {

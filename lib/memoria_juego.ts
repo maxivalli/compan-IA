@@ -77,26 +77,30 @@ export type PlacedTile = {
 
 export type MemoriaState = {
   tiles:         PlacedTile[];
-  askedOrder:    number[]; // índices 0-8 en tiles[], orden aleatorio de pregunta
+  askedOrder:    number[]; // índices en tiles[], orden aleatorio de pregunta
   currentAskIdx: number;   // puntero dentro de askedOrder
   score:         number;
   setIndex:      number;
+  numTiles:      number;   // 4 | 6 | 9 según nivel
 };
 
 // ── API pública ───────────────────────────────────────────────────────────────
-export function crearJuego(setIndex: number): MemoriaState {
+/** numTiles: 4 (nivel 1), 6 (nivel 2), 9 (nivel 3) */
+export function crearJuego(setIndex: number, numTiles: number = 9): MemoriaState {
   const set          = SETS[setIndex % SETS.length];
-  const gridPositions = shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-  const tiles: PlacedTile[] = set.map((design, i) => ({
+  const allPositions = Array.from({ length: numTiles }, (_, i) => i);
+  const gridPositions = shuffle(allPositions);
+  const tiles: PlacedTile[] = set.slice(0, numTiles).map((design, i) => ({
     design,
     gridPos: gridPositions[i],
   }));
   return {
     tiles,
-    askedOrder:    shuffle([0, 1, 2, 3, 4, 5, 6, 7, 8]),
+    askedOrder:    shuffle(Array.from({ length: numTiles }, (_, i) => i)),
     currentAskIdx: 0,
     score:         0,
     setIndex,
+    numTiles,
   };
 }
 
