@@ -582,7 +582,7 @@ export default function Index() {
                             transform: [{ rotate: listaIdx % 2 === 0 ? '-1.5deg' : '1.2deg' }],
                           }]}
                         >
-                          <View style={[styles.postItLinea, { backgroundColor: c.linea }]} />
+                          <View style={[styles.postItLinea, { backgroundColor: c.tape }]} />
                           <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 18 }}>
                             <Text style={[styles.postItTitulo, { color: c.text }]} numberOfLines={1}>
                               {lista.nombre}

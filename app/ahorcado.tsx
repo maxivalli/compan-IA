@@ -261,7 +261,7 @@ export default function AhorcadoScreen() {
   useSpeechRecognitionEvent('result', e => {
     const txt = e.results?.[0]?.transcript ?? '';
     setTextoVoz(txt);
-    if (fase !== 'jugando' || hablandoRef.current) return;
+    if (fase !== 'jugando' || hablandoRef.current || feedbackPlayer.playing) return;
     const letra = parsearLetraDesdeVoz(txt);
     if (letra) jugarLetra(letra);
   });
@@ -396,7 +396,7 @@ export default function AhorcadoScreen() {
   // Grilla de letras
   const gridPanel = (
     <ScrollView
-      contentContainerStyle={[sv.tecladoWrap, { padding: isLandscape ? 8 : 12, paddingBottom: isLandscape ? 40 : 12 }]}
+      contentContainerStyle={[sv.tecladoWrap, { padding: 8, paddingBottom: 12 }]}
       showsVerticalScrollIndicator={false}
       style={isLandscape ? sv.gridLandscape : sv.gridPortrait}
     >

@@ -195,7 +195,8 @@ export default function TatetiScreen() {
   const hdrVPad    = isLandscape ? 5  : 14;
   const reservedV  = isLandscape ? 160 : 180;
 
-  const cellSize = isLandscape
+  // Tamaño de celda reactivo con Math.floor para evitar rotura de grid por sub-píxeles
+  const rawCellSize = isLandscape
     ? Math.min(
         (height - insets.top - insets.bottom - 80) / 3, // account for header to not overflow
         ((width - insets.left - insets.right) * 0.55) / 3,
@@ -206,6 +207,7 @@ export default function TatetiScreen() {
         (width  - insets.left - insets.right - 40) / 3,
         150
       );
+  const cellSize = Math.floor(rawCellSize);
 
   const [tablero, setTablero]       = useState<Tablero>(tableroInicial());
   const [turno, setTurno]           = useState<'X' | 'O'>('X');
@@ -255,10 +257,12 @@ export default function TatetiScreen() {
     // Y si no había uri (sin fallback), simulamos el tiempo en silencio para destrabar el flujo.
     const durMs = Math.max(texto.length * 85, 800) + 600;
     setTimeout(() => {
-      hablandoRef.current = false;
-      onDone?.();
-      setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
-    }, durMs);
+        hablandoRef.current = false;
+        onDone?.();
+        // Si sigue reproduciendo a pesar de la duración estimada, no destrabamos el micro aún.
+        // Pero iniciamos el SR y el hook descartará resultados si sigue jugando.
+        setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
+      }, durMs);
   }
 
   function playClick() {
@@ -270,7 +274,7 @@ export default function TatetiScreen() {
   useSpeechRecognitionEvent('result', e => {
     const txt = e.results?.[0]?.transcript ?? '';
     setTextoVoz(txt);
-    if (fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current) return;
+    if (fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current || feedbackPlayer.playing) return;
     const idx = parsearPosicionVoz(txt);
     if (idx !== null) realizarMovimiento(idx);
   });
