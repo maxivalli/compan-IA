@@ -44,6 +44,7 @@ export type RespuestaParsed = {
   listaBorrar?: string;
   jugarTateti?: boolean;
   jugarAhorcado?: boolean;
+  jugarMemoria?: boolean;
 };
 
 const ANIMOS_VALIDOS: ExpresionAnimo[] = ['feliz', 'triste', 'sorprendida', 'pensativa', 'neutral'];
@@ -540,9 +541,10 @@ export function parsearRespuesta(
   respuesta = respuesta.replace(/\[ANIMO_USUARIO:[^\]]*\]?\s*/i, '').trim();
 
   // ── JUGAR ──
-  const jugarTateti  = /\[JUGAR_TATETI\]/i.test(raw);
+  const jugarTateti   = /\[JUGAR_TATETI\]/i.test(raw);
   const jugarAhorcado = /\[JUGAR_AHORCADO\]/i.test(raw);
-  respuesta = respuesta.replace(/\[JUGAR_TATETI\]\s*/gi, '').replace(/\[JUGAR_AHORCADO\]\s*/gi, '').trim();
+  const jugarMemoria  = /\[JUGAR_MEMORIA\]/i.test(raw);
+  respuesta = respuesta.replace(/\[JUGAR_TATETI\]\s*/gi, '').replace(/\[JUGAR_AHORCADO\]\s*/gi, '').replace(/\[JUGAR_MEMORIA\]\s*/gi, '').trim();
 
   // ── LLAMAR_FAMILIA ──
   const alertaMatch = respuesta.match(/\[LLAMAR_FAMILIA:\s*([^\]]*)\]?/i);
@@ -587,7 +589,8 @@ export function parsearRespuesta(
     listaNueva,
     listaAgregar,
     listaBorrar,
-    jugarTateti: jugarTateti || undefined,
+    jugarTateti:   jugarTateti   || undefined,
     jugarAhorcado: jugarAhorcado || undefined,
+    jugarMemoria:  jugarMemoria  || undefined,
   };
 }

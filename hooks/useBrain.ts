@@ -502,7 +502,7 @@ export interface BrainDeps {
   iniciarSpeechRecognition: () => void;
   pararSRIntencional: () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
-  lanzarJuego?: (tipo: 'tateti' | 'ahorcado') => void;
+  lanzarJuego?: (tipo: 'tateti' | 'ahorcado' | 'memoria') => void;
 }
 
 // ── useBrain ───────────────────────────────────────────────────────────────────
@@ -1027,9 +1027,10 @@ export function useBrain(deps: BrainDeps) {
     }
 
     const expresaAburrimiento = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/.test(textoNorm);
-    const pideTateti  = /\b(tateti|ta.?te.?ti|tres en raya|tres en linea|tic.?tac.?toe)\b/.test(textoNorm);
+    const pideTateti   = /\b(tateti|ta.?te.?ti|tres en raya|tres en linea|tic.?tac.?toe)\b/.test(textoNorm);
     const pideAhorcado = /\b(ahorcado|juego del ahorcado|adivinar la palabra)\b/.test(textoNorm);
-    const pideJuegoBase = pideTateti || pideAhorcado || /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
+    const pideMemoria  = /\b(memoria|juego de memoria|juego de fichas|encontrar las fichas|encontra las fichas)\b/.test(textoNorm);
+    const pideJuegoBase = pideTateti || pideAhorcado || pideMemoria || /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
     const pideChisteBase = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
           && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
@@ -1047,7 +1048,7 @@ export function useBrain(deps: BrainDeps) {
     const pideWikipedia = !esCierreConversacional && !pideNoticias && !pideBusqueda && (preguntaLugarVivo || /\b(que es|qué es|que son|qué son|que fue|qué fue|quien es|quién es|quien fue|quién fue|quien era|quién era|contame (sobre|de)|explicame|explicá(me)?|me explicás|que significa|qué significa|historia de|origen de|como funciona|cómo funciona|para que sirve|para qué sirve|cuando naci[oó]|biografía|biografia|quien invento|quién inventó|wikipedia|conoc[eé]s (la |el |a |una? )|sab[eé]s (algo (de|sobre)|de (la|el )|sobre (la|el ))|la serie|la pelicula|la película|el show|el documental|el libro|la novela|el actor|la actriz|el director|el musico|el músico|el artista|la banda|la obra)\b/.test(textoNorm));
 
     // ── Intercepción Inmediata de Juegos ──
-    if (!pideBusqueda && (pideTateti || pideAhorcado)) {
+    if (!pideBusqueda && (pideTateti || pideAhorcado || pideMemoria)) {
       d.setExpresion('entusiasmada');
       const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: '¡Qué lindo, dale! Juguemos un rato...' }].slice(-24);
       historialRef.current = nuevoHist;
@@ -1055,7 +1056,7 @@ export function useBrain(deps: BrainDeps) {
       d.ultimaCharlaRef.current = Date.now();
       d.ultimaActividadRef.current = Date.now();
       await d.hablar('¡Qué lindo, dale! Juguemos un rato...', 'entusiasmada');
-      d.lanzarJuego?.(pideTateti ? 'tateti' : 'ahorcado');
+      d.lanzarJuego?.(pideTateti ? 'tateti' : pideAhorcado ? 'ahorcado' : 'memoria');
       // Timer de vuelta a neutral — la pantalla del juego carga sobre Rosita;
       // si el usuario vuelve, la cara no debe quedar en 'entusiasmada'.
       if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
@@ -1270,8 +1271,10 @@ export function useBrain(deps: BrainDeps) {
           ? `\n\nDIRECTIVA: El usuario quiere jugar al ta-te-ti. Respondé con entusiasmo confirmando que van a jugar y terminá con el tag [JUGAR_TATETI].`
           : pideAhorcado
           ? `\n\nDIRECTIVA: El usuario quiere jugar al ahorcado. Respondé con entusiasmo confirmando que van a jugar y terminá con el tag [JUGAR_AHORCADO].`
+          : pideMemoria
+          ? `\n\nDIRECTIVA: El usuario quiere jugar al juego de memoria. Respondé con entusiasmo confirmando que van a jugar y terminá con el tag [JUGAR_MEMORIA].`
           : pideJuego
-          ? `\n\nDIRECTIVA JUEGO: El usuario quiere jugar. Podés proponer: a) Ta-te-ti (mencionalo y usá [JUGAR_TATETI]), b) Ahorcado (mencionalo y usá [JUGAR_AHORCADO]), o c) una trivia/adivinanza/refrán/trabalengua inline. Si propone ta-te-ti o ahorcado, confirmá con entusiasmo y usá el tag correspondiente al final.\n\n${formatearJuegoParaClaude(obtenerJuego())}`
+          ? `\n\nDIRECTIVA JUEGO: El usuario quiere jugar. Podés proponer: a) Ta-te-ti (mencionalo y usá [JUGAR_TATETI]), b) Ahorcado (mencionalo y usá [JUGAR_AHORCADO]), c) Memoria (mencionalo y usá [JUGAR_MEMORIA]), o d) una trivia/adivinanza/refrán/trabalengua inline. Si el usuario pide alguno de esos juegos, confirmá con entusiasmo y usá el tag correspondiente al final.\n\n${formatearJuegoParaClaude(obtenerJuego())}`
           : pideChiste
           ? `\n\n${formatearChisteParaClaude(obtenerChiste())}`
           : ofrecerMenuAburrimiento
@@ -1281,7 +1284,7 @@ export function useBrain(deps: BrainDeps) {
                 ? `\nNOTICIAS DEL DÍA DISPONIBLES:\n${nots.map((n, i) => `${i + 1}. "${n.titulo}" — ${n.resumen}`).join('\n')}`
                 : '';
               const opcionNoticias = nots.length > 0 ? ', contarle algo interesante que pasó hoy (tenés noticias del día para compartir)' : '';
-              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario está aburrido. OBLIGATORIO: tu respuesta DEBE mencionar por nombre las opciones disponibles. NO respondas solo con "¿qué querés hacer?" ni preguntas abiertas genéricas — eso no sirve. PROPONÉ vos las opciones nombrándolas: 1) jugar al ta-te-ti [JUGAR_TATETI] o al ahorcado [JUGAR_AHORCADO] o a una trivia/adivinanza${opcionNoticias}, 2) música o radio, 3) charlar de lo que quiera. Sé cálida y breve, pero nombrá al menos 2 opciones concretas.${noticiasBloque}`;
+              return `\n\nDIRECTIVA ABURRIMIENTO: El usuario está aburrido. OBLIGATORIO: tu respuesta DEBE mencionar por nombre las opciones disponibles. NO respondas solo con "¿qué querés hacer?" ni preguntas abiertas genéricas — eso no sirve. PROPONÉ vos las opciones nombrándolas: 1) jugar al ta-te-ti [JUGAR_TATETI], al ahorcado [JUGAR_AHORCADO] o al juego de memoria [JUGAR_MEMORIA], 2) una trivia/adivinanza${opcionNoticias}, 3) música o radio, 4) charlar de lo que quiera. Sé cálida y breve, pero nombrá al menos 2 opciones concretas.${noticiasBloque}`;
             })()
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
@@ -1476,11 +1479,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
 
       // ── JUEGOS ──
-      if (parsed.jugarTateti || parsed.jugarAhorcado) {
+      if (parsed.jugarTateti || parsed.jugarAhorcado || parsed.jugarMemoria) {
         await d.hablar(parsed.respuesta);
         if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
         d.setExpresion('neutral');
-        d.lanzarJuego?.(parsed.jugarTateti ? 'tateti' : 'ahorcado');
+        d.lanzarJuego?.(parsed.jugarTateti ? 'tateti' : parsed.jugarAhorcado ? 'ahorcado' : 'memoria');
         return;
       }
 

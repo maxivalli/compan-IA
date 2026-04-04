@@ -786,6 +786,9 @@ export default function Index() {
           <TouchableOpacity onPress={() => router.push('/tateti' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>⭕ Tateti</Text>
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/memoria' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>🧠 Memoria</Text>
+          </TouchableOpacity>
         </View>
       )}
 

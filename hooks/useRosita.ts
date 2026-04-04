@@ -215,7 +215,7 @@ export function useRosita() {
     iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
     pararSRIntencional:       pipeline.pararSpeechRecognitionIntencional,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
-    lanzarJuego: (tipo) => router.push((tipo === 'tateti' ? '/tateti' : '/ahorcado') as any),
+    lanzarJuego: (tipo) => router.push((tipo === 'tateti' ? '/tateti' : tipo === 'ahorcado' ? '/ahorcado' : '/memoria') as any),
   });
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
