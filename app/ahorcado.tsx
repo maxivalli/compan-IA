@@ -188,19 +188,22 @@ export default function AhorcadoScreen() {
   const pistaSize     = isLandscape ? 14  : 18;
   const statusSize    = isLandscape ? 14  : 16;
 
-  // Ancho y alto disponible para la grilla de letras
+  // El panel derecho (grilla) recibe flex 1.2 del total 2.2 → ~54.5% del ancho
+  const RIGHT_FLEX = 1.2;
+  const TOTAL_FLEX = 1 + RIGHT_FLEX;
   const gridAvailW = isLandscape
-    ? (width / 2 - insets.right - 24)
+    ? Math.floor(width * (RIGHT_FLEX / TOTAL_FLEX)) - insets.right - 32
     : (width - insets.left - insets.right - 24);
   const gridAvailH = isLandscape ? (height - insets.top - insets.bottom - 80) : 9999;
-  
+
   const maxBtnFromW = Math.floor((gridAvailW - (COLS - 1) * 5) / COLS);
   const maxBtnFromH = Math.floor((gridAvailH - 4 * 5) / 5); // 5 filas, 4 espacios
-  const btnSize = Math.min(maxBtnFromW, maxBtnFromH, isLandscape ? 52 : 62);
+  const btnSize = Math.min(maxBtnFromW, maxBtnFromH, isLandscape ? 60 : 62);
 
   const [juego, setJuego]           = useState<EstadoAhorcado>(estadoInicial());
   const [fase, setFase]             = useState<Fase>('jugando');
   const [escuchando, setEscuchando] = useState(false);
+  const [juegoKey, setJuegoKey]     = useState(0); // cambia en cada reinicio para remount de Vidas
   const overlayAnim  = useRef(new Animated.Value(0)).current;
   const hablandoRef  = useRef(false);
   const feedbackPlayer = useAudioPlayer(null);
@@ -344,6 +347,7 @@ export default function AhorcadoScreen() {
     hablandoRef.current = false;
     setJuego(estadoInicial());
     setFase('jugando');
+    setJuegoKey(k => k + 1); // fuerza remount de Vidas → anims se resetean a 1
     setTimeout(iniciarSR, 300);
   }
 
@@ -365,7 +369,7 @@ export default function AhorcadoScreen() {
     <View style={[sv.infoPanel, isLandscape && sv.infoPanelLandscape]}>
       <Text style={[sv.titulo, { fontSize: tituloSize }]}>AHORCADO</Text>
 
-      <Vidas errores={errores} corazonSize={corazonSize} />
+      <Vidas key={juegoKey} errores={errores} corazonSize={corazonSize} />
 
       <Text style={[sv.pista, { fontSize: pistaSize }]}>💡 {juego.pista}</Text>
 
@@ -406,7 +410,11 @@ export default function AhorcadoScreen() {
   // Grilla de letras
   const gridPanel = (
     <ScrollView
-      contentContainerStyle={[sv.tecladoWrap, { padding: 8, paddingBottom: 12 }]}
+      contentContainerStyle={[
+        sv.tecladoWrap,
+        { padding: 8, paddingBottom: 12 },
+        isLandscape && sv.tecladoWrapLandscape,
+      ]}
       showsVerticalScrollIndicator={false}
       style={isLandscape ? sv.gridLandscape : sv.gridPortrait}
     >
@@ -524,8 +532,9 @@ const sv = StyleSheet.create({
   erradas: { color: M.errada, fontSize: 14, fontWeight: '600', letterSpacing: 1 },
 
   gridPortrait: { flex: 1 },
-  gridLandscape: { flex: 1 },
+  gridLandscape: { flex: 1.2 },
   tecladoWrap: { paddingBottom: 8 },
+  tecladoWrapLandscape: { flexGrow: 1, justifyContent: 'center' },
   teclado: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' },
 
   overlay: {
