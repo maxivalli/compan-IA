@@ -186,6 +186,10 @@ export default function TatetiScreen() {
       );
   const cellSize = Math.floor(rawCellSize);
 
+  // Altura real del header (medida con onLayout) para centrar el tablero
+  // en la pantalla completa y no solo en el body debajo del header.
+  const [headerH, setHeaderH] = useState(0);
+
   const [tablero, setTablero]       = useState<Tablero>(tableroInicial());
   const [turno, setTurno]           = useState<'X' | 'O'>('X');
   const [fase, setFase]             = useState<Fase>('jugando');
@@ -368,7 +372,7 @@ export default function TatetiScreen() {
     <View style={[s.safe, { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
 
       {/* Header */}
-      <View style={[s.header, { paddingVertical: hdrVPad }]}>
+      <View style={[s.header, { paddingVertical: hdrVPad }]} onLayout={e => setHeaderH(e.nativeEvent.layout.height)}>
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
           style={s.btnSalir}
@@ -386,7 +390,7 @@ export default function TatetiScreen() {
             <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 4 }]}>TA-TE-TI</Text>
             <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
           </View>
-          <View style={s.colRight}>
+          <View style={[s.colRight, isLandscape && headerH > 0 && { paddingBottom: headerH }]}>
             <View style={{ width: cellSize * 3, height: cellSize * 3, flexDirection: 'row', flexWrap: 'wrap' }}>
               {tablero.map((celda, i) => (
                 <CeldaView
