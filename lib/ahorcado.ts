@@ -220,42 +220,38 @@ const NOMBRES_FONETIKOS: Record<string, string> = {
 export function parsearLetraDesdeVoz(texto: string): string | null {
   if (!texto) return null;
 
-  let norm = texto.trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // 1. Limpieza total de acentos y puntuación
+  let norm = texto.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  norm = norm.replace(/[.,:;¿?¡!"']/g, '');
 
-  // Purgar puntuación agregada por el motor de Speech Recognition al soltar monosílabos ("A." o "y, la p.")
-  norm = norm.replace(/[.,:;¿?¡!]/g, '');
+  // 2. Reemplazos de dobles palabras fonéticas para evitar que el split las rompa
+  norm = norm.replace(/be alta/g, 'b').replace(/be larga/g, 'b');
+  norm = norm.replace(/ve corta/g, 'v').replace(/ve baja/g, 'v');
+  norm = norm.replace(/doble ve/g, 'w').replace(/doble uve/g, 'w');
+  norm = norm.replace(/i griega/g, 'y');
 
-  norm = norm.replace(/^(a ver|bueno|dale|eh|ah|uh|y|vamos con|probemos|con)\s+/, '').trim();
+  // 3. Normalizar terminaciones 'h' inofensivas ("ah" -> "a", "eh" -> "e")
+  norm = norm.replace(/\b([aeiou])h\b/g, '$1');
 
-  // Patrón "la letra X" o "letra X"
-  const matchLetra = norm.match(/^(?:la\s+)?letra\s+([a-zñ]+)$/);
-  if (matchLetra) {
-    const candidato = matchLetra[1].toUpperCase();
-    // Una sola letra
-    if (candidato.length === 1 && /[A-ZÑ]/.test(candidato)) return candidato;
-    // Nombre fonético
-    const fonético = NOMBRES_FONETIKOS[matchLetra[1]];
-    if (fonético) return fonético;
-  }
+  // 4. Estrategia a prueba de balas: buscar marcha atrás
+  // Dividimos la frase en palabras y buscamos desde la ÚLTIMA hasta la primera.
+  // Es decir, si el usuario dice "Abu, pone por favor la letra P",
+  // el bucle encontrará "p" (largo 1) o su nombre fonético.
+  const palabras = norm.split(/\s+/);
+  
+  for (let i = palabras.length - 1; i >= 0; i--) {
+    const p = palabras[i];
+    if (!p) continue;
 
-  // Una sola letra dicha directamente
-  if (norm.length === 1 && /[a-zñ]/.test(norm)) {
-    return norm.toUpperCase();
-  }
+    // Caso A: Es exactamente 1 caracter (ej: "a", "p", "z")
+    if (p.length === 1 && /[a-zñ]/.test(p)) {
+      return p.toUpperCase();
+    }
 
-  // Nombre fonético directo (ej. "eme", "ese", "pe") o con "la" ("la pe")
-  const normSinLa = norm.replace(/^la\s+/, '');
-  const fonetico = NOMBRES_FONETIKOS[normSinLa] || NOMBRES_FONETIKOS[norm];
-  if (fonetico) return fonetico;
-
-  // "digo la X" / "pongo la X" / "elijo la X"
-  const matchDigo = norm.match(/^(?:digo|pongo|elijo|es la letra|es la|quiero la letra|quiero la|digo la letra|digo la)\s+([a-zñ]+)$/);
-  if (matchDigo) {
-    const cand = matchDigo[1];
-    if (cand.length === 1) return cand.toUpperCase();
-    const fon = NOMBRES_FONETIKOS[cand];
-    if (fon) return fon;
+    // Caso B: Es un nombre fonético en el diccionario (ej: "jota", "eme", "ese")
+    if (NOMBRES_FONETIKOS[p]) {
+      return NOMBRES_FONETIKOS[p];
+    }
   }
 
   return null;

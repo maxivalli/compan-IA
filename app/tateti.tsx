@@ -409,8 +409,8 @@ export default function TatetiScreen() {
   return (
     <View style={[s.safe, { paddingTop: insets.top, paddingBottom: insets.bottom, paddingLeft: insets.left, paddingRight: insets.right }]}>
 
-      {/* Header — solo Salir y dot de SR */}
-      <View style={[s.header, { paddingVertical: hdrVPad }]}>
+      {/* Header — posicionado absoluto para no empujar el centro del layout */}
+      <View style={[s.header, { top: hdrVPad }]} pointerEvents="box-none">
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
           style={s.btnSalir}
@@ -423,7 +423,7 @@ export default function TatetiScreen() {
 
       {/* Cuerpo Principal */}
       {isLandscape ? (
-        <View style={s.bodyLandscape}>
+        <View style={[s.bodyLandscape, { paddingTop: 40 }]}>
           <View style={s.colLeft}>
             <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 4 }]}>TA-TE-TI</Text>
             <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
@@ -494,6 +494,9 @@ const s = StyleSheet.create({
   safe: { flex: 1, backgroundColor: M.bg },
 
   header: {
+    ...StyleSheet.absoluteFillObject,
+    bottom: undefined,
+    zIndex: 10,
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
