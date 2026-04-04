@@ -1435,6 +1435,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── JUEGOS ──
       if (parsed.jugarTateti || parsed.jugarAhorcado) {
         await d.hablar(parsed.respuesta);
+        if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+        d.setExpresion('neutral');
         d.lanzarJuego?.(parsed.jugarTateti ? 'tateti' : 'ahorcado');
         return;
       }
