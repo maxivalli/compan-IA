@@ -189,11 +189,15 @@ export default function AhorcadoScreen() {
   const pistaSize     = isLandscape ? 18  : 14;
   const statusSize    = isLandscape ? 14  : 16;
 
-  // Ancho disponible para la grilla de letras
+  // Ancho y alto disponible para la grilla de letras
   const gridAvailW = isLandscape
     ? (width / 2 - insets.right - 24)
     : (width - insets.left - insets.right - 24);
-  const btnSize = Math.min(Math.floor((gridAvailW - (COLS - 1) * 5) / COLS), isLandscape ? 52 : 62);
+  const gridAvailH = isLandscape ? (height - insets.top - insets.bottom - 80) : 9999;
+  
+  const maxBtnFromW = Math.floor((gridAvailW - (COLS - 1) * 5) / COLS);
+  const maxBtnFromH = Math.floor((gridAvailH - 4 * 5) / 5); // 5 filas, 4 espacios
+  const btnSize = Math.min(maxBtnFromW, maxBtnFromH, isLandscape ? 52 : 62);
 
   const [juego, setJuego]           = useState<EstadoAhorcado>(estadoInicial());
   const [fase, setFase]             = useState<Fase>('jugando');

@@ -223,7 +223,10 @@ export function parsearLetraDesdeVoz(texto: string): string | null {
   let norm = texto.trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  norm = norm.replace(/^(a ver|bueno|dale|eh|ah|uh|y|vamos con|probemos|con)\s+/, '');
+  // Purgar puntuación agregada por el motor de Speech Recognition al soltar monosílabos ("A." o "y, la p.")
+  norm = norm.replace(/[.,:;¿?¡!]/g, '');
+
+  norm = norm.replace(/^(a ver|bueno|dale|eh|ah|uh|y|vamos con|probemos|con)\s+/, '').trim();
 
   // Patrón "la letra X" o "letra X"
   const matchLetra = norm.match(/^(?:la\s+)?letra\s+([a-zñ]+)$/);

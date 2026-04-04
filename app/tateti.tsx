@@ -196,11 +196,17 @@ export default function TatetiScreen() {
   const reservedV  = isLandscape ? 160 : 180;
 
   // Tamaño de celda reactivo (portrait y landscape)
-  const cellSize = Math.min(
-    (height - insets.top - insets.bottom - reservedV) / 3,
-    (width  - insets.left - insets.right - 40)  / 3,
-    150,
-  );
+  const cellSize = isLandscape
+    ? Math.min(
+        (height - insets.top - insets.bottom - 60) / 3,
+        ((width - insets.left - insets.right) * 0.55) / 3,
+        150
+      )
+    : Math.min(
+        (height - insets.top - insets.bottom - 180) / 3,
+        (width  - insets.left - insets.right - 40) / 3,
+        150
+      );
 
   const [tablero, setTablero]       = useState<Tablero>(tableroInicial());
   const [turno, setTurno]           = useState<'X' | 'O'>('X');
@@ -408,29 +414,52 @@ export default function TatetiScreen() {
         <View style={[s.srDot, escuchando && s.srDotActive]} />
       </View>
 
-      {/* Título grande */}
-      <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: isLandscape ? 4 : 10 }]}>TA-TE-TI</Text>
-
-      {/* Status */}
-      <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
-      {textoVoz ? <Text style={s.vozTexto}>🎤 "{textoVoz}"</Text> : null}
-
-      {/* Tablero centrado */}
-      <View style={s.tableroWrap}>
-        <View style={{ width: cellSize * 3, height: cellSize * 3, flexDirection: 'row', flexWrap: 'wrap' }}>
-          {tablero.map((celda, i) => (
-            <CeldaView
-              key={i}
-              valor={celda}
-              index={i}
-              cellSize={cellSize}
-              enLinea={lineaSet.has(i)}
-              disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current}
-              onPress={() => realizarMovimiento(i)}
-            />
-          ))}
+      {/* Cuerpo Principal */}
+      {isLandscape ? (
+        <View style={s.bodyLandscape}>
+          <View style={s.colLeft}>
+            <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 4 }]}>TA-TE-TI</Text>
+            <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
+            {textoVoz ? <Text style={s.vozTexto}>🎤 "{textoVoz}"</Text> : null}
+          </View>
+          <View style={s.colRight}>
+            <View style={{ width: cellSize * 3, height: cellSize * 3, flexDirection: 'row', flexWrap: 'wrap' }}>
+              {tablero.map((celda, i) => (
+                <CeldaView
+                  key={i}
+                  valor={celda}
+                  index={i}
+                  cellSize={cellSize}
+                  enLinea={lineaSet.has(i)}
+                  disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current}
+                  onPress={() => realizarMovimiento(i)}
+                />
+              ))}
+            </View>
+          </View>
         </View>
-      </View>
+      ) : (
+        <>
+          <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 10 }]}>TA-TE-TI</Text>
+          <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
+          {textoVoz ? <Text style={s.vozTexto}>🎤 "{textoVoz}"</Text> : null}
+          <View style={s.tableroWrap}>
+            <View style={{ width: cellSize * 3, height: cellSize * 3, flexDirection: 'row', flexWrap: 'wrap' }}>
+              {tablero.map((celda, i) => (
+                <CeldaView
+                  key={i}
+                  valor={celda}
+                  index={i}
+                  cellSize={cellSize}
+                  enLinea={lineaSet.has(i)}
+                  disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current}
+                  onPress={() => realizarMovimiento(i)}
+                />
+              ))}
+            </View>
+          </View>
+        </>
+      )}
 
       {/* Overlay resultado */}
       <Animated.View
@@ -481,6 +510,10 @@ const s = StyleSheet.create({
   vozTexto: { color: M.sub, fontSize: 14, fontStyle: 'italic', textAlign: 'center', marginBottom: 4 },
 
   tableroWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  bodyLandscape: { flex: 1, flexDirection: 'row' },
+  colLeft: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  colRight: { flex: 1.2, justifyContent: 'center', alignItems: 'center' },
 
   overlay: {
     ...StyleSheet.absoluteFillObject,
