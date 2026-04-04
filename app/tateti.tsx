@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -92,28 +92,6 @@ const TODAS_LAS_FRASES = [
   ...FRASES.empate,
 ];
 
-// ── Parseo de posición por voz ──────────────────────────────────────────────────
-
-const VOZ_POSICION: Array<{ patron: RegExp; idx: number }> = [
-  { patron: /\b(uno|1|arriba.?izquierda|izquierda.?arriba)\b/i, idx: 0 },
-  { patron: /\b(dos|2|arriba.?centro|centro.?arriba|arriba(?!\s*(?:derecha|izquierda)))\b/i, idx: 1 },
-  { patron: /\b(tres|3|arriba.?derecha|derecha.?arriba)\b/i, idx: 2 },
-  { patron: /\b(cuatro|4|izquierda.?centro|centro.?izquierda|izquierda(?!\s*(?:arriba|abajo)))\b/i, idx: 3 },
-  { patron: /\b(cinco|5|centro(?!\s*(?:arriba|abajo|izquierda|derecha))|el.?medio)\b/i, idx: 4 },
-  { patron: /\b(seis|6|derecha.?centro|centro.?derecha|derecha(?!\s*(?:arriba|abajo)))\b/i, idx: 5 },
-  { patron: /\b(siete|7|abajo.?izquierda|izquierda.?abajo)\b/i, idx: 6 },
-  { patron: /\b(ocho|8|abajo.?centro|centro.?abajo|abajo(?!\s*(?:derecha|izquierda)))\b/i, idx: 7 },
-  { patron: /\b(nueve|9|abajo.?derecha|derecha.?abajo)\b/i, idx: 8 },
-];
-
-function parsearPosicionVoz(texto: string): number | null {
-  const norm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  for (const { patron, idx } of VOZ_POSICION) {
-    if (patron.test(norm)) return idx;
-  }
-  return null;
-}
-
 // ── Componente Celda ────────────────────────────────────────────────────────────
 
 function CeldaView({
@@ -193,7 +171,6 @@ export default function TatetiScreen() {
   const tituloSize = isLandscape ? 26 : 42;
   const statusSize = isLandscape ? 15 : 22;
   const hdrVPad    = isLandscape ? 5  : 14;
-  const reservedV  = isLandscape ? 160 : 180;
 
   // Tamaño de celda reactivo con Math.floor para evitar rotura de grid por sub-píxeles
   const rawCellSize = isLandscape
@@ -214,7 +191,6 @@ export default function TatetiScreen() {
   const [fase, setFase]             = useState<Fase>('jugando');
   const [linea, setLinea]           = useState<number[] | null>(null);
   const [escuchando, setEscuchando] = useState(false);
-  const [textoVoz, setTextoVoz]     = useState('');
   const iaRef           = useRef(false);
   const hablandoRef     = useRef(false);
   const overlayAnim     = useRef(new Animated.Value(0)).current;
@@ -253,16 +229,12 @@ export default function TatetiScreen() {
       feedbackPlayer.replace({ uri });
       feedbackPlayer.play();
     } 
-    // expo-audio no tiene onDone fiable con uri remotos, lo simulamos con duración estimada
-    // Y si no había uri (sin fallback), simulamos el tiempo en silencio para destrabar el flujo.
     const durMs = Math.max(texto.length * 85, 800) + 600;
     setTimeout(() => {
-        hablandoRef.current = false;
-        onDone?.();
-        // Si sigue reproduciendo a pesar de la duración estimada, no destrabamos el micro aún.
-        // Pero iniciamos el SR y el hook descartará resultados si sigue jugando.
-        setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
-      }, durMs);
+      hablandoRef.current = false;
+      onDone?.();
+      setTimeout(iniciarSR, 400);
+    }, durMs);
   }
 
   function playClick() {
@@ -272,16 +244,17 @@ export default function TatetiScreen() {
   // ── SR ────────────────────────────────────────────────────────────────────────
 
   useSpeechRecognitionEvent('result', e => {
-    const txt = e.results?.[0]?.transcript ?? '';
-    setTextoVoz(txt);
-    if (fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current || feedbackPlayer.playing) return;
-    const idx = parsearPosicionVoz(txt);
-    if (idx !== null) realizarMovimiento(idx);
+    const txt = (e.results?.[0]?.transcript ?? '')
+      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
+      detenerSR();
+      router.replace('/');
+    }
   });
 
   useSpeechRecognitionEvent('end', () => {
     setEscuchando(false);
-    if (fase === 'jugando' && !hablandoRef.current) setTimeout(iniciarSR, 600);
+    if (!hablandoRef.current) setTimeout(iniciarSR, 600);
   });
 
   function iniciarSR() {
@@ -305,67 +278,60 @@ export default function TatetiScreen() {
 
   // ── Lógica de juego ──────────────────────────────────────────────────────────
 
-  const realizarMovimiento = useCallback((idx: number) => {
-    setTablero(prev => {
-      if (prev[idx] !== null || fase !== 'jugando') return prev;
-      const nuevo = [...prev] as Tablero;
-      nuevo[idx] = 'X';
-      playClick();
-      const resultado = verificarGanador(nuevo);
+  function realizarMovimiento(idx: number) {
+    if (tablero[idx] !== null || fase !== 'jugando') return;
 
-      if (resultado === 'X') {
-        setLinea(lineaGanadora(nuevo));
-        setFase('ganaste');
-        detenerSR();
-        mostrarOverlay();
-        decir(al(FRASES.ganaste));
-        return nuevo;
-      }
-      if (resultado === 'empate') {
-        setFase('empate');
-        detenerSR();
-        mostrarOverlay();
-        decir(al(FRASES.empate));
-        return nuevo;
-      }
+    const nuevo = [...tablero] as Tablero;
+    nuevo[idx] = 'X';
+    setTablero(nuevo);
+    playClick();
 
-      setTurno('O');
-      iaRef.current = true;
-      decir(al(FRASES.movUsuario), () => {
-        // Pausa de "pensamiento" antes de que la IA mueva (600–1400 ms)
-        const pensar = 600 + Math.random() * 800;
-        setTimeout(() => {
-          setTablero(prev2 => {
-            const movIA = calcularMovimientoIA(prev2);
-            if (movIA === -1) { iaRef.current = false; return prev2; }
-            const t2 = [...prev2] as Tablero;
-            t2[movIA] = 'O';
-            playClick();
-            const res2 = verificarGanador(t2);
-            if (res2 === 'O') {
-              setLinea(lineaGanadora(t2));
-              setFase('perdi');
-              detenerSR();
-              mostrarOverlay();
-              decir(al(FRASES.perdi));
-            } else if (res2 === 'empate') {
-              setFase('empate');
-              detenerSR();
-              mostrarOverlay();
-              decir(al(FRASES.empate));
-            } else {
-              setTurno('X');
-              setTimeout(() => decir(al(FRASES.movIA)), 200);
-            }
-            iaRef.current = false;
-            return t2;
-          });
-        }, pensar);
-      });
+    const resultado = verificarGanador(nuevo);
 
-      return nuevo;
+    if (resultado === 'X') {
+      setLinea(lineaGanadora(nuevo));
+      setFase('ganaste');
+      mostrarOverlay();
+      decir(al(FRASES.ganaste));
+      return;
+    }
+    if (resultado === 'empate') {
+      setFase('empate');
+      mostrarOverlay();
+      decir(al(FRASES.empate));
+      return;
+    }
+
+    setTurno('O');
+    iaRef.current = true;
+    decir(al(FRASES.movUsuario), () => {
+      // Pausa de "pensamiento" antes de que la IA mueva (600–1400 ms)
+      const pensar = 600 + Math.random() * 800;
+      setTimeout(() => {
+        const movIA = calcularMovimientoIA(nuevo);
+        if (movIA === -1) { iaRef.current = false; return; }
+        const t2 = [...nuevo] as Tablero;
+        t2[movIA] = 'O';
+        setTablero(t2);
+        playClick();
+        const res2 = verificarGanador(t2);
+        if (res2 === 'O') {
+          setLinea(lineaGanadora(t2));
+          setFase('perdi');
+          mostrarOverlay();
+          decir(al(FRASES.perdi));
+        } else if (res2 === 'empate') {
+          setFase('empate');
+          mostrarOverlay();
+          decir(al(FRASES.empate));
+        } else {
+          setTurno('X');
+          setTimeout(() => decir(al(FRASES.movIA)), 200);
+        }
+        iaRef.current = false;
+      }, pensar);
     });
-  }, [fase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   function mostrarOverlay() {
     Animated.timing(overlayAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
@@ -377,7 +343,6 @@ export default function TatetiScreen() {
     setTurno('X');
     setFase('jugando');
     setLinea(null);
-    setTextoVoz('');
     iaRef.current = false;
     hablandoRef.current = false;
     setTimeout(iniciarSR, 300);
@@ -420,7 +385,6 @@ export default function TatetiScreen() {
           <View style={s.colLeft}>
             <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 4 }]}>TA-TE-TI</Text>
             <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
-            {textoVoz ? <Text style={s.vozTexto}>🎤 "{textoVoz}"</Text> : null}
           </View>
           <View style={s.colRight}>
             <View style={{ width: cellSize * 3, height: cellSize * 3, flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -442,7 +406,6 @@ export default function TatetiScreen() {
         <>
           <Text style={[s.titulo, { fontSize: tituloSize, marginBottom: 10 }]}>TA-TE-TI</Text>
           <Text style={[s.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
-          {textoVoz ? <Text style={s.vozTexto}>🎤 "{textoVoz}"</Text> : null}
           <View style={s.tableroWrap}>
             <View style={{ width: cellSize * 3, height: cellSize * 3, flexDirection: 'row', flexWrap: 'wrap' }}>
               {tablero.map((celda, i) => (
@@ -507,8 +470,6 @@ const s = StyleSheet.create({
     color: M.text, fontSize: 22, fontWeight: '600',
     textAlign: 'center', marginBottom: 4,
   },
-  vozTexto: { color: M.sub, fontSize: 14, fontStyle: 'italic', textAlign: 'center', marginBottom: 4 },
-
   tableroWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
   bodyLandscape: { flex: 1, flexDirection: 'row' },

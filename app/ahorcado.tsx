@@ -19,7 +19,6 @@ import {
   procesarLetra,
   estaGanado,
   estaPerdido,
-  parsearLetraDesdeVoz,
   type EstadoAhorcado,
 } from '../lib/ahorcado';
 import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
@@ -186,7 +185,7 @@ export default function AhorcadoScreen() {
   const hdrVPad       = isLandscape ? 5   : 12;
   const corazonSize   = isLandscape ? 22  : 30;
   const letraWordSize = isLandscape ? 28  : 38;
-  const pistaSize     = isLandscape ? 18  : 14;
+  const pistaSize     = isLandscape ? 14  : 18;
   const statusSize    = isLandscape ? 14  : 16;
 
   // Ancho y alto disponible para la grilla de letras
@@ -202,7 +201,6 @@ export default function AhorcadoScreen() {
   const [juego, setJuego]           = useState<EstadoAhorcado>(estadoInicial());
   const [fase, setFase]             = useState<Fase>('jugando');
   const [escuchando, setEscuchando] = useState(false);
-  const [textoVoz, setTextoVoz]     = useState('');
   const overlayAnim  = useRef(new Animated.Value(0)).current;
   const hablandoRef  = useRef(false);
   const feedbackPlayer = useAudioPlayer(null);
@@ -252,23 +250,24 @@ export default function AhorcadoScreen() {
     setTimeout(() => {
       hablandoRef.current = false;
       onDone?.();
-      setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
+      setTimeout(iniciarSR, 400);
     }, durMs);
   }
 
   // ── SR ────────────────────────────────────────────────────────────────────────
 
   useSpeechRecognitionEvent('result', e => {
-    const txt = e.results?.[0]?.transcript ?? '';
-    setTextoVoz(txt);
-    if (fase !== 'jugando' || hablandoRef.current || feedbackPlayer.playing) return;
-    const letra = parsearLetraDesdeVoz(txt);
-    if (letra) jugarLetra(letra);
+    const txt = (e.results?.[0]?.transcript ?? '')
+      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
+      detenerSR();
+      router.replace('/');
+    }
   });
 
   useSpeechRecognitionEvent('end', () => {
     setEscuchando(false);
-    if (fase === 'jugando' && !hablandoRef.current) setTimeout(iniciarSR, 600);
+    if (!hablandoRef.current) setTimeout(iniciarSR, 600);
   });
 
   function iniciarSR() {
@@ -293,33 +292,29 @@ export default function AhorcadoScreen() {
   // ── Lógica ───────────────────────────────────────────────────────────────────
 
   function jugarLetra(letra: string) {
-    setJuego(prev => {
-      const nuevo = procesarLetra(prev, letra);
-      if (nuevo === prev) return prev; // ya usada
+    const nuevo = procesarLetra(juego, letra);
+    if (nuevo === juego) return; // ya usada
 
-      const esCorrecta = prev.palabra.includes(letra.toUpperCase());
-      if (esCorrecta) {
-        const anim = getLetraAnim(letra.toUpperCase());
-        anim.setValue(0);
-        Animated.spring(anim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }).start();
-      }
+    setJuego(nuevo);
 
-      if (estaGanado(nuevo)) {
-        setFase('ganaste');
-        detenerSR();
-        mostrarOverlay();
-        decir(al(FRASES.ganaste));
-      } else if (estaPerdido(nuevo)) {
-        setFase('perdi');
-        detenerSR();
-        mostrarOverlay();
-        decir(al(FRASES.perdi));
-      } else {
-        decir(esCorrecta ? al(FRASES.correcta) : al(FRASES.errada));
-      }
+    const esCorrecta = juego.palabra.includes(letra.toUpperCase());
+    if (esCorrecta) {
+      const anim = getLetraAnim(letra.toUpperCase());
+      anim.setValue(0);
+      Animated.spring(anim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }).start();
+    }
 
-      return nuevo;
-    });
+    if (estaGanado(nuevo)) {
+      setFase('ganaste');
+      mostrarOverlay();
+      decir(al(FRASES.ganaste));
+    } else if (estaPerdido(nuevo)) {
+      setFase('perdi');
+      mostrarOverlay();
+      decir(al(FRASES.perdi));
+    } else {
+      decir(esCorrecta ? al(FRASES.correcta) : al(FRASES.errada));
+    }
   }
 
   function mostrarOverlay() {
@@ -332,7 +327,6 @@ export default function AhorcadoScreen() {
     hablandoRef.current = false;
     setJuego(estadoInicial());
     setFase('jugando');
-    setTextoVoz('');
     setTimeout(iniciarSR, 300);
   }
 
@@ -384,7 +378,6 @@ export default function AhorcadoScreen() {
         })}
       </View>
 
-      {textoVoz ? <Text style={sv.vozTexto}>🎤 "{textoVoz}"</Text> : null}
       {juego.letrasErradas.size > 0 && (
         <Text style={sv.erradas}>
           Letras: {[...juego.letrasErradas].join('  ')}
@@ -511,7 +504,6 @@ const sv = StyleSheet.create({
   letraTexto: { fontWeight: '900' },
   letraLinea: { width: '100%', height: 3, backgroundColor: M.border, borderRadius: 2, marginTop: 2 },
 
-  vozTexto: { color: M.sub, fontSize: 13, fontStyle: 'italic', marginBottom: 4 },
   erradas: { color: M.errada, fontSize: 14, fontWeight: '600', letterSpacing: 1 },
 
   gridPortrait: { flex: 1 },

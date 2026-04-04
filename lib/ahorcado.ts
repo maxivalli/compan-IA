@@ -48,7 +48,6 @@ const PALABRAS: PalabraEntry[] = [
   { palabra: 'AZUL',      pista: 'el color del cielo despejado' },
   { palabra: 'VERDE',     pista: 'el color del pasto' },
   { palabra: 'AMARILLO',  pista: 'el color del sol' },
-  { palabra: 'NARANJA',   pista: 'mezcla de rojo y amarillo' },
   { palabra: 'VIOLETA',   pista: 'mezcla de azul y rojo' },
   { palabra: 'CELESTE',   pista: 'el color de la bandera argentina' },
   { palabra: 'BLANCO',    pista: 'el color de la nieve' },
