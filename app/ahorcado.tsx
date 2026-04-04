@@ -13,7 +13,6 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useAudioPlayer } from 'expo-audio';
-import * as Speech from 'expo-speech';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   estadoInicial,
@@ -248,22 +247,13 @@ export default function AhorcadoScreen() {
     if (uri) {
       feedbackPlayer.replace({ uri });
       feedbackPlayer.play();
-      const durMs = Math.max(texto.length * 85, 800) + 600;
-      setTimeout(() => {
-        hablandoRef.current = false;
-        onDone?.();
-        setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
-      }, durMs);
-    } else {
-      Speech.speak(texto, {
-        language: 'es-AR',
-        onDone: () => {
-          hablandoRef.current = false;
-          onDone?.();
-          setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
-        }
-      });
     }
+    const durMs = Math.max(texto.length * 85, 800) + 600;
+    setTimeout(() => {
+      hablandoRef.current = false;
+      onDone?.();
+      setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
+    }, durMs);
   }
 
   // ── SR ────────────────────────────────────────────────────────────────────────
