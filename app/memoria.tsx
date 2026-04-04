@@ -147,7 +147,7 @@ export default function MemoriaScreen() {
   const TILE_GAP     = Math.round((isTablet ? 12 : 8));
   const hdrH         = Math.round(52 * ts);
   const questCardH   = Math.round(90 * ts);
-  const scoreLine    = Math.round(28 * ts);
+  const scoreLineH   = Math.round(28 * ts);
   const vertPad      = 24;
 
   const rawTileSize = isLandscape
@@ -156,7 +156,7 @@ export default function MemoriaScreen() {
         (width  - insets.left - insets.right) * 0.54 / 3 - TILE_GAP
       )
     : Math.min(
-        (height - insets.top - insets.bottom - hdrH - questCardH - scoreLine - TILE_GAP * 2 - vertPad) / 3,
+        (height - insets.top - insets.bottom - hdrH - questCardH - scoreLineH - TILE_GAP * 2 - vertPad) / 3,
         (width  - insets.left - insets.right - 32) / 3 - TILE_GAP
       );
   const tileSize = Math.max(Math.floor(rawTileSize), 56);
