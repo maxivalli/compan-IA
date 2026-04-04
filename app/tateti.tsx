@@ -166,23 +166,27 @@ export default function TatetiScreen() {
   const insets      = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const isTablet    = Math.min(width, height) >= 600;
+  const ts = isTablet ? 1.5 : 1; // escala general para tablet
 
   // En horizontal reducimos todo para que el tablero entre sin scrollear
-  const tituloSize = isLandscape ? 26 : 42;
-  const statusSize = isLandscape ? 15 : 22;
-  const hdrVPad    = isLandscape ? 5  : 14;
+  const tituloSize = Math.round((isLandscape ? 26 : 42) * ts);
+  const statusSize = Math.round((isLandscape ? 15 : 22) * ts);
+  const hdrVPad    = isLandscape ? 5 : 14;
 
   // Tamaño de celda reactivo con Math.floor para evitar rotura de grid por sub-píxeles
+  const headerEstH = isTablet ? Math.round(60 * ts) : (isLandscape ? 52 : 60);
+  const statusEstH = isTablet ? Math.round(40 * ts) : (isLandscape ? 30 : 40);
   const rawCellSize = isLandscape
     ? Math.min(
-        (height - insets.top - insets.bottom - 52) / 3, // header ~50px en landscape
+        (height - insets.top - insets.bottom - headerEstH) / 3,
         ((width - insets.left - insets.right) * 0.62) / 3,
-        220
+        9999
       )
     : Math.min(
-        (height - insets.top - insets.bottom - 180) / 3,
+        (height - insets.top - insets.bottom - headerEstH - statusEstH - 80) / 3,
         (width  - insets.left - insets.right - 40) / 3,
-        150
+        9999
       );
   const cellSize = Math.floor(rawCellSize);
 
@@ -392,12 +396,12 @@ export default function TatetiScreen() {
       <View style={[s.header, { paddingVertical: hdrVPad }]} onLayout={e => setHeaderH(e.nativeEvent.layout.height)}>
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
-          style={s.btnSalir}
+          style={[s.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={s.btnSalirTexto}>✕ Salir</Text>
+          <Text style={[s.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
         </TouchableOpacity>
-        <View style={[s.srDot, escuchando && s.srDotActive]} />
+        <View style={[s.srDot, escuchando && s.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
       {/* Cuerpo Principal */}
@@ -450,13 +454,13 @@ export default function TatetiScreen() {
         style={[s.overlay, { opacity: overlayAnim }]}
         pointerEvents={fase === 'jugando' ? 'none' : 'auto'}
       >
-        <View style={s.overlayCard}>
-          <Text style={s.overlayMsg}>{overlayMsg}</Text>
-          <TouchableOpacity style={s.btnOtra} onPress={reiniciar}>
-            <Text style={s.btnOtraTexto}>Jugar otra vez</Text>
+        <View style={[s.overlayCard, isTablet && { padding: 48, gap: 24, borderRadius: 36 }]}>
+          <Text style={[s.overlayMsg, isTablet && { fontSize: 42, lineHeight: 56 }]}>{overlayMsg}</Text>
+          <TouchableOpacity style={[s.btnOtra, isTablet && { paddingVertical: 24, borderRadius: 20 }]} onPress={reiniciar}>
+            <Text style={[s.btnOtraTexto, isTablet && { fontSize: 28 }]}>Jugar otra vez</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.btnVolver} onPress={() => { detenerSR(); router.replace('/'); }}>
-            <Text style={s.btnVolverTexto}>Volver a Rosita</Text>
+          <TouchableOpacity style={[s.btnVolver, isTablet && { paddingVertical: 22, borderRadius: 20 }]} onPress={() => { detenerSR(); router.replace('/'); }}>
+            <Text style={[s.btnVolverTexto, isTablet && { fontSize: 26 }]}>Volver a Rosita</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

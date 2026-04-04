@@ -179,14 +179,16 @@ export default function AhorcadoScreen() {
   const insets    = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
+  const isTablet    = Math.min(width, height) >= 600;
+  const ts = isTablet ? 1.5 : 1; // escala general para tablet
 
   // Tamaños adaptativos
-  const tituloSize    = isLandscape ? 26  : 42;
-  const hdrVPad       = isLandscape ? 5   : 12;
-  const corazonSize   = isLandscape ? 22  : 30;
-  const letraWordSize = isLandscape ? 28  : 38;
-  const pistaSize     = isLandscape ? 14  : 18;
-  const statusSize    = isLandscape ? 14  : 16;
+  const tituloSize    = Math.round((isLandscape ? 32 : 42)   * ts);
+  const hdrVPad       = isLandscape ? 5 : 12;
+  const corazonSize   = Math.round((isLandscape ? 28 : 30)   * ts);
+  const letraWordSize = Math.round((isLandscape ? 34 : 38)   * ts);
+  const pistaSize     = Math.round((isLandscape ? 17 : 18)   * ts);
+  const statusSize    = Math.round((isLandscape ? 17 : 16)   * ts);
 
   // El panel derecho (grilla) recibe flex 1.2 del total 2.2 → ~54.5% del ancho
   const RIGHT_FLEX = 1.2;
@@ -196,9 +198,14 @@ export default function AhorcadoScreen() {
     : (width - insets.left - insets.right - 24);
   const gridAvailH = isLandscape ? (height - insets.top - insets.bottom - 80) : 9999;
 
-  const maxBtnFromW = Math.floor((gridAvailW - (COLS - 1) * 5) / COLS);
-  const maxBtnFromH = Math.floor((gridAvailH - 4 * 5) / 5); // 5 filas, 4 espacios
-  const btnSize = Math.min(maxBtnFromW, maxBtnFromH, isLandscape ? 60 : 62);
+  const maxBtnFromW = Math.floor((gridAvailW - (COLS - 1) * 6) / COLS);
+  const maxBtnFromH = Math.floor((gridAvailH - 4 * 6) / 5);
+  const btnSizeCap  = isTablet ? (isLandscape ? 90 : 88) : (isLandscape ? 60 : 62);
+  const btnSize     = Math.min(maxBtnFromW, maxBtnFromH, btnSizeCap);
+
+  // Altura estimada del teclado en portrait para paddingBottom del infoPanel
+  const ROWS_PORTRAIT = 5;
+  const gridHeightPortrait = ROWS_PORTRAIT * (btnSize + 4) + (ROWS_PORTRAIT - 1) * 5 + 20; // filas×(btnH+gap)+padding
 
   const [juego, setJuego]           = useState<EstadoAhorcado>(estadoInicial());
   const [fase, setFase]             = useState<Fase>('jugando');
@@ -418,7 +425,7 @@ export default function AhorcadoScreen() {
       showsVerticalScrollIndicator={false}
       style={isLandscape ? sv.gridLandscape : sv.gridPortrait}
     >
-      <View style={[sv.teclado, { gap: 5 }]}>
+      <View style={[sv.teclado, { gap: isTablet ? 8 : 5 }]}>
         {LETRAS.map(letra => {
           const estado =
             juego.letrasAdivinadas.has(letra) ? 'correcta' :
@@ -450,12 +457,12 @@ export default function AhorcadoScreen() {
       <View style={[sv.header, { paddingVertical: hdrVPad }]}>
         <TouchableOpacity
           onPress={() => { detenerSR(); router.replace('/'); }}
-          style={sv.btnSalir}
+          style={[sv.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Text style={sv.btnSalirTexto}>✕ Salir</Text>
+          <Text style={[sv.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
         </TouchableOpacity>
-        <View style={[sv.srDot, escuchando && sv.srDotActive]} />
+        <View style={[sv.srDot, escuchando && sv.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
       {/* Contenido principal — column en portrait, row en landscape */}
@@ -465,10 +472,14 @@ export default function AhorcadoScreen() {
           {gridPanel}
         </View>
       ) : (
-        <>
-          {infoPanel}
-          {gridPanel}
-        </>
+        <View style={{ flex: 1 }}>
+          <View style={{ paddingBottom: gridHeightPortrait + 50 }}>
+            {infoPanel}
+          </View>
+          <View style={{ position: 'absolute', bottom: 50, left: 0, right: 0 }}>
+            {gridPanel}
+          </View>
+        </View>
       )}
 
       {/* Overlay resultado */}
@@ -507,8 +518,8 @@ const sv = StyleSheet.create({
 
   bodyLandscape: { flex: 1, flexDirection: 'row' },
 
-  infoPanel: { alignItems: 'center', paddingHorizontal: 12 },
-  infoPanelLandscape: { flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
+  infoPanel: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 52 },
+  infoPanelLandscape: { flex: 1, justifyContent: 'center', paddingHorizontal: 16, marginTop: 0, alignSelf: 'center', width: '100%' },
 
   titulo: {
     color: M.text, fontWeight: '900', letterSpacing: 4,
@@ -531,7 +542,7 @@ const sv = StyleSheet.create({
 
   erradas: { color: M.errada, fontSize: 14, fontWeight: '600', letterSpacing: 1 },
 
-  gridPortrait: { flex: 1 },
+  gridPortrait: {},
   gridLandscape: { flex: 1.2 },
   tecladoWrap: { paddingBottom: 8 },
   tecladoWrapLandscape: { flexGrow: 1, justifyContent: 'center' },
