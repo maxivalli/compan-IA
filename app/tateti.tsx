@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useAudioPlayer } from 'expo-audio';
+import * as Speech from 'expo-speech';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
   tableroInicial,
@@ -198,9 +199,9 @@ export default function TatetiScreen() {
   // Tamaño de celda reactivo (portrait y landscape)
   const cellSize = isLandscape
     ? Math.min(
-        (height - insets.top - insets.bottom - 60) / 3,
+        (height - insets.top - insets.bottom - 20) / 3, // less vertical padding
         ((width - insets.left - insets.right) * 0.55) / 3,
-        150
+        200 // larger cells allowed on landscape tablets
       )
     : Math.min(
         (height - insets.top - insets.bottom - 180) / 3,
@@ -259,9 +260,15 @@ export default function TatetiScreen() {
         setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
       }, durMs);
     } else {
-      // Frase aún no cacheada — ejecutar callback igual para no trabar el juego
-      hablandoRef.current = false;
-      onDone?.();
+      // Fallback a voz nativa si no está cacheado
+      Speech.speak(texto, {
+        language: 'es-AR',
+        onDone: () => {
+          hablandoRef.current = false;
+          onDone?.();
+          setFase(f => { if (f === 'jugando') setTimeout(iniciarSR, 400); return f; });
+        }
+      });
     }
   }
 
