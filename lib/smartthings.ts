@@ -1,4 +1,5 @@
 import { obtenerTokenDispositivo } from './ai';
+import * as WebBrowser from 'expo-web-browser';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 
@@ -16,6 +17,22 @@ async function h(): Promise<Record<string, string>> {
     'Content-Type':   'application/json',
     'x-device-token': token,
   };
+}
+
+export async function iniciarOAuth(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const token = await obtenerTokenDispositivo();
+    const url = `${BACKEND_URL}/smartthings/oauth/start?dt=${encodeURIComponent(token)}`;
+    const result = await WebBrowser.openAuthSessionAsync(url);
+    if (result.type === 'success' || result.type === 'dismiss') {
+      // El callback ya guardó los tokens en el backend.
+      // La pantalla de config re-consulta /estado para confirmar.
+      return { ok: true };
+    }
+    return { ok: false, error: 'Autorización cancelada.' };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? 'Error al abrir el navegador.' };
+  }
 }
 
 export async function vincularPAT(pat: string): Promise<{ ok: boolean; error?: string }> {

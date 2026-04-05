@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
 import PinOverlay from '../components/PinOverlay';
 import ScreenHeader from '../components/ScreenHeader';
-import { obtenerEstadoSmartThings, actualizarDispositivos, desvincularSmartThings, vincularPAT, Dispositivo } from '../lib/smartthings';
+import { obtenerEstadoSmartThings, actualizarDispositivos, desvincularSmartThings, iniciarOAuth, Dispositivo } from '../lib/smartthings';
 import { obtenerTokenDispositivo } from '../lib/ai';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
@@ -259,7 +259,6 @@ export default function Configuracion() {
   const [stVinculado, setStVinculado]       = useState(false);
   const [stDispositivos, setStDispositivos] = useState<Dispositivo[]>([]);
   const [stCargando, setStCargando]         = useState(false);
-  const [stPat, setStPat]                   = useState('');
   const [stError, setStError]               = useState('');
 
   useFocusEffect(useCallback(() => {
@@ -289,18 +288,14 @@ export default function Configuracion() {
   }, []);
 
   async function vincularSmartThings() {
-    if (!stPat.trim()) { setStError('Pegá tu token antes de vincular.'); return; }
     setStCargando(true);
     setStError('');
-    const result = await vincularPAT(stPat.trim());
-    if (result.ok) {
-      setStVinculado(true);
-      setStPat('');
-      const lista = await actualizarDispositivos();
-      setStDispositivos(lista);
-    } else {
-      setStError(result.error ?? 'No se pudo vincular.');
-    }
+    await iniciarOAuth();
+    // Re-consultar estado tras cerrar el browser (Samsung redirigió al callback)
+    const { vinculado, dispositivos } = await obtenerEstadoSmartThings();
+    setStVinculado(vinculado);
+    setStDispositivos(dispositivos);
+    if (!vinculado) setStError('No se pudo vincular. Intentá nuevamente.');
     setStCargando(false);
   }
 
@@ -729,31 +724,8 @@ export default function Configuracion() {
               <Text style={s.tuyaManualTitle}>Control de luces y enchufes</Text>
               <Text style={s.tuyaManualText}>
                 Conectá {nombreAsistente || 'Rosita'} con tu cuenta de Samsung SmartThings.
+                Se abrirá el sitio de Samsung para que autorices el acceso.
               </Text>
-              <Text style={s.tuyaManualText}>
-                1. Abrí la web de SmartThings y generá un token de acceso personal (PAT).{'\n'}
-                2. Pegalo acá abajo y tocá Vincular.
-              </Text>
-
-              <TouchableOpacity
-                style={[s.waBtn, { backgroundColor: M.secondary ?? '#1565C0', marginBottom: 10 }]}
-                activeOpacity={0.7}
-                onPress={() => Linking.openURL('https://account.smartthings.com/tokens')}
-              >
-                <Ionicons name="open-outline" size={18} color="#fff" />
-                <Text style={s.waBtnText}>Generar token en SmartThings</Text>
-              </TouchableOpacity>
-
-              <TextInput
-                style={s.patInput}
-                placeholder="Pegá tu token aquí"
-                placeholderTextColor={M.outline}
-                value={stPat}
-                onChangeText={t => { setStPat(t); setStError(''); }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                multiline={false}
-              />
 
               {stError ? <Text style={s.patError}>{stError}</Text> : null}
 
@@ -767,7 +739,7 @@ export default function Configuracion() {
                   ? <ActivityIndicator size="small" color="#fff" />
                   : <Ionicons name="link-outline" size={18} color="#fff" />
                 }
-                <Text style={s.waBtnText}>Vincular</Text>
+                <Text style={s.waBtnText}>Conectar con Samsung</Text>
               </TouchableOpacity>
             </View>
           )}
