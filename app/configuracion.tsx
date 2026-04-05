@@ -486,7 +486,45 @@ export default function Configuracion() {
 
         <M3Input label="Edad" hint="Adapta el trato según la edad" value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))} placeholder="75" />
         <M3Input label="Fecha de nacimiento" hint="DD/MM — para el saludo de cumpleaños" value={fechaNacimiento} onChangeText={t => setFechaNacimiento(t.replace(/[^0-9/]/g, '').slice(0, 5))} placeholder="19/03" />
-        
+
+        {(() => {
+          const activos = gustos.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+          const toggleTag = (tag: string) => {
+            const lista = gustos.split(',').map(s => s.trim()).filter(Boolean);
+            const yaEsta = lista.map(s => s.toLowerCase()).includes(tag.toLowerCase());
+            setGustos(yaEsta
+              ? lista.filter(s => s.toLowerCase() !== tag.toLowerCase()).join(', ')
+              : [...lista, tag].join(', ')
+            );
+          };
+          const rows: string[][] = [];
+          for (let i = 0; i < TAGS_INTERESES.length; i += 4)
+            rows.push(TAGS_INTERESES.slice(i, i + 4));
+          return (
+            <View style={s.tagsWrap}>
+              {rows.map((row, ri) => (
+                <View key={ri} style={s.tagsRow}>
+                  {row.map(tag => {
+                    const activo = activos.includes(tag.toLowerCase());
+                    const [bgIn, txIn, bgAc, txAc] = TAG_COLORS[tag] ?? ['#e0e0e0', '#333', '#666', '#fff'];
+                    return (
+                      <TouchableOpacity
+                        key={tag}
+                        style={[s.tagChip, { backgroundColor: activo ? bgAc : bgIn, borderColor: activo ? bgAc : '#00000018' }]}
+                        onPress={() => toggleTag(tag)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[s.tagChipTxt, { color: activo ? txAc : txIn }]}>{tag}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+          );
+        })()}
+        <M3Input label="Otros gustos y temas" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
+
         <SectionLabel icon="chatbubble-ellipses-outline" label="Asistente" />
         <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
 
@@ -538,43 +576,6 @@ export default function Configuracion() {
         <M3Input label="Hermanos" hint="Separados por coma" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
         <M3Input label="Mascotas" hint="Separados por coma" value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
         
-        {(() => {
-          const activos = gustos.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-          const toggleTag = (tag: string) => {
-            const lista = gustos.split(',').map(s => s.trim()).filter(Boolean);
-            const yaEsta = lista.map(s => s.toLowerCase()).includes(tag.toLowerCase());
-            setGustos(yaEsta
-              ? lista.filter(s => s.toLowerCase() !== tag.toLowerCase()).join(', ')
-              : [...lista, tag].join(', ')
-            );
-          };
-          const rows: string[][] = [];
-          for (let i = 0; i < TAGS_INTERESES.length; i += 4)
-            rows.push(TAGS_INTERESES.slice(i, i + 4));
-          return (
-            <View style={s.tagsWrap}>
-              {rows.map((row, ri) => (
-                <View key={ri} style={s.tagsRow}>
-                  {row.map(tag => {
-                    const activo = activos.includes(tag.toLowerCase());
-                    const [bgIn, txIn, bgAc, txAc] = TAG_COLORS[tag] ?? ['#e0e0e0', '#333', '#666', '#fff'];
-                    return (
-                      <TouchableOpacity
-                        key={tag}
-                        style={[s.tagChip, { backgroundColor: activo ? bgAc : bgIn, borderColor: activo ? bgAc : '#00000018' }]}
-                        onPress={() => toggleTag(tag)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[s.tagChipTxt, { color: activo ? txAc : txIn }]}>{tag}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          );
-        })()}
-        <M3Input label="Otros gustos y temas" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
         <M3Input label="Fechas importantes" hint="Separados por coma" value={fechas} onChangeText={setFechas} multiline placeholder="cumpleaños Juan 15 marzo" />
 
         {/* ── Salud ── */}

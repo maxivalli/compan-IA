@@ -672,13 +672,13 @@ export default function Index() {
                 activeOpacity={0.85}
                 disabled={botonDisabled && !musicaActiva}
               >
-                <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !musicaActiva && styles.botonDeshabilitado]}>
+                <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !noMolestar && !musicaActiva && styles.botonDeshabilitado]}>
                   <View style={[styles.btnInner, { width: btnW }]}>
                     {!noMolestar && (
                       <Animated.View style={[styles.statusDot, { position: 'absolute', left: Math.round(btnW * 0.08), backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
                     )}
                     {noMolestar && !musicaActiva
-                      ? <Ionicons name="mic-off-outline" size={Math.round(btnFont * 1.4)} color={esBotonesNoche ? '#4b5563' : '#9ca3af'} />
+                      ? <Ionicons name="mic-off" size={Math.round(btnFont * 1.4)} color="#E85D24" />
                       : detectandoSonido && estado === 'esperando' && !musicaActiva
                         ? <WaveformDetectando />
                         : <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
