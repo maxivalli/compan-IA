@@ -360,7 +360,7 @@ const Ojo = memo(function Ojo({
   // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
   const pathFormaOjo = `
     M ${EYE_W / 2}, 4
-    C ${EYE_W * 1.20}, 4
+    C ${EYE_W * 0.84}, 4
       ${EYE_W * 1.04}, ${EYE_H * 0.38}
       ${EYE_W * 1.0},  ${EYE_H * 0.62}
     C ${EYE_W * 0.98}, ${EYE_H * 0.88}
@@ -370,7 +370,7 @@ const Ojo = memo(function Ojo({
       ${EYE_W * 0.02}, ${EYE_H * 0.88}
       ${EYE_W * 0.0},  ${EYE_H * 0.62}
     C ${-EYE_W * 0.04}, ${EYE_H * 0.38}
-      ${-EYE_W * 0.20}, 4
+      ${EYE_W * 0.16}, 4
       ${EYE_W / 2}, 4
     Z
   `;
