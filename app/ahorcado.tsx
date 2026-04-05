@@ -24,6 +24,7 @@ import {
 } from '../lib/ahorcado';
 import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
 import { cargarPerfil } from '../lib/memoria';
+import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
 
 const CLICK_ASSET = require('../assets/audio/click.mp3');
 
@@ -318,8 +319,12 @@ export default function AhorcadoScreen() {
   }
 
   useEffect(() => {
+    pausarSRPrincipalParaJuego();
     iniciarSR();
-    return () => { detenerSR(); };
+    return () => {
+      detenerSR();
+      reanudarSRPrincipalTrasJuego();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

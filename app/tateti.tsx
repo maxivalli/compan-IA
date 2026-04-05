@@ -23,6 +23,7 @@ import {
 } from '../lib/tateti';
 import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
 import { cargarPerfil } from '../lib/memoria';
+import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
 
 // ── Assets ──────────────────────────────────────────────────────────────────────
 
@@ -300,8 +301,12 @@ export default function TatetiScreen() {
   }
 
   useEffect(() => {
+    pausarSRPrincipalParaJuego();
     iniciarSR();
-    return () => { detenerSR(); };
+    return () => {
+      detenerSR();
+      reanudarSRPrincipalTrasJuego();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -33,6 +33,7 @@ import {
   slugNombre, limpiarTextoParaTTS, extraerPrimeraFrase, splitEnOraciones,
 } from './useAudioPipeline';
 import { useCamaraPresencia } from './useCamaraPresencia';
+import { registerRositaSpeechForGames, unregisterRositaSpeechForGames } from '../lib/rositaSpeechForGames';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -169,6 +170,16 @@ export function useRosita() {
     modoVisionRef,
     verificarCharlaProactiva,
   });
+
+  const pipelineForGamesRef = useRef(pipeline);
+  pipelineForGamesRef.current = pipeline;
+  useEffect(() => {
+    registerRositaSpeechForGames(
+      () => pipelineForGamesRef.current.suspenderSR(),
+      () => pipelineForGamesRef.current.reanudarSR(),
+    );
+    return () => unregisterRositaSpeechForGames();
+  }, []);
 
   // ── SmartThings (domótica) ────────────────────────────────────────────────────
   const smartthings = useSmartThings({ hablar: pipeline.hablar });

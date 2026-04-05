@@ -327,6 +327,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (fromBargeIn) {
       if (d.estadoRef.current !== 'hablando') return;
     } else {
+      if (srSuspendidoRef.current) return; // juego u otra pantalla tomó el mic
       if (d.estadoRef.current !== 'esperando') return;
       if (enColaHablaRef.current) return;
     }
@@ -362,6 +363,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   useSpeechRecognitionEvent('result', async (event) => {
     const d = depsRef.current;
+    if (srSuspendidoRef.current) return;
     srConsecutiveEndsRef.current = 0; // result exitoso → resetear contador de backoff
     const texto = event.results?.[0]?.transcript?.trim();
     if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', d.estadoRef.current, '| asistente:', d.nombreAsistenteRef.current);
@@ -481,6 +483,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         && !enFlujoVozRef.current
         && !enColaHablaRef.current
         && !d.noMolestarRef.current
+        && !srSuspendidoRef.current
       ) {
         iniciarSpeechRecognition();
       }
@@ -1174,6 +1177,21 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     },
     reanudarSR(): void {
       srSuspendidoRef.current = false;
+      const d = depsRef.current;
+      if (
+        d.estadoRef.current === 'esperando'
+        && !procesandoRef.current
+        && !enFlujoVozRef.current
+        && !enColaHablaRef.current
+        && !d.noMolestarRef.current
+        && d.perfilRef.current?.nombreAbuela
+      ) {
+        setTimeout(() => {
+          if (srSuspendidoRef.current) return;
+          if (d.estadoRef.current !== 'esperando' || procesandoRef.current) return;
+          iniciarSpeechRecognition();
+        }, 200);
+      }
     },
     iniciarEscucha,
     detenerEscucha,

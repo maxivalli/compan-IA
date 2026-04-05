@@ -24,6 +24,7 @@ import {
 } from '../lib/memoria_juego';
 import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
 import { cargarPerfil } from '../lib/memoria';
+import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
 
 // ── Niveles ────────────────────────────────────────────────────────────────────
 type Nivel = 1 | 2 | 3;
@@ -236,7 +237,7 @@ export default function MemoriaScreen() {
     if (Date.now() - lastSpokeRef.current < 1000) return; // ignorar eco post-TTS
     const txt = (e.results?.[0]?.transcript ?? '')
       .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (/\b(salir|basta|volver|terminar|chau|me voy)\b/.test(txt)) {
+    if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
       detenerSR(); router.replace('/');
     }
   });
@@ -257,8 +258,12 @@ export default function MemoriaScreen() {
     setEscuchando(false);
   }
   useEffect(() => {
+    pausarSRPrincipalParaJuego();
     iniciarSR();
-    return () => detenerSR();
+    return () => {
+      detenerSR();
+      reanudarSRPrincipalTrasJuego();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
