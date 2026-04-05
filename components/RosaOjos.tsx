@@ -178,9 +178,9 @@ const sb = StyleSheet.create({
     backgroundColor: '#B06050',
     marginTop: 80,
     shadowColor: '#3A1A10',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.55,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.65,
+    shadowRadius: 3,
     elevation: 4,
   },
 });

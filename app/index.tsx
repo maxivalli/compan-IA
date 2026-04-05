@@ -352,7 +352,7 @@ export default function Index() {
   const { bottom: safeBottom, top: safeTop } = useSafeAreaInsets();
   const layoutMode = screenW > screenH ? 'horizontal' : 'vertical';
   const isTablet  = screenW >= 600;
-  const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : 1;
+  const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : layoutMode === 'vertical' ? 1.15 : 1;
   const textScale = faceScale; 
   const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : 200;
   const btnH      = isTablet ? Math.round(64 * textScale) : 64;
