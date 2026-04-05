@@ -333,8 +333,8 @@ export function CenoEnojado() {
 
   return (
     <Animated.View style={{ opacity }}>
-      <View style={{ position: 'absolute', left: 25, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
-      <View style={{ position: 'absolute', left: 181, top: 2, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
+      <View style={{ position: 'absolute', left: 25, top: 30, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
+      <View style={{ position: 'absolute', left: 181, top: 30, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
     </Animated.View>
   );
 }

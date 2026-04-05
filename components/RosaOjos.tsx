@@ -44,7 +44,7 @@ const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: num
   sorprendida:  { pxL: 0,   pxR: 0,   py: -7,  upper: 0,             lower: 0,            ceno: 0,            gapOffset: 8  },
   pensativa:    { pxL: 0,   pxR: 0,   py: -22, upper: EYE_H * 0.20, lower: 0,            ceno: 0,            gapOffset: 0  },
   chiste:       { pxL: 0,   pxR: 0,   py: 4,   upper: EYE_H * 0.48, lower: EYE_H * 0.32, ceno: 0,            gapOffset: 0  },
-  enojada:      { pxL: -3,  pxR: 3,   py: 5,   upper: EYE_H * 0.15, lower: 0,            ceno: EYE_H * 0.28, gapOffset: -6 },
+  enojada:      { pxL: 0,   pxR: 0,   py: 0,   upper: 0,             lower: 0,            ceno: EYE_H * 0.28, gapOffset: -6 },
   avergonzada:  { pxL: 3,   pxR: -3,  py: 14,  upper: EYE_H * 0.38, lower: 0,            ceno: EYE_H * 0.08, gapOffset: 0  },
   cansada:      { pxL: 0,   pxR: 0,   py: 12,  upper: EYE_H * 0.54, lower: EYE_H * 0.06, ceno: 0,            gapOffset: 0  },
   bostezando:   { pxL: 0,   pxR: 0,   py: 10,  upper: EYE_H * 0.56, lower: EYE_H * 0.12, ceno: 0,            gapOffset: 0  },
@@ -117,14 +117,15 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       const reposoScaleY =
         expresion === 'sorprendida' ? 20/BOCA_H :
         expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' || expresion === 'entusiasmada' ? 10/BOCA_H :
-        expresion === 'enojada' ? 3/BOCA_H :
+        expresion === 'enojada' ? 8/BOCA_H :
         expresion === 'avergonzada' ? 3/BOCA_H :
         expresion === 'cansada' ? 4/BOCA_H :
         expresion === 'neutral' ? 1 : 5/BOCA_H;
 
       const reposoScaleX =
         expresion === 'neutral' ? 1 :
-        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' || expresion === 'entusiasmada' ? 76/BOCA_W : 64/BOCA_W;
+        expresion === 'feliz' || expresion === 'chiste' || expresion === 'mimada' || expresion === 'entusiasmada' ? 76/BOCA_W :
+        expresion === 'enojada' ? 80/BOCA_W : 64/BOCA_W;
 
       Animated.parallel([
         Animated.timing(scaleY, { toValue: reposoScaleY, duration: 350, useNativeDriver: true }),
