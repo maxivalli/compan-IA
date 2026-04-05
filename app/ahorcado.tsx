@@ -376,16 +376,12 @@ export default function AhorcadoScreen() {
     fase === 'ganaste' ? `¡Felicitaciones!\n"${juego.palabra}" 🎉` :
                          `Era "${juego.palabra}"\n¡La próxima! 💪`;
 
-  // Panel de info (title + lives + hint + status + word)
+  // Panel de info (title + hint + word + lives + status + erradas)
   const infoPanel = (
     <View style={[sv.infoPanel, isLandscape && sv.infoPanelLandscape]}>
       <Text style={[sv.titulo, { fontSize: tituloSize }]}>AHORCADO</Text>
 
-      <Vidas key={juegoKey} errores={errores} corazonSize={corazonSize} />
-
       <Text style={[sv.pista, { fontSize: pistaSize }]}>💡 {juego.pista}</Text>
-
-      <Text style={[sv.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
 
       {/* Palabra con máscaras */}
       <View style={sv.palabraRow}>
@@ -410,6 +406,10 @@ export default function AhorcadoScreen() {
           );
         })}
       </View>
+
+      <Vidas key={juegoKey} errores={errores} corazonSize={corazonSize} />
+
+      <Text style={[sv.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
 
       {juego.letrasErradas.size > 0 && (
         <Text style={[sv.erradas, { fontSize: erradasSize }]}>
@@ -531,15 +531,15 @@ const sv = StyleSheet.create({
     textAlign: 'center', marginBottom: 8,
   },
 
-  vidasRow: { flexDirection: 'row', gap: 6, marginBottom: 6 },
+  vidasRow: { flexDirection: 'row', gap: 6, marginTop: 20, marginBottom: 8 },
   corazon: { lineHeight: 36 },
 
-  pista: { color: M.sub, fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 16, marginBottom: 4 },
-  statusTexto: { color: M.text, fontWeight: '600', marginBottom: 8 },
+  pista: { color: M.sub, fontStyle: 'italic', textAlign: 'center', paddingHorizontal: 16, marginBottom: 16 },
+  statusTexto: { color: M.text, fontWeight: '600', marginTop: 4, marginBottom: 12 },
 
   palabraRow: {
     flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center',
-    gap: 6, paddingHorizontal: 12, marginBottom: 6,
+    gap: 6, paddingHorizontal: 12, marginBottom: 0,
   },
   letraCelda: { alignItems: 'center', minWidth: 28 },
   letraTexto: { fontWeight: '900' },
