@@ -187,8 +187,9 @@ export default function AhorcadoScreen() {
   const hdrVPad       = isLandscape ? 5 : 12;
   const corazonSize   = Math.round((isLandscape ? 28 : 30)   * ts);
   const letraWordSize = Math.round((isLandscape ? 34 : 38)   * ts);
-  const pistaSize     = Math.round((isLandscape ? 17 : 18)   * ts);
-  const statusSize    = Math.round((isLandscape ? 17 : 16)   * ts);
+  const pistaSize     = Math.round((isLandscape ? 22 : 26)   * ts);
+  const statusSize    = Math.round((isLandscape ? 22 : 24)   * ts);
+  const erradasSize   = Math.round((isLandscape ? 20 : 22)   * ts);
 
   // El panel derecho (grilla) recibe flex 1.2 del total 2.2 → ~54.5% del ancho
   const RIGHT_FLEX = 1.2;
@@ -411,7 +412,7 @@ export default function AhorcadoScreen() {
       </View>
 
       {juego.letrasErradas.size > 0 && (
-        <Text style={sv.erradas}>
+        <Text style={[sv.erradas, { fontSize: erradasSize }]}>
           Letras: {[...juego.letrasErradas].join('  ')}
         </Text>
       )}
@@ -544,7 +545,7 @@ const sv = StyleSheet.create({
   letraTexto: { fontWeight: '900' },
   letraLinea: { width: '100%', height: 3, backgroundColor: M.border, borderRadius: 2, marginTop: 2 },
 
-  erradas: { color: M.errada, fontSize: 14, fontWeight: '600', letterSpacing: 1 },
+  erradas: { color: M.errada, fontWeight: '600', letterSpacing: 1 },
 
   gridPortrait: {},
   gridLandscape: { flex: 1.2 },
