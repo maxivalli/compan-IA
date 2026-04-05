@@ -778,19 +778,6 @@ export default function Index() {
         style={{ position: 'absolute', bottom: safeBottom + 50, left: 0, width: 70, height: 70 }}
       />
 
-      {__DEV__ && (
-        <View style={{ position: 'absolute', bottom: safeBottom + 8, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={() => router.push('/ahorcado' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>🔤 Ahorcado</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/tateti' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>⭕ Tateti</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/memoria' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>🧠 Memoria</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <Animated.View
         pointerEvents="none"
