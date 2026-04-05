@@ -177,6 +177,11 @@ const sb = StyleSheet.create({
     height: BOCA_H,
     backgroundColor: '#B06050',
     marginTop: 80,
+    shadowColor: '#3A1A10',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.55,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });
 
