@@ -26,13 +26,13 @@ export const EYE_W = 124;  // 108 * 1.15
 export const EYE_H = 159;  // 138 * 1.15
 export const GAP   = 32;
 export const OW    = 20 + EYE_W * 2 + GAP + 20; // 318
-const IRIS   = 74;  // iris felino — proporcional a la altura del arco
-const PUPIL  = 30;  // pupila redonda de gato cartoon (41% del iris)
+const IRIS   = 78;  // 68  * 1.15
+const PUPIL  = 39;  // 34  * 1.15
 const MAX    = 14;
 
-// Centro del iris — en el centro geométrico del arco de la media píldora
-const CX = EYE_W / 2;        // 62
-const CY = EYE_H * 0.30;     // ~48 — centro del arco (visible de y≈6 a y≈88)
+// Centro del iris dentro del SVG — lo bajamos para que quede en la zona ancha del huevo
+const CX = EYE_W / 2;        // 54
+const CY = EYE_H * 0.58;     // ~80 — iris centrado en mitad baja
 
 
 
@@ -356,19 +356,22 @@ const Ojo = memo(function Ojo({
     outputRange: [0, 0.82],
   })).current;
 
-  // Forma media píldora: arco pronunciado arriba, base plana con leve curva abajo.
-  // Área visible: ~82px de alto × ~124px de ancho → ratio 1.5:1, aspecto felino.
+  // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
+  // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
   const pathFormaOjo = `
-    M 8, ${EYE_H * 0.55}
-    C ${-EYE_W * 0.06}, ${EYE_H * 0.22}
-      ${EYE_W * 0.18}, 6
-      ${EYE_W * 0.50}, 6
-    C ${EYE_W * 0.82}, 6
-      ${EYE_W * 1.06}, ${EYE_H * 0.22}
-      ${EYE_W - 8}, ${EYE_H * 0.55}
-    C ${EYE_W * 0.80}, ${EYE_H * 0.63}
-      ${EYE_W * 0.20}, ${EYE_H * 0.63}
-      8, ${EYE_H * 0.55}
+    M ${EYE_W / 2}, 4
+    C ${EYE_W * 0.84}, 4
+      ${EYE_W * 1.04}, ${EYE_H * 0.38}
+      ${EYE_W * 1.0},  ${EYE_H * 0.62}
+    C ${EYE_W * 0.98}, ${EYE_H * 0.88}
+      ${EYE_W * 0.78}, ${EYE_H - 4}
+      ${EYE_W / 2},    ${EYE_H - 4}
+    C ${EYE_W * 0.22}, ${EYE_H - 4}
+      ${EYE_W * 0.02}, ${EYE_H * 0.88}
+      ${EYE_W * 0.0},  ${EYE_H * 0.62}
+    C ${-EYE_W * 0.04}, ${EYE_H * 0.38}
+      ${EYE_W * 0.16}, 4
+      ${EYE_W / 2}, 4
     Z
   `;
 
@@ -392,12 +395,12 @@ const Ojo = memo(function Ojo({
             <Stop offset="100%" stopColor="#D4C8B0" stopOpacity="1"/>
           </RadialGradient>
 
-          {/* Gradiente radial iris: azul-turquesa brillante como ojos de gato */}
-          <RadialGradient id={`gradIris${side}`} cx="38%" cy="32%" rx="62%" ry="62%">
-            <Stop offset="0%"   stopColor="#C8EEFF" stopOpacity="1"/>
-            <Stop offset="25%"  stopColor="#60C4F0" stopOpacity="1"/>
-            <Stop offset="58%"  stopColor="#1E80D8" stopOpacity="1"/>
-            <Stop offset="100%" stopColor="#053A8A" stopOpacity="1"/>
+          {/* Gradiente radial iris: celeste brillante al centro, azul oscuro en bordes */}
+          <RadialGradient id={`gradIris${side}`} cx="40%" cy="35%" rx="60%" ry="60%">
+            <Stop offset="0%"   stopColor="#A8D8F8" stopOpacity="1"/>
+            <Stop offset="30%"  stopColor="#5BA8E0" stopOpacity="1"/>
+            <Stop offset="65%"  stopColor="#2464B8" stopOpacity="1"/>
+            <Stop offset="100%" stopColor="#082E70" stopOpacity="1"/>
           </RadialGradient>
 
           {/* Gradiente radial pupila: no completamente negro, con profundidad */}
@@ -406,10 +409,10 @@ const Ojo = memo(function Ojo({
             <Stop offset="100%" stopColor="#000008" stopOpacity="1"/>
           </RadialGradient>
 
-          {/* Gradiente piel párpado: pelaje dorado-caramelo del gato */}
+          {/* Gradiente piel párpado: da volumen al párpado */}
           <RadialGradient id={`gradPiel${side}`} cx="50%" cy="0%" rx="60%" ry="80%">
-            <Stop offset="0%"   stopColor="#D8A870" stopOpacity="1"/>
-            <Stop offset="100%" stopColor="#B87A40" stopOpacity="1"/>
+            <Stop offset="0%"   stopColor="#D4A87A" stopOpacity="1"/>
+            <Stop offset="100%" stopColor="#B8864E" stopOpacity="1"/>
           </RadialGradient>
 
           {/* Sombra suave del párpado sobre el ojo — degradé de oscuro a transparente */}
@@ -419,21 +422,21 @@ const Ojo = memo(function Ojo({
           </RadialGradient>
         </Defs>
 
-        {/* ── Fondo pelaje gato (color caramelo-dorado) ── */}
+        {/* ── Fondo piel (forma recalculated completa) ── */}
         <Path
           d={pathFormaOjo}
-          fill="#C49060"
+          fill="#C4996A"
         />
 
         {/* ── Contenido del ojo (clippeado a la forma suavizada) ── */}
         <G clipPath={`url(#huevo${side})`}>
 
-          {/* Esclera — posicionada en la zona baja del arco, visible en esquinas */}
+          {/* Esclera con gradiente */}
           <Ellipse
             cx={CX}
-            cy={EYE_H * 0.40}
-            rx={EYE_W * 0.52}
-            ry={EYE_H * 0.26}
+            cy={EYE_H * 0.68}
+            rx={EYE_W * 0.54}
+            ry={EYE_H * 0.46}
             fill={`url(#gradEsclera${side})`}
           />
 
@@ -520,7 +523,7 @@ const Ojo = memo(function Ojo({
             y={lowerLidY as any}
             width={EYE_W}
             height={lowerLid as any}
-            fill="#C49060"
+            fill="#C4996A"
           />
           <AnimatedRect
             x={0}
