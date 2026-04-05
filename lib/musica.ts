@@ -11,7 +11,8 @@ const HEADERS = { 'Accept': 'application/json', 'User-Agent': 'CompanIA/1.0' };
 
 // ── Caché AsyncStorage ────────────────────────────────────────────────────────
 const CACHE_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 días
-const CACHE_PREFIX  = 'radio_cache_v1_';
+/** v2: prioridad géneros = stream curado antes que API por tag (evita cachés v1 con radios random). */
+const CACHE_PREFIX  = 'radio_cache_v2_';
 
 async function leerCache(clave: string): Promise<string | null> {
   try {
@@ -196,9 +197,10 @@ async function buscarAbierto(texto: string): Promise<{ url: string; uuid: string
 /**
  * Busca una radio/género. Orden de prioridad:
  * 1. Caché local (7 días)
- * 2. API Radio Browser por nombre (radios con alias) o tag (géneros)
- * 3. Búsqueda abierta si los anteriores fallan
- * 4. Fallback hardcodeado
+ * 2a. Radios con nombre conocido → API por nombre (AR)
+ * 2b. Géneros con tag: **stream curado en STREAMS_FALLBACK primero**; si no aplica, API por tag
+ * 3. Búsqueda abierta (texto libre sin alias ni género catalogado)
+ * 4. Fallback hardcodeado (último recurso)
  */
 export async function buscarRadio(termino: string): Promise<string | null> {
   const key = termino.toLowerCase().trim();
@@ -218,9 +220,17 @@ export async function buscarRadio(termino: string): Promise<string | null> {
     }
   }
 
-  // 2b. Géneros con tag definido → buscar por tag
   const tagAPI = TAGS_GENERO[key];
+
+  // 2b. Género catalogado: priorizar URL curada (tango, folklore, etc.) — la API por tag suele devolver
+  // emisoras genéricas o mal etiquetadas en lugar de estos streams.
   if (tagAPI) {
+    const curadas = STREAMS_FALLBACK[key];
+    const primeraCurada = curadas?.[0];
+    if (primeraCurada && esStreamValido(primeraCurada)) {
+      await escribirCache(key, primeraCurada);
+      return primeraCurada;
+    }
     const resultado = await buscarPorTag(tagAPI);
     if (resultado) {
       await escribirCache(key, resultado.url);
@@ -239,10 +249,13 @@ export async function buscarRadio(termino: string): Promise<string | null> {
     }
   }
 
-  // 4. Fallback hardcodeado
+  // 4. Fallback hardcodeado (emisora sin API, o género tras fallo de tag / curada inválida)
   const fallback = STREAMS_FALLBACK[key]?.[0] ?? null;
-  if (fallback) await escribirCache(key, fallback);
-  return fallback;
+  if (fallback) {
+    if (esStreamValido(fallback)) await escribirCache(key, fallback);
+    return fallback;
+  }
+  return null;
 }
 
 /**

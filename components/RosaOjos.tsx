@@ -34,7 +34,54 @@ const MAX    = 14;
 const CX = EYE_W / 2;        // 54
 const CY = EYE_H * 0.58;     // ~80 — iris centrado en mitad baja
 
+/**
+ * Silueta del ojo (path SVG con curvas cúbicas, simétrico en X).
+ * Valores en fracción de EYE_W / EYE_H salvo puntaSuperiorY y bordeInferior (px).
+ *
+ * - puntaSuperiorY ↑ → menos “picudo” arriba
+ * - bulgeLateralX ↑ → ojo más ancho en el centro
+ * - anclaMediaY / anclaBajaY → dónde “abulta” el costado
+ */
+const EYE_SILUETA = {
+  puntaSuperiorY: 6,
+  bordeInferior: 5,
+  hombroSuperiorX: 0.85,
+  bulgeLateralX: 1.055,
+  anclaMediaY: 0.37,
+  anclaBajaX: 1.0,
+  anclaBajaY: 0.635,
+  curvaHaciaPuntaX: 0.98,
+  curvaHaciaPuntaY: 0.88,
+  esquinaInferiorInteriorX: 0.78,
+  /** Control X hacia el borde izquierdo (no es espejo del lado derecho). */
+  curvaInteriorBajaIzqX: 0.02,
+  curvaExteriorIzqX: -0.04,
+  vueltaAlCentroIzqX: 0.16,
+} as const;
 
+function pathFormaOjoSvg(): string {
+  const W = EYE_W;
+  const H = EYE_H;
+  const s = EYE_SILUETA;
+  const top = s.puntaSuperiorY;
+  const bot = H - s.bordeInferior;
+  return `
+    M ${W / 2}, ${top}
+    C ${W * s.hombroSuperiorX}, ${top}
+      ${W * s.bulgeLateralX}, ${H * s.anclaMediaY}
+      ${W * s.anclaBajaX}, ${H * s.anclaBajaY}
+    C ${W * s.curvaHaciaPuntaX}, ${H * s.curvaHaciaPuntaY}
+      ${W * s.esquinaInferiorInteriorX}, ${bot}
+      ${W / 2}, ${bot}
+    C ${W * (1 - s.esquinaInferiorInteriorX)}, ${bot}
+      ${W * s.curvaInteriorBajaIzqX}, ${H * s.curvaHaciaPuntaY}
+      ${0}, ${H * s.anclaBajaY}
+    C ${W * s.curvaExteriorIzqX}, ${H * s.anclaMediaY}
+      ${W * s.vueltaAlCentroIzqX}, ${top}
+      ${W / 2}, ${top}
+    Z
+  `;
+}
 
 const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: number; lower: number; ceno: number; gapOffset: number }> = {
   neutral:      { pxL: 0,   pxR: 0,   py: 0,   upper: EYE_H * 0.06, lower: 0,            ceno: 0,            gapOffset: 0  },
@@ -63,12 +110,16 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
   const scaleY  = useRef(new Animated.Value(1)).current;    // 1 = BOCA_H
   const scaleX  = useRef(new Animated.Value(1)).current;    // 1 = BOCA_W
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const seqRef  = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     loopRef.current?.stop();
     loopRef.current = null;
+    seqRef.current?.stop();
+    seqRef.current = null;
 
     if (silbando && !hablando) {
+      let mounted = true;
       const loop = Animated.loop(
         Animated.sequence([
           Animated.parallel([
@@ -85,12 +136,18 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       Animated.parallel([
         Animated.timing(scaleY, { toValue: 22/BOCA_H, duration: 300, useNativeDriver: true }),
         Animated.timing(scaleX, { toValue: 22/BOCA_W, duration: 300, useNativeDriver: true }),
-      ]).start(() => loop.start());
-      return;
+      ]).start(() => {
+        if (mounted) loop.start();
+      });
+      return () => {
+        mounted = false;
+        loopRef.current?.stop();
+        loopRef.current = null;
+      };
     }
 
     if (expresion === 'bostezando' && !hablando && !silbando) {
-      Animated.sequence([
+      const seq = Animated.sequence([
         Animated.parallel([
           Animated.timing(scaleY, { toValue: 52/BOCA_H, duration: 800, useNativeDriver: true }),
           Animated.timing(scaleX, { toValue: 54/BOCA_W, duration: 800, useNativeDriver: true }),
@@ -100,8 +157,13 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
           Animated.timing(scaleY, { toValue: 1, duration: 700, useNativeDriver: true }),
           Animated.timing(scaleX, { toValue: 1, duration: 700, useNativeDriver: true }),
         ]),
-      ]).start();
-      return;
+      ]);
+      seqRef.current = seq;
+      seq.start();
+      return () => {
+        seqRef.current?.stop();
+        seqRef.current = null;
+      };
     }
 
     if (hablando) {
@@ -132,7 +194,10 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         Animated.timing(scaleX, { toValue: reposoScaleX, duration: 350, useNativeDriver: true }),
       ]).start();
     }
-    return () => { loopRef.current?.stop(); };
+    return () => {
+      loopRef.current?.stop();
+      loopRef.current = null;
+    };
   }, [hablando, expresion, silbando]);
 
   const esCurvaNeutral = expresion === 'neutral' && !hablando && !silbando;
@@ -362,24 +427,7 @@ const Ojo = memo(function Ojo({
     outputRange: [0, 0.82],
   })).current;
 
-  // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
-  // Definición de la forma del ojo suavizada: afinada arriba pero no tanto.
-  const pathFormaOjo = `
-    M ${EYE_W / 2}, 4
-    C ${EYE_W * 0.84}, 4
-      ${EYE_W * 1.04}, ${EYE_H * 0.38}
-      ${EYE_W * 1.0},  ${EYE_H * 0.62}
-    C ${EYE_W * 0.98}, ${EYE_H * 0.88}
-      ${EYE_W * 0.78}, ${EYE_H - 4}
-      ${EYE_W / 2},    ${EYE_H - 4}
-    C ${EYE_W * 0.22}, ${EYE_H - 4}
-      ${EYE_W * 0.02}, ${EYE_H * 0.88}
-      ${EYE_W * 0.0},  ${EYE_H * 0.62}
-    C ${-EYE_W * 0.04}, ${EYE_H * 0.38}
-      ${EYE_W * 0.16}, 4
-      ${EYE_W / 2}, 4
-    Z
-  `;
+  const pathFormaOjo = pathFormaOjoSvg();
 
   // offsetX (eyeGap) va en un Animated.View SEPARADO con useNativeDriver:false.
   // Si estuviera junto a scaleY (native:true), el redraw nativo a 60fps del SVG
@@ -612,6 +660,8 @@ export default function RosaOjos({
   const blinkTmr      = useRef<ReturnType<typeof setTimeout> | null>(null);
   const breathingAnim = useRef<Animated.CompositeAnimation | null>(null);
   const nightAnimRef  = useRef<Animated.CompositeAnimation | null>(null);
+  /** Cierre de párpado al dormir (no pisar nightAnimRef con el parallel de pupila). */
+  const nightSleepUpperLidRef = useRef<Animated.CompositeAnimation | null>(null);
   const nightTintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const noMolestarLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const expresionAnimRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -629,14 +679,15 @@ export default function RosaOjos({
 
   // ── Modo noche ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    nightSleepUpperLidRef.current?.stop();
     nightAnimRef.current?.stop();
     nightTintAnimRef.current?.stop();
     stopEstadoTimers();
     breathingAnim.current?.stop();
     if (modoNoche === 'durmiendo') {
       running.current = false;
-      nightAnimRef.current = Animated.timing(upperLid,  { toValue: EYE_H, duration: 1800, useNativeDriver: false });
-      nightAnimRef.current.start();
+      nightSleepUpperLidRef.current = Animated.timing(upperLid, { toValue: EYE_H, duration: 1800, useNativeDriver: false });
+      nightSleepUpperLidRef.current.start();
       // Si está amaneciendo, no oscurecer los párpados aunque esté durmiendo
       nightTintAnimRef.current = Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1800, useNativeDriver: false });
       nightTintAnimRef.current.start();
@@ -693,18 +744,23 @@ export default function RosaOjos({
       noMolestarLoopRef.current.start();
     }
     return () => {
+      nightSleepUpperLidRef.current?.stop();
       nightAnimRef.current?.stop();
       nightTintAnimRef.current?.stop();
     };
   }, [modoNoche]);
 
-  // Si cambia amaneciendo mientras ya está durmiendo, actualizar el tinte
+  // Si cambia amaneciendo mientras ya está durmiendo, actualizar el tinte (solo entonces; no incluir modoNoche en deps
+  // para no pisar el timing de 1800ms del efecto principal al entrar en durmiendo).
   useEffect(() => {
-    if (modoNoche === 'durmiendo') {
-      nightTintAnimRef.current?.stop();
-      nightTintAnimRef.current = Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1200, useNativeDriver: false });
-      nightTintAnimRef.current.start();
-    }
+    if (modoNoche !== 'durmiendo') return;
+    nightTintAnimRef.current?.stop();
+    const anim = Animated.timing(nightAnim, { toValue: amaneciendo ? 0 : 1, duration: 1200, useNativeDriver: false });
+    nightTintAnimRef.current = anim;
+    anim.start();
+    return () => {
+      anim.stop();
+    };
   }, [amaneciendo]);
 
   // ── No molestar ─────────────────────────────────────────────────────────────
@@ -764,8 +820,8 @@ export default function RosaOjos({
 
   // ── Expresión ───────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (modoNoche !== 'despierta') return;
     expresionRef.current = expresion;
+    if (modoNoche !== 'despierta') return;
     const c = EXPR[expresion];
     expresionAnimRef.current?.stop();
     expresionAnimRef.current = Animated.parallel([
@@ -780,7 +836,7 @@ export default function RosaOjos({
       Animated.timing(eyeGapR, { toValue:  c.gapOffset, duration: 420, useNativeDriver: false }),
     ]);
     noMolestarLoopRef.current.start();
-  }, [expresion]);
+  }, [expresion, modoNoche]);
 
   // ── Estado: movimiento de pupila + efectos especiales ──────────────────────
   useEffect(() => {
@@ -920,6 +976,7 @@ export default function RosaOjos({
       running.current = false;
       stopEstadoTimers();
       breathingAnim.current?.stop();
+      nightSleepUpperLidRef.current?.stop();
       nightAnimRef.current?.stop();
       nightTintAnimRef.current?.stop();
       noMolestarLoopRef.current?.stop();
