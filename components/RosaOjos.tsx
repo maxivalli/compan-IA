@@ -26,13 +26,13 @@ export const EYE_W = 124;  // 108 * 1.15
 export const EYE_H = 159;  // 138 * 1.15
 export const GAP   = 32;
 export const OW    = 20 + EYE_W * 2 + GAP + 20; // 318
-const IRIS   = 90;  // más grande para ojos de gato
-const PUPIL  = 36;  // pupila felina — ratio 40% sobre el iris
+const IRIS   = 74;  // iris felino — proporcional a la altura del arco
+const PUPIL  = 30;  // pupila redonda de gato cartoon (41% del iris)
 const MAX    = 14;
 
-// Centro del iris — más alto para el ojo redondo de gato
+// Centro del iris — en el centro geométrico del arco de la media píldora
 const CX = EYE_W / 2;        // 62
-const CY = EYE_H * 0.52;     // ~81 — iris centrado en ojo más circular
+const CY = EYE_H * 0.30;     // ~48 — centro del arco (visible de y≈6 a y≈88)
 
 
 
@@ -356,22 +356,19 @@ const Ojo = memo(function Ojo({
     outputRange: [0, 0.82],
   })).current;
 
-  // Forma de ojo felino: más circular y redonda, ligeramente más ancha en los lados.
-  // El ratio visual resultante es ~130×124 px — casi perfectamente circular.
+  // Forma media píldora: arco pronunciado arriba, base plana con leve curva abajo.
+  // Área visible: ~82px de alto × ~124px de ancho → ratio 1.5:1, aspecto felino.
   const pathFormaOjo = `
-    M ${EYE_W / 2}, 4
-    C ${EYE_W * 0.86}, 4
-      ${EYE_W * 1.10}, ${EYE_H * 0.30}
-      ${EYE_W * 1.08}, ${EYE_H * 0.52}
-    C ${EYE_W * 1.04}, ${EYE_H * 0.80}
-      ${EYE_W * 0.78}, ${EYE_H - 4}
-      ${EYE_W / 2},    ${EYE_H - 4}
-    C ${EYE_W * 0.22}, ${EYE_H - 4}
-      ${-EYE_W * 0.04}, ${EYE_H * 0.80}
-      ${-EYE_W * 0.08}, ${EYE_H * 0.52}
-    C ${-EYE_W * 0.10}, ${EYE_H * 0.30}
-      ${EYE_W * 0.14}, 4
-      ${EYE_W / 2}, 4
+    M 8, ${EYE_H * 0.55}
+    C ${-EYE_W * 0.06}, ${EYE_H * 0.22}
+      ${EYE_W * 0.18}, 6
+      ${EYE_W * 0.50}, 6
+    C ${EYE_W * 0.82}, 6
+      ${EYE_W * 1.06}, ${EYE_H * 0.22}
+      ${EYE_W - 8}, ${EYE_H * 0.55}
+    C ${EYE_W * 0.80}, ${EYE_H * 0.63}
+      ${EYE_W * 0.20}, ${EYE_H * 0.63}
+      8, ${EYE_H * 0.55}
     Z
   `;
 
@@ -431,12 +428,12 @@ const Ojo = memo(function Ojo({
         {/* ── Contenido del ojo (clippeado a la forma suavizada) ── */}
         <G clipPath={`url(#huevo${side})`}>
 
-          {/* Esclera con gradiente — más grande y centrada para ojo felino */}
+          {/* Esclera — posicionada en la zona baja del arco, visible en esquinas */}
           <Ellipse
             cx={CX}
-            cy={EYE_H * 0.60}
-            rx={EYE_W * 0.58}
-            ry={EYE_H * 0.50}
+            cy={EYE_H * 0.40}
+            rx={EYE_W * 0.52}
+            ry={EYE_H * 0.26}
             fill={`url(#gradEsclera${side})`}
           />
 
