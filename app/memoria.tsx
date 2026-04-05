@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   Animated,
   Pressable,
@@ -30,6 +31,8 @@ const NIVEL_TILES: Record<Nivel, number> = { 1: 4, 2: 6, 3: 9 };
 const NIVEL_COLS:  Record<Nivel, number> = { 1: 2, 2: 3, 3: 3 };
 const NIVEL_ROWS:  Record<Nivel, number> = { 1: 2, 2: 2, 3: 3 };
 
+const CLICK_ASSET = require('../assets/audio/click.mp3');
+
 // ── Paleta ─────────────────────────────────────────────────────────────────────
 const M = {
   bg:       '#f8fafc',
@@ -52,14 +55,18 @@ function al<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]
 const FRASES_CORRECTA  = ['¡Muy bien!', '¡Eso es!', '¡Perfecto!', '¡Ahí estaba!', '¡Excelente memoria!'];
 const FRASES_MAL       = ['Esa no era... acá estaba.', 'No, acá estaba.', 'No era esa... mirá acá.'];
 const FRASES_GANASTE   = ['¡Increíble! ¡Las encontraste todas! ¡Qué memoria!', '¡Perfecto! ¡Las acertaste todas!'];
-const FRASE_FIN_BIEN   = '¡Muy bien! Encontraste bastantes.';
-const FRASE_FIN_OK     = '¡Bien intentado! La próxima vez mejor.';
-const FRASE_NIVEL_2    = '¡Muy bien! ¡Siguiente nivel, con seis fichas!';
-const FRASE_NIVEL_3    = '¡Excelente! ¡Último nivel! ¡Ahora con las nueve fichas!';
+const FRASE_FIN_BIEN       = '¡Muy bien! Encontraste bastantes.';
+const FRASE_FIN_OK         = '¡Bien intentado! La próxima vez mejor.';
+const FRASE_NIVEL_2        = '¡Muy bien! ¡Siguiente nivel, con seis fichas!';
+const FRASE_NIVEL_3        = '¡Excelente! ¡Último nivel! ¡Ahora con las nueve fichas!';
+const FRASE_NIVEL_FALLIDO  = '¡Casi! Volvamos a intentarlo desde el principio.';
+
+// Mínimo de aciertos para pasar de nivel: ceil(tiles × 0.65) — ej: 3/4, 4/6, 6/9
+function minParaAvanzar(numTiles: number) { return Math.ceil(numTiles * 0.65); }
 
 const TODAS_FRASES_ESTATICAS = [
   ...FRASES_CORRECTA, ...FRASES_MAL, ...FRASES_GANASTE,
-  FRASE_FIN_BIEN, FRASE_FIN_OK, FRASE_NIVEL_2, FRASE_NIVEL_3,
+  FRASE_FIN_BIEN, FRASE_FIN_OK, FRASE_NIVEL_2, FRASE_NIVEL_3, FRASE_NIVEL_FALLIDO,
   '¡Mirá bien dónde están!',
 ];
 
@@ -117,7 +124,7 @@ export default function MemoriaScreen() {
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
   const isTablet    = Math.min(width, height) >= 600;
-  const ts          = isTablet ? 1.5 : 1;
+  const ts          = isTablet ? 1.08 : 1; // 1.5 × 0.85 × 0.85 — tablet achicado 30%
 
   // ── Estado ────────────────────────────────────────────────────────────────────
   const [setIdx,      setSetIdx]      = useState(0);
@@ -138,6 +145,7 @@ export default function MemoriaScreen() {
   const nivelRef       = useRef(nivel);
   // faceAnims[i] controla la ficha en posición de grilla i (0-8)
   const faceAnims      = useRef(Array.from({ length: 9 }, () => new Animated.Value(1))).current;
+  const clickPlayer    = useAudioPlayer(CLICK_ASSET);
   const feedbackPlayer = useAudioPlayer(null);
   const phraseCache    = useRef<Record<string, string>>({});
 
@@ -153,7 +161,8 @@ export default function MemoriaScreen() {
   const tituloSize  = Math.round((isLandscape ? 26 : 36) * ts);
   const TILE_GAP    = isTablet ? 12 : 8;
   const hdrH        = Math.round(52 * ts);
-  const questCardH  = Math.round(90 * ts);
+  const cardSize    = Math.round((isLandscape ? Math.min(height * 0.55, 200) : Math.min(width * 0.5, 220)) * ts);
+  const questCardH  = cardSize;
   const scoreLineH  = Math.round(28 * ts);
   const vertPad     = 24;
 
@@ -294,6 +303,7 @@ export default function MemoriaScreen() {
     if (!target) return;
 
     const isCorrect = target.gridPos === gridPos;
+    try { clickPlayer.seekTo(0); clickPlayer.play(); } catch {}
 
     if (isCorrect) {
       setSubFase('animando');
@@ -322,6 +332,7 @@ export default function MemoriaScreen() {
         });
       }
     } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setSubFase('animando');
       setWrongPos(gridPos);
       setHintPos(target.gridPos);
@@ -336,11 +347,12 @@ export default function MemoriaScreen() {
           setHintPos(null);
 
           if (newGame.currentAskIdx >= numTiles) {
-            if (nivel < 3) {
+            const paso = newGame.score >= minParaAvanzar(numTiles);
+            if (nivel < 3 && paso) {
               const frase = nivel === 1 ? FRASE_NIVEL_2 : FRASE_NIVEL_3;
               decir(frase, () => avanzarNivel((nivel + 1) as Nivel));
             } else {
-              const finFrase = newGame.score >= 6 ? FRASE_FIN_BIEN : FRASE_FIN_OK;
+              const finFrase = paso ? FRASE_FIN_BIEN : (nivel < 3 ? FRASE_NIVEL_FALLIDO : FRASE_FIN_OK);
               decir(finFrase, () => {
                 setSubFase('normal');
                 setFase('terminado');
@@ -408,7 +420,7 @@ export default function MemoriaScreen() {
                 isHint={hintPos === pos}
                 isWrong={wrongPos === pos}
                 onPress={() => handleTap(pos)}
-                disabled={blocked || isRev || fase === 'mostrar'}
+                disabled={blocked || isRev}
               />
             );
           })}
@@ -419,27 +431,22 @@ export default function MemoriaScreen() {
 
   // Tarjeta de pregunta
   const questionCard = (
-    <View style={[sm.questionCard, isTablet && { paddingVertical: 16 }]}>
+    <View style={[sm.questionCard, { width: cardSize, height: cardSize }]}>
       {fase === 'mostrar' ? (
         <>
-          <Text style={[sm.questionLabel, { fontSize: Math.round(12 * ts) }]}>MEMORIZÁ</Text>
-          <Text style={[sm.questionText,  { fontSize: Math.round(20 * ts) }]}>¡Mirá bien dónde están!</Text>
-          <Text style={[sm.countdownText, { fontSize: Math.round(40 * ts) }]}>{countDown > 0 ? countDown : '✓'}</Text>
+          <Text style={[sm.questionLabel, { fontSize: Math.round(13 * ts) }]}>MEMORIZÁ</Text>
+          <Text style={[sm.countdownText, { fontSize: Math.round(cardSize * 0.45) }]}>{countDown > 0 ? countDown : '✓'}</Text>
         </>
       ) : target ? (
-        <>
-          <Text style={[sm.questionLabel, { fontSize: Math.round(12 * ts) }]}>ENCONTRÁ</Text>
-          <Text style={[sm.questionEmoji, { fontSize: Math.round(40 * ts) }]}>{target.design.emoji}</Text>
-          <Text style={[sm.questionText,  { fontSize: Math.round(18 * ts) }]}>{target.design.label}</Text>
-        </>
+        <Text style={[sm.questionEmoji, { fontSize: Math.round(cardSize * 0.62) }]}>{target.design.emoji}</Text>
       ) : (
-        <Text style={[sm.questionText, { fontSize: Math.round(18 * ts) }]}>¡Terminaste!</Text>
+        <Text style={[sm.questionText, { fontSize: Math.round(20 * ts) }]}>¡Terminaste!</Text>
       )}
     </View>
   );
 
   const scoreLine = fase === 'jugando' && (
-    <Text style={[sm.scoreText, { fontSize: Math.round(14 * ts) }]}>
+    <Text style={[sm.scoreText, { fontSize: Math.round(32 * ts) }]}>
       ✓ {game.score}  ✗ {game.currentAskIdx - game.score}
     </Text>
   );
@@ -470,7 +477,7 @@ export default function MemoriaScreen() {
           <View style={sm.colLeft}>
             <Text style={[sm.titulo, { fontSize: tituloSize }]}>MEMORIA</Text>
             {levelDots}
-            <Text style={[sm.statusText, { fontSize: Math.round(15 * ts) }]}>{statusText}</Text>
+            <Text style={[sm.statusText, { fontSize: Math.round(26 * ts) }]}>{statusText}</Text>
             {questionCard}
             {scoreLine}
           </View>
@@ -482,7 +489,7 @@ export default function MemoriaScreen() {
         <View style={sm.bodyPortrait}>
           <Text style={[sm.titulo, { fontSize: tituloSize }]}>MEMORIA</Text>
           {levelDots}
-          <Text style={[sm.statusText, { fontSize: Math.round(15 * ts) }]}>{statusText}</Text>
+          <Text style={[sm.statusText, { fontSize: Math.round(26 * ts) }]}>{statusText}</Text>
           {questionCard}
           {scoreLine}
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -546,7 +553,7 @@ const sm = StyleSheet.create({
   bodyPortrait: { flex: 1, alignItems: 'center', paddingHorizontal: 16 },
 
   titulo:     { color: M.text, fontWeight: '900', letterSpacing: 4, textAlign: 'center', marginBottom: 4 },
-  levelDots:  { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  levelDots:  { flexDirection: 'row', gap: 8, marginBottom: 28 },
   dot:        { width: 9, height: 9, borderRadius: 5 },
   dotActive:  { backgroundColor: M.btn },
   dotInactive:{ backgroundColor: M.border },
@@ -554,12 +561,11 @@ const sm = StyleSheet.create({
   statusText: { color: M.sub, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
 
   questionCard: {
-    backgroundColor: M.surface, borderRadius: 16, borderWidth: 1, borderColor: M.border,
-    paddingHorizontal: 20, paddingVertical: 10,
-    alignItems: 'center', width: '100%', marginBottom: 6,
+    backgroundColor: M.surface, borderRadius: 20, borderWidth: 1, borderColor: M.border,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 10,
   },
-  questionLabel:  { color: M.sub, fontWeight: '800', letterSpacing: 2, marginBottom: 2 },
-  questionEmoji:  { lineHeight: 52, marginBottom: 2 },
+  questionLabel:  { color: M.sub, fontWeight: '800', letterSpacing: 2, marginBottom: 4 },
+  questionEmoji:  { lineHeight: undefined },
   questionText:   { color: M.text, fontWeight: '800', textAlign: 'center' },
   countdownText:  { color: M.btn, fontWeight: '900', marginTop: 2 },
 

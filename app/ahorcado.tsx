@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   Animated,
   Pressable,
@@ -23,6 +24,8 @@ import {
 } from '../lib/ahorcado';
 import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
 import { cargarPerfil } from '../lib/memoria';
+
+const CLICK_ASSET = require('../assets/audio/click.mp3');
 
 // ── Paleta ──────────────────────────────────────────────────────────────────────
 
@@ -183,13 +186,11 @@ export default function AhorcadoScreen() {
   const ts = isTablet ? 1.5 : 1; // escala general para tablet
 
   // Tamaños adaptativos
-  const tituloSize    = Math.round((isLandscape ? 32 : 42)   * ts);
+  const tituloSize    = Math.round((isLandscape ? 40 : 42)   * ts);
   const hdrVPad       = isLandscape ? 5 : 12;
-  const corazonSize   = Math.round((isLandscape ? 28 : 30)   * ts);
-  const letraWordSize = Math.round((isLandscape ? 34 : 38)   * ts);
-  const pistaSize     = Math.round((isLandscape ? 22 : 26)   * ts);
-  const statusSize    = Math.round((isLandscape ? 22 : 24)   * ts);
-  const erradasSize   = Math.round((isLandscape ? 20 : 22)   * ts);
+  const corazonSize   = Math.round((isLandscape ? 32 : 30)   * ts);
+  const letraWordSize = Math.round((isLandscape ? 42 : 38)   * ts);
+  const pistaSize     = Math.round((isLandscape ? 26 : 26)   * ts);
 
   // El panel derecho (grilla) recibe flex 1.2 del total 2.2 → ~54.5% del ancho
   const RIGHT_FLEX = 1.2;
@@ -215,6 +216,7 @@ export default function AhorcadoScreen() {
   const overlayAnim  = useRef(new Animated.Value(0)).current;
   const hablandoRef  = useRef(false);
   const lastSpokeRef = useRef(0);
+  const clickPlayer    = useAudioPlayer(CLICK_ASSET);
   const feedbackPlayer = useAudioPlayer(null);
   const phraseCache    = useRef<Record<string, string>>({});
 
@@ -326,6 +328,7 @@ export default function AhorcadoScreen() {
   function jugarLetra(letra: string) {
     const nuevo = procesarLetra(juego, letra);
     if (nuevo === juego) return; // ya usada
+    try { clickPlayer.seekTo(0); clickPlayer.play(); } catch {}
 
     setJuego(nuevo);
 
@@ -345,6 +348,7 @@ export default function AhorcadoScreen() {
       mostrarOverlay();
       decir(al(FRASES.perdi));
     } else {
+      if (!esCorrecta) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       decir(esCorrecta ? al(FRASES.correcta) : al(FRASES.errada));
     }
   }
@@ -366,11 +370,6 @@ export default function AhorcadoScreen() {
   // ── Render helpers ────────────────────────────────────────────────────────────
 
   const errores = juego.letrasErradas.size;
-
-  const statusTexto =
-    fase === 'ganaste' ? '¡Adivinaste! 🎉' :
-    fase === 'perdi'   ? `Era: ${juego.palabra}` :
-    `${MAX_ERRORES - errores} error${MAX_ERRORES - errores !== 1 ? 'es' : ''} restante${MAX_ERRORES - errores !== 1 ? 's' : ''}`;
 
   const overlayMsg =
     fase === 'ganaste' ? `¡Felicitaciones!\n"${juego.palabra}" 🎉` :
@@ -408,14 +407,6 @@ export default function AhorcadoScreen() {
       </View>
 
       <Vidas key={juegoKey} errores={errores} corazonSize={corazonSize} />
-
-      <Text style={[sv.statusTexto, { fontSize: statusSize }]}>{statusTexto}</Text>
-
-      {juego.letrasErradas.size > 0 && (
-        <Text style={[sv.erradas, { fontSize: erradasSize }]}>
-          Letras: {[...juego.letrasErradas].join('  ')}
-        </Text>
-      )}
     </View>
   );
 
@@ -524,7 +515,7 @@ const sv = StyleSheet.create({
   bodyLandscape: { flex: 1, flexDirection: 'row' },
 
   infoPanel: { alignItems: 'center', paddingHorizontal: 12, paddingTop: 52 },
-  infoPanelLandscape: { flex: 1, justifyContent: 'center', paddingHorizontal: 16, marginTop: 0, alignSelf: 'center', width: '100%' },
+  infoPanelLandscape: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16, paddingTop: 0 },
 
   titulo: {
     color: M.text, fontWeight: '900', letterSpacing: 4,
