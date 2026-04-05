@@ -206,8 +206,8 @@ export default function Index() {
            const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
            const max = hasAlert ? 2 : 1;
            const next = prev >= max ? 0 : prev + 1;
-           // Wrap-around (2→0): entra desde la izquierda. Avance normal: desde la derecha.
-           hintTranslate.setValue(next < prev ? -30 : 30);
+           // Siempre entra desde la derecha, incluyendo wrap-around.
+           hintTranslate.setValue(30);
            return next;
         });
         // No setear hintTranslate.setValue(30) acá: ya se hizo dentro del updater de estado.
