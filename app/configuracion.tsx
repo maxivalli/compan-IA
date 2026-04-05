@@ -575,12 +575,12 @@ export default function Configuracion() {
           );
         })()}
         <M3Input label="Otros gustos y temas" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
+        <M3Input label="Fechas importantes" hint="Separados por coma" value={fechas} onChangeText={setFechas} multiline placeholder="cumpleaños Juan 15 marzo" />
 
         {/* ── Salud ── */}
         <SectionLabel icon="medkit-outline" label="Salud" />
         <M3Input label="Medicamentos y horarios" hint="Separados por coma" value={medicamentos} onChangeText={setMedicamentos} multiline placeholder="Enalapril 8hs, Aspirina 12hs" />
-        <M3Input label="Condición física" hint="Limitaciones de movilidad para ejercicios guiados" value={condicionFisica} onChangeText={setCondicionFisica} multiline placeholder="ej: usa andador, no puede doblar rodillas" />
-        <M3Input label="Fechas importantes" hint="Separados por coma" value={fechas} onChangeText={setFechas} multiline placeholder="cumpleaños Juan 15 marzo" />
+        <M3Input label="Condición física" hint="Limitaciones de movilidad, visión, etc." value={condicionFisica} onChangeText={setCondicionFisica} multiline placeholder="ej: usa andador, visión reducida" />
 
         {/* ── Telegram ── */}
         <SectionLabel icon="paper-plane-outline" label="Alertas Telegram" />
