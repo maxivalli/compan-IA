@@ -99,10 +99,11 @@ export default function Index() {
   // Al salir (onboarding, configuración, etc.) detener SR para que no escuche
   // en segundo plano mientras el tab sigue montado.
   useFocusEffect(useCallback(() => {
+    refs.reanudarSR?.();
     resetExpresion();
     if (cargando) reactivar();
     else recargarPerfil();
-    return () => { refs.pararSRIntencional?.(); };
+    return () => { refs.suspenderSR?.(); };
   }, [cargando]));
 
   // ── Foto recibida por Telegram ───────────────────────────────────────────────

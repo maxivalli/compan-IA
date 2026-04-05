@@ -261,6 +261,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const intentionalStopRef     = useRef(false);
   // Cuenta cuántos 'end' consecutivos hubo sin result; alimenta el backoff exponencial.
   const srConsecutiveEndsRef   = useRef(0);
+  // Suspendido por blur (ej: usuario navegó a un juego) — el watchdog no reinicia SR.
+  const srSuspendidoRef        = useRef(false);
 
   // ── Refs de TTS ──────────────────────────────────────────────────────────
   const ultimoAudioUriRef     = useRef<string | null>(null);
@@ -500,14 +502,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (enFlujoVozRef.current) return;
     if (enColaHablaRef.current) return;  // hablarConCola aún corriendo — no iniciar SR entre oraciones
     if (!d.perfilRef.current?.nombreAbuela) return;
-    if (d.estadoRef.current === 'esperando' && !procesandoRef.current) {
+    if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !srSuspendidoRef.current) {
       // Backoff exponencial: cada 'end' sin result aumenta la espera.
       // Base 2 s (> lock de 1500 ms para garantizar que el lock nunca bloquee
       // un restart legítimo). Crece hasta 10 s tras múltiples fallas seguidas.
       srConsecutiveEndsRef.current += 1;
       const delay = Math.min(2000 * Math.pow(1.4, srConsecutiveEndsRef.current - 1), 10000);
       setTimeout(() => {
-        if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current) {
+        if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current && !srSuspendidoRef.current) {
           if (!d.verificarCharlaProactiva()) iniciarSpeechRecognition();
         }
       }, delay);
@@ -522,11 +524,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (enFlujoVozRef.current) return;
     if (enColaHablaRef.current) return;  // hablarConCola corriendo — no reiniciar
     if (!d.perfilRef.current?.nombreAbuela) return;
-    if (d.estadoRef.current === 'esperando' && !procesandoRef.current) {
+    if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !srSuspendidoRef.current) {
       srConsecutiveEndsRef.current += 1;
       const delay = event.error === 'network' ? 5000 : Math.min(2000 * Math.pow(1.4, srConsecutiveEndsRef.current - 1), 10000);
       setTimeout(() => {
-        if (!procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current && !d.verificarCharlaProactiva()) {
+        if (!procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current && !srSuspendidoRef.current && !d.verificarCharlaProactiva()) {
           iniciarSpeechRecognition();
         }
       }, delay);
@@ -582,6 +584,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const srZombie  = srActivoRef.current && tiempoDesdeInicio > 25000;
       const srVencido = srActivoRef.current && tiempoDesdeInicio > 45000;
 
+      if (srSuspendidoRef.current) return;
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
           if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (45s)' : 'zombie — reiniciando');
@@ -1165,6 +1168,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
      *  dispare un restart espurio. Delegado a safeStopSpeechRecognition() que ya
      *  centraliza la lógica de flag + srActivoRef. */
     pararSpeechRecognitionIntencional(): void { safeStopSpeechRecognition(); },
+    suspenderSR(): void {
+      srSuspendidoRef.current = true;
+      safeStopSpeechRecognition();
+    },
+    reanudarSR(): void {
+      srSuspendidoRef.current = false;
+    },
     iniciarEscucha,
     detenerEscucha,
   };

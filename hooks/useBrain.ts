@@ -501,6 +501,8 @@ export interface BrainDeps {
   playerMusica:        AudioPlayerLike;
   iniciarSpeechRecognition: () => void;
   pararSRIntencional: () => void;
+  suspenderSR?: () => void;
+  reanudarSR?:  () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
   lanzarJuego?: (tipo: 'tateti' | 'ahorcado' | 'memoria') => void;
 }

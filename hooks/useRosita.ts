@@ -214,6 +214,8 @@ export function useRosita() {
     playerMusica:             pipeline.playerMusica,
     iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
     pararSRIntencional:       pipeline.pararSpeechRecognitionIntencional,
+    suspenderSR:              pipeline.suspenderSR,
+    reanudarSR:               pipeline.reanudarSR,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
     lanzarJuego: (tipo) => router.push((tipo === 'tateti' ? '/tateti' : tipo === 'ahorcado' ? '/ahorcado' : '/memoria') as any),
   });
@@ -1008,6 +1010,8 @@ export function useRosita() {
       musicaActivaRef, enFlujoVozRef: pipeline.enFlujoVozRef, proximaAlarmaRef,
       setEstado, hablar: pipeline.hablar, iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
       pararSRIntencional: pipeline.pararSpeechRecognitionIntencional,
+      suspenderSR: pipeline.suspenderSR,
+      reanudarSR:  pipeline.reanudarSR,
       modoNoche, iniciarSilbido: pipeline.iniciarSilbido, detenerSilbido: pipeline.detenerSilbido, flujoFoto,
       reanudarMusica: pipeline.reanudarMusica,
     },
