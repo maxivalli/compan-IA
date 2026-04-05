@@ -5,7 +5,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -34,8 +33,6 @@ const M = {
   sub:         '#475569',
   correcta:    '#22c55e',
   errada:      '#ef4444',
-  btn:         '#0097b2',
-  btnText:     '#ffffff',
   overlay:     'rgba(0,0,0,0.7)',
   letrabg:     '#f1f5f9',
   letraBorder: '#e2e8f0',
@@ -459,13 +456,6 @@ export default function AhorcadoScreen() {
 
       {/* Header */}
       <View style={[sv.header, { paddingVertical: hdrVPad }]}>
-        <TouchableOpacity
-          onPress={() => { detenerSR(); router.replace('/'); }}
-          style={[sv.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[sv.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
-        </TouchableOpacity>
         <View style={[sv.srDot, escuchando && sv.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
@@ -493,12 +483,6 @@ export default function AhorcadoScreen() {
       >
         <View style={sv.overlayCard}>
           <Text style={sv.overlayMsg}>{overlayMsg}</Text>
-          <TouchableOpacity style={sv.btnOtra} onPress={reiniciar}>
-            <Text style={sv.btnOtraTexto}>Jugar otra vez</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={sv.btnVolver} onPress={() => { detenerSR(); router.replace('/'); }}>
-            <Text style={sv.btnVolverTexto}>Volver a Rosita</Text>
-          </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -513,10 +497,8 @@ const sv = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingHorizontal: 20,
+    justifyContent: 'flex-end', paddingHorizontal: 20,
   },
-  btnSalir: { backgroundColor: M.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
-  btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
   srDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
   srDotActive: { backgroundColor: '#4ade80' },
 
@@ -562,14 +544,4 @@ const sv = StyleSheet.create({
     alignItems: 'center', gap: 16, width: '82%',
   },
   overlayMsg: { color: M.text, fontSize: 26, fontWeight: '800', textAlign: 'center', lineHeight: 36 },
-  btnOtra: {
-    backgroundColor: M.btn, borderRadius: 16,
-    paddingHorizontal: 28, paddingVertical: 16, width: '100%', alignItems: 'center',
-  },
-  btnOtraTexto: { color: M.btnText, fontSize: 18, fontWeight: '700' },
-  btnVolver: {
-    borderWidth: 2, borderColor: M.border, borderRadius: 16,
-    paddingHorizontal: 28, paddingVertical: 14, width: '100%', alignItems: 'center',
-  },
-  btnVolverTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
 });

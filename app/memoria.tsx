@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -38,7 +37,6 @@ const M = {
   text:     '#0f172a',
   sub:      '#475569',
   btn:      '#0097b2',
-  btnText:  '#ffffff',
   cardBack: '#1e3a8a',
   correct:  '#22c55e',
   wrong:    '#ef4444',
@@ -454,13 +452,6 @@ export default function MemoriaScreen() {
 
       {/* Header */}
       <View style={[sm.header, { height: hdrH }]}>
-        <TouchableOpacity
-          onPress={() => { detenerSR(); router.replace('/'); }}
-          style={[sm.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Text style={[sm.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
-        </TouchableOpacity>
         <View style={[sm.srDot, escuchando && sm.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
@@ -507,18 +498,6 @@ export default function MemoriaScreen() {
               ? `¡Muy bien!\n${game.score} de 9`
               : `¡Bien intentado!\n${game.score} de 9`}
           </Text>
-          <TouchableOpacity
-            style={[sm.btnOtra, isTablet && { paddingVertical: 24, borderRadius: 20 }]}
-            onPress={reiniciar}
-          >
-            <Text style={[sm.btnOtraTexto, isTablet && { fontSize: 28 }]}>Jugar otra vez</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[sm.btnVolver, isTablet && { paddingVertical: 22, borderRadius: 20 }]}
-            onPress={() => { detenerSR(); router.replace('/'); }}
-          >
-            <Text style={[sm.btnVolverTexto, isTablet && { fontSize: 26 }]}>Volver a Rosita</Text>
-          </TouchableOpacity>
         </View>
       </Animated.View>
 
@@ -532,10 +511,8 @@ const sm = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', paddingHorizontal: 20,
+    justifyContent: 'flex-end', paddingHorizontal: 20,
   },
-  btnSalir:      { backgroundColor: M.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
-  btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
   srDot:         { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
   srDotActive:   { backgroundColor: '#4ade80' },
 
@@ -576,8 +553,4 @@ const sm = StyleSheet.create({
   },
   overlayEmoji:   { fontSize: 56 },
   overlayMsg:     { color: M.text, fontSize: 28, fontWeight: '800', textAlign: 'center', lineHeight: 38 },
-  btnOtra:        { backgroundColor: M.btn, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 16, width: '100%', alignItems: 'center' },
-  btnOtraTexto:   { color: M.btnText, fontSize: 18, fontWeight: '700' },
-  btnVolver:      { borderWidth: 2, borderColor: M.border, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14, width: '100%', alignItems: 'center' },
-  btnVolverTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
 });
