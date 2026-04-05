@@ -264,6 +264,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Refs de TTS ──────────────────────────────────────────────────────────
   const ultimoAudioUriRef     = useRef<string | null>(null);
+  // Timestamp del último fin de TTS — usado para protección de eco post-TTS en el SR.
+  const ultimoFinTTSRef       = useRef<number>(0);
   const ultimoTextoHabladoRef = useRef<string | null>(null);
   const cancelarHablaRef      = useRef<(() => void) | null>(null);
   const bargeInTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -364,6 +366,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (procesandoRef.current) return;
     if (enFlujoVozRef.current) return;
     if (!texto || texto.length < 2) return;
+
+    // Protección de eco post-TTS: ignorar SR results por 1200ms después de que Rosita
+    // terminó de hablar (state='esperando'). Durante 'hablando' el barge-in maneja su
+    // propio filtrado. Sin esto, el eco de la voz de Rosita en la sala puede disparar
+    // un nuevo turno de Claude.
+    if (d.estadoRef.current === 'esperando' && Date.now() - ultimoFinTTSRef.current < 1200) {
+      if (__DEV__) console.log('[SR] result bloqueado por eco post-TTS, ms:', Date.now() - ultimoFinTTSRef.current);
+      return;
+    }
 
     // Reactivación en modo no molestar
     if (d.noMolestarRef.current) {
@@ -991,6 +1002,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     hablandoDesdeRef.current = 0;
     cancelarHablaRef.current = null;
+    ultimoFinTTSRef.current = Date.now(); // marcar fin de TTS para protección de eco
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
     unduckMusica();
     d.setEstado('esperando');

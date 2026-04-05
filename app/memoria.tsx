@@ -289,7 +289,7 @@ export default function MemoriaScreen() {
 
   // ── Tap ficha ─────────────────────────────────────────────────────────────────
   function handleTap(gridPos: number) {
-    if (fase !== 'jugando' || subFase !== 'normal' || hablandoRef.current) return;
+    if (fase !== 'jugando' || subFase !== 'normal') return;
     const target = getCurrentTarget(game);
     if (!target) return;
 
