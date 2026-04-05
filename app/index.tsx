@@ -654,17 +654,7 @@ export default function Index() {
                 </Svg>
               </Animated.View>
             ); })() }
-            {/* Ring de detección de voz — pulsa con detectScale */}
-            <Animated.View pointerEvents="none" style={{
-              position: 'absolute',
-              width: btnW + 16, height: btnH + 16,
-              borderRadius: (btnH + 16) / 2,
-              borderWidth: 2,
-              borderColor: btnDotColor,
-              top: -8, left: -8,
-              opacity: detectRing,
-              transform: [{ scale: detectScale }],
-            }} />
+
             <Animated.View style={{ width: btnW, height: btnH, borderRadius: btnH / 2 }}>
               <TouchableOpacity
                 style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
