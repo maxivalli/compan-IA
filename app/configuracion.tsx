@@ -413,8 +413,8 @@ export default function Configuracion() {
     const contactosActivos = contactos.filter(c => idsActivos.includes(c.id));
 
     if (nombreTrimmed && BACKEND_URL) {
-      const familiaIdExistente = await obtenerFamiliaId();
-      if (!familiaIdExistente) {
+      let famId = await obtenerFamiliaId();
+      if (!famId) {
         try {
           const token = await obtenerTokenDispositivo();
           const res = await fetchTimeout(`${BACKEND_URL}/familia/registrar`, 10000, {
@@ -426,9 +426,49 @@ export default function Configuracion() {
             }),
           });
           const data = await res.json();
-          if (data.familiaId) await guardarFamiliaId(data.familiaId);
+          if (data.familiaId) {
+            famId = data.familiaId;
+            await guardarFamiliaId(data.familiaId);
+          }
           if (data.codigo) { await guardarCodigoRegistro(data.codigo); setCodigoRegistro(data.codigo); }
         } catch {}
+      }
+
+      // ── Sincronizar contactos activos con el backend ──
+      if (famId) {
+        try {
+          const token = await obtenerTokenDispositivo();
+          const res = await fetchTimeout(`${BACKEND_URL}/familia/mis-contactos`, 8000, {
+            headers: { 'x-device-token': token },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const idsEnBackend = new Set<string>(
+              (data.contactos as { chatId: string }[]).map(c => c.chatId)
+            );
+            const nuevosIdsActivos = new Set(idsActivos);
+
+            const aVincular = contactosActivos.filter(c => !idsEnBackend.has(c.id));
+            const aDesvincular = data.contactos.filter((c: any) => !nuevosIdsActivos.has(c.chatId));
+
+            for (const c of aVincular) {
+              await fetchTimeout(`${BACKEND_URL}/familia/${famId}/vincular-contacto`, 5000, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-device-token': token },
+                body: JSON.stringify({ chatId: c.id, nombre: c.nombre }),
+              }).catch(() => {});
+            }
+
+            for (const c of aDesvincular) {
+              await fetchTimeout(`${BACKEND_URL}/familia/${famId}/contacto/${c.chatId}`, 5000, {
+                method: 'DELETE',
+                headers: { 'x-device-token': token },
+              }).catch(() => {});
+            }
+          }
+        } catch (e) {
+          console.warn('[Sync Contactos] Error:', e);
+        }
       }
     }
 
