@@ -57,6 +57,7 @@ export type NotificacionesRefs = {
   pararSRIntencional:    (() => void) | undefined;
   flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
   mostrarFoto:           (urlFoto: string, descripcion: string) => void;
+  monitoreoActivo:       boolean;
 };
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
     modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional, flujoFoto, mostrarFoto,
+    monitoreoActivo,
   } = refs;
 
   // Grabador para respuestas de voz
@@ -895,24 +897,33 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   // Si el usuario activó "Monitoreo de app", envía un ping al backend cada 10
   // minutos. Si la app se cierra o pierde internet, el servidor detecta la
   // ausencia y avisa a los familiares por Telegram.
+  //
+  // FIX: monitoreoActivo es ahora un boolean reactivo (useState en useRosita),
+  // NO se lee de perfilRef (que es un ref no reactivo y no re-dispara el effect).
   useEffect(() => {
-    const p = perfilRef.current;
-    if (!p?.monitoreoActivo) return;
+    if (!monitoreoActivo) {
+      // Si se desactivó, notificar al backend para que no siga esperando pings
+      enviarHeartbeat(false).catch(() => {});
+      return;
+    }
 
-    // Ping inmediato al abrir la app
-    enviarHeartbeat(true).catch(() => {});
+    // Ping inmediato al activar
+    enviarHeartbeat(true).catch((e) => {
+      console.warn('[Heartbeat] Error al enviar ping:', e?.message);
+    });
 
     const id = setInterval(() => {
-      enviarHeartbeat(true).catch(() => {});
+      enviarHeartbeat(true).catch((e) => {
+        console.warn('[Heartbeat] Error en intervalo:', e?.message);
+      });
     }, 10 * 60 * 1000);
 
     return () => {
       clearInterval(id);
-      // Al cerrar la pantalla / desmontar, notificar que ya no está activo
-      // (esto no siempre llega si el proceso muere, pero cubre cierres limpios)
+      // Al desmontar el componente (cierre limpio de la app)
       enviarHeartbeat(false).catch(() => {});
     };
-  }, [perfilRef.current?.monitoreoActivo]);
+  }, [monitoreoActivo]);
 
   // ── Alerta de inactividad ───────────────────────────────────────────────────
   useEffect(() => {

@@ -87,6 +87,7 @@ export default function Index() {
     refs, player,
     listas, borrarListaVoz,
     detectandoSonido,
+    monitoreoActivo,
   } = useRosita();
 
 
@@ -124,7 +125,7 @@ export default function Index() {
   }
 
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
-  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional: refs.pararSRIntencional, mostrarFoto }, player);
+  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional: refs.pararSRIntencional, mostrarFoto, monitoreoActivo }, player);
 
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────

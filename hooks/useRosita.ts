@@ -69,6 +69,7 @@ export function useRosita() {
   const [ciudadDetectada,   setCiudadDetectada]   = useState('');
   const [debugGPS,          setDebugGPS]          = useState('');
   const [listas,            setListas]            = useState<Lista[]>([]);
+  const [monitoreoActivo,   setMonitoreoActivo]   = useState(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const estadoRef           = useRef(estado);
@@ -428,6 +429,7 @@ export function useRosita() {
     const perfil = await cargarPerfil();
     if (!perfil.nombreAbuela) return;
     perfilRef.current = perfil;
+    setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     pipeline.precachearMuletillas(perfil.vozId, perfil.nombreAbuela).catch(() => {});
     pipeline.precachearRespuestasRapidas(perfil.nombreAbuela).catch(() => {});
@@ -445,6 +447,7 @@ export function useRosita() {
     const perfil = await cargarPerfil();
     if (!perfil.nombreAbuela) return;
     perfilRef.current = perfil;
+    setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
   }
 
@@ -465,6 +468,7 @@ export function useRosita() {
     ]);
     ultimaRadioRef.current = ultimaRadio;
     perfilRef.current    = perfilGuardado;
+    setMonitoreoActivo(perfilGuardado.monitoreoActivo ?? false);
     brain.historialRef.current = historialGuardado as Mensaje[];
     setListas(listasGuardadas);
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
@@ -1014,6 +1018,7 @@ export function useRosita() {
     modoVision, capturaVisionFnRef,
     modoWatchingPresencia: camaraPresencia.modoWatching,
     onPresenciaDetectada: camaraPresencia.onPresenciaDetectada,
+    monitoreoActivo,
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
