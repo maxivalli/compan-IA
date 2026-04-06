@@ -387,7 +387,11 @@ export default function Configuracion() {
       const data = await res.json();
 
       if (!data.contactos?.length) {
-        setErrorBusqueda('Nadie escribió al bot todavía. Pedile a cada familiar que busque el bot en Telegram y le mande "hola".');
+        if (contactos.length > 0) {
+          setErrorBusqueda('No encontré contactos nuevos. Pedile a tu familiar que mande el código al bot en Telegram.');
+        } else {
+          setErrorBusqueda('Nadie escribió al bot todavía. Pedile a cada familiar que busque el bot en Telegram y le mande "hola".');
+        }
         return;
       }
 
