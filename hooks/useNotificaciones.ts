@@ -22,7 +22,7 @@ import {
   fechaLocal,
 } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
-import { enviarAlertaTelegram, enviarMensajeTelegram, recibirMensajesVoz, recibirMensajesFoto, recibirMensajesTexto, obtenerUrlArchivo, MensajeVoz, MensajeFoto, MensajeTexto } from '../lib/telegram';
+import { enviarAlertaTelegram, enviarMensajeTelegram, confirmarInformeEnviado, enviarHeartbeat, recibirMensajesVoz, recibirMensajesFoto, recibirMensajesTexto, obtenerUrlArchivo, MensajeVoz, MensajeFoto, MensajeTexto } from '../lib/telegram';
 import { obtenerClima, climaATexto, CODIGOS_ADVERSOS } from '../lib/clima';
 
 import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
@@ -798,6 +798,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await marcarRecordado(clave);
       const mensaje = await generarMensajeResumen(p);
       await enviarMensajeTelegram(chatIds, mensaje);
+      // Notificar al backend que el informe fue enviado (watchdog)
+      confirmarInformeEnviado(ahora.toISOString().slice(0, 10)).catch(() => {});
     }
 
     async function resetearAnimo() {
@@ -888,6 +890,29 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     const id = setInterval(tick, 60000);
     return () => clearInterval(id);
   }, []);
+
+  // ── Heartbeat de monitoreo ───────────────────────────────────────────────────
+  // Si el usuario activó "Monitoreo de app", envía un ping al backend cada 10
+  // minutos. Si la app se cierra o pierde internet, el servidor detecta la
+  // ausencia y avisa a los familiares por Telegram.
+  useEffect(() => {
+    const p = perfilRef.current;
+    if (!p?.monitoreoActivo) return;
+
+    // Ping inmediato al abrir la app
+    enviarHeartbeat(true).catch(() => {});
+
+    const id = setInterval(() => {
+      enviarHeartbeat(true).catch(() => {});
+    }, 10 * 60 * 1000);
+
+    return () => {
+      clearInterval(id);
+      // Al cerrar la pantalla / desmontar, notificar que ya no está activo
+      // (esto no siempre llega si el proceso muere, pero cubre cierres limpios)
+      enviarHeartbeat(false).catch(() => {});
+    };
+  }, [perfilRef.current?.monitoreoActivo]);
 
   // ── Alerta de inactividad ───────────────────────────────────────────────────
   useEffect(() => {

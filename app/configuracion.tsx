@@ -254,6 +254,7 @@ export default function Configuracion() {
   const [horaInicioNoche, setHoraInicioNoche] = useState(23);
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
   const [deteccionPresencia, setDeteccionPresencia] = useState(false);
+  const [monitoreoActivo, setMonitoreoActivo] = useState(false);
 
   // ── Domótica ──
   const [stVinculado, setStVinculado]       = useState(false);
@@ -340,6 +341,7 @@ export default function Configuracion() {
       setHoraInicioNoche(p.horaInicioNoche ?? 23);
       setHoraFinNoche(p.horaFinNoche ?? 9);
       setDeteccionPresencia(p.deteccionPresenciaActiva ?? false);
+      setMonitoreoActivo(p.monitoreoActivo ?? false);
       setIdsActivos((p.telegramContactos || []).map(c => c.id));
       setContactos(p.telegramContactos || []);
     });
@@ -433,6 +435,7 @@ export default function Configuracion() {
       telegramContactos: contactosActivos,
       deteccionPresenciaActiva: deteccionPresencia,
       condicionFisica: condicionFisica.trim() || undefined,
+      monitoreoActivo,
     });
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
@@ -762,6 +765,22 @@ export default function Configuracion() {
               onValueChange={setDeteccionPresencia}
               trackColor={{ false: M.outlineVariant, true: M.primary }}
               thumbColor={deteccionPresencia ? '#ffffff' : '#f4f4f4'}
+            />
+          </View>
+          <View style={s.divisorThin} />
+          <View style={s.switchRow}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.switchLabel}>Monitoreo de app</Text>
+              <Text style={s.switchHint}>
+                El servidor verifica cada 10 min que la app esté abierta y con internet.
+                Si no responde, tus familiares de Telegram reciben una alerta.
+              </Text>
+            </View>
+            <Switch
+              value={monitoreoActivo}
+              onValueChange={setMonitoreoActivo}
+              trackColor={{ false: M.outlineVariant, true: M.primary }}
+              thumbColor={monitoreoActivo ? '#ffffff' : '#f4f4f4'}
             />
           </View>
         </Surface>

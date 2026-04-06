@@ -109,3 +109,25 @@ export async function enviarMensajeTelegram(chatIds: string[], texto: string): P
     });
   } catch {}
 }
+
+export async function confirmarInformeEnviado(fechaISO: string): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/telegram/confirmar-informe`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ fechaISO }),
+    });
+  } catch {}
+}
+
+export async function enviarHeartbeat(activo: boolean): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/familia/heartbeat`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ activo }),
+    });
+  } catch {}
+}
+
+

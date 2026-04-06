@@ -136,6 +136,7 @@ export type Perfil = {
   telegramContactos: TelegramContacto[];
   deteccionPresenciaActiva?: boolean; // cámara frontal detecta presencia tras 30 min inactivo
   condicionFisica?: string;           // ej: "usa andador, no puede doblar rodillas" — guía los ejercicios proactivos
+  monitoreoActivo?: boolean;          // heartbeat cada 10 min → backend alerta si la app se cierra o pierde señal
 };
 
 export const perfilInicial: Perfil = {
