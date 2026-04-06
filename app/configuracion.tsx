@@ -315,7 +315,8 @@ export default function Configuracion() {
 
   useEffect(() => {
     obtenerCodigoRegistro().then(setCodigoRegistro);
-    cargarPerfil().then(p => {
+    (async () => {
+      const p = await cargarPerfil();
       setPerfil(p);
       setNombre(p.nombreAbuela);
       setEdad(p.edad ? String(p.edad) : '');
@@ -342,9 +343,36 @@ export default function Configuracion() {
       setHoraFinNoche(p.horaFinNoche ?? 9);
       setDeteccionPresencia(p.deteccionPresenciaActiva ?? false);
       setMonitoreoActivo(p.monitoreoActivo ?? false);
-      setIdsActivos((p.telegramContactos || []).map(c => c.id));
-      setContactos(p.telegramContactos || []);
-    });
+
+      // ── Sincronizar contactos con el backend ──────────────────────────────
+      // Si alguien hizo /desvincular desde Telegram, ya no está en la DB pero
+      // sí en el perfil local. Los limpiamos silenciosamente al abrir la pantalla.
+      let contactosLocales: TelegramContacto[] = p.telegramContactos || [];
+      if (BACKEND_URL && contactosLocales.length > 0) {
+        try {
+          const token = await obtenerTokenDispositivo();
+          const res = await fetchTimeout(`${BACKEND_URL}/familia/mis-contactos`, 8000, {
+            headers: { 'x-device-token': token },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const idsEnBackend = new Set<string>(
+              (data.contactos as { chatId: string }[]).map((c: { chatId: string }) => c.chatId)
+            );
+            const sincronizados = contactosLocales.filter(c => idsEnBackend.has(c.id));
+            if (sincronizados.length !== contactosLocales.length) {
+              contactosLocales = sincronizados;
+              await guardarPerfil({ ...p, telegramContactos: sincronizados });
+            }
+          }
+        } catch {
+          // Sin conexión: mostrar contactos locales sin bloquear ni borrar nada
+        }
+      }
+
+      setIdsActivos(contactosLocales.map(c => c.id));
+      setContactos(contactosLocales);
+    })();
   }, []);
 
   async function buscarContactos() {
