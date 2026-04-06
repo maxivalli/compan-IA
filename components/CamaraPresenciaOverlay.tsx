@@ -83,7 +83,7 @@ const s = StyleSheet.create({
     height: 64,
     bottom: 0,
     right: 0,
-    opacity: 0,       // invisible — solo detecta
+    opacity: 0.01,    // invisible (0.01 evita cuelgues vs 0 en Android) — solo detecta
     overflow: 'hidden',
   },
   camara: { flex: 1 },

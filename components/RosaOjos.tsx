@@ -230,7 +230,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         borderBottomWidth: 3,
         borderLeftWidth: 1.5,
         borderRightWidth: 1.5,
-        borderColor: '#B06050',
+        borderColor: '#C4996A',
       }
     ]} />
   );
@@ -240,7 +240,7 @@ const sb = StyleSheet.create({
   boca: {
     width:  BOCA_W,
     height: BOCA_H,
-    backgroundColor: '#B06050',
+    backgroundColor: '#C4996A',
     marginTop: 80,
     shadowColor: '#3A1A10',
     shadowOffset: { width: 0, height: 4 },

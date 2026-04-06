@@ -800,8 +800,12 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       await marcarRecordado(clave);
       const mensaje = await generarMensajeResumen(p);
       await enviarMensajeTelegram(chatIds, mensaje);
-      // Notificar al backend que el informe fue enviado (watchdog)
-      confirmarInformeEnviado(ahora.toISOString().slice(0, 10)).catch(() => {});
+      // Notificar al backend que el informe fue enviado (watchdog).
+      // Reintento único si falla (red caída) para evitar alerta falsa nocturna.
+      const fechaHoyISO = ahora.toISOString().slice(0, 10);
+      confirmarInformeEnviado(fechaHoyISO).catch(() => {
+        setTimeout(() => confirmarInformeEnviado(fechaHoyISO).catch(() => {}), 30 * 1000);
+      });
     }
 
     async function resetearAnimo() {
@@ -894,26 +898,23 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   }, []);
 
   // ── Heartbeat de monitoreo ───────────────────────────────────────────────────
-  // Si el usuario activó "Monitoreo de app", envía un ping al backend cada 10
-  // minutos. Si la app se cierra o pierde internet, el servidor detecta la
-  // ausencia y avisa a los familiares por Telegram.
+  // El heartbeat SIEMPRE pinguea al backend (independientemente de monitoreoActivo)
+  // para que el servidor siempre sepa si la app está viva o caída.
   //
-  // FIX: monitoreoActivo es ahora un boolean reactivo (useState en useRosita),
-  // NO se lee de perfilRef (que es un ref no reactivo y no re-dispara el effect).
+  // monitoreoActivo controla únicamente el flag "activo" enviado al servidor:
+  //   true  → el backend enviará alertas a la familia si la app se desconecta
+  //   false → el backend registra el ping silenciosamente (sin alertas)
+  //
+  // Esto permite que /informe y /camara detecten el estado de la app en tiempo real
+  // aunque el usuario no haya activado el monitoreo completo.
   useEffect(() => {
-    if (!monitoreoActivo) {
-      // Si se desactivó, notificar al backend para que no siga esperando pings
-      enviarHeartbeat(false).catch(() => {});
-      return;
-    }
-
-    // Ping inmediato al activar
-    enviarHeartbeat(true).catch((e) => {
+    // Ping inmediato al montar (o al cambiar monitoreoActivo)
+    enviarHeartbeat(monitoreoActivo).catch((e) => {
       console.warn('[Heartbeat] Error al enviar ping:', e?.message);
     });
 
     const id = setInterval(() => {
-      enviarHeartbeat(true).catch((e) => {
+      enviarHeartbeat(monitoreoActivo).catch((e) => {
         console.warn('[Heartbeat] Error en intervalo:', e?.message);
       });
     }, 10 * 60 * 1000);
@@ -1082,7 +1083,20 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         const [primero, ...resto] = vigentes;
         const urlAudio = await obtenerUrlArchivo(primero.fileId, primero.chatId);
         if (!urlAudio) {
-          await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
+          // Si el audio tiene más de 90 min en cola, la URL de Telegram probablemente expiró.
+          // Notificar al familiar y descartar para no reintentar indefinidamente.
+          const edadMinutos = (Date.now() - primero.timestamp) / 60000;
+          if (edadMinutos > 90) {
+            const p = perfilRef.current;
+            try {
+              await enviarAlertaTelegram(
+                [primero.chatId],
+                `⚠️ El mensaje de voz que enviaste para ${p?.nombreAbuela ?? 'tu familiar'} ya no está disponible (el archivo de audio expiró). Por favor, mandálo de nuevo si querés que lo escuche.`,
+                nombreAsistenteActual(),
+              );
+            } catch {}
+            await AsyncStorage.setItem('vozPendiente', JSON.stringify(resto));
+          }
           return;
         }
 
@@ -1115,9 +1129,22 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           } catch (e) { logClaudeError('chequearComandos/informe', e); }
         } else if (cmd.startsWith('camara')) {
           const horaCmd = new Date().getHours();
-          if (horaCmd >= 23 || horaCmd < 9) continue;
-          if (estadoRef.current !== 'esperando') continue;
           const destChatId = cmd.includes(':') ? cmd.split(':')[1] : undefined;
+          if (horaCmd >= 23 || horaCmd < 9) {
+            // Notificar al familiar que la solicitud fue rechazada por horario nocturno
+            if (destChatId) {
+              const p = perfilRef.current;
+              try {
+                await enviarAlertaTelegram(
+                  [destChatId],
+                  `📷 La solicitud de foto fue recibida, pero la app de ${p?.nombreAbuela ?? 'tu familiar'} está en modo nocturno. Intentá de nuevo a partir de las 9:00.`,
+                  nombreAsistenteActual(),
+                );
+              } catch {}
+            }
+            continue;
+          }
+          if (estadoRef.current !== 'esperando') continue;
           try { await flujoFoto(true, destChatId); } catch {}
         } else if (cmd.startsWith('recordatorio:')) {
           try {
