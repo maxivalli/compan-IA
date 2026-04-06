@@ -920,8 +920,6 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
 
     return () => {
       clearInterval(id);
-      // Al desmontar el componente (cierre limpio de la app)
-      enviarHeartbeat(false).catch(() => {});
     };
   }, [monitoreoActivo]);
 
