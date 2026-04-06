@@ -159,7 +159,7 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
       )}
       <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
         <Text style={[styles.relojHora, { fontFamily, fontSize: 72, textAlign: 'center' }]} adjustsFontSizeToFit numberOfLines={1}>
-          {climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : `ALERTA: ${climaObj?.descripcion?.toUpperCase() || 'METEOROLÓGICA'}`}
+          {climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : (climaObj?.descripcion?.toUpperCase() || 'ALERTA METEOROLÓGICA')}
         </Text>
       </View>
     </Animated.View>

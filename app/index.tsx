@@ -615,7 +615,7 @@ export default function Index() {
                   adjustsFontSizeToFit
                 >{
                   infoIdx === 2
-                    ? (climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : `ALERTA: ${climaObj?.descripcion?.toUpperCase() || 'METEOROLÓGICA'}`)
+                    ? (climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : (climaObj?.descripcion?.toUpperCase() || 'ALERTA METEOROLÓGICA'))
                     : infoIdx === 1 && climaObj?.temperatura != null
                     ? `${Math.round(climaObj.temperatura)}°`
                     : horaMinuto
