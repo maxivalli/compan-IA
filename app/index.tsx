@@ -130,6 +130,13 @@ export default function Index() {
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
   const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños, ultimaNotaId, clearUltimaNotaId } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional: refs.pararSRIntencional, mostrarFoto, monitoreoActivo }, player);
 
+  // Auto-abrir la nota cuando esté lista
+  useEffect(() => {
+    if (!ultimaNotaId) return;
+    clearUltimaNotaId();
+    router.push(`/nota/${ultimaNotaId}` as any);
+  }, [ultimaNotaId]);
+
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
   const hora           = horaActual;
@@ -491,17 +498,6 @@ export default function Index() {
         );
       })()}
 
-      {ultimaNotaId && (
-        <TouchableOpacity
-          style={styles.badgeNota}
-          onPress={() => { clearUltimaNotaId(); router.push(`/nota/${ultimaNotaId}` as any); }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="document-text-outline" size={18} color="#ffffff" />
-          <Text style={styles.badgeNotaTexto}>Nota nueva</Text>
-        </TouchableOpacity>
-      )}
-
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
@@ -860,9 +856,7 @@ const styles = StyleSheet.create({
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 28, paddingVertical: 40, paddingHorizontal: 44, alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20 },
   sosModalTitulo:       { fontSize: fs(32), fontWeight: '800', color: '#fff' },
   sosModalTexto:        { fontSize: fs(22), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(32) },
-  badgeNota: { position: 'absolute', zIndex: 12, bottom: 120, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#0097b2', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 9, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 6 },
-  badgeNotaTexto: { color: '#ffffff', fontSize: fs(15), fontWeight: '700' },
-  btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, width: 44, height: 44, borderRadius: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff1a' },
+btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, width: 44, height: 44, borderRadius: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff1a' },
   btnNoMolestarFlotanteActivo: { backgroundColor: '#ffffff1a' },
   infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },
   relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },

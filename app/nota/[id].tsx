@@ -105,8 +105,8 @@ export default function NotaScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={12}>
-          <Ionicons name="arrow-back" size={24} color={M3.primary} />
+        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={16}>
+          <Ionicons name="arrow-back" size={30} color={M3.primary} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
           {job.tipo === 'receta' ? 'Receta' : 'Nota'}
@@ -132,13 +132,13 @@ function RecetaViewer({ data }: { data: ResultReceta }) {
       <View style={styles.metaRow}>
         {data.tiempo_total ? (
           <View style={styles.metaChip}>
-            <Ionicons name="time-outline" size={16} color={M3.primary} />
+            <Ionicons name="time-outline" size={22} color={M3.primary} />
             <Text style={styles.metaText}>{data.tiempo_total}</Text>
           </View>
         ) : null}
         {data.porciones ? (
           <View style={styles.metaChip}>
-            <Ionicons name="people-outline" size={16} color={M3.primary} />
+            <Ionicons name="people-outline" size={22} color={M3.primary} />
             <Text style={styles.metaText}>{data.porciones}</Text>
           </View>
         ) : null}
@@ -227,7 +227,7 @@ function FuentesSection({ fuentes }: { fuentes?: Fuente[] }) {
       <Text style={styles.seccion}>Fuentes</Text>
       {fuentes.map((f, i) => (
         <View key={i} style={styles.fuenteRow}>
-          <Ionicons name="link-outline" size={14} color={M3.primary} style={{ marginTop: 2 }} />
+          <Ionicons name="link-outline" size={20} color={M3.primary} style={{ marginTop: 2 }} />
           <Text style={styles.fuenteTexto} numberOfLines={2}>{f.titulo}</Text>
         </View>
       ))}
@@ -249,35 +249,35 @@ const styles = StyleSheet.create({
     borderBottomColor: M3.outlineVariant,
     gap: 8,
   },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700', color: M3.onSurface },
+  headerTitle: { flex: 1, fontSize: 24, fontWeight: '700', color: M3.onSurface },
   backBtn: { padding: 4 },
-  scroll: { padding: 20, paddingBottom: 48 },
-  titulo: { fontSize: 22, fontWeight: '800', color: M3.onSurface, marginBottom: 8 },
-  descripcion: { fontSize: 15, color: M3.onSurfaceVariant, marginBottom: 12, lineHeight: 22 },
-  resumen:     { fontSize: 15, color: M3.onSurface, marginBottom: 12, lineHeight: 22 },
-  metaRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  scroll: { padding: 24, paddingBottom: 56 },
+  titulo: { fontSize: 30, fontWeight: '800', color: M3.onSurface, marginBottom: 10 },
+  descripcion: { fontSize: 20, color: M3.onSurfaceVariant, marginBottom: 14, lineHeight: 30 },
+  resumen:     { fontSize: 20, color: M3.onSurface, marginBottom: 14, lineHeight: 30 },
+  metaRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   metaChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: M3.primaryContainer, borderRadius: 20,
-    paddingHorizontal: 10, paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: M3.primaryContainer, borderRadius: 24,
+    paddingHorizontal: 14, paddingVertical: 8,
   },
-  metaText: { fontSize: 13, color: M3.primary, fontWeight: '600' },
-  seccion: { fontSize: 16, fontWeight: '700', color: M3.primary, marginTop: 20, marginBottom: 10 },
-  ingredienteRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6, gap: 8 },
-  bullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: M3.primary, marginTop: 7 },
-  ingredienteTexto: { flex: 1, fontSize: 14, color: M3.onSurface, lineHeight: 20 },
-  notas: { fontSize: 12, color: M3.onSurfaceVariant },
-  pasoRow: { flexDirection: 'row', marginBottom: 12, gap: 10, alignItems: 'flex-start' },
+  metaText: { fontSize: 18, color: M3.primary, fontWeight: '600' },
+  seccion: { fontSize: 22, fontWeight: '700', color: M3.primary, marginTop: 24, marginBottom: 12 },
+  ingredienteRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
+  bullet: { width: 8, height: 8, borderRadius: 4, backgroundColor: M3.primary, marginTop: 10 },
+  ingredienteTexto: { flex: 1, fontSize: 20, color: M3.onSurface, lineHeight: 30 },
+  notas: { fontSize: 17, color: M3.onSurfaceVariant },
+  pasoRow: { flexDirection: 'row', marginBottom: 16, gap: 12, alignItems: 'flex-start' },
   numeroBadge: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: M3.primary, justifyContent: 'center', alignItems: 'center',
-    flexShrink: 0, marginTop: 1,
+    flexShrink: 0, marginTop: 2,
   },
-  numeroBadgeText: { color: M3.onPrimary, fontSize: 13, fontWeight: '700' },
+  numeroBadgeText: { color: M3.onPrimary, fontSize: 18, fontWeight: '700' },
   pasoContent: { flex: 1 },
-  pasoTexto: { fontSize: 14, color: M3.onSurface, lineHeight: 21 },
-  bulletItem: { fontSize: 14, color: M3.onSurface, marginBottom: 6, lineHeight: 20 },
-  fuenteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginBottom: 6 },
-  fuenteTexto: { flex: 1, fontSize: 13, color: M3.onSurfaceVariant, lineHeight: 18 },
-  emptyText: { fontSize: 15, color: M3.onSurfaceVariant, marginTop: 8 },
+  pasoTexto: { fontSize: 20, color: M3.onSurface, lineHeight: 30 },
+  bulletItem: { fontSize: 20, color: M3.onSurface, marginBottom: 10, lineHeight: 30 },
+  fuenteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+  fuenteTexto: { flex: 1, fontSize: 18, color: M3.onSurfaceVariant, lineHeight: 26 },
+  emptyText: { fontSize: 20, color: M3.onSurfaceVariant, marginTop: 8 },
 });
