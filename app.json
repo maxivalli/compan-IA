@@ -66,7 +66,15 @@
           "cameraPermission": "CompañIA necesita la cámara para sacar fotos y mandárselas a tu familia."
         }
       ],
-      "react-native-ble-plx"
+      "react-native-ble-plx",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
