@@ -57,12 +57,12 @@ export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | '
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...'],
-    masculina: ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...'],
+    femenina:  ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...', 'Te escucho tranquila, contame con calma...'],
+    masculina: ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...', 'Te escucho tranquilo, contame con calma...'],
   },
   alegria: {
-    femenina:  ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...'],
-    masculina: ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...'],
+    femenina:  ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...', 'Me pone re contenta escucharte así, contame un poquito más...'],
+    masculina: ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...', 'Me pone re contento escucharte así, contame un poquito más...'],
   },
   salud: {
     femenina:  ['Vamos a mirar esto con cuidado, dame un segundito...', 'Tranqui, dame un instante que reviso esa información...'],
@@ -109,8 +109,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntos, dame un momento...'],
   },
   default: {
-    femenina:  ['A ver...', 'Mmm...', 'Claro.'],
-    masculina: ['A ver...', 'Mmm...', 'Claro.'],
+    femenina:  ['A ver...', 'Mmm...', 'Claro.', 'Te escucho...'],
+    masculina: ['A ver...', 'Mmm...', 'Claro.', 'Te escucho...'],
   },
   latencia: {
     femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...'],
@@ -120,13 +120,13 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
 
 export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculina: string[]; emotion: string }> = {
   saludo: {
-    femenina:  ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?'],
-    masculina: ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?'],
+    femenina:  ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?', '¡Hola! Me alegra que me hables, ¿cómo venís hoy?'],
+    masculina: ['¡Hola! ¿Cómo andás hoy?', '¡Qué bueno que me hablás! ¿Cómo estás?', '¡Acá estoy! ¿Cómo te va?', '¡Hola! Me alegra que me hables, ¿cómo venís hoy?'],
     emotion:   'feliz',
   },
   gracias: {
-    femenina:  ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.'],
-    masculina: ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.'],
+    femenina:  ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.', 'Gracias a vos por confiar en mí.'],
+    masculina: ['¡De nada!', '¡Para eso estoy!', '¡De nada! Cualquier cosa me decís.', 'Gracias a vos por confiar en mí.'],
     emotion:   'feliz',
   },
   de_nada: {
@@ -135,13 +135,13 @@ export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; m
     emotion:   'feliz',
   },
   despedida: {
-    femenina:  ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.'],
-    masculina: ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.'],
+    femenina:  ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.', 'Te mando un abrazo grande, nos hablamos cuando quieras.'],
+    masculina: ['¡Chau! Cuidate mucho.', '¡Hasta luego! Acá voy a estar cuando me necesitás.', '¡Nos vemos! Un beso grande.', 'Te mando un abrazo grande, nos hablamos cuando quieras.'],
     emotion:   'neutral',
   },
   afirmacion: {
-    femenina:  ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!'],
-    masculina: ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!'],
+    femenina:  ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!', 'Me alegra que te sirva, ¿querés que sigamos con otra cosa?'],
+    masculina: ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!', 'Me alegra que te sirva, ¿querés que sigamos con otra cosa?'],
     emotion:   'feliz',
   },
 };
@@ -1192,7 +1192,7 @@ export function useBrain(deps: BrainDeps) {
       : ofrecerMenuAburrimiento
         ? 150
         : (pideNoticias || pideBusqueda || pideWikipedia)
-          ? 150
+          ? 130
           : pideAccion
             ? 120
             : 80;
