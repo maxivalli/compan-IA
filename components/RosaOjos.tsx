@@ -426,9 +426,6 @@ function CabezaGato() {
       {/* Borde rim oscuro sutil */}
       <Ellipse cx={160} cy={188} rx={152} ry={155} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
 
-      {/* Highlight: destello de luz arriba-izquierda */}
-      <Ellipse cx={112} cy={126} rx={54} ry={36} fill="#FFFFFF" opacity={0.10} />
-
       {/* ── Rayas de frente tabby ── */}
       <Path d="M 152,72 Q 160,62 168,72" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
       <Path d="M 147,84 Q 160,71 173,84" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
