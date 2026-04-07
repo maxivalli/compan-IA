@@ -241,7 +241,7 @@ const sb = StyleSheet.create({
     width:  BOCA_W,
     height: BOCA_H,
     backgroundColor: '#C4996A',
-    marginTop: 80,
+    marginTop: 62,
     shadowColor: '#3A1A10',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.65,
@@ -406,22 +406,22 @@ function CabezaGato() {
       <Path d="M 142,98 Q 160,82 178,98" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
 
       {/* ── Manchas de mejilla ── */}
-      <Ellipse cx={82}  cy={278} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
-      <Ellipse cx={238} cy={278} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
+      <Ellipse cx={82}  cy={260} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
+      <Ellipse cx={238} cy={260} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
 
       {/* ── Nariz ── */}
-      <Path d="M 160,272 L 149,284 L 171,284 Z" fill={NOSE_COL} />
-      <Path d="M 160,284 L 160,290" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
+      <Path d="M 160,254 L 149,266 L 171,266 Z" fill={NOSE_COL} />
+      <Path d="M 160,266 L 160,272" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
 
       {/* ── Bigotes izquierda ── */}
-      <Path d="M 44,264 L 138,272" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 38,278 L 136,278" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 44,292 L 138,284" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 44,247 L 138,255" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 38,261 L 136,261" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 44,275 L 138,267" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
 
       {/* ── Bigotes derecha ── */}
-      <Path d="M 276,264 L 182,272" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 282,278 L 184,278" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 276,292 L 182,284" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 276,247 L 182,255" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 282,261 L 184,261" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 276,275 L 182,267" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
     </Svg>
   );
 }
