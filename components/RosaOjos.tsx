@@ -230,7 +230,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         borderBottomWidth: 3,
         borderLeftWidth: 1.5,
         borderRightWidth: 1.5,
-        borderColor: '#C4996A',
+        borderColor: '#8B5E3C',
       }
     ]} />
   );
@@ -240,7 +240,7 @@ const sb = StyleSheet.create({
   boca: {
     width:  BOCA_W,
     height: BOCA_H,
-    backgroundColor: '#C4996A',
+    backgroundColor: '#8B5E3C',
     marginTop: 62,
     shadowColor: '#3A1A10',
     shadowOffset: { width: 0, height: 4 },
@@ -391,11 +391,11 @@ function CabezaGato() {
       {/* cx=160 = centro del SVG de 320px; los ojos estarán centrados sobre él */}
 
       {/* ── Orejas (dibujadas primero; la cara las tapa en la base) ── */}
-      <Path d="M 26,86 L 66,-26 L 152,68 Z" fill={CAT_FUR} />
-      <Path d="M 48,78 L 70,-8 L 141,64 Z" fill={EAR_PINK} />
+      <Path d="M 56,104 L 66,-26 L 154,72 Z" fill={CAT_FUR} />
+      <Path d="M 73,96 L 70,-8 L 143,68 Z" fill={EAR_PINK} />
 
-      <Path d="M 294,86 L 254,-26 L 168,68 Z" fill={CAT_FUR} />
-      <Path d="M 272,78 L 250,-8 L 179,64 Z" fill={EAR_PINK} />
+      <Path d="M 264,104 L 254,-26 L 166,72 Z" fill={CAT_FUR} />
+      <Path d="M 247,96 L 250,-8 L 177,68 Z" fill={EAR_PINK} />
 
       {/* ── Cara redonda — más grande para dar margen alrededor de los ojos ── */}
       <Ellipse cx={160} cy={188} rx={152} ry={155} fill={CAT_FUR} />
