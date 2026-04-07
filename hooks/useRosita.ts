@@ -402,17 +402,46 @@ export function useRosita() {
     brain.generarResumenSesion().catch(() => {});
   }, [modoNoche]);
 
+  // ── Brillo (fuente única de verdad) ─────────────────────────────────────────
+  // Evita comportamientos erráticos por llamadas cruzadas a setBrightness/restore
+  // (p. ej. apagar linterna en modo noche, o cambios frecuentes de modo).
+  const brilloUltimoRef = useRef<null | { tipo: 'restore' | 'value'; value?: number }>(null);
+  const brilloAplicandoRef = useRef(false);
+  async function aplicarBrilloDeseado(desired: { tipo: 'restore' } | { tipo: 'value'; value: number }) {
+    const prev = brilloUltimoRef.current;
+    if (prev?.tipo === desired.tipo && (desired.tipo === 'restore' || prev.value === desired.value)) return;
+    if (brilloAplicandoRef.current) return;
+    brilloAplicandoRef.current = true;
+    try {
+      if (desired.tipo === 'restore') await Brightness.restoreSystemBrightnessAsync();
+      else await Brightness.setBrightnessAsync(desired.value);
+      brilloUltimoRef.current = desired;
+    } catch {
+      // si falla (permisos/OS), no spamear ni bloquear
+    } finally {
+      brilloAplicandoRef.current = false;
+    }
+  }
+
   // ── Brillo modo noche ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (linternaActiva) return; // la linterna maneja su propio brillo
-    if (modoNoche !== 'despierta') {
-      // Brillo mínimo 0.03: suficiente para ver el reloj nocturno sin molestar,
-      // pero no completamente negro (confuso para adultos mayores que miran la hora).
-      Brightness.setBrightnessAsync(0.03).catch(() => {});
-    } else {
-      Brightness.restoreSystemBrightnessAsync().catch(() => {});
+    // Prioridad: linterna > modo noche > sistema
+    if (linternaActiva) {
+      void aplicarBrilloDeseado({ tipo: 'value', value: 1 });
+      return;
     }
+    if (modoNoche !== 'despierta') {
+      // Brillo mínimo 0.03: suficiente para ver el reloj nocturno sin molestar.
+      void aplicarBrilloDeseado({ tipo: 'value', value: 0.03 });
+      return;
+    }
+    void aplicarBrilloDeseado({ tipo: 'restore' });
   }, [modoNoche, linternaActiva]);
+
+  // Al desmontar, restaurar brillo del sistema (evita quedar “oscuro” si se sale).
+  useEffect(() => {
+    return () => { Brightness.restoreSystemBrightnessAsync().catch(() => {}); };
+  }, []);
 
   // ── Inicialización ─────────────────────────────────────────────────────────
   // El watchdog de SR ahora vive en useAudioPipeline (pipeline.watchdog)
@@ -1003,7 +1032,7 @@ export function useRosita() {
     linternaActiva, apagarLinterna: () => {
       setLinternaActiva(false);
       Animated.timing(flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
-      Brightness.restoreSystemBrightnessAsync().catch(() => {});
+      // No restaurar acá: el effect de brillo decide según modoNoche.
     },
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     iniciarEscucha:  pipeline.iniciarEscucha,
