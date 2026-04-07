@@ -701,7 +701,7 @@ const FACE_W = EYE_W * 2 + 32;
 const FACE_H = EYE_H + 120;
 
 export default function RosaOjos({
-  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1,
+  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, cabezaGato = true,
 }: {
   estado: Estado;
   expresion: Expresion;
@@ -716,6 +716,7 @@ export default function RosaOjos({
   eyeGapExtra?: number;
   zipperOffsetY?: number;
   zipperScale?: number;
+  cabezaGato?: boolean;
 }) {
   const pxL      = useRef(new Animated.Value(0)).current;
   const pxR      = useRef(new Animated.Value(0)).current;
@@ -1077,9 +1078,11 @@ export default function RosaOjos({
     <View style={{ width: FACE_W * scale, height: FACE_H * scale, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
       <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
         {/* Cabeza de gato: detrás de los ojos, centrada horizontalmente */}
-        <View style={s.cabezaWrap} pointerEvents="none">
-          <CabezaGato />
-        </View>
+        {cabezaGato && (
+          <View style={[s.cabezaWrap, eyeGapExtra !== 0 && { left: (FACE_W - CAT_SVG_W) / 2 + eyeGapExtra / 2 }]} pointerEvents="none">
+            <CabezaGato />
+          </View>
+        )}
         <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
             <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>

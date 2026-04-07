@@ -81,6 +81,7 @@ export interface RositaHorizontalProps {
 
   // Linterna
   apagarLinterna: () => void;
+  cabezaGato?: boolean;
 }
 
 function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
@@ -179,13 +180,11 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const eyeDominantScale = (screenH * 0.96) / EYE_H;
   const faceFitScale = (screenH * 1.16) / FACE_H;
   const widthFitScale = (screenW * 0.88) / FACE_W;
-  const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale);
+  const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8;
   const paddingTopCara = Math.max(0, Math.round(screenH * 0.005));
-  const faceTranslateY = Math.round(screenH * 0.018);
-  const mouthOffsetY = esTabletHorizontal
-    ? -Math.round(12 * faceScale)
-    : -Math.round(28 * faceScale);
-  const eyeGapExtra = Math.round(10 * faceScale);
+  const faceTranslateY = Math.round(screenH * 0.20);
+  const mouthOffsetY = 0;
+  const eyeGapExtra = Math.round((32 + 10 * faceScale) * 0.85 - 32);
   const zipperOffsetY = esTabletHorizontal
     ? -Math.round(18 * faceScale)
     : -Math.round(33 * faceScale);
@@ -300,6 +299,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       eyeGapExtra={eyeGapExtra}
                       zipperOffsetY={zipperOffsetY}
                       zipperScale={zipperScale}
+                      cabezaGato={props.cabezaGato !== false}
                     />
                     </View>
                     <ExpresionOverlay

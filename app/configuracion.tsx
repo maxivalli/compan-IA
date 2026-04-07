@@ -255,6 +255,7 @@ export default function Configuracion() {
   const [horaInicioNoche, setHoraInicioNoche] = useState(23);
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
   const [deteccionPresencia, setDeteccionPresencia] = useState(false);
+  const [cabezaGato, setCabezaGato] = useState(true);
   const [monitoreoActivo, setMonitoreoActivo] = useState(false);
   /** Tras Guardar con monitoreo: confirmación o error del servidor (antes solo se mostraba el error). */
   const [monitoreoHeartbeatFeedback, setMonitoreoHeartbeatFeedback] = useState<
@@ -357,6 +358,7 @@ export default function Configuracion() {
       setHoraFinNoche(p.horaFinNoche ?? 9);
       setDeteccionPresencia(p.deteccionPresenciaActiva ?? false);
       setMonitoreoActivo(p.monitoreoActivo ?? false);
+      setCabezaGato(p.cabezaGato !== false);
 
       // ── Sincronizar contactos con el backend ──────────────────────────────
       // Si alguien hizo /desvincular desde Telegram, ya no está en la DB pero
@@ -522,6 +524,7 @@ export default function Configuracion() {
       deteccionPresenciaActiva: deteccionPresencia,
       condicionFisica: condicionFisica.trim() || undefined,
       monitoreoActivo,
+      cabezaGato,
     });
 
     setMonitoreoHeartbeatFeedback(null);
@@ -652,6 +655,21 @@ export default function Configuracion() {
                 </Text>
               </TouchableOpacity>
             ))}
+          </View>
+        </Surface>
+
+        <Surface style={{ marginTop: 4 }}>
+          <View style={s.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.switchLabel}>Cara de gato</Text>
+              <Text style={s.switchHint}>Muestra una cabeza de gato animada sobre los ojos</Text>
+            </View>
+            <Switch
+              value={cabezaGato}
+              onValueChange={setCabezaGato}
+              thumbColor={cabezaGato ? '#ffffff' : '#f4f4f4'}
+              trackColor={{ false: M.surfaceVariant, true: M.primary }}
+            />
           </View>
         </Surface>
 

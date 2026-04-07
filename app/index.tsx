@@ -452,6 +452,7 @@ export default function Index() {
           onCaricia={onCaricia}
           onRelampago={onRelampago}
           apagarLinterna={apagarLinterna}
+          cabezaGato={refs.perfilRef.current?.cabezaGato !== false}
         />
         <PostItViewer
           visible={mostrarListas}
@@ -563,6 +564,7 @@ export default function Index() {
           onOjoPicado={onOjoPicado}
           scale={faceScale}
           amaneciendo={amaneciendo}
+          cabezaGato={refs.perfilRef.current?.cabezaGato !== false}
         />
         <ExpresionOverlay
           capa="frente"
