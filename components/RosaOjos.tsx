@@ -391,11 +391,11 @@ function CabezaGato() {
       {/* cx=160 = centro del SVG de 320px; los ojos estarán centrados sobre él */}
 
       {/* ── Orejas (dibujadas primero; la cara las tapa en la base) ── */}
-      <Path d="M 42,80 L 84,-10 L 148,64 Z" fill={CAT_FUR} />
-      <Path d="M 63,73 L 87,12 L 138,62 Z" fill={EAR_PINK} />
+      <Path d="M 26,86 L 66,-26 L 152,68 Z" fill={CAT_FUR} />
+      <Path d="M 48,78 L 70,-8 L 141,64 Z" fill={EAR_PINK} />
 
-      <Path d="M 278,80 L 236,-10 L 172,64 Z" fill={CAT_FUR} />
-      <Path d="M 257,73 L 233,12 L 182,62 Z" fill={EAR_PINK} />
+      <Path d="M 294,86 L 254,-26 L 168,68 Z" fill={CAT_FUR} />
+      <Path d="M 272,78 L 250,-8 L 179,64 Z" fill={EAR_PINK} />
 
       {/* ── Cara redonda — más grande para dar margen alrededor de los ojos ── */}
       <Ellipse cx={160} cy={188} rx={152} ry={155} fill={CAT_FUR} />
