@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, BackHandler, Dimensions, Platform } from 'react-native';
+import { Alert, Animated, BackHandler, DeviceEventEmitter, Dimensions, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
@@ -34,6 +34,7 @@ import {
 } from './useAudioPipeline';
 import { useCamaraPresencia } from './useCamaraPresencia';
 import { registerRositaSpeechForGames, unregisterRositaSpeechForGames } from '../lib/rositaSpeechForGames';
+import { PERFIL_LOCAL_GUARDADO } from '../lib/perfilSync';
 
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
@@ -443,6 +444,7 @@ export function useRosita() {
     }
   }
 
+  const recargarPerfilRef = useRef<() => Promise<void>>(async () => {});
   async function recargarPerfil() {
     const perfil = await cargarPerfil();
     if (!perfil.nombreAbuela) return;
@@ -450,6 +452,14 @@ export function useRosita() {
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
   }
+  recargarPerfilRef.current = recargarPerfil;
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(PERFIL_LOCAL_GUARDADO, () => {
+      void recargarPerfilRef.current();
+    });
+    return () => sub.remove();
+  }, []);
 
   // ── Inicializar ─────────────────────────────────────────────────────────────
   async function inicializar() {

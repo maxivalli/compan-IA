@@ -21,6 +21,7 @@ import PinOverlay from '../components/PinOverlay';
 import ScreenHeader from '../components/ScreenHeader';
 import { obtenerEstadoSmartThings, actualizarDispositivos, desvincularSmartThings, iniciarOAuth, Dispositivo } from '../lib/smartthings';
 import { obtenerTokenDispositivo } from '../lib/ai';
+import { enviarHeartbeat, enviarHeartbeatConResultado } from '../lib/telegram';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
 
@@ -255,6 +256,7 @@ export default function Configuracion() {
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
   const [deteccionPresencia, setDeteccionPresencia] = useState(false);
   const [monitoreoActivo, setMonitoreoActivo] = useState(false);
+  const [monitoreoHeartbeatError, setMonitoreoHeartbeatError] = useState('');
 
   // ── Domótica ──
   const [stVinculado, setStVinculado]       = useState(false);
@@ -509,6 +511,15 @@ export default function Configuracion() {
       condicionFisica: condicionFisica.trim() || undefined,
       monitoreoActivo,
     });
+
+    setMonitoreoHeartbeatError('');
+    if (monitoreoActivo) {
+      const hb = await enviarHeartbeatConResultado(true);
+      if (!hb.ok) setMonitoreoHeartbeatError(hb.mensaje);
+    } else {
+      enviarHeartbeat(false).catch(() => {});
+    }
+
     setGuardado(true);
     setTimeout(() => setGuardado(false), 2000);
   }
@@ -850,11 +861,20 @@ export default function Configuracion() {
             </View>
             <Switch
               value={monitoreoActivo}
-              onValueChange={setMonitoreoActivo}
+              onValueChange={(v) => {
+                setMonitoreoActivo(v);
+                setMonitoreoHeartbeatError('');
+              }}
               trackColor={{ false: M.outlineVariant, true: M.primary }}
               thumbColor={monitoreoActivo ? '#ffffff' : '#f4f4f4'}
             />
           </View>
+          {monitoreoHeartbeatError !== '' && (
+            <View style={[s.errorWrap, { marginTop: 8, marginHorizontal: 0 }]}>
+              <Ionicons name="warning-outline" size={18} color={M.error} />
+              <Text style={s.errorText}>{monitoreoHeartbeatError}</Text>
+            </View>
+          )}
         </Surface>
 
         {/* ── Seguridad ── */}

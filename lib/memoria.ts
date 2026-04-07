@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { emitPerfilLocalGuardado } from './perfilSync';
 
 const CLAVE_PERFIL         = 'rosa_perfil';
 const CLAVE_HISTORIAL      = 'rosa_historial';
@@ -155,6 +156,7 @@ export const perfilInicial: Perfil = {
 
 export async function guardarPerfil(perfil: Perfil): Promise<void> {
   await AsyncStorage.setItem(CLAVE_PERFIL, JSON.stringify(perfil));
+  emitPerfilLocalGuardado();
 }
 
 export async function cargarPerfil(): Promise<Perfil> {

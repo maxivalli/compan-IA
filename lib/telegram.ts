@@ -130,4 +130,43 @@ export async function enviarHeartbeat(activo: boolean): Promise<void> {
   } catch {}
 }
 
+export type HeartbeatResult =
+  | { ok: true }
+  | { ok: false; mensaje: string };
+
+/** Para UI al activar monitoreo: distingue red, 403 sin familia y otros errores. */
+export async function enviarHeartbeatConResultado(activo: boolean): Promise<HeartbeatResult> {
+  const base = BACKEND_URL != null ? String(BACKEND_URL).trim() : '';
+  if (!base) {
+    return {
+      ok: false,
+      mensaje: 'Esta versión de la app no tiene configurado el servidor. Reinstalá desde el enlace actual o contactá soporte.',
+    };
+  }
+  try {
+    const res = await fetch(`${base}/familia/heartbeat`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ activo }),
+    });
+    if (res.ok) return { ok: true };
+    if (res.status === 403) {
+      return {
+        ok: false,
+        mensaje:
+          'No pudimos activar el monitoreo en el servidor. Guardá tu perfil con nombre y registro completos, o verificá que esta cuenta esté vinculada a una familia.',
+      };
+    }
+    return {
+      ok: false,
+      mensaje: `El servidor respondió con un error (${res.status}). Probá de nuevo en unos minutos.`,
+    };
+  } catch {
+    return {
+      ok: false,
+      mensaje: 'Sin conexión o el servidor no responde. Revisá internet y tocá Guardar otra vez.',
+    };
+  }
+}
+
 

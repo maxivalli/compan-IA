@@ -1,8 +1,12 @@
-import { Component, useEffect } from 'react';
+import { Component, useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { Platform, View, Text } from 'react-native';
+import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
+
+void SplashScreen.preventAutoHideAsync();
 
 // ── ErrorBoundary ─────────────────────────────────────────────────────────────
 // Captura errores en el árbol de componentes y los manda al backend para debug.
@@ -61,6 +65,8 @@ async function chequearActualizacion() {
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
+  const [splashHecho, setSplashHecho] = useState(false);
+
   useEffect(() => { chequearActualizacion(); }, []);
 
   useEffect(() => {
@@ -77,6 +83,14 @@ export default function Layout() {
     });
     return () => { ErrorUtils.setGlobalHandler(prevHandler); };
   }, []);
+
+  if (!splashHecho) {
+    return (
+      <ErrorBoundary>
+        <AnimatedSplash onDone={() => setSplashHecho(true)} />
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>
