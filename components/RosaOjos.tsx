@@ -1106,7 +1106,7 @@ export default function RosaOjos({
 }
 
 const s = StyleSheet.create({
-  wrap:       { alignItems: 'center', height: EYE_H + 120 },
+  wrap:       { alignItems: 'center', height: EYE_H + 120, overflow: 'visible' },
   contenedor: { flexDirection: 'row', gap: 32, alignItems: 'flex-end' },
   eyeContainer: {
     width: EYE_W,
