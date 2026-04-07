@@ -123,7 +123,7 @@ const sur = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    overflow: 'hidden',
+    // Sin overflow: 'hidden' para no recortar el bloque de feedback del monitoreo (texto + fondo).
   },
 });
 
@@ -256,7 +256,19 @@ export default function Configuracion() {
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
   const [deteccionPresencia, setDeteccionPresencia] = useState(false);
   const [monitoreoActivo, setMonitoreoActivo] = useState(false);
-  const [monitoreoHeartbeatError, setMonitoreoHeartbeatError] = useState('');
+  /** Tras Guardar con monitoreo: confirmación o error del servidor (antes solo se mostraba el error). */
+  const [monitoreoHeartbeatFeedback, setMonitoreoHeartbeatFeedback] = useState<
+    null | { tipo: 'ok' | 'error'; texto: string }
+  >(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const avanzadasSectionY = useRef(0);
+
+  function scrollAVistaMonitoreo() {
+    const y = avanzadasSectionY.current;
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true });
+    }, 120);
+  }
 
   // ── Domótica ──
   const [stVinculado, setStVinculado]       = useState(false);
@@ -512,10 +524,20 @@ export default function Configuracion() {
       monitoreoActivo,
     });
 
-    setMonitoreoHeartbeatError('');
+    setMonitoreoHeartbeatFeedback(null);
     if (monitoreoActivo) {
       const hb = await enviarHeartbeatConResultado(true);
-      if (!hb.ok) setMonitoreoHeartbeatError(hb.mensaje);
+      if (hb.ok) {
+        setMonitoreoHeartbeatFeedback({
+          tipo: 'ok',
+          texto:
+            'Listo: el servidor registró el monitoreo. Si la app deja de contestar un rato, tu familia recibirá un aviso por Telegram.',
+        });
+        scrollAVistaMonitoreo();
+      } else {
+        setMonitoreoHeartbeatFeedback({ tipo: 'error', texto: hb.mensaje });
+        scrollAVistaMonitoreo();
+      }
     } else {
       enviarHeartbeat(false).catch(() => {});
     }
@@ -529,6 +551,7 @@ export default function Configuracion() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
+        ref={scrollRef}
         style={s.fondo}
         contentContainerStyle={s.contenido}
         showsVerticalScrollIndicator={false}
@@ -833,6 +856,11 @@ export default function Configuracion() {
         </Surface>
 
         {/* ── Funciones avanzadas ── */}
+        <View
+          onLayout={(e) => {
+            avanzadasSectionY.current = e.nativeEvent.layout.y;
+          }}
+        >
         <SectionLabel icon="eye-outline" label="Funciones avanzadas" />
         <Surface>
           <View style={s.switchRow}>
@@ -863,19 +891,38 @@ export default function Configuracion() {
               value={monitoreoActivo}
               onValueChange={(v) => {
                 setMonitoreoActivo(v);
-                setMonitoreoHeartbeatError('');
+                setMonitoreoHeartbeatFeedback(null);
               }}
               trackColor={{ false: M.outlineVariant, true: M.primary }}
               thumbColor={monitoreoActivo ? '#ffffff' : '#f4f4f4'}
             />
           </View>
-          {monitoreoHeartbeatError !== '' && (
-            <View style={[s.errorWrap, { marginTop: 8, marginHorizontal: 0 }]}>
-              <Ionicons name="warning-outline" size={18} color={M.error} />
-              <Text style={s.errorText}>{monitoreoHeartbeatError}</Text>
+          {monitoreoHeartbeatFeedback != null && (
+            <View
+              style={[
+                s.feedbackWrap,
+                monitoreoHeartbeatFeedback.tipo === 'ok'
+                  ? { backgroundColor: '#e8f5ef', borderLeftColor: '#1aa870' }
+                  : { backgroundColor: '#fceeee', borderLeftColor: M.error },
+              ]}
+            >
+              <Ionicons
+                name={monitoreoHeartbeatFeedback.tipo === 'ok' ? 'checkmark-circle-outline' : 'warning-outline'}
+                size={20}
+                color={monitoreoHeartbeatFeedback.tipo === 'ok' ? '#1aa870' : M.error}
+              />
+              <Text
+                style={[
+                  s.feedbackText,
+                  { color: monitoreoHeartbeatFeedback.tipo === 'ok' ? '#0d5c3d' : M.error },
+                ]}
+              >
+                {monitoreoHeartbeatFeedback.texto}
+              </Text>
             </View>
           )}
         </Surface>
+        </View>
 
         {/* ── Seguridad ── */}
         <SectionLabel icon="lock-closed-outline" label="Seguridad" />
@@ -965,6 +1012,19 @@ const s = StyleSheet.create({
 
   errorWrap: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 16, paddingBottom: 12 },
   errorText: { flex: 1, fontSize: 13, color: M.error, lineHeight: 18 },
+  feedbackWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+  },
+  feedbackText: { flex: 1, fontSize: 13, lineHeight: 19, fontWeight: '500' },
 
   buscarBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 16 },
   buscarText: { fontSize: 14, fontWeight: '500', color: M.primary },
