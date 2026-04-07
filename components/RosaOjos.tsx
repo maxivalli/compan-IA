@@ -5,6 +5,7 @@ import Svg, {
   ClipPath,
   Defs,
   Ellipse,
+  LinearGradient,
   Path,
   RadialGradient,
   Rect,
@@ -384,17 +385,49 @@ function CabezaGato() {
       viewBox={`0 0 ${CAT_SVG_W} ${CAT_SVG_H}`}
       overflow="visible"
     >
-      {/* cx=160 = centro del SVG de 320px; los ojos estarán centrados sobre él */}
+      <Defs>
+        {/* Cara: gradiente radial con luz desde arriba-izquierda */}
+        <RadialGradient id="gcFace" cx="38%" cy="28%" rx="68%" ry="62%">
+          <Stop offset="0%"   stopColor="#EBBE82" stopOpacity="1" />
+          <Stop offset="38%"  stopColor="#C4996A" stopOpacity="1" />
+          <Stop offset="78%"  stopColor="#9A7048" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#6E4820" stopOpacity="1" />
+        </RadialGradient>
 
-      {/* ── Orejas (dibujadas primero; la cara las tapa en la base) ── */}
-      <Path d="M 34,112 L 50,-30 L 164,70 Z" fill={CAT_FUR} />
-      <Path d="M 50,104 L 54,-12 L 152,66 Z" fill={EAR_PINK} />
+        {/* Oreja izquierda: más clara en la punta, oscura en la base */}
+        <LinearGradient id="gcEarL" x1="120" y1="100" x2="50" y2="-30" gradientUnits="userSpaceOnUse">
+          <Stop offset="0%"   stopColor="#8A6035" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#DEB87A" stopOpacity="1" />
+        </LinearGradient>
 
-      <Path d="M 286,112 L 270,-30 L 156,70 Z" fill={CAT_FUR} />
-      <Path d="M 270,104 L 266,-12 L 168,66 Z" fill={EAR_PINK} />
+        {/* Oreja derecha: espejo */}
+        <LinearGradient id="gcEarR" x1="200" y1="100" x2="270" y2="-30" gradientUnits="userSpaceOnUse">
+          <Stop offset="0%"   stopColor="#8A6035" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#DEB87A" stopOpacity="1" />
+        </LinearGradient>
 
-      {/* ── Cara redonda — más grande para dar margen alrededor de los ojos ── */}
-      <Ellipse cx={160} cy={188} rx={152} ry={155} fill={CAT_FUR} />
+        {/* Interior de oreja: rosado claro arriba, más saturado abajo */}
+        <RadialGradient id="gcEarIn" cx="50%" cy="68%" rx="52%" ry="48%">
+          <Stop offset="0%"   stopColor="#FDD0DE" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#C07888" stopOpacity="1" />
+        </RadialGradient>
+      </Defs>
+
+      {/* ── Orejas con gradiente ── */}
+      <Path d="M 34,112 L 50,-30 L 164,70 Z" fill="url(#gcEarL)" />
+      <Path d="M 50,104 L 54,-12 L 152,66 Z" fill="url(#gcEarIn)" />
+
+      <Path d="M 286,112 L 270,-30 L 156,70 Z" fill="url(#gcEarR)" />
+      <Path d="M 270,104 L 266,-12 L 168,66 Z" fill="url(#gcEarIn)" />
+
+      {/* ── Cara con gradiente 3D ── */}
+      <Ellipse cx={160} cy={188} rx={152} ry={155} fill="url(#gcFace)" />
+
+      {/* Borde rim oscuro sutil */}
+      <Ellipse cx={160} cy={188} rx={152} ry={155} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
+
+      {/* Highlight: destello de luz arriba-izquierda */}
+      <Ellipse cx={112} cy={126} rx={54} ry={36} fill="#FFFFFF" opacity={0.10} />
 
       {/* ── Rayas de frente tabby ── */}
       <Path d="M 152,72 Q 160,62 168,72" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
