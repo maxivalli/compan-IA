@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Camera as VisionCamera, useCameraDevice } from 'react-native-vision-camera';
-import { Camera as FaceCamera, FaceDetectionOptions, Face } from 'react-native-vision-camera-face-detector';
+import { Camera as LabelCamera, Label } from 'react-native-vision-camera-image-labeler';
 
 const COOLDOWN_LOCAL_MS = 1200; // evita spam del callback (además del cooldown global en useCamaraPresencia)
 
@@ -35,19 +35,30 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     return () => { cancelled = true; };
   }, [activo]);
 
-  const faceDetectionOptions = useMemo<FaceDetectionOptions>(() => ({
-    // Opciones conservadoras: suficiente para “presencia”, sin costos extra
-    performanceMode: 'fast',
-    landmarkMode: 'none',
-    contourMode: 'none',
-    classificationMode: 'none',
-    minFaceSize: 0.12,
-    trackingEnabled: false,
-  }), []);
+  const labelOptions = useMemo(() => ({ minConfidence: 0.5 as const }), []);
 
-  const onFaces = (faces: Face[]) => {
+  function extraerLabels(payload: unknown): string[] {
+    if (!payload) return [];
+    if (Array.isArray(payload)) {
+      return payload
+        .map((it: any) => String(it?.label ?? '').toLowerCase().trim())
+        .filter(Boolean);
+    }
+    if (typeof payload === 'object') {
+      return Object.values(payload as Record<string, any>)
+        .map((it: any) => String(it?.label ?? '').toLowerCase().trim())
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  const onLabels = (labelsPayload: Label[] | Label) => {
     if (!activo) return;
-    if (faces.length === 0) return;
+    const labels = extraerLabels(labelsPayload);
+    const hayPersona = labels.some((label) =>
+      label.includes('person') || label.includes('human') || label.includes('persona') || label.includes('face') || label.includes('cara'),
+    );
+    if (!hayPersona) return;
     const ahora = Date.now();
     if (ahora - lastHitRef.current < COOLDOWN_LOCAL_MS) return;
     lastHitRef.current = ahora;
@@ -60,13 +71,13 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
 
   return (
     <View style={s.contenedor} pointerEvents="none">
-      <FaceCamera
+      <LabelCamera
         ref={camRef}
         style={s.camara}
         device={device}
         isActive={activo}
-        faceDetectionOptions={faceDetectionOptions}
-        faceDetectionCallback={onFaces}
+        options={labelOptions}
+        callback={onLabels}
       />
     </View>
   );
