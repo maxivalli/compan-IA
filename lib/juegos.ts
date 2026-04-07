@@ -9,7 +9,6 @@ export type Juego = {
 };
 
 const ADIVINANZAS: Juego[] = [
-  { tipo: 'adivinanza', pregunta: 'Tengo ciudades, pero no casas. Tengo montañas, pero no árboles. Tengo agua, pero no peces. ¿Qué soy?', respuesta: 'Un mapa', pista: 'La encontrás en los libros de geografía' },
   { tipo: 'adivinanza', pregunta: 'Cuanto más grande, menos ves. ¿Qué es?', respuesta: 'La oscuridad', pista: 'Tiene que ver con la luz' },
   { tipo: 'adivinanza', pregunta: 'Soy redondo como la luna, blanco como la nieve, dulce como la miel y amargo a la vez. ¿Qué soy?', respuesta: 'El coco', pista: 'Es una fruta tropical' },
   { tipo: 'adivinanza', pregunta: 'Tengo manos pero no puedo aplaudir. ¿Qué soy?', respuesta: 'Un reloj', pista: 'Mirás hacia mí para saber qué hora es' },

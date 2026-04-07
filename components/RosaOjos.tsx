@@ -698,7 +698,7 @@ const Ojo = memo(function Ojo({
 export type ModoNoche = 'despierta' | 'soñolienta' | 'durmiendo';
 
 const FACE_W = EYE_W * 2 + 32;
-const FACE_H = EYE_H + 120;
+const FACE_H = EYE_H + 120 + Math.abs(CAT_OFFSET_TOP);
 
 export default function RosaOjos({
   estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, cabezaGato = true,
@@ -1106,7 +1106,7 @@ export default function RosaOjos({
 }
 
 const s = StyleSheet.create({
-  wrap:       { alignItems: 'center', height: EYE_H + 120, overflow: 'visible' },
+  wrap:       { alignItems: 'center', height: EYE_H + 120 + Math.abs(CAT_OFFSET_TOP), overflow: 'visible', paddingTop: Math.abs(CAT_OFFSET_TOP) },
   contenedor: { flexDirection: 'row', gap: 32, alignItems: 'flex-end' },
   eyeContainer: {
     width: EYE_W,
@@ -1115,7 +1115,7 @@ const s = StyleSheet.create({
   },
   cabezaWrap: {
     position: 'absolute',
-    top: CAT_OFFSET_TOP,
+    top: 0,  // paddingTop del wrap ya absorbe el offset de las orejas
     // FACE_W = 280 es el ancho real del contenedor; centrar el SVG de 300px en él → -10
     left: (FACE_W - CAT_SVG_W) / 2,
     zIndex: -1,

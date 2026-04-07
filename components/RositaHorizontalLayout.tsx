@@ -174,7 +174,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const { bottom: safeBottom, top: safeTop, left: safeLeft, right: safeRight } = useSafeAreaInsets();
 
   const FACE_W = EYE_W * 2 + 32;
-  const FACE_H = EYE_H + 120;
+  const FACE_H = EYE_H + 120 + 60; // +60 para las orejas (CAT_OFFSET_TOP)
   const shortEdge = Math.min(screenW, screenH);
   const esTabletHorizontal = screenW > screenH && shortEdge >= 700;
   const eyeDominantScale = (screenH * 0.96) / EYE_H;
