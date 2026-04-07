@@ -372,9 +372,9 @@ const sc = StyleSheet.create({
 });
 
 // ── Cabeza de gato ────────────────────────────────────────────────────────────
-const CAT_SVG_W      = 300;
-const CAT_SVG_H      = 280;
-const CAT_OFFSET_TOP = -40;
+const CAT_SVG_W      = 320;
+const CAT_SVG_H      = 300;
+const CAT_OFFSET_TOP = -60;  // más espacio de frente sobre los ojos
 const CAT_FUR        = '#C4996A';   // mismo color que los párpados → integración perfecta
 const CAT_FUR_D      = '#B8864E';   // pelaje oscuro para rayas
 const EAR_PINK       = '#F4A0B8';   // oreja interior
@@ -388,43 +388,40 @@ function CabezaGato() {
       viewBox={`0 0 ${CAT_SVG_W} ${CAT_SVG_H}`}
       overflow="visible"
     >
-      {/* ── Orejas (dibujadas primero; la cara las tapa en la base → transición natural) ── */}
-      {/* Oreja izquierda exterior */}
-      <Path d="M 38,64 L 76,-20 L 130,54 Z" fill={CAT_FUR} />
-      {/* Oreja izquierda interior (rosa) */}
-      <Path d="M 57,57 L 79,2 L 121,51 Z" fill={EAR_PINK} />
+      {/* cx=160 = centro del SVG de 320px; los ojos estarán centrados sobre él */}
 
-      {/* Oreja derecha exterior */}
-      <Path d="M 262,64 L 224,-20 L 170,54 Z" fill={CAT_FUR} />
-      {/* Oreja derecha interior (rosa) */}
-      <Path d="M 243,57 L 221,2 L 179,51 Z" fill={EAR_PINK} />
+      {/* ── Orejas (dibujadas primero; la cara las tapa en la base) ── */}
+      <Path d="M 42,80 L 84,-10 L 148,64 Z" fill={CAT_FUR} />
+      <Path d="M 63,73 L 87,12 L 138,62 Z" fill={EAR_PINK} />
 
-      {/* ── Cara redonda (tapa la base de las orejas) ── */}
-      <Ellipse cx={150} cy={175} rx={143} ry={148} fill={CAT_FUR} />
+      <Path d="M 278,80 L 236,-10 L 172,64 Z" fill={CAT_FUR} />
+      <Path d="M 257,73 L 233,12 L 182,62 Z" fill={EAR_PINK} />
+
+      {/* ── Cara redonda — más grande para dar margen alrededor de los ojos ── */}
+      <Ellipse cx={160} cy={188} rx={152} ry={155} fill={CAT_FUR} />
 
       {/* ── Rayas de frente tabby ── */}
-      <Path d="M 143,55 Q 150,46 157,55" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
-      <Path d="M 139,67 Q 150,54 161,67" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
-      <Path d="M 135,81 Q 150,64 165,81" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
+      <Path d="M 152,72 Q 160,62 168,72" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
+      <Path d="M 147,84 Q 160,71 173,84" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
+      <Path d="M 142,98 Q 160,82 178,98" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
 
       {/* ── Manchas de mejilla ── */}
-      <Ellipse cx={78}  cy={260} rx={36} ry={19} fill="#D4A87A" opacity={0.45} />
-      <Ellipse cx={222} cy={260} rx={36} ry={19} fill="#D4A87A" opacity={0.45} />
+      <Ellipse cx={82}  cy={278} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
+      <Ellipse cx={238} cy={278} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
 
-      {/* ── Nariz (triángulo invertido) ── */}
-      <Path d="M 150,259 L 140,270 L 160,270 Z" fill={NOSE_COL} />
-      {/* Filtrum (línea nariz→boca) */}
-      <Path d="M 150,270 L 150,276" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
+      {/* ── Nariz ── */}
+      <Path d="M 160,272 L 149,284 L 171,284 Z" fill={NOSE_COL} />
+      <Path d="M 160,284 L 160,290" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
 
       {/* ── Bigotes izquierda ── */}
-      <Path d="M 50,251 L 132,258" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 44,264 L 130,265" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 50,277 L 132,272" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 44,264 L 138,272" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 38,278 L 136,278" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 44,292 L 138,284" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
 
       {/* ── Bigotes derecha ── */}
-      <Path d="M 250,251 L 168,258" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 256,264 L 170,265" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 250,277 L 168,272" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 276,264 L 182,272" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 282,278 L 184,278" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 276,292 L 182,284" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
     </Svg>
   );
 }
@@ -1093,9 +1090,9 @@ const s = StyleSheet.create({
   },
   cabezaWrap: {
     position: 'absolute',
-    // centrada horizontalmente, top ajustado para que los ojos queden en la zona correcta de la cara
     top: CAT_OFFSET_TOP,
-    left: (OW - CAT_SVG_W) / 2,
+    // FACE_W = 280 es el ancho real del contenedor; centrar el SVG de 300px en él → -10
+    left: (FACE_W - CAT_SVG_W) / 2,
     zIndex: -1,
   },
 });
