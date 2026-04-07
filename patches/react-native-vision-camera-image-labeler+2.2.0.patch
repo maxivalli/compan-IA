@@ -1,0 +1,14 @@
+diff --git a/node_modules/react-native-vision-camera-image-labeler/android/build.gradle b/node_modules/react-native-vision-camera-image-labeler/android/build.gradle
+index daf5575..44df2a1 100644
+--- a/node_modules/react-native-vision-camera-image-labeler/android/build.gradle
++++ b/node_modules/react-native-vision-camera-image-labeler/android/build.gradle
+@@ -8,7 +8,8 @@ buildscript {
+   }
+ 
+   dependencies {
+-    classpath "com.android.tools.build:gradle:7.2.1"
++    // Align with react-native-vision-camera-face-detector / Expo 54 (AGP 7.2.1 breaks Gradle 8+)
++    classpath "com.android.tools.build:gradle:8.13.0"
+     // noinspection DifferentKotlinGradleVersion
+     classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+   }
