@@ -41,6 +41,7 @@ import {
   buscarWeb, buscarWikipedia, buscarLugares,
   beginTurnTelemetry, getCurrentTurnMetrics, logCliente, sincronizarAnimo,
   fetchNoticiasDiarias, NoticiasDia,
+  crearAsyncJob,
 } from '../lib/ai';
 import { Dispositivo } from '../lib/smartthings';
 import { DomoticaAction } from './useSmartThings';
@@ -1642,6 +1643,11 @@ REGLAS CRÍTICAS PARA RESPONDER:
         historialRef.current = nuevoHist;
         guardarHistorial(nuevoHist).catch(() => {});
         return;
+      }
+
+      // ── ASYNC_JOB: disparo fire-and-forget ──
+      if (parsed.asyncJob) {
+        crearAsyncJob(parsed.asyncJob.tipo, parsed.asyncJob.query).catch(() => {});
       }
 
       // ── Respuesta normal ──

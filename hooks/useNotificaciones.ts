@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAudioPlayer } from 'expo-audio';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
 // ExpoSpeechRecognitionModule eliminado — usamos pararSRIntencional de los refs
@@ -25,7 +25,7 @@ import { ModoNoche } from '../components/RosaOjos';
 import { enviarAlertaTelegram, enviarMensajeTelegram, confirmarInformeEnviado, enviarHeartbeat, recibirMensajesVoz, recibirMensajesFoto, recibirMensajesTexto, obtenerUrlArchivo, MensajeVoz, MensajeFoto, MensajeTexto } from '../lib/telegram';
 import { obtenerClima, climaATexto, CODIGOS_ADVERSOS } from '../lib/clima';
 
-import { llamarClaude, transcribirAudio, obtenerComandosPendientes } from '../lib/ai';
+import { llamarClaude, transcribirAudio, obtenerComandosPendientes, fetchAsyncJobsListos, ackAsyncJob, AsyncJobListo } from '../lib/ai';
 import { tonoSegunEdad } from '../lib/claudeParser';
 
 // ── Tipos de los refs que el hook necesita ────────────────────────────────────
@@ -67,6 +67,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
   const colaRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
   const ultimoSilbidoRef = useRef(0);
+  const [ultimaNotaId, setUltimaNotaId] = useState<string | null>(null);
+  const clearUltimaNotaId = useCallback(() => setUltimaNotaId(null), []);
 
   // Blacklist de recordatorios/alarmas ya disparados: useRef para sobrevivir remounts del componente
   const disparadosRef = useRef(new Set<string>());
@@ -1284,6 +1286,46 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     };
   }, []);
 
+  // ── Polling de Async Jobs listos ─────────────────────────────────────────────
+  useEffect(() => {
+    const ASYNC_JOBS_INBOX_KEY = 'asyncJobsInbox';
+
+    async function chequearAsyncJobs(): Promise<void> {
+      if (!mountedRef.current) return;
+      const jobs = await fetchAsyncJobsListos();
+      if (!jobs.length) return;
+
+      // Persistir en inbox local y hacer ACK a todos
+      const inboxRaw = await AsyncStorage.getItem(ASYNC_JOBS_INBOX_KEY).catch(() => null);
+      const inbox: AsyncJobListo[] = inboxRaw ? JSON.parse(inboxRaw) : [];
+      for (const job of jobs) {
+        if (!inbox.some(j => j.id === job.id)) inbox.push(job);
+        ackAsyncJob(job.id);
+      }
+      await AsyncStorage.setItem(ASYNC_JOBS_INBOX_KEY, JSON.stringify(inbox.slice(-20)));
+
+      // Tomar el primer job para interrupción suave
+      const job = jobs[0];
+      const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
+      if (dormida || noMolestarRef.current) return;
+
+      const tituloJob = (job.resultJson as any)?.titulo ?? job.query;
+      const frase = `Te dejé una nota con ${job.tipo === 'receta' ? 'la receta de' : 'información sobre'} "${tituloJob}". Podés verla cuando quieras.`;
+
+      setUltimaNotaId(job.id);
+
+      if (estadoRef.current === 'hablando' || estadoRef.current === 'pensando') {
+        // Encolar para después de que Rosita termine
+        await esperarEstadoEsperando();
+        if (!mountedRef.current) return;
+      }
+      await refs.hablar(frase);
+    }
+
+    const idJobs = setInterval(() => encolar(chequearAsyncJobs), 45 * 1000);
+    return () => clearInterval(idJobs);
+  }, []);
+
   // ── Timer de silbido ────────────────────────────────────────────────────────
   useEffect(() => {
     const DIEZ_MIN        = 10 * 60 * 1000;
@@ -1333,5 +1375,5 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     } catch (e) { logClaudeError('triggerCumpleaños', e); }
   }
 
-  return { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños };
+  return { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños, ultimaNotaId, clearUltimaNotaId };
 }

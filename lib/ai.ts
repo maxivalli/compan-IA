@@ -579,6 +579,56 @@ export function logCliente(event: string, data?: Record<string, string | number 
     .catch(() => {});
 }
 
+// ── Async Jobs ────────────────────────────────────────────────────────────────
+
+export type AsyncJobListo = {
+  id: string;
+  tipo: string;
+  query: string;
+  resultJson: unknown;
+  createdAt: string;
+};
+
+/** Crea un job asíncrono en el backend. Devuelve el jobId o null si falla. */
+export async function crearAsyncJob(tipo: string, query: string): Promise<string | null> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/async-jobs`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ tipo, query }),
+    }, 8000, 'AsyncJob create');
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.jobId ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Obtiene la lista de jobs listos (done+unread) para este dispositivo. */
+export async function fetchAsyncJobsListos(): Promise<AsyncJobListo[]> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/async-jobs?limit=5`, {
+      headers: await jsonHeaders(),
+    }, 8000, 'AsyncJobs list');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.jobs) ? data.jobs : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Marca un job como leído (fire-and-forget). */
+export function ackAsyncJob(jobId: string): void {
+  jsonHeaders().then(headers =>
+    fetch(`${BACKEND_URL}/async-jobs/${encodeURIComponent(jobId)}/ack`, {
+      method: 'POST',
+      headers,
+    })
+  ).catch(() => {});
+}
+
 export async function reportarCrash(message: string, stack: string, platform: string, extra?: string): Promise<void> {
   try {
     const installId = await obtenerInstallId();
