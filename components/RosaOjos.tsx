@@ -431,10 +431,6 @@ function CabezaGato() {
       <Path d="M 147,84 Q 160,71 173,84" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
       <Path d="M 142,98 Q 160,82 178,98" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
 
-      {/* ── Manchas de mejilla ── */}
-      <Ellipse cx={82}  cy={246} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
-      <Ellipse cx={238} cy={246} rx={38} ry={20} fill="#D4A87A" opacity={0.40} />
-
       {/* ── Nariz ── */}
       <Path d="M 160,240 L 149,252 L 171,252 Z" fill={NOSE_COL} />
       <Path d="M 160,252 L 160,258" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
