@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { CameraView } from 'expo-camera';
 import {
   detectFacesAsync,
@@ -22,6 +22,8 @@ type Props = {
  * Si detecta un rostro llama `onPresenciaDetectada`.
  */
 export default function CamaraPresenciaOverlay({ activo, onPresenciaDetectada }: Props) {
+  if (Platform.OS === 'web') return null;
+
   const cameraRef = useRef<CameraView>(null);
   const corriendo = useRef(false);
 

@@ -1,7 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { Camera as VisionCamera, useCameraDevice } from 'react-native-vision-camera';
-import { Camera as LabelCamera, Label } from 'react-native-vision-camera-image-labeler';
+import { Platform, StyleSheet, View } from 'react-native';
+
+// react-native-vision-camera no soporta web — importamos condicionalmente
+// para que el bundle de Expo web no explote al inicializar
+let VisionCamera: any = null;
+let useCameraDevice: any = () => null;
+let LabelCamera: any = null;
+
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const vc = require('react-native-vision-camera');
+  VisionCamera    = vc.Camera;
+  useCameraDevice = vc.useCameraDevice;
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const vcl = require('react-native-vision-camera-image-labeler');
+  LabelCamera = vcl.Camera;
+}
+
+type Label = { label: string; confidence?: number };
 
 const COOLDOWN_LOCAL_MS = 1200; // evita spam del callback (además del cooldown global en useCamaraPresencia)
 
@@ -16,6 +32,9 @@ type Props = {
  * Si detecta un rostro llama `onPresenciaDetectada`.
  */
 export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada }: Props) {
+  // VisionCamera no funciona en web — no renderizar nada
+  if (Platform.OS === 'web') return null;
+
   const device = useCameraDevice('front');
   const camRef = useRef<VisionCamera | null>(null);
   const lastHitRef = useRef(0);
