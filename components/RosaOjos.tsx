@@ -242,11 +242,7 @@ const sb = StyleSheet.create({
     height: BOCA_H,
     backgroundColor: '#8B5E3C',
     marginTop: 62,
-    shadowColor: '#3A1A10',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.65,
-    shadowRadius: 3,
-    elevation: 4,
+    elevation: 0,
   },
 });
 
@@ -391,11 +387,11 @@ function CabezaGato() {
       {/* cx=160 = centro del SVG de 320px; los ojos estarán centrados sobre él */}
 
       {/* ── Orejas (dibujadas primero; la cara las tapa en la base) ── */}
-      <Path d="M 56,104 L 66,-26 L 154,72 Z" fill={CAT_FUR} />
-      <Path d="M 73,96 L 70,-8 L 143,68 Z" fill={EAR_PINK} />
+      <Path d="M 46,108 L 88,-28 L 158,74 Z" fill={CAT_FUR} />
+      <Path d="M 64,100 L 90,-10 L 146,70 Z" fill={EAR_PINK} />
 
-      <Path d="M 264,104 L 254,-26 L 166,72 Z" fill={CAT_FUR} />
-      <Path d="M 247,96 L 250,-8 L 177,68 Z" fill={EAR_PINK} />
+      <Path d="M 274,108 L 232,-28 L 162,74 Z" fill={CAT_FUR} />
+      <Path d="M 256,100 L 230,-10 L 174,70 Z" fill={EAR_PINK} />
 
       {/* ── Cara redonda — más grande para dar margen alrededor de los ojos ── */}
       <Ellipse cx={160} cy={188} rx={152} ry={155} fill={CAT_FUR} />
