@@ -300,45 +300,73 @@ export async function transcribirAudio(uri: string): Promise<string> {
   return data.text?.trim() ?? '';
 }
 
+// ── Stream ticket cache ───────────────────────────────────────────────────────
+// Los endpoints GET de streaming no admiten headers custom (expo-audio), por lo
+// que el backend emite tickets de un solo uso (60s TTL) vía POST /ai/stream-ticket.
+// Se pre-cachean aquí para no agregar latencia antes de cada reproducción.
+let _streamTicket: string | null = null;
+let _streamTicketExpiresAt = 0;
+
+async function getStreamTicket(): Promise<string | null> {
+  // Reusar si hay ticket vigente con más de 10s de vida restante
+  if (_streamTicket && Date.now() < _streamTicketExpiresAt - 10_000) {
+    return _streamTicket;
+  }
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/stream-ticket`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+    }, 5000, 'StreamTicket');
+    if (!res.ok) return null;
+    const data = await res.json() as { ticket?: string };
+    if (!data.ticket) return null;
+    _streamTicket = data.ticket;
+    _streamTicketExpiresAt = Date.now() + 55_000; // margen de 5s sobre el TTL del backend
+    return _streamTicket;
+  } catch {
+    return null; // si falla, el caller cae al fallback ?k=
+  }
+}
+
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
 
 /** Construye la URL del endpoint de streaming de TTS — ElevenLabs (para expo-audio directo).
- *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente (token en caché). */
-export function urlTTSStream(texto: string, voiceId: string, speed?: number): string {
+ *  Usa ticket de un solo uso (?tk=) si está disponible; si no, cae a ?k= (legacy). */
+export async function urlTTSStream(texto: string, voiceId: string, speed?: number): Promise<string> {
   if (!_cachedToken) {
-    // Token aún no disponible (bootstrap no terminó): devolver URL vacía
-    // en vez de lanzar. El pipeline de audio deberá manejar el string vacío.
     if (__DEV__) console.warn('[TTS] urlTTSStream llamada sin token cacheado');
     return '';
   }
+  const ticket = await getStreamTicket();
   const params = new URLSearchParams({
     text:    texto,
     voiceId,
     speed:   String(speed ?? 0.92),
-    k:       _cachedToken,
+    ...(ticket ? { tk: ticket } : { k: _cachedToken }),
   });
   return `${BACKEND_URL}/ai/tts-stream?${params}`;
 }
 
 
-/** Construye la URL del endpoint experimental de Fish realtime streaming.
- *  Requiere que `obtenerTokenDispositivo()` haya sido llamado previamente. */
-export function urlFishRealtimeStream(
+/** Construye la URL del endpoint de Fish realtime streaming.
+ *  Usa ticket de un solo uso (?tk=) si está disponible; si no, cae a ?k= (legacy). */
+export async function urlFishRealtimeStream(
   texto: string,
   voiceId: string,
   speed?: number,
   emotion?: string,
   options?: { latency?: 'normal' | 'balanced'; chunkLength?: number },
-): string {
+): Promise<string> {
   if (!_cachedToken) {
     if (__DEV__) console.warn('[TTS] urlFishRealtimeStream llamada sin token cacheado');
     return '';
   }
+  const ticket = await getStreamTicket();
   const params = new URLSearchParams({
     text: texto,
     voiceId,
     speed: String(speed ?? 0.92),
-    k: _cachedToken,
+    ...(ticket ? { tk: ticket } : { k: _cachedToken }),
     ...(emotion ? { emotion } : {}),
     ...(options?.latency ? { latency: options.latency } : {}),
     ...(options?.chunkLength ? { chunkLength: String(options.chunkLength) } : {}),

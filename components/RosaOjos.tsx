@@ -1084,8 +1084,13 @@ export default function RosaOjos({
     ? (FACE_H + CAT_FACE_TOP_EXTRA + 4) * scale  // = CAT_SVG_H * scale = 373 * scale
     : FACE_H * scale;
 
+  const wrapTransform = [
+    ...(scale !== 1      ? [{ scale } as const]              : []),
+    ...(eyeOffsetY !== 0 ? [{ translateY: eyeOffsetY } as const] : []),
+  ];
+
   return (
-    <View style={{ width: FACE_W * scale, height: outerH, alignItems: 'center', justifyContent: 'flex-start' }}>
+    <View style={{ width: FACE_W * scale, height: outerH, alignItems: 'center', justifyContent: 'flex-start', zIndex: 5 }}>
       {/* Cabeza de gato: top=0, todo dentro del outer View, sin overflow */}
       {cabezaGato && (
         <View
@@ -1097,7 +1102,7 @@ export default function RosaOjos({
       )}
       {/* Espaciador: empuja los ojos hacia abajo para que las orejas queden encima */}
       {cabezaGato && <View style={{ height: CAT_FACE_TOP_EXTRA * scale }} />}
-      <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }, eyeOffsetY !== 0 && { transform: [scale !== 1 ? { scale } : {}, { translateY: eyeOffsetY }] }]}>
+      <View style={[s.wrap, wrapTransform.length > 0 && { transform: wrapTransform }]}>
         <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
             <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={cabezaGato ? CAT_FUR : bgColor} nightAnim={nightAnim}/>

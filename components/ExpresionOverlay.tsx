@@ -73,7 +73,7 @@ export default function ExpresionOverlay({
   }, [expresion]);
 
   if (capa === 'fondo') return (
-    <View style={s.overlay} pointerEvents="none">
+    <View style={[s.overlay, { zIndex: 1 }]} pointerEvents="none">
       {!esNocheEfectiva && !musicaActiva && !esLluvia && !esViento && !esNieve && (esSoleado || esParcial) && <Sol modoHorizontal={esHorizontalPantalla} />}
       {esLluvia                                                           && <GotasLluvia />}
       {esNieve                                                            && <Nieve />}
@@ -84,7 +84,7 @@ export default function ExpresionOverlay({
   );
 
   return (
-    <View style={s.overlay} pointerEvents="none">
+    <View style={[s.overlay, { zIndex: 10 }]} pointerEvents="none">
       {esTormenta && <Relampagos onRelampago={onRelampago} />}
 
       <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -127,5 +127,6 @@ const s = StyleSheet.create({
     left: -20, right: -20,
     top: -60,  bottom: -70,
     overflow: 'visible',
+    zIndex: 10,
   },
 });

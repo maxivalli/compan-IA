@@ -21,8 +21,16 @@ async function h(): Promise<Record<string, string>> {
 
 export async function iniciarOAuth(): Promise<{ ok: boolean; error?: string }> {
   try {
-    const token = await obtenerTokenDispositivo();
-    const url = `${BACKEND_URL}/smartthings/oauth/start?dt=${encodeURIComponent(token)}`;
+    // POST /oauth/init devuelve la URL de autorización ya construida.
+    // El device token viaja en el header (nunca en la URL del browser).
+    const res = await fetch(`${BACKEND_URL}/smartthings/oauth/init`, {
+      method: 'POST',
+      headers: await h(),
+    });
+    if (!res.ok) throw new Error('No se pudo iniciar la autorización con SmartThings.');
+    const { url } = await res.json() as { url?: string };
+    if (!url) throw new Error('El servidor no devolvió una URL de autorización.');
+
     const result = await WebBrowser.openAuthSessionAsync(url);
     if (result.type === 'success' || result.type === 'dismiss') {
       // El callback ya guardó los tokens en el backend.

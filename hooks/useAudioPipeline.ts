@@ -873,7 +873,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         // (~300-400ms) en vez de esperar la descarga completa (~850-1000ms).
         // En paralelo, descargamos y cacheamos con sintetizarVoz para el próximo turn.
         try {
-          const streamUrl = urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
+          const streamUrl = await urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
           logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_stream' });
           // Cache en background via precachearTexto (usa el in-flight map, evita double call)
           precachearTexto(texto, emotion).catch(() => {});
