@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   BackHandler,
   Linking,
@@ -14,6 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
@@ -925,6 +927,31 @@ export default function Configuracion() {
               </TouchableOpacity>
             </>
           )}
+          <View style={s.divisorThin} />
+          <TouchableOpacity
+            style={s.buscarBtn}
+            activeOpacity={0.7}
+            onPress={() =>
+              Alert.alert(
+                'Limpiar historial',
+                '¿Querés borrar el historial de conversación? Rosita no recordará lo hablado en sesiones anteriores.',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Limpiar',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await AsyncStorage.removeItem('rosa_historial').catch(() => {});
+                      Alert.alert('Listo', 'El historial fue limpiado.');
+                    },
+                  },
+                ],
+              )
+            }
+          >
+            <Ionicons name="trash-outline" size={18} color={M.error} />
+            <Text style={[s.buscarText, { color: M.error }]}>Limpiar historial de conversación</Text>
+          </TouchableOpacity>
           <View style={s.divisorThin} />
           <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={() => router.push('/privacidad' as any)}>
             <Ionicons name="shield-outline" size={18} color={M.onSurfaceVariant} />

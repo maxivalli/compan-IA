@@ -1462,6 +1462,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       registrarMemoriaEpisodica(textoUsuario, parsed.respuesta).catch(() => {});
 
+      // ── ASYNC_JOB: disparo fire-and-forget ANTES de cualquier early return ──
+      // Debe estar aquí para que los handlers de JUEGOS, MÚSICA, etc. no lo bloqueen.
+      if (parsed.asyncJob) {
+        logCliente('async_job_dispatch', { tipo: parsed.asyncJob.tipo, query: parsed.asyncJob.query.slice(0, 60) });
+        crearAsyncJob(parsed.asyncJob.tipo, parsed.asyncJob.query).catch(() => {});
+      }
+
       // ── PARAR_MUSICA ──
       if (parsed.tagPrincipal === 'PARAR_MUSICA') {
         d.playerMusica.pause();
@@ -1643,12 +1650,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
         historialRef.current = nuevoHist;
         guardarHistorial(nuevoHist).catch(() => {});
         return;
-      }
-
-      // ── ASYNC_JOB: disparo fire-and-forget ──
-      if (parsed.asyncJob) {
-        logCliente('async_job_dispatch', { tipo: parsed.asyncJob.tipo, query: parsed.asyncJob.query.slice(0, 60) });
-        crearAsyncJob(parsed.asyncJob.tipo, parsed.asyncJob.query).catch(() => {});
       }
 
       // ── Respuesta normal ──
