@@ -1196,7 +1196,7 @@ export function useBrain(deps: BrainDeps) {
           ? 130
           : pideAccion
             ? 120
-            : 80;
+            : 150;
     const histSlice   = (pideCuento || pideJuego || pideChiste) ? -9 : (esCharlaSocialBreve(textoNorm) ? -3 : -5);
     const msgSliceBase = nuevoHistorial.slice(histSlice);
 
