@@ -1193,7 +1193,7 @@ export function useBrain(deps: BrainDeps) {
       : ofrecerMenuAburrimiento
         ? 150
         : (pideNoticias || pideBusqueda || pideWikipedia)
-          ? 130
+          ? 220
           : pideAccion
             ? 120
             : 150;
@@ -1647,6 +1647,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // ── ASYNC_JOB: disparo fire-and-forget ──
       if (parsed.asyncJob) {
+        logCliente('async_job_dispatch', { tipo: parsed.asyncJob.tipo, query: parsed.asyncJob.query.slice(0, 60) });
         crearAsyncJob(parsed.asyncJob.tipo, parsed.asyncJob.query).catch(() => {});
       }
 
