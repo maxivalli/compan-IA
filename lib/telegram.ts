@@ -31,8 +31,11 @@ export async function recibirMensajesVoz(
 ): Promise<MensajeVoz[]> {
   if (!chatIds.length) return [];
   try {
-    const params = new URLSearchParams({ chatIds: chatIds.join(',') });
-    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-voz?${params}`, { headers: await h() });
+    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-voz`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ chatIds }),
+    });
     const data = await res.json();
     return data.mensajes ?? [];
   } catch {
@@ -42,8 +45,11 @@ export async function recibirMensajesVoz(
 
 export async function obtenerUrlArchivo(fileId: string, chatId: string): Promise<string | null> {
   try {
-    const params = new URLSearchParams({ fileId, chatId });
-    const res  = await fetch(`${BACKEND_URL}/telegram/archivo?${params}`, { headers: await h() });
+    const res  = await fetch(`${BACKEND_URL}/telegram/archivo`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ fileId, chatId }),
+    });
     const data = await res.json();
     return data.url ?? null;
   } catch {
@@ -72,8 +78,11 @@ export type MensajeFoto = {
 export async function recibirMensajesFoto(chatIds: string[] = []): Promise<MensajeFoto[]> {
   if (!chatIds.length) return [];
   try {
-    const params = new URLSearchParams({ chatIds: chatIds.join(',') });
-    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-foto?${params}`, { headers: await h() });
+    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-foto`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ chatIds }),
+    });
     const data = await res.json();
     return data.mensajes ?? [];
   } catch {
@@ -90,8 +99,11 @@ export type MensajeTexto = {
 export async function recibirMensajesTexto(chatIds: string[] = []): Promise<MensajeTexto[]> {
   if (!chatIds.length) return [];
   try {
-    const params = new URLSearchParams({ chatIds: chatIds.join(',') });
-    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-texto?${params}`, { headers: await h() });
+    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-texto`, {
+      method: 'POST',
+      headers: await h(),
+      body: JSON.stringify({ chatIds }),
+    });
     const data = await res.json();
     return data.mensajes ?? [];
   } catch {

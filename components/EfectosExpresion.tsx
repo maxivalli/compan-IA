@@ -324,17 +324,20 @@ export function NotasMusica({ horizontal }: { horizontal?: boolean }) {
 
 // ── Ceño enojado ──────────────────────────────────────────────────────────────
 
-export function CenoEnojado() {
+export function CenoEnojado({ offsetY = 0, offsetX = 0, scale = 1, gap = 0 }: { offsetY?: number; offsetX?: number; scale?: number; gap?: number }) {
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
   }, []);
 
+  const browWidth = (EYE_W - 10) * scale;
+  const browHeight = 10 * scale;
+
   return (
     <Animated.View style={{ opacity }}>
-      <View style={{ position: 'absolute', left: 25, top: 30, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
-      <View style={{ position: 'absolute', left: 181, top: 30, width: EYE_W - 10, height: 10, borderRadius: 5, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
+      <View style={{ position: 'absolute', left: 25 + offsetX - gap, top: 30 + offsetY, width: browWidth, height: browHeight, borderRadius: 5 * scale, backgroundColor: '#1A3A5C', transform: [{ rotate: '12deg' }] }} />
+      <View style={{ position: 'absolute', left: 181 + offsetX + gap, top: 30 + offsetY, width: browWidth, height: browHeight, borderRadius: 5 * scale, backgroundColor: '#1A3A5C', transform: [{ rotate: '-12deg' }] }} />
     </Animated.View>
   );
 }

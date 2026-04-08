@@ -134,7 +134,7 @@ export default function Index() {
   useEffect(() => {
     if (!ultimaNotaId) return;
     clearUltimaNotaId();
-    router.push(`/nota/${ultimaNotaId}` as any);
+    router.push(`/nota/${ultimaNotaId}` as Parameters<typeof router.push>[0]);
   }, [ultimaNotaId]);
 
 
@@ -588,6 +588,26 @@ export default function Index() {
           silbando={silbando}
           onRelampago={onRelampago}
           esCumpleaños={esCumpleaños}
+          browOffsetY={
+            refs.perfilRef.current?.cabezaGato !== false
+              ? (isTablet && layoutMode === 'vertical' ? 75 : !isTablet && layoutMode === 'vertical' ? 85 : 0)
+              : (isTablet && layoutMode === 'vertical' ? 35 : !isTablet && layoutMode === 'vertical' ? 40 : 0)
+          }
+          browOffsetX={
+            refs.perfilRef.current?.cabezaGato !== false
+              ? (isTablet && layoutMode === 'vertical' ? 15 : 0)
+              : (isTablet && layoutMode === 'vertical' ? 11 : 0)
+          }
+          browScale={
+            refs.perfilRef.current?.cabezaGato !== false
+              ? (isTablet && layoutMode === 'vertical' ? 0.75 : 1)
+              : (isTablet && layoutMode === 'vertical' ? 0.8 : 1)
+          }
+          browGap={
+            refs.perfilRef.current?.cabezaGato !== false
+              ? (isTablet && layoutMode === 'vertical' ? -15 : 0)
+              : (isTablet && layoutMode === 'vertical' ? -18 : 0)
+          }
         />
       </View>
       {modoNoche === 'durmiendo' && <ZZZ />}

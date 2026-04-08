@@ -18,7 +18,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer } from 'expo-audio';
+import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer, AudioPlayer } from 'expo-audio';
+
+// expo-audio no expone duration, currentTime ni loop en sus tipos TypeScript,
+// pero sí existen en el objeto subyacente de Android/iOS.
+type AudioPlayerExt = AudioPlayer & { duration?: number; currentTime?: number; loop?: boolean };
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { Perfil } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
@@ -634,8 +638,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             try { player.pause(); } catch {}
             resolve(); return;
           }
-          const dur = (player as any).duration as number;
-          const pos = (player as any).currentTime as number;
+          const dur = (player as AudioPlayerExt).duration ?? NaN;
+          const pos = (player as AudioPlayerExt).currentTime ?? NaN;
           if (!isNaN(dur) && dur > 0 && isFinite(dur) && pos >= dur - 0.15) {
             clearTimeout(safety); clearInterval(poll); resolve();
           }
@@ -670,7 +674,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (depsRef.current.musicaActivaRef.current) return;
     try {
       playerMusica.replace(TECLEO_ASSET);
-      (playerMusica as any).loop = true;
+      (playerMusica as AudioPlayerExt).loop = true;
       playerMusica.play();
       await new Promise<void>(resolve => {
         const poll = setInterval(() => {
@@ -681,7 +685,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     finally {
       // Siempre limpiar loop aunque el try haya rechazado —
       // si no, el próximo uso de playerMusica (ej. música) loopea indefinidamente.
-      try { (playerMusica as any).loop = false; playerMusica.pause(); } catch {}
+      try { (playerMusica as AudioPlayerExt).loop = false; playerMusica.pause(); } catch {}
     }
   }
 
@@ -790,8 +794,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             resolve();
             return;
           }
-          const dur = (player as any).duration as number;
-          const pos = (player as any).currentTime as number;
+          const dur = (player as AudioPlayerExt).duration ?? NaN;
+          const pos = (player as AudioPlayerExt).currentTime ?? NaN;
           if (dur > 0 && pos >= dur - 0.15) {
             clearTimeout(safety);
             clearInterval(poll);
@@ -914,8 +918,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             const turnMetrics = getCurrentTurnMetrics();
             logCliente('hablar_end', {
               motivo,
-              pos: Math.round(((player as any).currentTime ?? 0) * 1000),
-              dur: Math.round(((player as any).duration ?? 0) * 1000),
+              pos: Math.round(((player as AudioPlayerExt).currentTime ?? 0) * 1000),
+              dur: Math.round(((player as AudioPlayerExt).duration ?? 0) * 1000),
               e2e_now_ms: turnMetrics.e2eNowMs ?? -1,
             });
             resolve();
@@ -1102,7 +1106,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     d.estadoRef.current = 'pensando';
     try {
       const info = await FileSystem.getInfoAsync(uri);
-      if (__DEV__) console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as any).size ?? '?');
+      if (__DEV__) console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as { size?: number }).size ?? '?');
       const muletillaPromise = reproducirMuletilla('busqueda');
       const texto = await transcribirAudio(uri);
       await muletillaPromise;

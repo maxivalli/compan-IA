@@ -230,9 +230,6 @@ export default function Configuracion() {
   const [perfil, setPerfil]               = useState<Perfil | null>(null);
   const [nombre, setNombre]               = useState('');
   const [edad, setEdad]                   = useState('');
-  const [nombreAsistente, setNombreAsistente] = useState('');
-  const [vozGenero, setVozGenero]         = useState<'femenina' | 'masculina'>('femenina');
-  const [vozId, setVozId]                 = useState<string>('r3lotmx3BZETVvcKm6R6');
   const [generoUsuario, setGeneroUsuario] = useState<'femenino' | 'masculino'>('femenino');
   const [hijos,      setHijos]            = useState('');
   const [nietos,     setNietos]           = useState('');
@@ -256,7 +253,6 @@ export default function Configuracion() {
   const [horaInicioNoche, setHoraInicioNoche] = useState(23);
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
   const [deteccionPresencia, setDeteccionPresencia] = useState(false);
-  const [cabezaGato, setCabezaGato] = useState(true);
   const [monitoreoActivo, setMonitoreoActivo] = useState(false);
   /** Tras Guardar con monitoreo: confirmación o error del servidor (antes solo se mostraba el error). */
   const [monitoreoHeartbeatFeedback, setMonitoreoHeartbeatFeedback] = useState<
@@ -336,9 +332,6 @@ export default function Configuracion() {
       setPerfil(p);
       setNombre(p.nombreAbuela);
       setEdad(p.edad ? String(p.edad) : '');
-      setNombreAsistente(p.nombreAsistente ?? 'Rosita');
-      setVozGenero(p.vozGenero ?? 'femenina');
-      setVozId(p.vozId ?? 'r3lotmx3BZETVvcKm6R6');
       setGeneroUsuario(p.generoUsuario ?? 'femenino');
       const findCat = (cat: string) => {
         const e = p.familiares.find(f => f.toLowerCase().startsWith(cat + ':'));
@@ -360,7 +353,6 @@ export default function Configuracion() {
       setHoraFinNoche(p.horaFinNoche ?? 9);
       setDeteccionPresencia(p.deteccionPresenciaActiva ?? false);
       setMonitoreoActivo(p.monitoreoActivo ?? false);
-      setCabezaGato(p.cabezaGato !== false);
 
       // ── Sincronizar contactos con el backend ──────────────────────────────
       // Si alguien hizo /desvincular desde Telegram, ya no está en la DB pero
@@ -443,8 +435,7 @@ export default function Configuracion() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-device-token': token },
             body: JSON.stringify({
-              nombreAbuela:    nombreTrimmed,
-              nombreAsistente: nombreAsistente.trim() || 'Rosita',
+              nombreAbuela: nombreTrimmed,
             }),
           });
           const data = await res.json();
@@ -495,11 +486,13 @@ export default function Configuracion() {
     }
 
     await guardarPerfil({
+      // Campos del asistente — solo editables en onboarding, se preservan del perfil existente
+      nombreAsistente:   perfil?.nombreAsistente ?? 'Rosita',
+      vozGenero:         perfil?.vozGenero ?? 'femenina',
+      vozId:             perfil?.vozId,
+      cabezaGato:        perfil?.cabezaGato,
       nombreAbuela:      nombreTrimmed,
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
-      nombreAsistente:   nombreAsistente.trim() || 'Rosita',
-      vozGenero,
-      vozId,
       generoUsuario,
       familiares: [
         hijos.trim()    && `hijos: ${hijos.trim()}`,
@@ -527,7 +520,6 @@ export default function Configuracion() {
       deteccionPresenciaActiva: deteccionPresencia,
       condicionFisica: condicionFisica.trim() || undefined,
       monitoreoActivo,
-      cabezaGato,
     });
 
     setMonitoreoHeartbeatFeedback(null);
@@ -573,7 +565,7 @@ export default function Configuracion() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={s.heroTitle}>{nombre || 'Sin nombre'}</Text>
-            <Text style={s.heroSub}>Asistente: {nombreAsistente || 'Rosita'}</Text>
+            <Text style={s.heroSub}>Perfil y preferencias</Text>
           </View>
         </View>
 
@@ -639,61 +631,6 @@ export default function Configuracion() {
           );
         })()}
         <M3Input label="Otros gustos y temas" hint="Separados por coma" value={gustos} onChangeText={setGustos} multiline placeholder="tangos, jardín, novelas" />
-
-        <SectionLabel icon="chatbubble-ellipses-outline" label="Asistente" />
-        <M3Input label="Nombre de la asistente" hint="Por defecto: Rosita" value={nombreAsistente} onChangeText={setNombreAsistente} placeholder="Rosita" />
-
-        <Surface style={{ marginTop: 4 }}>
-          <View style={s.vozRow}>
-            {(['femenina', 'masculina'] as const).map(g => (
-              <TouchableOpacity
-                key={g}
-                style={[s.vozChip, vozGenero === g && s.vozChipActivo]}
-                onPress={() => setVozGenero(g)}
-                activeOpacity={0.75}
-              >
-                <Ionicons name={g === 'femenina' ? 'woman' : 'man'} size={16} color={vozGenero === g ? M.onPrimary : M.onSurfaceVariant} />
-                <Text style={[s.vozChipTxt, vozGenero === g && s.vozChipTxtActivo]}>
-                  {g === 'femenina' ? 'Voz femenina' : 'Voz masculina'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Surface>
-
-        <Surface style={{ marginTop: 4 }}>
-          <View style={s.vozRow}>
-            {(['rostro', 'gato'] as const).map(tipo => (
-              <TouchableOpacity
-                key={tipo}
-                style={[s.vozChip, (tipo === 'gato' ? cabezaGato : !cabezaGato) && s.vozChipActivo]}
-                onPress={() => {
-                  const nuevoValor = tipo === 'gato';
-                  setCabezaGato(nuevoValor);
-                  // Cambiar automáticamente la voz
-                  if (nuevoValor) {
-                    // Activar cara de gato -> usar voz de gato
-                    setVozId('5bef3cec918748a290d6d129c26d9484');
-                  } else {
-                    // Desactivar cara de gato -> volver a voz femenina por defecto
-                    setVozId('r3lotmx3BZETVvcKm6R6');
-                    setVozGenero('femenina');
-                  }
-                }}
-                activeOpacity={0.75}
-              >
-                <Ionicons 
-                  name={tipo === 'gato' ? 'paw' : 'happy-outline'} 
-                  size={16} 
-                  color={(tipo === 'gato' ? cabezaGato : !cabezaGato) ? M.onPrimary : M.onSurfaceVariant} 
-                />
-                <Text style={[s.vozChipTxt, (tipo === 'gato' ? cabezaGato : !cabezaGato) && s.vozChipTxtActivo]}>
-                  {tipo === 'gato' ? 'Cara de gato' : 'Solo rostro'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Surface>
 
         {/* ── Horario de descanso ── */}
         <SectionLabel icon="moon-outline" label="Horario de descanso" />
@@ -873,7 +810,7 @@ export default function Configuracion() {
               <Ionicons name="bulb-outline" size={32} color={M.primary} style={{ marginBottom: 8 }} />
               <Text style={s.tuyaManualTitle}>Control de luces y enchufes</Text>
               <Text style={s.tuyaManualText}>
-                Conectá {nombreAsistente || 'Rosita'} con tu cuenta de Samsung SmartThings.
+                Conectá CompañIA con tu cuenta de Samsung SmartThings.
                 Se abrirá el sitio de Samsung para que autorices el acceso.
               </Text>
 

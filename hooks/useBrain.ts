@@ -879,7 +879,7 @@ export function useBrain(deps: BrainDeps) {
     const turnId = beginTurnTelemetry();
     if (__DEV__) console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = d.perfilRef.current;
-    if (!p) { console.log('[RC] sin perfil, saliendo'); return; }
+    if (!p) { if (__DEV__) console.log('[RC] sin perfil, saliendo'); return; }
 
     // Gate offline: evita esperar el timeout de red si ya sabemos que no hay conexión
     if (d.sinConexionRef.current) {

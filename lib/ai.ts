@@ -1,7 +1,8 @@
 import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken } from './memoria';
 import { RositaSystemPayload } from './systemPayload';
 
-const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL!;
+const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
+if (!BACKEND_URL && __DEV__) console.error('[AI] EXPO_PUBLIC_BACKEND_URL no configurado — las llamadas al backend fallarán');
 
 type TextBlock = { type: 'text'; text: string; cache_control?: { type: 'ephemeral' } };
 type Mensaje = { role: 'user' | 'assistant'; content: string | TextBlock[] };

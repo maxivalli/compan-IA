@@ -118,12 +118,10 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     }
   }
 
-  async function esperarFinCumple(timeoutTicks = 180): Promise<void> {
-    let ticks = 0;
-    while (playerCumple.playing && ticks <= timeoutTicks) {
-      ticks++;
-      await waitMs(500);
-    }
+  async function esperarFinCumple(): Promise<void> {
+    // Usa currentTime/duration en vez de .playing — más fiable en Android,
+    // donde playing puede no reflejar el estado real del reproductor.
+    await esperarFinPlayer(playerCumple, 90_000);
   }
 
   function depurarDisparados() {

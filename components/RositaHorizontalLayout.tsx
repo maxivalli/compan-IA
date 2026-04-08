@@ -321,6 +321,10 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       onRelampago={props.onRelampago}
                       esCumpleaños={props.esCumpleaños}
                       modoHorizontal
+                      browOffsetY={props.cabezaGato !== false ? (esTabletHorizontal ? 75 : 115) : (esTabletHorizontal ? 10 : 70)}
+                      browOffsetX={props.cabezaGato !== false ? (esTabletHorizontal ? 10 : 22) : (esTabletHorizontal ? -17 : 19)}
+                      browScale={props.cabezaGato !== false ? (esTabletHorizontal ? 0.85 : 0.6) : (esTabletHorizontal ? 1.32 : 0.65)}
+                      browGap={props.cabezaGato !== false ? (esTabletHorizontal ? 0 : -20) : (esTabletHorizontal ? 25 : -15)}
                     />
                   </View>
                 </View>

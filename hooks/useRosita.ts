@@ -230,7 +230,10 @@ export function useRosita() {
     suspenderSR:              pipeline.suspenderSR,
     reanudarSR:               pipeline.reanudarSR,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
-    lanzarJuego: (tipo) => router.push((tipo === 'tateti' ? '/tateti' : tipo === 'ahorcado' ? '/ahorcado' : '/memoria') as any),
+    lanzarJuego: (tipo) => {
+      const rutaJuego = { tateti: '/tateti', ahorcado: '/ahorcado', memoria: '/memoria' } as const;
+      router.push(rutaJuego[tipo] as Parameters<typeof router.push>[0]);
+    },
   });
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
@@ -303,6 +306,7 @@ export function useRosita() {
   // ── OTA update ───────────────────────────────────────────────────────────────
   useEffect(() => {
     if (__DEV__) return;
+    let idleIntervalId: ReturnType<typeof setInterval> | null = null;
     const id = setTimeout(async () => {
       try {
         const check = await Updates.checkForUpdateAsync();
@@ -313,11 +317,12 @@ export function useRosita() {
         const TIMEOUT_MAX = 2 * 60 * 1000;
         const inicio = Date.now();
         await new Promise<void>(resolve => {
-          const check = setInterval(() => {
+          idleIntervalId = setInterval(() => {
             const idle = estadoRef.current === 'esperando'
               && (Date.now() - ultimaCharlaRef.current) > 10000;
             if (idle || Date.now() - inicio > TIMEOUT_MAX) {
-              clearInterval(check);
+              clearInterval(idleIntervalId!);
+              idleIntervalId = null;
               resolve();
             }
           }, 1000);
@@ -327,7 +332,13 @@ export function useRosita() {
         if (__DEV__) console.log('[OTA] error:', e?.message ?? e);
       }
     }, 5000);
-    return () => clearTimeout(id);
+    return () => {
+      clearTimeout(id);
+      if (idleIntervalId !== null) {
+        clearInterval(idleIntervalId);
+        idleIntervalId = null;
+      }
+    };
   }, []);
 
   // ── Monitor de conectividad (cada 60s) ─────────────────────────────────────

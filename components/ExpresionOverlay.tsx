@@ -36,8 +36,8 @@ const ACCESORIO_GLOBAL: 'bonete' | 'gorro' | null = (() => {
 export default function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
   modoNoche, capa = 'frente', silbando = false, onRelampago, modoHorizontal = false,
-  esCumpleaños = false,
-}: Props & { esCumpleaños?: boolean }) {
+  esCumpleaños = false, browOffsetY = 0, browOffsetX = 0, browScale = 1, browGap = 0,
+}: Props & { esCumpleaños?: boolean; browOffsetY?: number; browOffsetX?: number; browScale?: number; browGap?: number }) {
   const fade = useRef(new Animated.Value(0)).current;
   const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -108,7 +108,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
             {expresion === 'pensativa'     && <SignosPregunta />}
             {expresion === 'avergonzada'    && <GotaSudor />}
             {expresion === 'chiste'        && <Carcajada />}
-            {expresion === 'enojada'       && <CenoEnojado />}
+            {expresion === 'enojada'       && <CenoEnojado offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} gap={browGap} />}
             {expresion === 'enojada'       && (
               <View style={esHorizontalPantalla ? { transform: [{ translateY: 62 }] } : undefined}>
                 <Grawlixes />
