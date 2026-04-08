@@ -370,23 +370,26 @@ const sc = StyleSheet.create({
 
 // ── Cabeza de gato ────────────────────────────────────────────────────────────
 const CAT_SVG_W      = 320;
-const CAT_SVG_H      = 300;
-const CAT_OFFSET_TOP = -60;  // más espacio de frente sobre los ojos
+const CAT_SVG_H      = 373;  // todo el contenido cabe sin overflow (y=0..373)
 const CAT_FUR        = '#C4996A';   // mismo color que los párpados → integración perfecta
 const CAT_FUR_D      = '#B8864E';   // pelaje oscuro para rayas
 const EAR_PINK       = '#F4A0B8';   // oreja interior
 const NOSE_COL       = '#C4658A';   // nariz
+// Espacio extra encima de los ojos que ocupa la cabeza del gato.
+// Se exporta para que los consumers puedan compensar su layout.
+export const CAT_FACE_TOP_EXTRA = 90;
 
 function CabezaGato({ scale = 1 }: { scale?: number }) {
+  // Todas las coordenadas y están desplazadas +30 respecto al diseño original
+  // para que las puntas de las orejas queden en y=0 (sin negativos).
+  // El SVG tiene el alto justo para contener todo el contenido (y=0..373).
   return (
     <Svg
       width={CAT_SVG_W * scale}
       height={CAT_SVG_H * scale}
       viewBox={`0 0 ${CAT_SVG_W} ${CAT_SVG_H}`}
-      overflow="visible"
     >
       <Defs>
-        {/* Cara: gradiente radial con luz desde arriba-izquierda */}
         <RadialGradient id="gcFace" cx="38%" cy="28%" rx="68%" ry="62%">
           <Stop offset="0%"   stopColor="#EBBE82" stopOpacity="1" />
           <Stop offset="38%"  stopColor="#C4996A" stopOpacity="1" />
@@ -394,56 +397,51 @@ function CabezaGato({ scale = 1 }: { scale?: number }) {
           <Stop offset="100%" stopColor="#6E4820" stopOpacity="1" />
         </RadialGradient>
 
-        {/* Oreja izquierda: más clara en la punta, oscura en la base */}
-        <LinearGradient id="gcEarL" x1="120" y1="100" x2="50" y2="-30" gradientUnits="userSpaceOnUse">
+        <LinearGradient id="gcEarL" x1="120" y1="130" x2="50" y2="0" gradientUnits="userSpaceOnUse">
           <Stop offset="0%"   stopColor="#8A6035" stopOpacity="1" />
           <Stop offset="100%" stopColor="#DEB87A" stopOpacity="1" />
         </LinearGradient>
 
-        {/* Oreja derecha: espejo */}
-        <LinearGradient id="gcEarR" x1="200" y1="100" x2="270" y2="-30" gradientUnits="userSpaceOnUse">
+        <LinearGradient id="gcEarR" x1="200" y1="130" x2="270" y2="0" gradientUnits="userSpaceOnUse">
           <Stop offset="0%"   stopColor="#8A6035" stopOpacity="1" />
           <Stop offset="100%" stopColor="#DEB87A" stopOpacity="1" />
         </LinearGradient>
 
-        {/* Interior de oreja: rosado claro arriba, más saturado abajo */}
         <RadialGradient id="gcEarIn" cx="50%" cy="68%" rx="52%" ry="48%">
           <Stop offset="0%"   stopColor="#FDD0DE" stopOpacity="1" />
           <Stop offset="100%" stopColor="#C07888" stopOpacity="1" />
         </RadialGradient>
       </Defs>
 
-      {/* ── Orejas con gradiente ── */}
-      <Path d="M 34,112 L 50,-30 L 164,70 Z" fill="url(#gcEarL)" />
-      <Path d="M 50,104 L 54,-12 L 152,66 Z" fill="url(#gcEarIn)" />
+      {/* ── Orejas (y original + 30) ── */}
+      <Path d="M 34,142 L 50,0 L 164,100 Z" fill="url(#gcEarL)" />
+      <Path d="M 50,134 L 54,18 L 152,96 Z" fill="url(#gcEarIn)" />
 
-      <Path d="M 286,112 L 270,-30 L 156,70 Z" fill="url(#gcEarR)" />
-      <Path d="M 270,104 L 266,-12 L 168,66 Z" fill="url(#gcEarIn)" />
+      <Path d="M 286,142 L 270,0 L 156,100 Z" fill="url(#gcEarR)" />
+      <Path d="M 270,134 L 266,18 L 168,96 Z" fill="url(#gcEarIn)" />
 
-      {/* ── Cara con gradiente 3D ── */}
-      <Ellipse cx={160} cy={188} rx={152} ry={155} fill="url(#gcFace)" />
+      {/* ── Cara ── */}
+      <Ellipse cx={160} cy={218} rx={152} ry={155} fill="url(#gcFace)" />
+      <Ellipse cx={160} cy={218} rx={152} ry={155} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
 
-      {/* Borde rim oscuro sutil */}
-      <Ellipse cx={160} cy={188} rx={152} ry={155} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
-
-      {/* ── Rayas de frente tabby ── */}
-      <Path d="M 152,72 Q 160,62 168,72" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
-      <Path d="M 147,84 Q 160,71 173,84" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
-      <Path d="M 142,98 Q 160,82 178,98" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
+      {/* ── Rayas tabby ── */}
+      <Path d="M 152,102 Q 160,92 168,102" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
+      <Path d="M 147,114 Q 160,101 173,114" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
+      <Path d="M 142,128 Q 160,112 178,128" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
 
       {/* ── Nariz ── */}
-      <Path d="M 160,240 L 149,252 L 171,252 Z" fill={NOSE_COL} />
-      <Path d="M 160,252 L 160,258" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
+      <Path d="M 160,270 L 149,282 L 171,282 Z" fill={NOSE_COL} />
+      <Path d="M 160,282 L 160,288" stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
 
       {/* ── Bigotes izquierda ── */}
-      <Path d="M 44,233 L 138,241" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 38,247 L 136,247" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 44,261 L 138,253" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 44,263 L 138,271" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 38,277 L 136,277" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 44,291 L 138,283" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
 
       {/* ── Bigotes derecha ── */}
-      <Path d="M 276,233 L 182,241" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 282,247 L 184,247" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d="M 276,261 L 182,253" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 276,263 L 182,271" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 282,277 L 184,277" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
+      <Path d="M 276,291 L 182,283" stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
     </Svg>
   );
 }
@@ -1074,21 +1072,25 @@ export default function RosaOjos({
     });
   }
 
+  // Con cabezaGato: el outer View crece CAT_FACE_TOP_EXTRA arriba + 4px abajo,
+  // exactamente lo que ocupa el SVG (y=0..373). Sin negativos → sin clipping en Android.
+  const outerH = cabezaGato
+    ? (FACE_H + CAT_FACE_TOP_EXTRA + 4) * scale  // = CAT_SVG_H * scale = 373 * scale
+    : FACE_H * scale;
+
   return (
-    <View style={{ width: FACE_W * scale, height: FACE_H * scale, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
-      {/* Cabeza de gato: hijo directo del outer View (sin transform) para evitar
-          el bug de Android que recorta overflow en Views con transform aplicado */}
+    <View style={{ width: FACE_W * scale, height: outerH, alignItems: 'center', justifyContent: 'flex-start' }}>
+      {/* Cabeza de gato: top=0, todo dentro del outer View, sin overflow */}
       {cabezaGato && (
         <View
-          style={[s.cabezaWrap, {
-            top:  CAT_OFFSET_TOP * scale,
-            left: (FACE_W - CAT_SVG_W) / 2 * scale,
-          }]}
+          style={[s.cabezaWrap, { left: (FACE_W - CAT_SVG_W) / 2 * scale }]}
           pointerEvents="none"
         >
           <CabezaGato scale={scale} />
         </View>
       )}
+      {/* Espaciador: empuja los ojos hacia abajo para que las orejas queden encima */}
+      {cabezaGato && <View style={{ height: CAT_FACE_TOP_EXTRA * scale }} />}
       <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
         <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
@@ -1113,16 +1115,16 @@ export default function RosaOjos({
 }
 
 const s = StyleSheet.create({
-  wrap:       { alignItems: 'center', height: EYE_H + 120, overflow: 'visible', zIndex: 1 },
+  wrap:       { alignItems: 'center', height: EYE_H + 120, zIndex: 1 },
   contenedor: { flexDirection: 'row', gap: 32, alignItems: 'flex-end' },
   eyeContainer: {
     width: EYE_W,
     height: EYE_H,
     overflow: 'visible',
   },
-  // top y left se calculan inline con scale (no pueden ir en StyleSheet)
   cabezaWrap: {
     position: 'absolute',
+    top: 0,
     zIndex: 0,
   },
 });

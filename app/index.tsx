@@ -18,7 +18,7 @@ import { useNotificaciones } from '../hooks/useNotificaciones';
 import { useAccionesRosita } from '../hooks/useAccionesRosita';
 import { useBLEBeacon } from '../hooks/useBLEBeacon';
 import RositaHorizontalLayout from '../components/RositaHorizontalLayout';
-import RosaOjos, { BG } from '../components/RosaOjos';
+import RosaOjos, { BG, CAT_FACE_TOP_EXTRA } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
 import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche, WaveformDetectando } from '../components/FondoAnimado';
@@ -542,7 +542,13 @@ export default function Index() {
       <View
   style={[
     styles.ojoContenedor,
-    { marginTop: isTablet ? Math.round(screenH * 0.06) : 180 },
+    { marginTop: (() => {
+        const catOffset = refs.perfilRef.current?.cabezaGato !== false
+          ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
+        return isTablet
+          ? Math.max(0, Math.round(screenH * 0.06) - catOffset)
+          : Math.max(0, 180 - catOffset);
+      })() },
   ]}
   {...panCaricia.panHandlers}
 >

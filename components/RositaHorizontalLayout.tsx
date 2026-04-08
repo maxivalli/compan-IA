@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche } from './RosaOjos';
+import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche, CAT_FACE_TOP_EXTRA } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
 import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
@@ -174,7 +174,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const { bottom: safeBottom, top: safeTop, left: safeLeft, right: safeRight } = useSafeAreaInsets();
 
   const FACE_W = EYE_W * 2 + 32;
-  const FACE_H = EYE_H + 120 + 60; // +60 para las orejas (CAT_OFFSET_TOP)
+  const FACE_H = EYE_H + 120;
   const shortEdge = Math.min(screenW, screenH);
   const esTabletHorizontal = screenW > screenH && shortEdge >= 700;
   const eyeDominantScale = (screenH * 0.96) / EYE_H;
@@ -182,7 +182,8 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const widthFitScale = (screenW * 0.88) / FACE_W;
   const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8;
   const paddingTopCara = Math.max(0, Math.round(screenH * 0.005));
-  const faceTranslateY = Math.round(screenH * 0.20);
+  const catOffset = props.cabezaGato !== false ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
+  const faceTranslateY = Math.max(0, Math.round(screenH * 0.20) - catOffset);
   const mouthOffsetY = 0;
   const eyeGapExtra = Math.round((32 + 10 * faceScale) * 0.85 - 32);
   const zipperOffsetY = esTabletHorizontal
