@@ -21,6 +21,7 @@ type Props = {
   silbando?:    boolean;
   onRelampago?: () => void;
   modoHorizontal?: boolean;
+  esFondoNoche?: boolean;
 };
 
 // Detecta si hoy es Navidad para mostrar el gorro navideño
@@ -36,6 +37,7 @@ const ACCESORIO_GLOBAL: 'bonete' | 'gorro' | null = (() => {
 export default function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
   modoNoche, capa = 'frente', silbando = false, onRelampago, modoHorizontal = false,
+  esFondoNoche = false,
   esCumpleaños = false, browOffsetY = 0, browOffsetX = 0, browScale = 1, browGap = 0,
 }: Props & { esCumpleaños?: boolean; browOffsetY?: number; browOffsetX?: number; browScale?: number; browGap?: number }) {
   const fade = useRef(new Animated.Value(0)).current;
@@ -57,9 +59,10 @@ export default function ExpresionOverlay({
   // Accesorio: cumpleaños tiene prioridad sobre Navidad
   const accesorio: 'bonete' | 'gorro' | null = esCumpleaños ? 'bonete' : ACCESORIO_GLOBAL;
 
-  // Usar modoNoche (la fuente de verdad reactiva) en lugar de new Date().getHours()
-  // que solo se evaluaba al montar y nunca actualizaba.
-  const esNocheEfectiva = modoNoche !== 'despierta';
+  // El sol no aparece si es de noche por hora (esFondoNoche) O si Rosita no está despierta.
+  // esFondoNoche viene del padre (hora >= 20 || hora < 5) y evita que el sol se muestre
+  // cuando modoNoche='despierta' pero el reloj marca noche (ej: usuario interactuó a las 22h).
+  const esNocheEfectiva = esFondoNoche || modoNoche !== 'despierta';
 
   useEffect(() => {
     fadeAnimRef.current?.stop();

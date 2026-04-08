@@ -288,6 +288,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       temperatura={props.climaObj?.temperatura}
                       condicion={props.climaObj?.descripcion}
                       modoNoche={props.modoNoche}
+                      esFondoNoche={props.esFondoNoche}
                       modoHorizontal
                     />
                     <View style={{ transform: [{ translateY: faceTranslateY }, { scale: 1.04 }] }}>
@@ -317,6 +318,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       temperatura={props.climaObj?.temperatura}
                       condicion={props.climaObj?.descripcion}
                       modoNoche={props.modoNoche}
+                      esFondoNoche={props.esFondoNoche}
                       silbando={props.silbando}
                       onRelampago={props.onRelampago}
                       esCumpleaños={props.esCumpleaños}

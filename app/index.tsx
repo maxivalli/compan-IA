@@ -561,6 +561,7 @@ export default function Index() {
           temperatura={climaObj?.temperatura}
           condicion={climaObj?.descripcion}
           modoNoche={modoNoche}
+          esFondoNoche={esFondoNoche}
         />
         <RosaOjos
           estado={estado}
