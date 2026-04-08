@@ -232,6 +232,7 @@ export default function Configuracion() {
   const [edad, setEdad]                   = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('');
   const [vozGenero, setVozGenero]         = useState<'femenina' | 'masculina'>('femenina');
+  const [vozId, setVozId]                 = useState<string>('r3lotmx3BZETVvcKm6R6');
   const [generoUsuario, setGeneroUsuario] = useState<'femenino' | 'masculino'>('femenino');
   const [hijos,      setHijos]            = useState('');
   const [nietos,     setNietos]           = useState('');
@@ -337,6 +338,7 @@ export default function Configuracion() {
       setEdad(p.edad ? String(p.edad) : '');
       setNombreAsistente(p.nombreAsistente ?? 'Rosita');
       setVozGenero(p.vozGenero ?? 'femenina');
+      setVozId(p.vozId ?? 'r3lotmx3BZETVvcKm6R6');
       setGeneroUsuario(p.generoUsuario ?? 'femenino');
       const findCat = (cat: string) => {
         const e = p.familiares.find(f => f.toLowerCase().startsWith(cat + ':'));
@@ -497,6 +499,7 @@ export default function Configuracion() {
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       nombreAsistente:   nombreAsistente.trim() || 'Rosita',
       vozGenero,
+      vozId,
       generoUsuario,
       familiares: [
         hijos.trim()    && `hijos: ${hijos.trim()}`,
@@ -659,17 +662,36 @@ export default function Configuracion() {
         </Surface>
 
         <Surface style={{ marginTop: 4 }}>
-          <View style={s.switchRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={s.switchLabel}>Cara de gato</Text>
-              <Text style={s.switchHint}>Muestra una cabeza de gato animada sobre los ojos</Text>
-            </View>
-            <Switch
-              value={cabezaGato}
-              onValueChange={setCabezaGato}
-              thumbColor={cabezaGato ? '#ffffff' : '#f4f4f4'}
-              trackColor={{ false: M.surfaceVariant, true: M.primary }}
-            />
+          <View style={s.vozRow}>
+            {(['rostro', 'gato'] as const).map(tipo => (
+              <TouchableOpacity
+                key={tipo}
+                style={[s.vozChip, (tipo === 'gato' ? cabezaGato : !cabezaGato) && s.vozChipActivo]}
+                onPress={() => {
+                  const nuevoValor = tipo === 'gato';
+                  setCabezaGato(nuevoValor);
+                  // Cambiar automáticamente la voz
+                  if (nuevoValor) {
+                    // Activar cara de gato -> usar voz de gato
+                    setVozId('5bef3cec918748a290d6d129c26d9484');
+                  } else {
+                    // Desactivar cara de gato -> volver a voz femenina por defecto
+                    setVozId('r3lotmx3BZETVvcKm6R6');
+                    setVozGenero('femenina');
+                  }
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons 
+                  name={tipo === 'gato' ? 'paw' : 'happy-outline'} 
+                  size={16} 
+                  color={(tipo === 'gato' ? cabezaGato : !cabezaGato) ? M.onPrimary : M.onSurfaceVariant} 
+                />
+                <Text style={[s.vozChipTxt, (tipo === 'gato' ? cabezaGato : !cabezaGato) && s.vozChipTxtActivo]}>
+                  {tipo === 'gato' ? 'Cara de gato' : 'Solo rostro'}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </Surface>
 

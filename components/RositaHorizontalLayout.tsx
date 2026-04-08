@@ -18,7 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche, CAT_FACE_TOP_EXTRA } from './RosaOjos';
+import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche, CAT_FACE_TOP_EXTRA, CAT_SVG_H } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
 import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
@@ -180,7 +180,12 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const eyeDominantScale = (screenH * 0.96) / EYE_H;
   const faceFitScale = (screenH * 1.16) / FACE_H;
   const widthFitScale = (screenW * 0.88) / FACE_W;
-  const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8;
+  // Con cabezaGato, el componente mide CAT_SVG_H*scale de alto — limitamos para que quepa en pantalla
+  const catFitScale = props.cabezaGato !== false ? (screenH * 0.94) / CAT_SVG_H : Infinity;
+  const faceScale = Math.min(
+    Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8,
+    catFitScale,
+  );
   const paddingTopCara = Math.max(0, Math.round(screenH * 0.005));
   const catOffset = props.cabezaGato !== false ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
   const faceTranslateY = Math.max(0, Math.round(screenH * 0.20) - catOffset);
@@ -285,7 +290,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       modoNoche={props.modoNoche}
                       modoHorizontal
                     />
-                    <View style={{ transform: [{ translateY: faceTranslateY }] }}>
+                    <View style={{ transform: [{ translateY: faceTranslateY }, { scale: 1.04 }] }}>
                       <RosaOjos
                         estado={props.estado}
                         expresion={props.expresion}
@@ -301,6 +306,8 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       zipperOffsetY={zipperOffsetY}
                       zipperScale={zipperScale}
                       cabezaGato={props.cabezaGato !== false}
+                      eyeOffsetY={esTabletHorizontal ? 70 : 0}
+                      noseOffsetY={-10}
                     />
                     </View>
                     <ExpresionOverlay

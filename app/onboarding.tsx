@@ -25,6 +25,7 @@ import { sintetizarVozMuestra, obtenerTokenDispositivo } from '../lib/ai';
 const VOCES = [
   { id: 'r3lotmx3BZETVvcKm6R6', label: 'Voz femenina',  genero: 'femenina'  as const, icono: 'woman' as const },
   { id: 'QK4xDwo9ESPHA4JNUpX3', label: 'Voz masculina', genero: 'masculina' as const, icono: 'man'   as const },
+  { id: '5bef3cec918748a290d6d129c26d9484', label: 'Voz de gato',    genero: 'femenina'  as const, icono: 'paw'   as const },
 ];
 import RosaOjos from '../components/RosaOjos';
 
@@ -59,6 +60,7 @@ export default function Onboarding() {
   const [edad,            setEdad]            = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
   const [vozId,           setVozId]           = useState(VOCES[0].id);
+  const [cabezaGato,      setCabezaGato]      = useState(false);
   const [hijos,           setHijos]           = useState('');
   const [nietos,          setNietos]          = useState('');
   const [hermanos,        setHermanos]        = useState('');
@@ -110,6 +112,7 @@ export default function Onboarding() {
       nombreAsistente: asistente,
       vozGenero:       vozSeleccionada.genero,
       vozId,
+      cabezaGato,
       familiares: [
         hijos.trim()    && `hijos: ${hijos.trim()}`,
         nietos.trim()   && `nietos: ${nietos.trim()}`,
@@ -195,6 +198,7 @@ export default function Onboarding() {
               edad={edad}                       setEdad={setEdad}
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
               vozId={vozId}                     setVozId={setVozId}
+              cabezaGato={cabezaGato}           setCabezaGato={setCabezaGato}
               hijos={hijos}                     setHijos={setHijos}
               nietos={nietos}                   setNietos={setNietos}
               hermanos={hermanos}               setHermanos={setHermanos}
@@ -404,13 +408,19 @@ const fi = StyleSheet.create({
 });
 
 // ── Selector de voces con muestra de audio ───────────────────────────────────
-function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
+function SelectorVoces({ vozId, setVozId, nombreAsistente, cabezaGato }: {
   vozId: string;
   setVozId: (id: string) => void;
   nombreAsistente: string;
+  cabezaGato: boolean;
 }) {
   const [cargando, setCargando] = useState<string | null>(null);
   const player = useAudioPlayer(null);
+
+  function estaDeshabilitada(voz: typeof VOCES[number]) {
+    if (cabezaGato) return voz.icono !== 'paw';      // gato: solo voz de gato disponible
+    return voz.icono === 'paw';                       // rostro: voz de gato deshabilitada
+  }
 
   async function reproducir(id: string) {
     if (cargando) return;
@@ -431,40 +441,49 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
     <View style={sv.grid}>
       {VOCES.map(voz => {
         const activa       = vozId === voz.id;
+        const deshabilitada = estaDeshabilitada(voz);
         const cargandoEsta = cargando === voz.id;
-        const color        = voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
-        const colorBg      = voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
+        const color        = deshabilitada ? '#b0b8ba' : voz.icono === 'paw' ? '#FF9F43' : voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
+        const colorBg      = deshabilitada ? '#f0f0f0' : voz.icono === 'paw' ? '#fff4e6' : voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
         return (
           <TouchableOpacity
             key={voz.id}
-            style={[sv.card, activa && { borderColor: color, borderWidth: 2, backgroundColor: colorBg }]}
-            onPress={() => setVozId(voz.id)}
-            activeOpacity={0.8}
+            style={[
+              sv.card,
+              activa && !deshabilitada && { borderColor: color, borderWidth: 2, backgroundColor: colorBg },
+              deshabilitada && sv.cardDeshabilitada,
+            ]}
+            onPress={() => !deshabilitada && setVozId(voz.id)}
+            activeOpacity={deshabilitada ? 1 : 0.8}
           >
             {/* Ícono grande */}
             <View style={[sv.iconCircle, { backgroundColor: color + '22' }]}>
-              <Ionicons name={voz.icono === 'woman' ? 'woman' : 'man'} size={28} color={color} />
+              <Ionicons name={voz.icono === 'paw' ? 'paw' : voz.icono === 'woman' ? 'woman' : 'man'} size={28} color={color} />
             </View>
 
             {/* Label */}
-            <Text style={[sv.label, activa && { color: '#171d1e', fontFamily: 'Poppins_600SemiBold' }]}>
+            <Text style={[sv.label, activa && !deshabilitada && { color: '#171d1e', fontFamily: 'Poppins_600SemiBold' }, deshabilitada && { color: '#b0b8ba' }]}>
               {voz.label}
             </Text>
 
-            {/* Botón play */}
-            <TouchableOpacity
-              style={[sv.playBtn, { backgroundColor: color }]}
-              onPress={() => reproducir(voz.id)}
-              activeOpacity={0.75}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              {cargandoEsta
-                ? <ActivityIndicator size={16} color="#fff" />
-                : <Ionicons name="play" size={16} color="#fff" />}
-            </TouchableOpacity>
+            {/* Botón play o lock */}
+            {deshabilitada ? (
+              <Ionicons name="lock-closed" size={18} color="#b0b8ba" style={{ marginRight: 4 }} />
+            ) : (
+              <TouchableOpacity
+                style={[sv.playBtn, { backgroundColor: color }]}
+                onPress={() => reproducir(voz.id)}
+                activeOpacity={0.75}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                {cargandoEsta
+                  ? <ActivityIndicator size={16} color="#fff" />
+                  : <Ionicons name="play" size={16} color="#fff" />}
+              </TouchableOpacity>
+            )}
 
             {/* Check seleccionado */}
-            {activa && (
+            {activa && !deshabilitada && (
               <Ionicons name="checkmark-circle" size={22} color={color} style={{ marginLeft: 4 }} />
             )}
           </TouchableOpacity>
@@ -482,13 +501,16 @@ const sv = StyleSheet.create({
     paddingVertical: 16, paddingHorizontal: 16,
     borderWidth: 1.5, borderColor: '#e0e6e8',
   },
+  cardDeshabilitada: {
+    backgroundColor: '#f0f0f0', borderColor: '#e0e0e0', opacity: 0.6,
+  },
   iconCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   label:      { flex: 1, fontFamily: 'Poppins_400Regular', fontSize: 15, color: '#3a4548' },
   playBtn:    { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, cabezaGato, setCabezaGato, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
@@ -549,7 +571,55 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
         <TextInput style={ct.input} value={nombreAsistente} onChangeText={setNombreAsistente}
           placeholder="Rosita" placeholderTextColor="#b0b8ba" />
         <Text style={ct.vozLabel}>Elegí una voz</Text>
-        <SelectorVoces vozId={vozId} setVozId={setVozId} nombreAsistente={nombreAsistente} />
+        <SelectorVoces vozId={vozId} setVozId={setVozId} nombreAsistente={nombreAsistente} cabezaGato={cabezaGato} />
+        <Text style={[ct.vozLabel, { marginTop: 20 }]}>Elegí la apariencia</Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+          {(['rostro', 'gato'] as const).map(tipo => (
+            <TouchableOpacity
+              key={tipo}
+              style={[
+                {
+                  flex: 1,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  backgroundColor: '#f4f6f7',
+                  borderWidth: 2,
+                  borderColor: (tipo === 'gato' ? cabezaGato : !cabezaGato) ? '#0097b2' : '#e0e6e8',
+                },
+                (tipo === 'gato' ? cabezaGato : !cabezaGato) && { backgroundColor: '#e6f7f9' }
+              ]}
+              onPress={() => {
+                setCabezaGato(tipo === 'gato');
+                // Si selecciona gato, cambiar a la voz de gato
+                if (tipo === 'gato') {
+                  setVozId('5bef3cec918748a290d6d129c26d9484');
+                } else {
+                  // Si deselecciona gato, volver a la voz femenina por defecto
+                  setVozId('r3lotmx3BZETVvcKm6R6');
+                }
+              }}
+              activeOpacity={0.75}
+            >
+              <Ionicons 
+                name={tipo === 'gato' ? 'paw' : 'happy-outline'} 
+                size={18} 
+                color={(tipo === 'gato' ? cabezaGato : !cabezaGato) ? '#0097b2' : '#6b7780'} 
+              />
+              <Text style={{
+                fontSize: 14,
+                fontWeight: '500',
+                color: (tipo === 'gato' ? cabezaGato : !cabezaGato) ? '#0097b2' : '#3a4548',
+                fontFamily: (tipo === 'gato' ? cabezaGato : !cabezaGato) ? 'Poppins_600SemiBold' : 'Poppins_400Regular',
+              }}>
+                {tipo === 'gato' ? 'Cara de gato' : 'Solo rostro'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </ScrollView>
     );
   }

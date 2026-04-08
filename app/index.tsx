@@ -545,9 +545,11 @@ export default function Index() {
     { marginTop: (() => {
         const catOffset = refs.perfilRef.current?.cabezaGato !== false
           ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
+        const verticalCatOffset = layoutMode === 'vertical' && refs.perfilRef.current?.cabezaGato !== false
+          ? Math.round(screenH * 0.10) : 0;
         return isTablet
-          ? Math.max(0, Math.round(screenH * 0.06) - catOffset)
-          : Math.max(0, 180 - catOffset);
+          ? Math.max(0, Math.round(screenH * 0.06) - catOffset + verticalCatOffset)
+          : Math.max(0, 180 - catOffset + verticalCatOffset);
       })() },
   ]}
   {...panCaricia.panHandlers}
@@ -568,9 +570,13 @@ export default function Index() {
           silbando={silbando}
           noMolestar={noMolestar}
           onOjoPicado={onOjoPicado}
-          scale={faceScale}
+          scale={!isTablet && layoutMode === 'vertical' ? faceScale * 0.85 : faceScale}
           amaneciendo={amaneciendo}
           cabezaGato={refs.perfilRef.current?.cabezaGato !== false}
+          mouthOffsetY={!isTablet && layoutMode === 'vertical' && refs.perfilRef.current?.cabezaGato !== false ? -8 : layoutMode === 'vertical' ? 5 : 0}
+          zipperOffsetY={layoutMode === 'vertical' ? -40 : 0}
+          catHeadOffsetY={isTablet && layoutMode === 'vertical' ? -30 : 0}
+          noseOffsetY={isTablet && layoutMode === 'vertical' ? -20 : 0}
         />
         <ExpresionOverlay
           capa="frente"
