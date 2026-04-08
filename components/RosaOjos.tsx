@@ -377,11 +377,11 @@ const CAT_FUR_D      = '#B8864E';   // pelaje oscuro para rayas
 const EAR_PINK       = '#F4A0B8';   // oreja interior
 const NOSE_COL       = '#C4658A';   // nariz
 
-function CabezaGato() {
+function CabezaGato({ scale = 1 }: { scale?: number }) {
   return (
     <Svg
-      width={CAT_SVG_W}
-      height={CAT_SVG_H}
+      width={CAT_SVG_W * scale}
+      height={CAT_SVG_H * scale}
       viewBox={`0 0 ${CAT_SVG_W} ${CAT_SVG_H}`}
       overflow="visible"
     >
@@ -698,7 +698,7 @@ const Ojo = memo(function Ojo({
 export type ModoNoche = 'despierta' | 'soñolienta' | 'durmiendo';
 
 const FACE_W = EYE_W * 2 + 32;
-const FACE_H = EYE_H + 120 + Math.abs(CAT_OFFSET_TOP);
+const FACE_H = EYE_H + 120;
 
 export default function RosaOjos({
   estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, cabezaGato = true,
@@ -1076,13 +1076,20 @@ export default function RosaOjos({
 
   return (
     <View style={{ width: FACE_W * scale, height: FACE_H * scale, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
+      {/* Cabeza de gato: hijo directo del outer View (sin transform) para evitar
+          el bug de Android que recorta overflow en Views con transform aplicado */}
+      {cabezaGato && (
+        <View
+          style={[s.cabezaWrap, {
+            top:  CAT_OFFSET_TOP * scale,
+            left: (FACE_W - CAT_SVG_W) / 2 * scale,
+          }]}
+          pointerEvents="none"
+        >
+          <CabezaGato scale={scale} />
+        </View>
+      )}
       <View style={[s.wrap, scale !== 1 && { transform: [{ scale }] }]}>
-        {/* Cabeza de gato: detrás de los ojos, centrada horizontalmente */}
-        {cabezaGato && (
-          <View style={[s.cabezaWrap, eyeGapExtra !== 0 && { left: (FACE_W - CAT_SVG_W) / 2 + eyeGapExtra / 2 }]} pointerEvents="none">
-            <CabezaGato />
-          </View>
-        )}
         <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
             <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>
@@ -1106,18 +1113,16 @@ export default function RosaOjos({
 }
 
 const s = StyleSheet.create({
-  wrap:       { alignItems: 'center', height: EYE_H + 120 + Math.abs(CAT_OFFSET_TOP), overflow: 'visible', paddingTop: Math.abs(CAT_OFFSET_TOP) },
+  wrap:       { alignItems: 'center', height: EYE_H + 120, overflow: 'visible', zIndex: 1 },
   contenedor: { flexDirection: 'row', gap: 32, alignItems: 'flex-end' },
   eyeContainer: {
     width: EYE_W,
     height: EYE_H,
     overflow: 'visible',
   },
+  // top y left se calculan inline con scale (no pueden ir en StyleSheet)
   cabezaWrap: {
     position: 'absolute',
-    top: 0,  // paddingTop del wrap ya absorbe el offset de las orejas
-    // FACE_W = 280 es el ancho real del contenedor; centrar el SVG de 300px en él → -10
-    left: (FACE_W - CAT_SVG_W) / 2,
-    zIndex: -1,
+    zIndex: 0,
   },
 });
