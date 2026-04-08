@@ -242,7 +242,7 @@ const sb = StyleSheet.create({
     width:  BOCA_W,
     height: BOCA_H,
     backgroundColor: '#8B5E3C',
-    marginTop: 46,
+    marginTop: 70,
     elevation: 0,
   },
 });
@@ -377,7 +377,7 @@ const EAR_PINK       = '#F4A0B8';   // oreja interior
 const NOSE_COL       = '#C4658A';   // nariz
 // Espacio extra encima de los ojos que ocupa la cabeza del gato.
 // Se exporta para que los consumers puedan compensar su layout.
-export const CAT_FACE_TOP_EXTRA = 90;
+export const CAT_FACE_TOP_EXTRA = 108;
 
 function CabezaGato({ scale = 1 }: { scale?: number }) {
   // Todas las coordenadas y están desplazadas +30 respecto al diseño original
