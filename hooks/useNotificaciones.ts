@@ -1005,7 +1005,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!urlAudio) return false;
 
       const hora = new Date().getHours();
-      const horarioNocturno = hora >= 22 || hora < 9;
+      const horaInicioNoche = p.horaInicioNoche ?? 23;
+      const horaFinNoche    = p.horaFinNoche    ?? 9;
+      const horarioNocturno = horaInicioNoche > horaFinNoche
+        ? (hora >= horaInicioNoche || hora < horaFinNoche)
+        : (hora >= horaInicioNoche && hora < horaFinNoche);
       const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
 
       if (horarioNocturno || dormida || noMolestarRef.current) {
@@ -1065,11 +1069,14 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (estadoActual === 'hablando' || estadoActual === 'pensando') return;
 
       const hora = new Date().getHours();
-      if (hora < 9 || hora >= 22) return;
-      if (noMolestarRef.current) return;
-
       const p = perfilRef.current;
       if (!p) return;
+      const horaInicioNoche = p.horaInicioNoche ?? 23;
+      const horaFinNoche    = p.horaFinNoche    ?? 9;
+      const esNocheAhora = horaInicioNoche > horaFinNoche
+        ? (hora >= horaInicioNoche || hora < horaFinNoche)
+        : (hora >= horaInicioNoche && hora < horaFinNoche);
+      if (esNocheAhora || noMolestarRef.current) return;
 
       try {
         const raw = await AsyncStorage.getItem('vozPendiente');
@@ -1116,6 +1123,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const familiaId = await obtenerFamiliaId();
       if (!familiaId) return;
       const comandos = await obtenerComandosPendientes(familiaId);
+      if (comandos.length > 0) console.log('[chequearComandos] recibidos:', comandos.length, '| tipos:', comandos.map(c => c.split(':')[0]).join(','));
       for (const cmd of comandos) {
         if (cmd === 'informe' || cmd.startsWith('informe:')) {
           // informe:chatId → solo al que lo pidió; informe → a todos los contactos
@@ -1165,10 +1173,26 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
             };
             await guardarRecordatorio(rec);
             // Confirmar en voz alta
-            const conHora = payload.timestampEpoch
-              ? ` a las ${new Date(payload.timestampEpoch).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' })}`
-              : '';
-            await hablar(`${payload.fromName} te dejó un recordatorio: "${payload.texto}" para el ${payload.fechaISO.split('-').reverse().join('/')}${conHora}.`);
+            const fechaHoyISO = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+            const fechaMañanaISO = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+            const MESES_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+            let fechaHablada: string;
+            if (payload.fechaISO === fechaHoyISO) {
+              fechaHablada = 'hoy';
+            } else if (payload.fechaISO === fechaMañanaISO) {
+              fechaHablada = 'mañana';
+            } else {
+              const [, mm, dd] = payload.fechaISO.split('-');
+              fechaHablada = `el ${parseInt(dd)} de ${MESES_ES[parseInt(mm) - 1]}`;
+            }
+            let conHora = '';
+            if (payload.timestampEpoch) {
+              const d = new Date(payload.timestampEpoch);
+              const h = d.toLocaleString('es-AR', { hour: 'numeric', hour12: false, timeZone: 'America/Argentina/Buenos_Aires' });
+              const min = d.toLocaleString('es-AR', { minute: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
+              conHora = ` a las ${h}${min !== '0' ? ` y ${min}` : ''}`;
+            }
+            await hablar(`${payload.fromName} te dejó un recordatorio: "${payload.texto}" para ${fechaHablada}${conHora}.`);
             ultimaCharlaRef.current = Date.now();
           } catch (e) { logClaudeError('chequearComandos/recordatorio', e); }
         }
@@ -1180,7 +1204,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const nombre    = contacto?.nombre ?? msg.fromName;
 
       const hora = new Date().getHours();
-      const horarioNocturno = hora >= 22 || hora < 9;
+      const horaInicioNoche = p.horaInicioNoche ?? 23;
+      const horaFinNoche    = p.horaFinNoche    ?? 9;
+      const horarioNocturno = horaInicioNoche > horaFinNoche
+        ? (hora >= horaInicioNoche || hora < horaFinNoche)
+        : (hora >= horaInicioNoche && hora < horaFinNoche);
       const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
 
       if (horarioNocturno || dormida || noMolestarRef.current) return false;
@@ -1204,7 +1232,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!chatIds.length) return;
 
       const hora = new Date().getHours();
-      const horarioNocturno = hora >= 22 || hora < 9;
+      const horaInicioNoche = p.horaInicioNoche ?? 23;
+      const horaFinNoche    = p.horaFinNoche    ?? 9;
+      const horarioNocturno = horaInicioNoche > horaFinNoche
+        ? (hora >= horaInicioNoche || hora < horaFinNoche)
+        : (hora >= horaInicioNoche && hora < horaFinNoche);
       const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
       if (horarioNocturno || dormida || noMolestarRef.current) return;
 
@@ -1302,11 +1334,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       }
       await AsyncStorage.setItem(ASYNC_JOBS_INBOX_KEY, JSON.stringify(inbox.slice(-20)));
 
-      // Tomar el primer job para interrupción suave
+      // Tomar el primer job para interrupción suave — siempre anunciar,
+      // el usuario pidió esto explícitamente así que no aplica dormida/noMolestar
       const job = jobs[0];
-      const dormida = modoNocheRef.current === 'durmiendo' || modoNocheRef.current === 'soñolienta';
-      if (dormida || noMolestarRef.current) return;
-
       const tituloJob = (job.resultJson as any)?.titulo ?? job.query;
       const frase = `Te dejé una nota con ${job.tipo === 'receta' ? 'la receta de' : 'información sobre'} "${tituloJob}". Podés verla cuando quieras.`;
 

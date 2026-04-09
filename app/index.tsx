@@ -736,7 +736,7 @@ export default function Index() {
               onPress={mostrarHintSOS}
               onPressIn={sosPresionado}
               onPressOut={sosSoltado}
-              onLongPress={dispararSOS}
+              onLongPress={async () => { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); dispararSOS(); }}
               delayLongPress={2000}
               activeOpacity={1}
             >
@@ -839,7 +839,7 @@ export default function Index() {
       <Modal visible={hintSOS} transparent animationType="fade" onRequestClose={() => setHintSOS(false)}>
         <TouchableOpacity style={styles.sosModalOverlay} activeOpacity={1} onPress={() => setHintSOS(false)}>
           <View style={[styles.sosModalCard, isTablet && { paddingVertical: 52, paddingHorizontal: 57, borderRadius: 36, gap: 21 }]}>
-            <Ionicons name="alert-circle" size={isTablet ? 83 : 64} color="#fff" />
+            <Ionicons name="alert-circle" size={isTablet ? 110 : 88} color="#fff" />
             <Text style={[styles.sosModalTitulo, isTablet && { fontSize: fs(32) * 1.3 }]}>Botón SOS</Text>
             <Text style={[styles.sosModalTexto, isTablet && { fontSize: fs(22) * 1.3, lineHeight: fs(32) * 1.3 }]}>
               Mantené presionado{'\n'}2 segundos para avisar{'\n'}a tu familia
@@ -888,9 +888,9 @@ const styles = StyleSheet.create({
   sosBarraRelleno:      { height: '100%', backgroundColor: '#fff', borderRadius: 4 },
   botonSOSHint:         { fontSize: fs(11), color: '#ffffff99' },
   sosModalOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
-  sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 28, paddingVertical: 40, paddingHorizontal: 44, alignItems: 'center', gap: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20 },
-  sosModalTitulo:       { fontSize: fs(32), fontWeight: '800', color: '#fff' },
-  sosModalTexto:        { fontSize: fs(22), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(32) },
+  sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 36, paddingVertical: 56, paddingHorizontal: 60, alignItems: 'center', gap: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20, width: '85%' },
+  sosModalTitulo:       { fontSize: fs(42), fontWeight: '800', color: '#fff' },
+  sosModalTexto:        { fontSize: fs(30), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(42) },
 btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, width: 44, height: 44, borderRadius: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff1a' },
   btnNoMolestarFlotanteActivo: { backgroundColor: '#ffffff1a' },
   infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },

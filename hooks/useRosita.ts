@@ -905,7 +905,7 @@ export function useRosita() {
     if (!p?.nombreAbuela) return;
     await dispararAlertaFamilia({
       syncTag: 'sos',
-      telegramMensaje: `🆘 *ALERTA SOS* — ${p.nombreAbuela} necesita ayuda urgente.\n\nAbrí la app o llamala de inmediato.`,
+      telegramMensaje: `🆘 *ALERTA SOS* — ${p.nombreAbuela} necesita ayuda urgente.\n\nLlamala de inmediato o andá a su casa.`,
       vozConFamilia: `${p.nombreAbuela}, ya avisé a tu familia. Alguien va a comunicarse con vos pronto.`,
       vozSinFamilia: `${p.nombreAbuela}, no tenés familiares configurados en la app. No pude avisar a nadie. Pedile a alguien cercano que te ayude.`,
     });

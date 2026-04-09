@@ -42,7 +42,7 @@ export const STREAMS_FALLBACK: Record<string, string[]> = {
   aspen:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/ASPEN.mp3'],
   la100:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3'],
   folklorenac: ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad38'],
-  convos:      ['https://server1.stweb.tv/rcvos/live/chunks.m3u8?nimblesessionid=537342445'],
+  convos:      ['https://server1.stweb.tv/rcvos/live/playlist.m3u8'],
   urbana:      ['https://cdn.instream.audio:9660/stream'],
   radio10:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10AAC.aac'],
   destape:     ['https://ipanel.instream.audio/8004/stream'],
@@ -116,14 +116,20 @@ function fetchConTimeout(url: string, ms: number, options?: RequestInit): Promis
 
 function esStreamValido(url: string): boolean {
   if (!url?.startsWith('https://')) return false;
-  if (url.endsWith('.m3u') || url.endsWith('.pls') || url.endsWith('.m3u8')) return false;
+  // .m3u y .pls son playlists (no streams directos); .m3u8 (HLS) es válido para fallbacks curados
+  if (url.endsWith('.m3u') || url.endsWith('.pls')) return false;
   return true;
+}
+
+/** Igual que esStreamValido pero rechaza también HLS — para filtrar resultados de la API. */
+function esStreamDirecto(url: string): boolean {
+  return esStreamValido(url) && !url.endsWith('.m3u8');
 }
 
 function mejorStream(stations: any[]): string | null {
   // Ordenar: con url_resolved HTTPS directo, mayor votes
   const candidatos = stations
-    .filter((s: any) => esStreamValido(s.url_resolved ?? ''))
+    .filter((s: any) => esStreamDirecto(s.url_resolved ?? ''))
     .sort((a: any, b: any) => (b.votes ?? 0) - (a.votes ?? 0));
   return candidatos[0]?.url_resolved ?? null;
 }

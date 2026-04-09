@@ -307,13 +307,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const dir = FileSystem.cacheDirectory!;
       const archivos = await FileSystem.readDirectoryAsync(dir);
       const hace7dias = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      for (const archivo of archivos) {
-        if (!archivo.startsWith('tts_') || !archivo.endsWith('.mp3')) continue;
-        const info = await FileSystem.getInfoAsync(dir + archivo);
-        if (info.exists && info.modificationTime && info.modificationTime * 1000 < hace7dias) {
-          await FileSystem.deleteAsync(dir + archivo, { idempotent: true });
-        }
-      }
+      const candidatos = archivos.filter(a => a.startsWith('tts_') && a.endsWith('.mp3'));
+      const infos = await Promise.all(candidatos.map(a => FileSystem.getInfoAsync(dir + a)));
+      const aEliminar = candidatos.filter((_, i) => {
+        const info = infos[i];
+        return info.exists && info.modificationTime && info.modificationTime * 1000 < hace7dias;
+      });
+      await Promise.all(aEliminar.map(a => FileSystem.deleteAsync(dir + a, { idempotent: true })));
     } catch {}
   }
 
@@ -728,23 +728,30 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
     const effectiveVoiceId = voiceId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
     const slug = slugNombre(nombre ?? p?.nombreAbuela ?? '');
+    const muletillaEmotion: Record<CategoriaMuletilla, string> = {
+      empatico: 'triste', alegria: 'entusiasmada', salud: 'preocupada', busqueda: 'neutral',
+      musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura', comando: 'feliz',
+      lista: 'neutral', juego: 'entusiasmada', chiste: 'feliz', aburrimiento: 'entusiasmada',
+      ejercicio: 'entusiasmada',
+      default: 'neutral', latencia: 'neutral',
+    };
+    // Recopilar todas las entradas y verificar existencia en paralelo
+    type MuletillaEntry = { uri: string; texto: string; cat: CategoriaMuletilla };
+    const entradas: MuletillaEntry[] = [];
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
         const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${cat}_${i}_${slug}.mp3`;
-        const info = await FileSystem.getInfoAsync(uri).catch(() => ({ exists: false }));
-        if (info.exists) continue;
-        const textoFinal = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
-        const muletillaEmotion: Record<CategoriaMuletilla, string> = {
-          empatico: 'triste', alegria: 'entusiasmada', salud: 'preocupada', busqueda: 'neutral',
-          musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura', comando: 'feliz',
-          lista: 'neutral', juego: 'entusiasmada', chiste: 'feliz', aburrimiento: 'entusiasmada',
-          ejercicio: 'entusiasmada',
-          default: 'neutral', latencia: 'neutral',
-        };
-        const base64 = await sintetizarVoz(textoFinal, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
-        if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
+        const texto = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
+        entradas.push({ uri, texto, cat });
       }
+    }
+    const infos = await Promise.all(entradas.map(e => FileSystem.getInfoAsync(e.uri).catch(() => ({ exists: false }))));
+    const faltantes = entradas.filter((_, i) => !infos[i].exists);
+    // Síntesis secuencial para no saturar el backend
+    for (const { uri, texto, cat } of faltantes) {
+      const base64 = await sintetizarVoz(texto, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
+      if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
     }
     precacheMuletillasRunningRef.current = false;
   }
@@ -787,7 +794,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       player.play();
       onPlay?.();
       await new Promise<void>(resolve => {
-        const safety = setTimeout(() => resolve(), 3000);
+        const safety = setTimeout(() => resolve(), 6000);
         const poll = setInterval(() => {
           if (abort?.current) {
             clearTimeout(safety);
@@ -797,10 +804,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           }
           const dur = (player as AudioPlayerExt).duration ?? NaN;
           const pos = (player as AudioPlayerExt).currentTime ?? NaN;
-          if (dur > 0 && pos >= dur - 0.15) {
+          if (dur > 0 && pos >= dur - 0.05) {
             clearTimeout(safety);
             clearInterval(poll);
-            player.pause();
             resolve();
           }
         }, 80);
@@ -938,7 +944,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             done('barge-in');
           };
 
-          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, info.exists ? 4000 : 10000);
+          // Stream HTTP → 6s (buffering); archivo local → 4s (debería arrancar casi de inmediato).
+          // Se basa en playUri (ya resuelto) y NO en info.exists para evitar el bug donde el
+          // fallback REST escribe cacheUri pero info.exists sigue siendo false → 10s de silencio.
+          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, typeof playUri === 'string' && playUri.startsWith('http') ? 6000 : 4000);
 
           let playRetries = 0;
           const pollInterval = setInterval(() => {
