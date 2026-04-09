@@ -100,6 +100,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
         ITEMS[3],
         { ruta: '/smartlink', label: 'SmartLink',  sub: 'Luces y dispositivos', icono: 'bulb-outline',           color: '#8E5A00', bg: '#FFE7BE' },
         ITEMS[4],
+        ITEMS[5],
       ]
     : ITEMS;
 
