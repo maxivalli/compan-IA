@@ -42,7 +42,7 @@ export const STREAMS_FALLBACK: Record<string, string[]> = {
   aspen:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/ASPEN.mp3'],
   la100:       ['https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3'],
   folklorenac: ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad38'],
-  convos:      ['https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_CON_VOS.mp3'],
+  convos:      ['https://server1.stweb.tv/rcvos/live/chunks.m3u8?nimblesessionid=537342445'],
   urbana:      ['https://cdn.instream.audio:9660/stream'],
   radio10:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10AAC.aac'],
   destape:     ['https://ipanel.instream.audio/8004/stream'],

@@ -612,6 +612,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Música ────────────────────────────────────────────────────────────────
   function pararMusica() {
     playerMusica.pause();
+    depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);
   }
   function reanudarMusica() {

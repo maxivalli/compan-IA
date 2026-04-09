@@ -848,20 +848,24 @@ export function useBrain(deps: BrainDeps) {
                 if (!d.musicaActivaRef.current) return;
                 if (d.playerMusica.currentTime < 0.5) {
                   d.pararMusica();
+                  await new Promise(r => setTimeout(r, 300));
                   await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
                 }
               }, 8000);
             } catch {
               d.pararMusica();
+              await new Promise(r => setTimeout(r, 300));
               await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
             }
           } else {
             d.pararMusica();
+            await new Promise(r => setTimeout(r, 300));
             await d.hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
           }
         }, 10000);
       } catch {
         d.setMusicaActiva(false);
+        await new Promise(r => setTimeout(r, 300));
         await d.hablar('No pude conectar con la radio, perdoname.');
       }
     } else {
@@ -942,7 +946,16 @@ export function useBrain(deps: BrainDeps) {
       return;
     }
 
-    const pideMusicaDirecta = /\b(pon[eé]|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b|\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|vida|del plata|delplata|lt8|lv3|tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical)\b/.test(textoNorm);
+    // Radios nombradas: inequívocas, pueden matchear sin verbo de música
+    const RADIOS_INEQUIVOCAS = /\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|vida|del plata|delplata|lt8|lv3)\b/;
+    // Géneros ambiguos (salsa/rock/pop son también comida o contexto no-musical):
+    // solo se activan si hay un verbo explícito de música antes o después
+    const GENEROS_AMBIGUOS   = /\b(tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical)\b/;
+    const VERBO_MUSICA       = /\b(pon[eé]|poneme|poné|pone|quiero escuchar|quiero oír|mand[aá]|dej[aá])\b/;
+    const pideMusicaDirecta =
+      /\b(pon[eé]|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b/.test(textoNorm) ||
+      RADIOS_INEQUIVOCAS.test(textoNorm) ||
+      (VERBO_MUSICA.test(textoNorm) && GENEROS_AMBIGUOS.test(textoNorm));
     const generoDirecto = detectarGenero(textoNorm);
     if (pideMusicaDirecta) {
       // Si detectarGenero matcheó una clave conocida, usarla — si no, pasar el texto limpio

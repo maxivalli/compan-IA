@@ -103,6 +103,7 @@ export default function Layout() {
         <Tabs.Screen name="onboarding" />
         <Tabs.Screen name="guia" />
         <Tabs.Screen name="nota/[id]" />
+        <Tabs.Screen name="notas" />
       </Tabs>
     </ErrorBoundary>
   );

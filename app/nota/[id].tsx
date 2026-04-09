@@ -39,10 +39,6 @@ type ResultReceta = {
   porciones?: string;
   ingredientes?: Ingrediente[];
   pasos?: Paso[];
-  tips?: string[];
-  variantes?: string[];
-  errores_comunes?: string[];
-  fuentes?: Fuente[];
 };
 
 type ResultBusqueda = {
@@ -176,28 +172,6 @@ function RecetaViewer({ data }: { data: ResultReceta }) {
         </>
       ) : null}
 
-      {data.tips?.length ? (
-        <>
-          <Text style={styles.seccion}>Tips</Text>
-          {data.tips.map((tip, i) => <Text key={i} style={styles.bulletItem}>• {tip}</Text>)}
-        </>
-      ) : null}
-
-      {data.variantes?.length ? (
-        <>
-          <Text style={styles.seccion}>Variantes</Text>
-          {data.variantes.map((v, i) => <Text key={i} style={styles.bulletItem}>• {v}</Text>)}
-        </>
-      ) : null}
-
-      {data.errores_comunes?.length ? (
-        <>
-          <Text style={styles.seccion}>Errores comunes</Text>
-          {data.errores_comunes.map((e, i) => <Text key={i} style={styles.bulletItem}>⚠ {e}</Text>)}
-        </>
-      ) : null}
-
-      <FuentesSection fuentes={data.fuentes} />
     </>
   );
 }
