@@ -689,6 +689,11 @@ export function useBrain(deps: BrainDeps) {
     if (!p) return;
     charlaProactivaRef.current = true;
 
+    // Refrescar cache de memorias episódicas para que getSystemPayload las incluya
+    // y para saber si hay algo reciente que Rosita debería retomar
+    await refrescarYConstruirMemoria('');
+    const memoriasRecientes = episodicaCacheRef.current?.text?.trim() ?? '';
+
     const hora = new Date().getHours();
     const momento = hora < 12 ? 'la mañana' : hora < 14 ? 'la hora del almuerzo' : hora < 18 ? 'la tarde' : 'la noche';
 
@@ -764,10 +769,16 @@ export function useBrain(deps: BrainDeps) {
       temaProactivo = temas[Math.floor(Math.random() * temas.length)];
     }
 
+    // Si hay memorias recientes y no estamos proponiendo entretenimiento/ejercicio,
+    // darle preferencia a retomar algo pendiente (alguien que llegaba, un evento, etc.)
+    const instruccionProactiva = (memoriasRecientes && !proponerEntretenimiento && !proponerEjercicio)
+      ? `\n\nEs ${momento}. Revisá las memorias episódicas que tenés disponibles. Si hay algo reciente que quedó pendiente o sin resolver (por ejemplo: alguien que iba a llegar, un evento que iban a hacer, una situación que mencionaron y quedó abierta), preguntá cómo resultó, de forma natural y cálida, en UNA sola frase corta. Si no hay nada claro para retomar, iniciá UNA sola frase sobre este tema: ${temaProactivo}.`
+      : `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${temaProactivo}.`;
+
     try {
       const frase = await llamarClaude({
         maxTokens: proponerEntretenimiento ? 180 : proponerEjercicio ? 100 : 120,
-        system: getSystemPayload(p, d.climaRef.current, false, `\n\nEs ${momento}. Iniciá UNA sola frase corta y cálida sobre este tema: ${temaProactivo}. Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.${extraProactivo}`),
+        system: getSystemPayload(p, d.climaRef.current, false, `${instruccionProactiva} Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.${extraProactivo}`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });
       if (frase) { await d.hablar(frase); d.ultimaCharlaRef.current = Date.now(); }
