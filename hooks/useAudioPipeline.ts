@@ -41,7 +41,7 @@ import {
 } from '../lib/ai';
 import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
 
-const TTS_CACHE_VERSION = 'v5';
+const TTS_CACHE_VERSION = 'v6';
 const MULETILLA_CACHE_VERSION = 'v18';
 const BARGE_IN_ARM_DELAY_MS = 2600;
 const BARGE_IN_MIN_SPEECH_MS = 1400;
