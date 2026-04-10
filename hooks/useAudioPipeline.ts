@@ -821,6 +821,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             const remoteUrl = urlFrasePrecacheada(effectiveVoiceId, 'rapida', cat, i, genero);
             const downloaded = await FileSystem.downloadAsync(remoteUrl, cacheUri).catch(() => null);
             if (downloaded?.status === 200) continue;
+            // downloadAsync escribe el body del 404 en disco — borrarlo antes de sintetizar
+            await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
           } else {
             continue;
           }
@@ -845,6 +847,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         const remoteUrl = urlFrasePrecacheada(effectiveVoiceId, 'sistema', cat, i);
         const downloaded = await FileSystem.downloadAsync(remoteUrl, cacheUri).catch(() => null);
         if (downloaded?.status === 200) continue;
+        // downloadAsync escribe el body del 404 en disco — borrarlo antes de sintetizar
+        await FileSystem.deleteAsync(cacheUri, { idempotent: true }).catch(() => {});
         await precachearTexto(frases[i], emotion).catch(() => {});
       }
     }
