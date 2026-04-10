@@ -283,6 +283,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const ultimaMuletillaRef         = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
   const precacheInFlightRef        = useRef<Map<string, Promise<void>>>(new Map());
   const precacheMuletillasRunningRef = useRef(false);
+  const precacheRapidasRunningRef    = useRef(false);
+  const precacheSistemaRunningRef    = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const ultimaSistemaRef           = useRef<Partial<Record<string, number>>>({});
   const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
@@ -800,6 +802,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   async function precachearRespuestasRapidas(nombre?: string) {
+    if (precacheRapidasRunningRef.current) return;
+    precacheRapidasRunningRef.current = true;
     const p = depsRef.current.perfilRef.current;
     const vozGenero = p?.vozGenero ?? 'femenina';
     const genero: 'femenina' | 'masculina' = vozGenero === 'masculina' ? 'masculina' : 'femenina';
@@ -831,9 +835,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         await precachearTexto(texto, emotion).catch(() => {});
       }
     }
+    precacheRapidasRunningRef.current = false;
   }
 
   async function precachearSistema() {
+    if (precacheSistemaRunningRef.current) return;
+    precacheSistemaRunningRef.current = true;
     const p = depsRef.current.perfilRef.current;
     const vozGenero = p?.vozGenero ?? 'femenina';
     const effectiveVoiceId = p?.vozId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
@@ -852,6 +859,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         await precachearTexto(frases[i], emotion).catch(() => {});
       }
     }
+    precacheSistemaRunningRef.current = false;
   }
 
   // ── Reproducir muletilla ─────────────────────────────────────────────────
