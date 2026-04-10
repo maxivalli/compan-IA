@@ -3,6 +3,7 @@ import { emitPerfilLocalGuardado } from './perfilSync';
 
 const CLAVE_PERFIL         = 'rosa_perfil';
 const CLAVE_HISTORIAL      = 'rosa_historial';
+const CLAVE_HISTORIAL_TS   = 'rosa_historial_ts';
 const CLAVE_INSTALL_ID     = 'compania_install_id';
 const CLAVE_FAMILIA_ID     = 'compania_familia_id';
 const CLAVE_CODIGO_REG     = 'compania_codigo_registro';
@@ -189,10 +190,33 @@ export async function guardarHistorial(historial: { role: string; content: strin
     const actualSet = new Set(actual.map((m, i) => `${i}:${m.role}\0${m.content}`));
     const soloNuevos = historial.filter(m => !actual.some(a => a.role === m.role && a.content === m.content));
     const combinado = [...actual, ...soloNuevos];
-    await AsyncStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(combinado.slice(-30)));
+    await AsyncStorage.setItem(CLAVE_HISTORIAL, JSON.stringify(combinado.slice(-40)));
+    await AsyncStorage.setItem(CLAVE_HISTORIAL_TS, String(Date.now()));
     void actualSet; void merged; // silence unused var lint
   }).catch(() => {});
   await historialWriteQueue;
+}
+
+/**
+ * Carga el historial y lo limpia según cuánto tiempo pasó desde la última charla.
+ * - < 8 horas: devuelve completo (misma sesión o misma mañana)
+ * - 8–48 horas: devuelve solo los últimos 6 mensajes (3 turnos de continuidad)
+ * - > 48 horas: devuelve vacío (sesión completamente nueva)
+ */
+export async function cargarHistorialConLimpieza(): Promise<{ role: string; content: string }[]> {
+  const historial = await cargarHistorial();
+  if (!historial.length) return historial;
+  try {
+    const tsStr = await AsyncStorage.getItem(CLAVE_HISTORIAL_TS);
+    if (!tsStr) return historial; // historial sin timestamp → no tocar
+    const ts = parseInt(tsStr, 10);
+    const horasTranscurridas = (Date.now() - ts) / (1000 * 60 * 60);
+    if (horasTranscurridas < 8) return historial;
+    if (horasTranscurridas < 48) return historial.slice(-6);
+    return [];
+  } catch {
+    return historial;
+  }
 }
 
 export async function cargarHistorial(): Promise<{ role: string; content: string }[]> {
@@ -324,10 +348,12 @@ function esTemaMemorable(textoUsuario: string): boolean {
 }
 
 function resumirMemoria(textoUsuario: string, textoAsistente: string): string {
-  const usuario = truncarMemoria(textoUsuario, 120);
-  const asistente = truncarMemoria(textoAsistente.replace(/\[[^\]]+\]\s*/g, ''), 120);
-  if (asistente.length < 12) return `Usuario: ${usuario}`;
-  return `Usuario: ${usuario}. Rosita: ${asistente}`;
+  const usuario = truncarMemoria(textoUsuario, 110);
+  const asistente = truncarMemoria(textoAsistente.replace(/\[[^\]]+\]\s*/g, ''), 110);
+  const d = new Date();
+  const fecha = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  if (asistente.length < 12) return `[${fecha}] Usuario: ${usuario}`;
+  return `[${fecha}] Usuario: ${usuario}. Rosita: ${asistente}`;
 }
 
 export async function cargarMemoriasEpisodicas(): Promise<MemoriaEpisodica[]> {

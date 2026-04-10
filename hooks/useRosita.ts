@@ -8,7 +8,7 @@ import { AudioModule } from 'expo-audio';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import {
-  cargarPerfil, cargarHistorial,
+  cargarPerfil, cargarHistorialConLimpieza,
   Perfil, TelegramContacto, guardarEntradaAnimo,
   bienvenidaYaDada, marcarBienvenidaDada,
   cargarUltimaRadio,
@@ -524,7 +524,7 @@ export function useRosita() {
     pipeline.limpiarCacheViejo().catch(() => {});
 
     const [perfilGuardado, historialGuardado, listasGuardadas, ultimaRadio] = await Promise.all([
-      cargarPerfil(), cargarHistorial(), cargarListas(), cargarUltimaRadio(),
+      cargarPerfil(), cargarHistorialConLimpieza(), cargarListas(), cargarUltimaRadio(),
     ]);
     ultimaRadioRef.current = ultimaRadio;
     perfilRef.current    = perfilGuardado;
