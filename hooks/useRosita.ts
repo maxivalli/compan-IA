@@ -163,7 +163,7 @@ export function useRosita() {
     setEstado,
     setMusicaActiva,
     setNoMolestar,
-    onTextoReconocido: (texto) => brainRef.current?.responderConClaude(texto) ?? Promise.resolve(),
+    onTextoReconocido: (texto, turnId) => brainRef.current?.responderConClaude(texto, turnId) ?? Promise.resolve(),
     onFlujoFoto:              flujoFoto,
     onFlujoLeerImagen:        flujoLeerImagen,
     onFlujoModoVision:        flujoModoVision,

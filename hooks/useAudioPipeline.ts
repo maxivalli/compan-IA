@@ -221,7 +221,7 @@ export interface AudioPipelineDeps {
   setNoMolestar:            (v: boolean) => void;
 
   // Callbacks de useRosita / brain (funciones que quedan fuera del pipeline)
-  onTextoReconocido:        (texto: string) => Promise<void>;
+  onTextoReconocido:        (texto: string, turnId: string) => Promise<void>;
   onFlujoFoto:              () => Promise<void>;
   onFlujoLeerImagen:        () => Promise<void>;
   onFlujoModoVision:        () => Promise<void>;
@@ -461,6 +461,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
       d.srResultTsRef.current = Date.now();
       const lagSpeechEndMs = d.speechEndTsRef.current ? d.srResultTsRef.current - d.speechEndTsRef.current : -1;
+      const newTurnId = beginTurnTelemetry();
       logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs });
       if (esRepeticion) {
         await hablar(ultimoTextoHabladoRef.current!);
@@ -476,7 +477,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá])\b/.test(textoNorm)) {
         await d.onFlujoModoVision();
       } else {
-        await d.onTextoReconocido(texto);
+        await d.onTextoReconocido(texto, newTurnId);
       }
     } finally {
       unduckMusica();
@@ -1127,7 +1128,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           : 'Uy, se me cortó un poquito, ¿qué me decías?';
         await hablar(noEntendido); return;
       }
-      await d.onTextoReconocido(texto);
+      const newTurnId = beginTurnTelemetry();
+      await d.onTextoReconocido(texto, newTurnId);
     } catch (e: any) {
       if (__DEV__) console.log('[AUDIO] CATCH:', e?.message ?? e);
       d.setEstado('esperando');
