@@ -14,10 +14,11 @@ let secureStoreModulePromise: Promise<null | {
   setItemAsync(key: string, value: string): Promise<void>;
   deleteItemAsync(key: string): Promise<void>;
 }> | null = null;
-let historialWriteQueue:  Promise<void> = Promise.resolve();
-let animoWriteQueue:      Promise<void> = Promise.resolve();
-let memoriaEpWriteQueue:  Promise<void> = Promise.resolve();
-let recordatorioWriteQueue: Promise<void> = Promise.resolve();
+let historialWriteQueue:     Promise<void> = Promise.resolve();
+let animoWriteQueue:         Promise<void> = Promise.resolve();
+let memoriaEpWriteQueue:     Promise<void> = Promise.resolve();
+let recordatorioWriteQueue:  Promise<void> = Promise.resolve();
+let seguimientosWriteQueue:  Promise<void> = Promise.resolve();
 
 async function getSecureStore() {
   if (!secureStoreModulePromise) {
@@ -551,6 +552,79 @@ export async function borrarRecordatorio(id: string): Promise<void> {
     const nueva = lista.filter(r => r.id !== id);
     await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(nueva));
   } catch {}
+}
+
+// ── Seguimientos pendientes ───────────────────────────────────────────────────
+// Temas que quedaron abiertos en charlas anteriores y que Rosita debería retomar
+// (ej: "alguien que iba a llegar", "evento pendiente", "promesa de contar algo").
+
+export type Seguimiento = {
+  id: string;
+  descripcion: string;   // primera persona de Rosita: "preguntar cómo le fue con la hermana"
+  creadoEn: number;      // unix ms
+  expiresAt: number;     // unix ms — creadoEn + 72h
+};
+
+const CLAVE_SEGUIMIENTOS = 'rosa_seguimientos';
+const SEGUIMIENTOS_MAX   = 5;
+const SEGUIMIENTOS_TTL   = 72 * 60 * 60 * 1000; // 72 horas en ms
+
+export async function cargarSeguimientos(): Promise<Seguimiento[]> {
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_SEGUIMIENTOS);
+    if (!data) return [];
+    const lista: Seguimiento[] = JSON.parse(data);
+    const ahora = Date.now();
+    const vigentes = lista.filter(s => s.expiresAt > ahora);
+    // Persistir si expiró alguno
+    if (vigentes.length !== lista.length) {
+      await AsyncStorage.setItem(CLAVE_SEGUIMIENTOS, JSON.stringify(vigentes));
+    }
+    return vigentes;
+  } catch { return []; }
+}
+
+export async function guardarSeguimiento(s: Seguimiento): Promise<void> {
+  seguimientosWriteQueue = seguimientosWriteQueue.then(async () => {
+    try {
+      const data = await AsyncStorage.getItem(CLAVE_SEGUIMIENTOS);
+      const lista: Seguimiento[] = data ? JSON.parse(data) : [];
+      const norm = (t: string) =>
+        t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+      const descNorm = norm(s.descripcion.slice(0, 120));
+      // Deduplicar por similitud de descripción
+      const yaExiste = lista.some(x => norm(x.descripcion.slice(0, 120)) === descNorm);
+      if (yaExiste) return;
+      // Aplicar cap: si llegamos al máximo, evictar el más viejo
+      const nuevaLista = lista.length >= SEGUIMIENTOS_MAX
+        ? [...lista.sort((a, b) => a.creadoEn - b.creadoEn).slice(1), s]
+        : [...lista, s];
+      await AsyncStorage.setItem(CLAVE_SEGUIMIENTOS, JSON.stringify(nuevaLista));
+    } catch {}
+  }).catch(() => {});
+  await seguimientosWriteQueue;
+}
+
+export async function borrarSeguimiento(id: string): Promise<void> {
+  try {
+    const data = await AsyncStorage.getItem(CLAVE_SEGUIMIENTOS);
+    if (!data) return;
+    const lista: Seguimiento[] = JSON.parse(data);
+    await AsyncStorage.setItem(CLAVE_SEGUIMIENTOS, JSON.stringify(lista.filter(s => s.id !== id)));
+  } catch {}
+}
+
+export async function borrarTodosSeguimientos(): Promise<void> {
+  try { await AsyncStorage.removeItem(CLAVE_SEGUIMIENTOS); } catch {}
+}
+
+export function construirTextoSeguimientos(lista: Seguimiento[]): string {
+  if (!lista.length) return '';
+  const items = lista
+    .slice(0, SEGUIMIENTOS_MAX)
+    .map(s => `- ${s.descripcion.slice(0, 120).replace(/[\[\]\n]/g, ' ').trim()}`)
+    .join('\n');
+  return `SEGUIMIENTOS PENDIENTES (cosas que quedaron abiertas en charlas anteriores, retomálas si surge naturalmente):\n${items}`;
 }
 
 // ── Listas ────────────────────────────────────────────────────────────────────

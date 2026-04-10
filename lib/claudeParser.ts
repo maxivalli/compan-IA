@@ -24,6 +24,7 @@ export type RespuestaParsed = {
   tagPrincipal: TagPrincipal;
   generoMusica?: string;           // solo si tagPrincipal === 'MUSICA'
   asyncJob?: { tipo: string; query: string }; // si Claude incluyó [ASYNC_JOB:tipo|query]
+  followUp?: string;                           // si Claude incluyó [FOLLOW_UP: descripción]
   respuesta: string;               // texto limpio para hablar
   expresion: Expresion;
   animoUsuario: ExpresionAnimo;
@@ -347,6 +348,7 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[LISTA_AGREGAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[LISTA_BORRAR:[^\]]*\]?\s*/gi, '')
     .replace(/\[ASYNC_JOB:[^\]]*\]?\s*/gi, '')
+    .replace(/\[FOLLOW_UP:[^\]]*\]?\s*/gi, '')
     .replace(/\[(FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA|MIMADA)\]/gi, '')
     .trim();
 }
@@ -483,6 +485,10 @@ export function parsearRespuesta(
     query: asyncJobMatch[2].trim(),
   } : undefined;
 
+  // ── FOLLOW_UP ──
+  const followUpMatch = raw.match(/\[FOLLOW_UP:\s*([^\]]+)\]/i);
+  const followUp = followUpMatch ? followUpMatch[1].trim().slice(0, 140) : undefined;
+
   // ── LISTAS ──
   const listaNuevaMatch  = raw.match(/\[LISTA_NUEVA:\s*(.+?)\s*\|\s*(.*?)\]/i);
   const listaAgregarMatch = raw.match(/\[LISTA_AGREGAR:\s*(.+?)\s*\|\s*(.+?)\]/i);
@@ -599,6 +605,7 @@ export function parsearRespuesta(
     listaAgregar,
     listaBorrar,
     asyncJob,
+    followUp,
     jugarTateti:   jugarTateti   || undefined,
     jugarAhorcado: jugarAhorcado || undefined,
     jugarMemoria:  jugarMemoria  || undefined,

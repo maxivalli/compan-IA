@@ -26,6 +26,7 @@ import {
   guardarRecordatorio, borrarRecordatorio,
   registrarMusicaHoy, guardarUltimaRadio,
   registrarMemoriaEpisodica, cargarMemoriasEpisodicas, construirResumenMemoriasEpisodicas, extraerKeywordsMemoria,
+  Seguimiento, cargarSeguimientos, guardarSeguimiento, borrarTodosSeguimientos, construirTextoSeguimientos,
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
   Perfil, TelegramContacto,
 } from '../lib/memoria';
@@ -527,6 +528,7 @@ export function useBrain(deps: BrainDeps) {
       result: { texto: string; count: number; chars: number };
     };
   } | null>(null);
+  const seguimientosRef    = useRef<Seguimiento[]>([]);
   const ultimaRapidaRef    = useRef<Partial<Record<CategoriaRapida, number>>>({});
   const charlaProactivaRef = useRef(false);
   const interlocutorRef    = useRef<{ nombre: string; expiresAt: number } | null>(null);
@@ -600,6 +602,7 @@ export function useBrain(deps: BrainDeps) {
       ciudad: d.ciudadRef.current,
       coords: d.coordRef.current,
       memoriaEpisodica: episodicaCacheRef.current?.text ?? '',
+      seguimientos: construirTextoSeguimientos(seguimientosRef.current),
     });
   }
 
@@ -689,6 +692,8 @@ export function useBrain(deps: BrainDeps) {
     if (!p) return;
     charlaProactivaRef.current = true;
 
+    // Cargar y evictar seguimientos pendientes
+    seguimientosRef.current = await cargarSeguimientos();
     // Refrescar cache de memorias episódicas para que getSystemPayload las incluya
     // y para saber si hay algo reciente que Rosita debería retomar
     await refrescarYConstruirMemoria('');
@@ -781,7 +786,15 @@ export function useBrain(deps: BrainDeps) {
         system: getSystemPayload(p, d.climaRef.current, false, `${instruccionProactiva} Usá el contexto del perfil si es relevante. Respondé SOLO con la frase, sin etiquetas.${extraProactivo}`),
         messages: [{ role: 'user', content: 'iniciá una charla' }],
       });
-      if (frase) { await d.hablar(frase); d.ultimaCharlaRef.current = Date.now(); }
+      if (frase) {
+        await d.hablar(frase);
+        d.ultimaCharlaRef.current = Date.now();
+        // Limpiar seguimientos que ya fueron presentados a Claude en este turno proactivo
+        if (seguimientosRef.current.length > 0) {
+          borrarTodosSeguimientos().catch(() => {});
+          seguimientosRef.current = [];
+        }
+      }
     } catch {
       d.ultimaCharlaRef.current = Date.now();
     } finally {
@@ -895,6 +908,11 @@ export function useBrain(deps: BrainDeps) {
     if (__DEV__) console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = d.perfilRef.current;
     if (!p) { if (__DEV__) console.log('[RC] sin perfil, saliendo'); return; }
+
+    // Lazy init: cargar seguimientos si la charla proactiva no corrió primero
+    if (seguimientosRef.current.length === 0) {
+      seguimientosRef.current = await cargarSeguimientos();
+    }
 
     // Gate offline: evita esperar el timeout de red si ya sabemos que no hay conexión
     if (d.sinConexionRef.current) {
@@ -1492,6 +1510,19 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.asyncJob) {
         logCliente('async_job_dispatch', { tipo: parsed.asyncJob.tipo, query: parsed.asyncJob.query.slice(0, 60) });
         crearAsyncJob(parsed.asyncJob.tipo, parsed.asyncJob.query).catch(() => {});
+      }
+
+      // ── FOLLOW_UP: guardar para retomar en la próxima sesión ──
+      if (parsed.followUp) {
+        const ahora = Date.now();
+        const nuevo: Seguimiento = {
+          id: `fu_${ahora}_${Math.random().toString(36).slice(2, 6)}`,
+          descripcion: parsed.followUp,
+          creadoEn: ahora,
+          expiresAt: ahora + 72 * 60 * 60 * 1000,
+        };
+        guardarSeguimiento(nuevo).catch(() => {});
+        seguimientosRef.current = [...seguimientosRef.current, nuevo];
       }
 
       // ── PARAR_MUSICA ──
