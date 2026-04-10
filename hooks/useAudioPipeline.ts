@@ -28,6 +28,7 @@ import { Perfil } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { hashTexto, velocidadSegunEdad } from '../lib/claudeParser';
 import {
+  beginTurnTelemetry,
   getCurrentTurnMetrics,
   markTurnFirstAudio,
   transcribirAudio,
