@@ -921,17 +921,20 @@ export function useBrain(deps: BrainDeps) {
                 if (!d.musicaActivaRef.current) return;
                 if (d.playerMusica.currentTime < 0.5) {
                   d.pararMusica();
+                  if (d.estadoRef.current !== 'esperando') return;
                   await new Promise(r => setTimeout(r, 300));
                   await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
                 }
               }, 8000);
             } catch {
               d.pararMusica();
+              if (d.estadoRef.current !== 'esperando') return;
               await new Promise(r => setTimeout(r, 300));
               await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
             }
           } else {
             d.pararMusica();
+            if (d.estadoRef.current !== 'esperando') return;
             await new Promise(r => setTimeout(r, 300));
             await d.hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
           }
@@ -1576,8 +1579,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // ── PARAR_MUSICA ──
       if (parsed.tagPrincipal === 'PARAR_MUSICA') {
-        d.playerMusica.pause();
-        d.setMusicaActiva(false);
+        d.pararMusica(); // incluye musicaActivaRef.current = false (playerMusica.pause solo no lo setea)
         // Detener SR antes de hablar: el effect [musicaActiva] reinicia el SR con 400ms
         // delay que podría capturar el audio del TTS como input del usuario.
         d.pararSRIntencional();

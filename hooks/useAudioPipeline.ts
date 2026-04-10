@@ -725,9 +725,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       });
     } catch {}
     finally {
-      // Siempre limpiar loop aunque el try haya rechazado —
-      // si no, el próximo uso de playerMusica (ej. música) loopea indefinidamente.
-      try { (playerMusica as AudioPlayerExt).loop = false; playerMusica.pause(); } catch {}
+      // Limpiar loop — si no, el próximo uso de playerMusica loopea indefinidamente.
+      // No pausar si ejecutarMusica ya arrancó un stream mientras el tecleo corría.
+      try {
+        (playerMusica as AudioPlayerExt).loop = false;
+        if (!depsRef.current.musicaActivaRef.current) playerMusica.pause();
+      } catch {}
     }
   }
 
