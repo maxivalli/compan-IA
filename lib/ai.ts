@@ -377,10 +377,9 @@ export async function urlFishRealtimeStream(
 }
 
 /** Devuelve el audio sintetizado como string base64, o null si falla. */
-export const VOICE_ID_FEMENINA  = 'r3lotmx3BZETVvcKm6R6'; // Tucumana y enérgica
-export const VOICE_ID_FEMENINA2 = 'smHMxLX7gVgXrrfD70xq'; // Cálida y formal
-export const VOICE_ID_MASCULINA  = 'vgekQLm3GYiKMHUnPVvY'; // Santafesino y divertido
-export const VOICE_ID_MASCULINA2 = 'L7pBVwjueW3IPcQt4Ej9'; // Tranquilo y formal
+export const VOICE_ID_FEMENINA  = 'r3lotmx3BZETVvcKm6R6';
+export const VOICE_ID_MASCULINA = 'QK4xDwo9ESPHA4JNUpX3';
+export const VOICE_ID_GATO      = '5bef3cec918748a290d6d129c26d9484';
 
 /** TTS para onboarding — el device token ya existe (bootstrap corre al arrancar la app). */
 export async function sintetizarVozMuestra(voiceId: string, nombre: string): Promise<string | null> {
