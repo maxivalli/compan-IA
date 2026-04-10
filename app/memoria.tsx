@@ -510,14 +510,14 @@ export default function MemoriaScreen() {
       >
         <View style={[sm.overlayCard, isTablet && { padding: 48, gap: 24, borderRadius: 36 }]}>
           <Text style={[sm.overlayEmoji, isTablet && { fontSize: 72 }]}>
-            {game.score === 9 ? '🏆' : game.score >= 6 ? '⭐' : '💪'}
+            {game.score === numTiles ? '🏆' : game.score >= minParaAvanzar(numTiles) ? '⭐' : '💪'}
           </Text>
           <Text style={[sm.overlayMsg, isTablet && { fontSize: 36, lineHeight: 48 }]}>
-            {game.score === 9
+            {game.score === numTiles
               ? '¡Memoria perfecta!'
-              : game.score >= 6
-              ? `¡Muy bien!\n${game.score} de 9`
-              : `¡Bien intentado!\n${game.score} de 9`}
+              : game.score >= minParaAvanzar(numTiles)
+              ? `¡Muy bien!\n${game.score} de ${numTiles}`
+              : `¡Bien intentado!\n${game.score} de ${numTiles}`}
           </Text>
           <TouchableOpacity
             style={[sm.btnOtra, isTablet && { paddingVertical: 24, borderRadius: 20 }]}

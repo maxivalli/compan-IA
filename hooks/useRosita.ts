@@ -457,7 +457,16 @@ export function useRosita() {
   // ── Inicialización ─────────────────────────────────────────────────────────
   // El watchdog de SR ahora vive en useAudioPipeline (pipeline.watchdog)
   useEffect(() => {
-    inicializar().catch(() => { setCargando(false); pipeline.iniciarSpeechRecognition(); });
+    inicializar().catch(async () => {
+      // Si la inicialización falla (p.ej. módulo nativo no listo en cold start),
+      // verificar igual si necesita onboarding antes de mostrar la pantalla principal.
+      try {
+        const perfil = await cargarPerfil();
+        if (!perfil.nombreAbuela) { setMostrarOnboarding(true); return; }
+      } catch {}
+      setCargando(false);
+      pipeline.iniciarSpeechRecognition();
+    });
     return () => {
       // Stop intencional en cleanup de inicialización
       pipeline.pararSpeechRecognitionIntencional();

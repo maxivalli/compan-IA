@@ -355,7 +355,10 @@ export default function Index() {
   useEffect(() => {
     if (mostrarOnboarding && !refs.perfilRef.current?.nombreAbuela) {
       setMostrarOnboarding(false);
-      router.replace('/onboarding' as any);
+      // setTimeout 0: defer para que expo-router esté listo antes de navegar
+      // (evita que el replace falle silenciosamente en el primer arranque post-install)
+      const t = setTimeout(() => router.replace('/onboarding' as any), 0);
+      return () => clearTimeout(t);
     }
   }, [mostrarOnboarding]);
 
