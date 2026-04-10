@@ -93,19 +93,9 @@ const FRASES = {
     'Empatamos. Para mí que te contuviste un poco.',
     '¡Muy bien! Nadie pudo con el otro.',
   ],
-  celda_ocupada: [
-    'Esa ya está ocupada, elegí otra.',
-    'Ahí ya hay una ficha, probá en otro lado.',
-    'Esa casilla no está libre, ¿cuál otra querés?',
-  ],
-  no_entendido: [
-    'No entendí, decime un número del 1 al 9.',
-    'No te escuché bien. ¿En qué casilla jugás, del 1 al 9?',
-    'Perdoname, ¿cuál número de casilla?',
-  ],
   intro: [
-    '¡Buenísimo! Vamos con el tateti. El tablero tiene casillas del 1 al 9. ¿Empezás vos?',
-    '¡Dale con el tateti! Decime un número del 1 al 9 para tu primera jugada.',
+    '¡Buenísimo! Vamos con el tateti. Tocá las casillas para jugar. ¿Empezás vos?',
+    '¡Dale con el tateti! Tocá donde querés poner tu ficha.',
   ],
 } as const;
 
@@ -310,18 +300,6 @@ export default function TatetiScreen() {
 
   // ── SR ────────────────────────────────────────────────────────────────────────
 
-  function parsearCasilla(txt: string): number | null {
-    const PALABRAS: Record<string, number> = {
-      uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
-      seis: 6, siete: 7, ocho: 8, nueve: 9,
-    };
-    for (const [p, n] of Object.entries(PALABRAS)) {
-      if (new RegExp(`\\b${p}\\b`).test(txt)) return n;
-    }
-    const m = txt.match(/\b([1-9])\b/);
-    return m ? parseInt(m[1], 10) : null;
-  }
-
   useSpeechRecognitionEvent('result', e => {
     if (hablandoRef.current) return;
     if (Date.now() - lastSpokeRef.current < 1000) return;
@@ -332,19 +310,6 @@ export default function TatetiScreen() {
       router.replace('/');
       return;
     }
-    // Jugada por voz: solo cuando es el turno del usuario y la IA no está procesando
-    if (faseRef.current !== 'jugando' || iaRef.current) return;
-    const num = parsearCasilla(txt);
-    if (num === null) {
-      decir(al(FRASES.no_entendido));
-      return;
-    }
-    const idx = num - 1;
-    if (tableroRef.current[idx] !== null) {
-      decir(al(FRASES.celda_ocupada));
-      return;
-    }
-    realizarMovimiento(idx);
   });
 
   useSpeechRecognitionEvent('end', () => {
@@ -378,10 +343,10 @@ export default function TatetiScreen() {
   // ── Lógica de juego ──────────────────────────────────────────────────────────
 
   function realizarMovimiento(idx: number) {
-    if (tablero[idx] !== null || fase !== 'jugando') return;
+    if (tableroRef.current[idx] !== null || faseRef.current !== 'jugando') return;
 
     setBloqueado(true);
-    const nuevo = [...tablero] as Tablero;
+    const nuevo = [...tableroRef.current] as Tablero;
     nuevo[idx] = 'X';
     setTablero(nuevo);
     tableroRef.current = nuevo;
