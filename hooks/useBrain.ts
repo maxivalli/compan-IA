@@ -52,8 +52,8 @@ import { enviarAlertaTelegram } from '../lib/telegram';
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'lista' | 'juego' | 'chiste' | 'aburrimiento' | 'ejercicio' | 'default' | 'latencia';
-export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion';
+export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'clima' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'telegram' | 'lista' | 'juego' | 'chiste' | 'adivinanza' | 'aburrimiento' | 'ejercicio' | 'foto' | 'default' | 'latencia';
+export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
 
@@ -83,8 +83,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['Anotado, dame un segundito que lo guardo bien así no se nos pasa...', 'Dejame que lo dejo por escrito acá...'],
   },
   nostalgia: {
-    femenina:  ['Qué lindo recuerdo, dejame repasar un poquito eso en MemorIA...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
-    masculina: ['Qué lindo recuerdo, dejame repasar un poquito eso en MemorIA...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
+    femenina:  ['Qué lindo recuerdo, dejame pensar un poquito en eso...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
+    masculina: ['Qué lindo recuerdo, dejame pensar un poquito en eso...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
   },
   comando: {
     femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
@@ -115,8 +115,24 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['A ver...', 'Mmm...', 'Claro.', 'Te escucho...'],
   },
   latencia: {
-    femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...'],
-    masculina: ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...'],
+    femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
+    masculina: ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
+  },
+  clima: {
+    femenina:  ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver cómo viene el clima hoy...'],
+    masculina: ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver cómo viene el clima hoy...'],
+  },
+  telegram: {
+    femenina:  ['Mandando el mensaje a tu familia, un segundito...', 'Ya le aviso, dame un momento...', 'Ahí va el mensajito, esperate...', 'Un segundito que lo mando...'],
+    masculina: ['Mandando el mensaje a tu familia, un segundito...', 'Ya le aviso, dame un momento...', 'Ahí va el mensajito, esperate...', 'Un segundito que lo mando...'],
+  },
+  adivinanza: {
+    femenina:  ['¡Dale! Tengo una buenísima. Dame un segundito...', 'A ver si esta te la sabés... esperate...', 'Tengo una para vos. Dame un momento...'],
+    masculina: ['¡Dale! Tengo una buenísima. Dame un segundito...', 'A ver si esta te la sabés... esperate...', 'Tengo una para vos. Dame un momento...'],
+  },
+  foto: {
+    femenina:  ['Dejame que miro bien la foto, dame un segundo...', 'A ver qué tenemos por acá...', 'Esperate que lo miro con atención...', 'Un segundito que le doy una mirada...'],
+    masculina: ['Dejame que miro bien la foto, dame un segundo...', 'A ver qué tenemos por acá...', 'Esperate que lo miro con atención...', 'Un segundito que le doy una mirada...'],
   },
 };
 
@@ -146,6 +162,11 @@ export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; m
     masculina: ['¡Perfecto! ¿Algo más en lo que te pueda ayudar?', '¡Qué bueno! Acá estoy si necesitás algo.', '¡Genial!', 'Me alegra que te sirva, ¿querés que sigamos con otra cosa?'],
     emotion:   'feliz',
   },
+  no_escuche: {
+    femenina:  ['No te escuché bien, ¿me repetís?', 'Perdoname, no llegué a escucharte. ¿Me decís de nuevo?', 'No te escuché bien, ¿me contás otra vez?', '¿Podés repetirme eso?'],
+    masculina: ['No te escuché bien, ¿me repetís?', 'Perdoname, no llegué a escucharte. ¿Me decís de nuevo?', 'No te escuché bien, ¿me contás otra vez?', '¿Podés repetirme eso?'],
+    emotion:   'neutral',
+  },
 };
 
 const EXPRESION_RAPIDA: Record<CategoriaRapida, Expresion> = {
@@ -154,6 +175,26 @@ const EXPRESION_RAPIDA: Record<CategoriaRapida, Expresion> = {
   de_nada: 'feliz',
   despedida: 'neutral',
   afirmacion: 'feliz',
+  no_escuche: 'neutral',
+};
+
+// ── Frases del sistema (sin variante de género) ──────────────────────────────
+
+export type CategoriaSistema = 'modo_no_molestar_on' | 'modo_no_molestar_off' | 'error_conexion';
+
+export const FRASES_SISTEMA: Record<CategoriaSistema, { frases: string[]; emotion: string }> = {
+  modo_no_molestar_on: {
+    frases:  ['Activé el modo no molestar. Avisame cuando querés que vuelva.', 'Modo no molestar activado. Acá voy a estar cuando me necesitás.', 'Listo, me callo por un rato. Cualquier cosa me hablás.'],
+    emotion: 'neutral',
+  },
+  modo_no_molestar_off: {
+    frases:  ['¡Acá estoy de vuelta! ¿Cómo puedo ayudarte?', 'Desactivé el modo no molestar. ¿Cómo estás?', '¡Ya estoy! ¿En qué te ayudo?'],
+    emotion: 'feliz',
+  },
+  error_conexion: {
+    frases:  ['Perdoname, la conexión anda un poco lenta. ¿Me repetís?', 'Tuve un problemita con la conexión. Intentamos de nuevo, ¿sí?', 'No llegó bien la respuesta. ¿Me volvés a contar?'],
+    emotion: 'neutral',
+  },
 };
 
 const INTERLOCUTOR_TTL_MS   = 2 * 60 * 1000;
@@ -172,13 +213,17 @@ export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|q
 export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
 export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|nació\b|embarazada|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
-export const PATRON_BUSQUEDA     = /clima|llover|llueve|temperatura|noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|pronóstico|qué pasó|qué dice|mucho calor|mucho frío|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
+export const PATRON_CLIMA        = /\b(clima|llover|llueve|temperatura|pronóstico|pronostico|mucho calor|mucho frío|mucho frio|qué tiempo|que tiempo|va a llover|va a hacer)\b/i;
+export const PATRON_BUSQUEDA     = /noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|qué pasó|qué dice|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 export const PATRON_MUSICA       = /\b(música|canción|canciones|folklore|tango|cumbia|cuarteto|zamba|chacarera|bolero|vals|bailar|cantame|cantá una)\b|la radio\b/i;
 export const PATRON_RECORDATORIO = /\b(acordame|recordame|anotá(me)?|no te olvid|que no se me olvide|recordatorio|agend[aá](me)?|que quede (anotado|guardado)|una alarma|un timer|despertame)\b/i;
 export const PATRON_NOSTALGIA    = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
 export const PATRON_COMANDO      = /pon[eé]|apag[aá]|prend[eé]|par[aá]\b|las luces?|la luz|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
 export const PATRON_LISTA        = /\b(lista\s+de|una lista|nueva lista|agrega(me|le)?\s+(a\s+la\s+lista|esto|eso)|pone\s+en\s+la\s+lista|anota\s+(esto|eso)|post.?it|nota\s+de\s+compra|compras:|la lista\s+de)\b/i;
-export const PATRON_JUEGO        = /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|trabalengua|cuenta|cuantos|cuanto es|matematica|acertijo|rompecabeza|charada)\b/i;
+export const PATRON_TELEGRAM     = /\b(mand[aá](me)?.*mensaj|mensaj.*famil|avis[aá](me)?.*famil|telegram|decile.*famil|contale.*famil)\b/i;
+export const PATRON_FOTO         = /\b(foto|fotograf|c[aá]mara|sac[aá](me)? una foto|tom[aá](me)? una foto|mir[aá] la foto|le[eé] la foto)\b/i;
+export const PATRON_ADIVINANZA   = /\b(adivinanza|acertijo|charada|adivina[^r]|adivináme)\b/i;
+export const PATRON_JUEGO        = /\b(juego|jugar|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|trabalengua|cuenta|cuantos|cuanto es|matematica|rompecabeza)\b/i;
 export const PATRON_CHISTE       = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|cuento corto|cuento\b|historia graciosa|reírme|me rei)\b/i;
 export const PATRON_ABURRIMIENTO = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/i;
 
@@ -213,12 +258,16 @@ export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (PATRON_EMPATICO.test(texto))     return 'empatico';
   if (PATRON_ALEGRIA.test(texto))      return 'alegria';
   if (PATRON_SALUD.test(texto))        return 'salud';
+  if (PATRON_FOTO.test(texto))         return 'foto';
+  if (PATRON_TELEGRAM.test(texto))     return 'telegram';
+  if (PATRON_CLIMA.test(texto))        return 'clima';
   if (PATRON_BUSQUEDA.test(texto))     return 'busqueda';
   if (PATRON_MUSICA.test(texto))       return 'musica';
   if (PATRON_RECORDATORIO.test(texto)) return 'recordatorio';
   if (PATRON_NOSTALGIA.test(texto))    return 'nostalgia';
   if (PATRON_COMANDO.test(texto))      return 'comando';
   if (PATRON_LISTA.test(texto))        return 'lista';
+  if (PATRON_ADIVINANZA.test(texto))   return 'adivinanza';
   if (PATRON_JUEGO.test(texto))        return 'juego';
   if (PATRON_CHISTE.test(texto))       return 'chiste';
   if (PATRON_ABURRIMIENTO.test(texto)) return 'aburrimiento';

@@ -474,6 +474,7 @@ export function useRosita() {
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     pipeline.precachearMuletillas(perfil.vozId, perfil.nombreAbuela).catch(() => {});
     pipeline.precachearRespuestasRapidas(perfil.nombreAbuela).catch(() => {});
+    pipeline.precachearSistema().catch(() => {});
     setCargando(false);
     const yaDada = await bienvenidaYaDada();
     if (!yaDada) {
@@ -528,6 +529,7 @@ export function useRosita() {
     } else {
       pipeline.precachearMuletillas(perfilGuardado.vozId, perfilGuardado.nombreAbuela).catch(() => {});
       pipeline.precachearRespuestasRapidas(perfilGuardado.nombreAbuela).catch(() => {});
+      pipeline.precachearSistema().catch(() => {});
       setCargando(false);
       pipeline.iniciarSpeechRecognition();
       // Warmup: escribe el cache de Claude para que el primer turno real sea rápido

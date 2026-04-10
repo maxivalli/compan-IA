@@ -22,7 +22,7 @@ import {
   estaPerdido,
   type EstadoAhorcado,
 } from '../lib/ahorcado';
-import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
+import { sintetizarVoz, VOICE_ID_FEMENINA, urlFrasePrecacheada } from '../lib/ai';
 import { cargarPerfil } from '../lib/memoria';
 import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
 
@@ -51,7 +51,9 @@ const COLS = 6; // letras por fila — botones más grandes para adultos mayores
 
 // ── Frases de feedback ──────────────────────────────────────────────────────────
 
-function al<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function al<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+const AHORCADO_CACHE_VERSION = 'v2';
 
 const FRASES = {
   correcta: [
@@ -60,6 +62,8 @@ const FRASES = {
     '¡Eso es, seguí así!',
     '¡Muy bien! Hay más.',
     '¡Esa sí va!',
+    '¡Genial! Seguís en carrera.',
+    '¡Uh, qué bien! Tenés ojo.',
   ],
   errada: [
     'Esa no está...',
@@ -67,27 +71,41 @@ const FRASES = {
     'Hmm, esa no está.',
     'No, pero seguí intentando.',
     'Esa no.',
+    'Lamentablemente no...',
+    'No está esa. Un intento menos.',
   ],
   ganaste: [
     '¡Felicitaciones! ¡Adivinaste la palabra!',
     '¡Muy bien! ¡La encontraste!',
     '¡Bravo! ¡Sabías cuál era!',
     '¡Lo lograste! ¡Muy bien!',
+    '¡Sos un crack! La adivinaste.',
+    '¡Qué buena memoria tenés!',
   ],
   perdi: [
     'Se acabaron los intentos. ¡Pero la próxima la adivinas!',
     'No llegamos... La próxima va a ser tuya.',
     'Esta vez no pudo ser. ¿Jugamos otra?',
     'Uy, casi. ¡La próxima!',
+    'No fue esta vez, pero vamos de nuevo.',
   ],
-};
+  ya_dicha: [
+    'Esa letra ya la dijiste.',
+    'Ya la probaste esa, ¿te acordás?',
+    'Esa ya fue, probá otra.',
+  ],
+  pista: [
+    'Dale, te doy una pista...',
+    'Bueno, te ayudo un poco...',
+    'Ahí va la pista...',
+  ],
+  intro: [
+    '¡Vamos con el ahorcado! Pensé una palabra. Decime letras de a una.',
+    '¡Dale! Tengo una palabra. ¿Qué letra probás primero?',
+  ],
+} as const;
 
-const TODAS_LAS_FRASES = [
-  ...FRASES.correcta,
-  ...FRASES.errada,
-  ...FRASES.ganaste,
-  ...FRASES.perdi,
-];
+type CategoriaAhorcado = keyof typeof FRASES;
 
 // ── Vidas (corazones animados) ──────────────────────────────────────────────────
 
@@ -230,20 +248,32 @@ export default function AhorcadoScreen() {
     return letraRevealAnims.current[letra];
   }
 
-  // ── Pre-cacheo de frases con Fish Audio ──────────────────────────────────────
+  // ── Pre-cacheo de frases ────────────────────────────────────────────────────
+  // Prioridad: archivo ya en disco → descarga desde backend → síntesis local.
 
   useEffect(() => {
     async function cachear() {
       const perfil  = await cargarPerfil().catch(() => null);
       const voiceId = perfil?.vozId ?? VOICE_ID_FEMENINA;
-      for (const frase of TODAS_LAS_FRASES) {
-        if (phraseCache.current[frase]) continue;
-        const base64 = await sintetizarVoz(frase, voiceId, 1.0, 'neutral').catch(() => null);
-        if (!base64) continue;
-        const slug = frase.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
-        const uri  = `${FileSystem.cacheDirectory}ahorcado_${slug}.mp3`;
-        await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
-        phraseCache.current[frase] = uri;
+      const vid8    = voiceId.slice(0, 8);
+
+      for (const [cat, lista] of Object.entries(FRASES) as [keyof typeof FRASES, readonly string[]][]) {
+        for (let i = 0; i < lista.length; i++) {
+          const frase    = lista[i];
+          const localUri = `${FileSystem.cacheDirectory}ahorcado_${AHORCADO_CACHE_VERSION}_${vid8}_${cat}_${i}.mp3`;
+          const info     = await FileSystem.getInfoAsync(localUri).catch(() => ({ exists: false }));
+          if (!info.exists) {
+            const remoteUrl = urlFrasePrecacheada(voiceId, 'ahorcado', cat, i);
+            const dl = await FileSystem.downloadAsync(remoteUrl, localUri).catch(() => null);
+            if (!dl || dl.status !== 200) {
+              const emotion = cat === 'correcta' || cat === 'ganaste' ? 'feliz' : cat === 'intro' ? 'juego' : 'neutral';
+              const base64 = await sintetizarVoz(frase, voiceId, 1.0, emotion).catch(() => null);
+              if (base64) await FileSystem.writeAsStringAsync(localUri, base64, { encoding: 'base64' }).catch(() => {});
+              else continue;
+            }
+          }
+          phraseCache.current[frase] = localUri;
+        }
       }
     }
     cachear();
@@ -297,6 +327,11 @@ export default function AhorcadoScreen() {
     if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
       detenerSR();
       router.replace('/');
+      return;
+    }
+    // Pedido de pista por voz
+    if (/\b(pista|ayudame|ayuda|una pista|dame una pista|no se|no me sale)\b/.test(txt)) {
+      decir(al(FRASES.pista), () => decir(juego.pista));
     }
   });
 
@@ -320,7 +355,7 @@ export default function AhorcadoScreen() {
 
   useEffect(() => {
     pausarSRPrincipalParaJuego();
-    iniciarSR();
+    decir(al(FRASES.intro), () => iniciarSR());
     return () => {
       detenerSR();
       reanudarSRPrincipalTrasJuego();
@@ -332,7 +367,7 @@ export default function AhorcadoScreen() {
 
   function jugarLetra(letra: string) {
     const nuevo = procesarLetra(juego, letra);
-    if (nuevo === juego) return; // ya usada
+    if (nuevo === juego) { decir(al(FRASES.ya_dicha)); return; }
     try { clickPlayer.seekTo(0); clickPlayer.play(); } catch {}
 
     setJuego(nuevo);

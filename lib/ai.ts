@@ -669,3 +669,18 @@ export async function reportarCrash(message: string, stack: string, platform: st
     });
   } catch {}
 }
+
+/** URL de un archivo de audio pre-generado en el backend.
+ *  grupo: 'muletilla' | 'rapida' | 'tateti' | 'ahorcado' | 'sistema'
+ *  genero requerido solo para muletilla y rapida; omitir para el resto.
+ *  El archivo es público (sin auth) — express.static lo sirve directamente. */
+export function urlFrasePrecacheada(
+  voiceId: string,
+  grupo: 'muletilla' | 'rapida' | 'tateti' | 'ahorcado' | 'sistema',
+  cat: string,
+  i: number,
+  genero?: 'femenina' | 'masculina',
+): string {
+  const suffix = genero ? `_${genero}` : '';
+  return `${BACKEND_URL}/static/audio/${encodeURIComponent(voiceId)}/${grupo}_${cat}_${i}${suffix}.mp3`;
+}

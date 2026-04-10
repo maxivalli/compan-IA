@@ -21,7 +21,7 @@ import {
   type Celda,
   type Tablero,
 } from '../lib/tateti';
-import { sintetizarVoz, VOICE_ID_FEMENINA } from '../lib/ai';
+import { sintetizarVoz, VOICE_ID_FEMENINA, urlFrasePrecacheada } from '../lib/ai';
 import { cargarPerfil } from '../lib/memoria';
 import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
 
@@ -46,7 +46,9 @@ const M = {
 
 // ── Frases de feedback ──────────────────────────────────────────────────────────
 
-function al<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function al<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+const TATETI_CACHE_VERSION = 'v2';
 
 const FRASES = {
   movUsuario: [
@@ -57,6 +59,8 @@ const FRASES = {
     'Pensé que ibas a otro lado.',
     'Bien puesto, che.',
     'No me des tanta ventaja.',
+    'Hmm, eso me complica...',
+    'Ah, muy vivo.',
   ],
   movIA: [
     '¿Y ahora qué hacés?',
@@ -64,34 +68,48 @@ const FRASES = {
     'Te compliqué un poco, ¿no?',
     'Dale, te toca a vos.',
     'Esto se pone lindo.',
+    'Mirá dónde la puse...',
+    'Ahora la tenés difícil.',
   ],
   ganaste: [
     '¡Felicitaciones! Me ganaste bien. Hay que reconocerlo.',
     '¡Muy bien jugado! Esta vez no te pude parar.',
     '¡Bravo! Esa última jugada no la vi venir.',
     '¡Vos ganaste! Hubo que pensar bien, ¿no?',
+    '¡Me ganaste! ¡Qué crack!',
+    '¡Bien! Me dejaste sin jugadas.',
   ],
   perdi: [
     '¡Esta vez gané yo! ¿Le damos de nuevo?',
     '¡Mía! Aunque no te descuides que la próxima puede ser tuya.',
     '¡Gané! Pero igual jugaste muy bien.',
     '¡Me salió! ¿Jugamos otra?',
+    '¡La tenía preparada esa! ¿Revancha?',
   ],
   empate: [
     '¡Empatamos! Somos los dos igual de buenos.',
     '¡Ninguno ganó! Eso quiere decir que sos difícil de vencer.',
     '¡Empate! No hay caso, estamos muy parejos.',
     'Empatamos. Para mí que te contuviste un poco.',
+    '¡Muy bien! Nadie pudo con el otro.',
   ],
-};
+  celda_ocupada: [
+    'Esa ya está ocupada, elegí otra.',
+    'Ahí ya hay una ficha, probá en otro lado.',
+    'Esa casilla no está libre, ¿cuál otra querés?',
+  ],
+  no_entendido: [
+    'No entendí, decime un número del 1 al 9.',
+    'No te escuché bien. ¿En qué casilla jugás, del 1 al 9?',
+    'Perdoname, ¿cuál número de casilla?',
+  ],
+  intro: [
+    '¡Buenísimo! Vamos con el tateti. El tablero tiene casillas del 1 al 9. ¿Empezás vos?',
+    '¡Dale con el tateti! Decime un número del 1 al 9 para tu primera jugada.',
+  ],
+} as const;
 
-const TODAS_LAS_FRASES = [
-  ...FRASES.movUsuario,
-  ...FRASES.movIA,
-  ...FRASES.ganaste,
-  ...FRASES.perdi,
-  ...FRASES.empate,
-];
+type CategoriaTateti = keyof typeof FRASES;
 
 // ── Componente Celda ────────────────────────────────────────────────────────────
 
@@ -200,6 +218,9 @@ export default function TatetiScreen() {
   const [fase, setFase]             = useState<Fase>('jugando');
   const [linea, setLinea]           = useState<number[] | null>(null);
   const [escuchando, setEscuchando] = useState(false);
+  // Refs de estado para acceso seguro desde handlers de SR (evita stale closures)
+  const tableroRef      = useRef<Tablero>(tableroInicial());
+  const faseRef         = useRef<Fase>('jugando');
   const iaRef           = useRef(false);
   const hablandoRef     = useRef(false);
   const lastSpokeRef    = useRef(0);
@@ -208,20 +229,31 @@ export default function TatetiScreen() {
   const feedbackPlayer  = useAudioPlayer(null);
   const phraseCache     = useRef<Record<string, string>>({});  // texto → uri de archivo
 
-  // ── Pre-cacheo de frases con Fish Audio ────────────────────────────────────
+  // ── Pre-cacheo de frases ────────────────────────────────────────────────────
+  // Prioridad: archivo ya en disco → descarga desde backend → síntesis local.
 
   useEffect(() => {
     async function cachear() {
-      const perfil = await cargarPerfil().catch(() => null);
+      const perfil  = await cargarPerfil().catch(() => null);
       const voiceId = perfil?.vozId ?? VOICE_ID_FEMENINA;
-      for (const frase of TODAS_LAS_FRASES) {
-        if (phraseCache.current[frase]) continue;
-        const base64 = await sintetizarVoz(frase, voiceId, 1.0, 'neutral').catch(() => null);
-        if (!base64) continue;
-        const slug = frase.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 20);
-        const uri  = `${FileSystem.cacheDirectory}tateti_${slug}.mp3`;
-        await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
-        phraseCache.current[frase] = uri;
+      const vid8    = voiceId.slice(0, 8);
+
+      for (const [cat, lista] of Object.entries(FRASES) as [CategoriaTateti, readonly string[]][]) {
+        for (let i = 0; i < lista.length; i++) {
+          const frase    = lista[i];
+          const localUri = `${FileSystem.cacheDirectory}tateti_${TATETI_CACHE_VERSION}_${vid8}_${cat}_${i}.mp3`;
+          const info     = await FileSystem.getInfoAsync(localUri).catch(() => ({ exists: false }));
+          if (!info.exists) {
+            const remoteUrl = urlFrasePrecacheada(voiceId, 'tateti', cat, i);
+            const dl = await FileSystem.downloadAsync(remoteUrl, localUri).catch(() => null);
+            if (!dl || dl.status !== 200) {
+              const base64 = await sintetizarVoz(frase, voiceId, 1.0, 'juego').catch(() => null);
+              if (base64) await FileSystem.writeAsStringAsync(localUri, base64, { encoding: 'base64' }).catch(() => {});
+              else continue;
+            }
+          }
+          phraseCache.current[frase] = localUri;
+        }
       }
     }
     cachear();
@@ -269,7 +301,23 @@ export default function TatetiScreen() {
     try { clickPlayer.seekTo(0); clickPlayer.play(); } catch {}
   }
 
+  // ── Sincronizar estado → refs (para SR handlers) ────────────────────────────
+  useEffect(() => { tableroRef.current = tablero; }, [tablero]);
+  useEffect(() => { faseRef.current    = fase;    }, [fase]);
+
   // ── SR ────────────────────────────────────────────────────────────────────────
+
+  function parsearCasilla(txt: string): number | null {
+    const PALABRAS: Record<string, number> = {
+      uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
+      seis: 6, siete: 7, ocho: 8, nueve: 9,
+    };
+    for (const [p, n] of Object.entries(PALABRAS)) {
+      if (new RegExp(`\\b${p}\\b`).test(txt)) return n;
+    }
+    const m = txt.match(/\b([1-9])\b/);
+    return m ? parseInt(m[1], 10) : null;
+  }
 
   useSpeechRecognitionEvent('result', e => {
     if (hablandoRef.current) return;
@@ -279,7 +327,21 @@ export default function TatetiScreen() {
     if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
       detenerSR();
       router.replace('/');
+      return;
     }
+    // Jugada por voz: solo cuando es el turno del usuario y la IA no está procesando
+    if (faseRef.current !== 'jugando' || iaRef.current) return;
+    const num = parsearCasilla(txt);
+    if (num === null) {
+      decir(al(FRASES.no_entendido));
+      return;
+    }
+    const idx = num - 1;
+    if (tableroRef.current[idx] !== null) {
+      decir(al(FRASES.celda_ocupada));
+      return;
+    }
+    realizarMovimiento(idx);
   });
 
   useSpeechRecognitionEvent('end', () => {
@@ -302,7 +364,7 @@ export default function TatetiScreen() {
 
   useEffect(() => {
     pausarSRPrincipalParaJuego();
-    iniciarSR();
+    decir(al(FRASES.intro), () => iniciarSR());
     return () => {
       detenerSR();
       reanudarSRPrincipalTrasJuego();
@@ -318,19 +380,20 @@ export default function TatetiScreen() {
     const nuevo = [...tablero] as Tablero;
     nuevo[idx] = 'X';
     setTablero(nuevo);
+    tableroRef.current = nuevo;
     playClick();
 
     const resultado = verificarGanador(nuevo);
 
     if (resultado === 'X') {
       setLinea(lineaGanadora(nuevo));
-      setFase('ganaste');
+      setFase('ganaste'); faseRef.current = 'ganaste';
       mostrarOverlay();
       decir(al(FRASES.ganaste));
       return;
     }
     if (resultado === 'empate') {
-      setFase('empate');
+      setFase('empate'); faseRef.current = 'empate';
       mostrarOverlay();
       decir(al(FRASES.empate));
       return;
@@ -347,15 +410,16 @@ export default function TatetiScreen() {
         const t2 = [...nuevo] as Tablero;
         t2[movIA] = 'O';
         setTablero(t2);
+        tableroRef.current = t2;
         playClick();
         const res2 = verificarGanador(t2);
         if (res2 === 'O') {
           setLinea(lineaGanadora(t2));
-          setFase('perdi');
+          setFase('perdi'); faseRef.current = 'perdi';
           mostrarOverlay();
           decir(al(FRASES.perdi));
         } else if (res2 === 'empate') {
-          setFase('empate');
+          setFase('empate'); faseRef.current = 'empate';
           mostrarOverlay();
           decir(al(FRASES.empate));
         } else {
@@ -372,12 +436,15 @@ export default function TatetiScreen() {
   }
 
   function reiniciar() {
+    const tableroNuevo = tableroInicial();
     overlayAnim.setValue(0);
-    setTablero(tableroInicial());
+    setTablero(tableroNuevo);
     setTurno('X');
     setFase('jugando');
     setLinea(null);
-    iaRef.current = false;
+    tableroRef.current = tableroNuevo;
+    faseRef.current    = 'jugando';
+    iaRef.current      = false;
     hablandoRef.current = false;
     setTimeout(iniciarSR, 300);
   }

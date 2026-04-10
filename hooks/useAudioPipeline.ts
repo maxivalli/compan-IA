@@ -37,8 +37,9 @@ import {
   logCliente,
   VOICE_ID_FEMENINA,
   VOICE_ID_MASCULINA,
+  urlFrasePrecacheada,
 } from '../lib/ai';
-import { MULETILLAS, RESPUESTAS_RAPIDAS, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
+import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
 
 const TTS_CACHE_VERSION = 'v5';
 const MULETILLA_CACHE_VERSION = 'v18';
@@ -283,6 +284,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const precacheInFlightRef        = useRef<Map<string, Promise<void>>>(new Map());
   const precacheMuletillasRunningRef = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
+  const ultimaSistemaRef           = useRef<Partial<Record<string, number>>>({});
   const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
 
   // ── Refs de silbido ──────────────────────────────────────────────────────
@@ -374,7 +376,30 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', d.estadoRef.current, '| asistente:', d.nombreAsistenteRef.current);
     if (procesandoRef.current) return;
     if (enFlujoVozRef.current) return;
-    if (!texto || texto.length < 2) return;
+    if (!texto || texto.length < 2) {
+      // Si el usuario habló (speechend reciente) pero el SR no captó nada reconocible,
+      // responder con "no_escuche" para que la usuaria sepa que Rosita la oyó pero no entendió.
+      // Condiciones: habló hace menos de 3s, no es eco del TTS propio, y Rosita está libre.
+      const speechEndAge = d.speechEndTsRef.current ? Date.now() - d.speechEndTsRef.current : Infinity;
+      const ecoAge       = Date.now() - ultimoFinTTSRef.current;
+      if (
+        speechEndAge < 3000 &&
+        ecoAge > 1500 &&
+        d.estadoRef.current === 'esperando' &&
+        !enColaHablaRef.current
+      ) {
+        const p = d.perfilRef.current;
+        const genero: 'femenina' | 'masculina' = (p?.vozGenero ?? 'femenina') === 'masculina' ? 'masculina' : 'femenina';
+        const lista  = RESPUESTAS_RAPIDAS.no_escuche[genero];
+        const ultimo = ultimaRapidaRef.current.no_escuche ?? -1;
+        let idx: number;
+        do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
+        ultimaRapidaRef.current.no_escuche = idx;
+        logCliente('no_escuche', { speechEndAge, genero });
+        await hablar(lista[idx], 'neutral');
+      }
+      return;
+    }
 
     // Protección de eco post-TTS: ignorar SR results por 1200ms después de que Rosita
     // terminó de hablar (state='esperando'). Durante 'hablando' el barge-in maneja su
@@ -392,6 +417,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const mencionaNombreNM = new RegExp('(^|\\s)' + nombreNormNM.slice(0, 5), 'i').test(textoNormNM);
       if (mencionaNombreNM && /\b(podes hablar|podes volver|volvé|vuelve|ya podes|despierta|activa(te)?|estoy aca|hola)\b/.test(textoNormNM)) {
         d.setNoMolestar(false);
+        const { frases, emotion } = FRASES_SISTEMA.modo_no_molestar_off;
+        const ultimo = ultimaSistemaRef.current.modo_no_molestar_off ?? -1;
+        let idx: number;
+        do { idx = Math.floor(Math.random() * frases.length); } while (idx === ultimo && frases.length > 1);
+        ultimaSistemaRef.current.modo_no_molestar_off = idx;
+        await hablar(frases[idx], emotion);
       }
       return;
     }
@@ -445,9 +476,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     if (!mencionaNombre && !enConversacion && !esPreguntaDirecta && !d.modoVisionRef.current) { unduckMusica(); return; }
 
-    // Comando de silencio: "[nombre] hacé silencio" → activa modo no molestar
+    // Comando de silencio: "[nombre] hacé silencio" → confirmar y activar modo no molestar
     if (mencionaNombre && /\b(silencio|callate|calla(te)?|no molestes|no hables|modo silencio|no molestar)\b/.test(textoNorm)) {
       unduckMusica();
+      const { frases, emotion } = FRASES_SISTEMA.modo_no_molestar_on;
+      const ultimo = ultimaSistemaRef.current.modo_no_molestar_on ?? -1;
+      let idx: number;
+      do { idx = Math.floor(Math.random() * frases.length); } while (idx === ultimo && frases.length > 1);
+      ultimaSistemaRef.current.modo_no_molestar_on = idx;
+      await hablar(frases[idx], emotion);
       d.setNoMolestar(true);
       return;
     }
@@ -727,31 +764,35 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     precacheMuletillasRunningRef.current = true;
     const p = depsRef.current.perfilRef.current;
     const vozGenero = p?.vozGenero ?? 'femenina';
-    const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+    const genero: 'femenina' | 'masculina' = vozGenero === 'masculina' ? 'masculina' : 'femenina';
     const effectiveVoiceId = voiceId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
     const slug = slugNombre(nombre ?? p?.nombreAbuela ?? '');
     const muletillaEmotion: Record<CategoriaMuletilla, string> = {
       empatico: 'triste', alegria: 'entusiasmada', salud: 'preocupada', busqueda: 'neutral',
-      musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura', comando: 'feliz',
-      lista: 'neutral', juego: 'entusiasmada', chiste: 'feliz', aburrimiento: 'entusiasmada',
-      ejercicio: 'entusiasmada',
-      default: 'neutral', latencia: 'neutral',
+      clima: 'neutral', musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura',
+      comando: 'feliz', telegram: 'neutral', lista: 'neutral', juego: 'entusiasmada',
+      chiste: 'feliz', adivinanza: 'entusiasmada', aburrimiento: 'entusiasmada',
+      ejercicio: 'entusiasmada', foto: 'neutral', default: 'neutral', latencia: 'neutral',
     };
     // Recopilar todas las entradas y verificar existencia en paralelo
-    type MuletillaEntry = { uri: string; texto: string; cat: CategoriaMuletilla };
+    type MuletillaEntry = { uri: string; texto: string; cat: CategoriaMuletilla; idx: number };
     const entradas: MuletillaEntry[] = [];
     for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
       const lista = variantes[genero];
       for (let i = 0; i < lista.length; i++) {
         const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${cat}_${i}_${slug}.mp3`;
         const texto = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
-        entradas.push({ uri, texto, cat });
+        entradas.push({ uri, texto, cat, idx: i });
       }
     }
     const infos = await Promise.all(entradas.map(e => FileSystem.getInfoAsync(e.uri).catch(() => ({ exists: false }))));
     const faltantes = entradas.filter((_, i) => !infos[i].exists);
-    // Síntesis secuencial para no saturar el backend
-    for (const { uri, texto, cat } of faltantes) {
+    // Intentar descarga desde backend; si falla, sintetizar localmente
+    for (const { uri, texto, cat, idx } of faltantes) {
+      const remoteUrl = urlFrasePrecacheada(effectiveVoiceId, 'muletilla', cat, idx, genero);
+      const downloaded = await FileSystem.downloadAsync(remoteUrl, uri).catch(() => null);
+      if (downloaded?.status === 200) continue;
+      // Fallback: síntesis local
       const base64 = await sintetizarVoz(texto, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
       if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
     }
@@ -761,13 +802,50 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   async function precachearRespuestasRapidas(nombre?: string) {
     const p = depsRef.current.perfilRef.current;
     const vozGenero = p?.vozGenero ?? 'femenina';
-    const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+    const genero: 'femenina' | 'masculina' = vozGenero === 'masculina' ? 'masculina' : 'femenina';
+    const effectiveVoiceId = p?.vozId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
     const n = nombre ?? p?.nombreAbuela ?? '';
     for (const cat of Object.keys(RESPUESTAS_RAPIDAS) as CategoriaRapida[]) {
       const { [genero]: lista, emotion } = RESPUESTAS_RAPIDAS[cat];
-      for (const textoRaw of lista) {
+      for (let i = 0; i < lista.length; i++) {
+        const textoRaw = lista[i];
         const texto = textoRaw.replace(/\{n\}/g, n).trim();
-        if (texto) await precachearTexto(texto, emotion).catch(() => {});
+        if (!texto) continue;
+        // Para frases sin {n} intentar descarga desde backend
+        if (!textoRaw.includes('{n}')) {
+          const limpio = limpiarTextoParaTTS(texto);
+          const key = hashTexto(limpio + '|' + emotion);
+          const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_${key}.mp3`;
+          const info = await FileSystem.getInfoAsync(cacheUri).catch(() => ({ exists: false }));
+          if (!info.exists) {
+            const remoteUrl = urlFrasePrecacheada(effectiveVoiceId, 'rapida', cat, i, genero);
+            const downloaded = await FileSystem.downloadAsync(remoteUrl, cacheUri).catch(() => null);
+            if (downloaded?.status === 200) continue;
+          } else {
+            continue;
+          }
+        }
+        // Fallback: síntesis local (también cubre frases con {n})
+        await precachearTexto(texto, emotion).catch(() => {});
+      }
+    }
+  }
+
+  async function precachearSistema() {
+    const p = depsRef.current.perfilRef.current;
+    const vozGenero = p?.vozGenero ?? 'femenina';
+    const effectiveVoiceId = p?.vozId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+    for (const [cat, { frases, emotion }] of Object.entries(FRASES_SISTEMA) as [string, { frases: string[]; emotion: string }][]) {
+      for (let i = 0; i < frases.length; i++) {
+        const limpio = limpiarTextoParaTTS(frases[i]);
+        const key = hashTexto(limpio + '|' + emotion);
+        const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_${key}.mp3`;
+        const info = await FileSystem.getInfoAsync(cacheUri).catch(() => ({ exists: false }));
+        if (info.exists) continue;
+        const remoteUrl = urlFrasePrecacheada(effectiveVoiceId, 'sistema', cat, i);
+        const downloaded = await FileSystem.downloadAsync(remoteUrl, cacheUri).catch(() => null);
+        if (downloaded?.status === 200) continue;
+        await precachearTexto(frases[i], emotion).catch(() => {});
       }
     }
   }
@@ -1174,6 +1252,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // Funciones de gestión (usadas por useRosita en inicializar/reactivar)
     precachearMuletillas,
     precachearRespuestasRapidas,
+    precachearSistema,
     limpiarCacheViejo,
 
     // Silbido y música
