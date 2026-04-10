@@ -218,6 +218,9 @@ export default function TatetiScreen() {
   const [fase, setFase]             = useState<Fase>('jugando');
   const [linea, setLinea]           = useState<number[] | null>(null);
   const [escuchando, setEscuchando] = useState(false);
+  // bloqueado como estado (no ref) para que el disabled de las celdas se actualice con el render.
+  // iaRef/hablandoRef siguen existiendo para los handlers de SR, pero no controlan disabled.
+  const [bloqueado, setBloqueado]   = useState(true); // true durante el TTS de intro
   // Refs de estado para acceso seguro desde handlers de SR (evita stale closures)
   const tableroRef      = useRef<Tablero>(tableroInicial());
   const faseRef         = useRef<Fase>('jugando');
@@ -364,7 +367,7 @@ export default function TatetiScreen() {
 
   useEffect(() => {
     pausarSRPrincipalParaJuego();
-    decir(al(FRASES.intro), () => iniciarSR());
+    decir(al(FRASES.intro), () => { setBloqueado(false); iniciarSR(); });
     return () => {
       detenerSR();
       reanudarSRPrincipalTrasJuego();
@@ -377,6 +380,7 @@ export default function TatetiScreen() {
   function realizarMovimiento(idx: number) {
     if (tablero[idx] !== null || fase !== 'jugando') return;
 
+    setBloqueado(true);
     const nuevo = [...tablero] as Tablero;
     nuevo[idx] = 'X';
     setTablero(nuevo);
@@ -424,9 +428,9 @@ export default function TatetiScreen() {
           decir(al(FRASES.empate));
         } else {
           setTurno('X');
-          setTimeout(() => decir(al(FRASES.movIA)), 200);
+          iaRef.current = false;
+          setTimeout(() => decir(al(FRASES.movIA), () => setBloqueado(false)), 200);
         }
-        iaRef.current = false;
       }, pensar);
     });
   }
@@ -446,6 +450,7 @@ export default function TatetiScreen() {
     faseRef.current    = 'jugando';
     iaRef.current      = false;
     hablandoRef.current = false;
+    setBloqueado(false);
     setTimeout(iniciarSR, 300);
   }
 
@@ -496,7 +501,7 @@ export default function TatetiScreen() {
                   index={i}
                   cellSize={cellSize}
                   enLinea={lineaSet.has(i)}
-                  disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current}
+                  disabled={fase !== 'jugando' || bloqueado}
                   onPress={() => realizarMovimiento(i)}
                 />
               ))}
@@ -516,7 +521,7 @@ export default function TatetiScreen() {
                   index={i}
                   cellSize={cellSize}
                   enLinea={lineaSet.has(i)}
-                  disabled={fase !== 'jugando' || turno !== 'X' || iaRef.current || hablandoRef.current}
+                  disabled={fase !== 'jugando' || bloqueado}
                   onPress={() => realizarMovimiento(i)}
                 />
               ))}
