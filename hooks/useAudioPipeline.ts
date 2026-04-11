@@ -355,8 +355,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         continuous: true,
         interimResults: false,
         androidIntentOptions: {
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 700,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 350,
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 550,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 280,
         },
       });
       srActivoRef.current = true;
@@ -714,24 +714,39 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Tecleo de espera durante búsquedas ────────────────────────────────────
   // Usa playerMusica (canal separado) para sonar en PARALELO con la muletilla
   // verbal que corre en player. No toca nada si hay música activa.
+  // Loop manual: no depende del flag .loop nativo (poco confiable en expo-audio).
+  // Safety timeout de 30s para garantizar que nunca quede corriendo indefinidamente.
   async function reproducirTecleo(abort: { current: boolean }): Promise<void> {
     if (abort.current) return;
     if (depsRef.current.musicaActivaRef.current) return;
+    const SAFETY_MS = 30_000;
+    const startedAt = Date.now();
     try {
-      playerMusica.replace(TECLEO_ASSET);
-      (playerMusica as AudioPlayerExt).loop = true;
-      playerMusica.play();
-      await new Promise<void>(resolve => {
-        const poll = setInterval(() => {
-          if (abort.current) { clearInterval(poll); resolve(); }
-        }, 80);
-      });
+      // Loop manual: cada vez que el audio termina, lo arrancamos de nuevo
+      // mientras no se haya pedido abort ni haya música activa.
+      while (!abort.current && !depsRef.current.musicaActivaRef.current) {
+        if (Date.now() - startedAt > SAFETY_MS) break; // safety timeout
+        playerMusica.replace(TECLEO_ASSET);
+        playerMusica.play();
+        // Esperar fin del clip o abort — poll cada 80ms
+        await new Promise<void>(resolve => {
+          const safety = setTimeout(() => resolve(), 6000); // máx 6s por clip
+          const poll = setInterval(() => {
+            if (abort.current || depsRef.current.musicaActivaRef.current) {
+              clearTimeout(safety); clearInterval(poll); resolve(); return;
+            }
+            const dur = (playerMusica as AudioPlayerExt).duration ?? NaN;
+            const pos = (playerMusica as AudioPlayerExt).currentTime ?? NaN;
+            if (!isNaN(dur) && dur > 0 && isFinite(dur) && pos >= dur - 0.1) {
+              clearTimeout(safety); clearInterval(poll); resolve();
+            }
+          }, 80);
+        });
+      }
     } catch {}
     finally {
-      // Limpiar loop — si no, el próximo uso de playerMusica loopea indefinidamente.
-      // No pausar si ejecutarMusica ya arrancó un stream mientras el tecleo corría.
+      // No pausar si la música ya tomó el playerMusica.
       try {
-        (playerMusica as AudioPlayerExt).loop = false;
         if (!depsRef.current.musicaActivaRef.current) playerMusica.pause();
       } catch {}
     }

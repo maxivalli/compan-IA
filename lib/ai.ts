@@ -307,26 +307,35 @@ export async function transcribirAudio(uri: string): Promise<string> {
 // Se pre-cachean aquí para no agregar latencia antes de cada reproducción.
 let _streamTicket: string | null = null;
 let _streamTicketExpiresAt = 0;
+let _streamTicketRenewTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function renewStreamTicket(): Promise<void> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/stream-ticket`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+    }, 5000, 'StreamTicket');
+    if (!res.ok) return;
+    const data = await res.json() as { ticket?: string };
+    if (!data.ticket) return;
+    _streamTicket = data.ticket;
+    _streamTicketExpiresAt = Date.now() + 55_000;
+    // Renovar proactivamente a los 40s, antes de que expire, para que nunca
+    // haya un round-trip bloqueante en el camino crítico del TTS
+    if (_streamTicketRenewTimer) clearTimeout(_streamTicketRenewTimer);
+    _streamTicketRenewTimer = setTimeout(() => { _streamTicket = null; renewStreamTicket().catch(() => {}); }, 40_000);
+  } catch {
+    // silencioso — el caller usa ?k= como fallback
+  }
+}
 
 async function getStreamTicket(): Promise<string | null> {
   // Reusar si hay ticket vigente con más de 10s de vida restante
   if (_streamTicket && Date.now() < _streamTicketExpiresAt - 10_000) {
     return _streamTicket;
   }
-  try {
-    const res = await fetchConTimeout(`${BACKEND_URL}/ai/stream-ticket`, {
-      method: 'POST',
-      headers: await jsonHeaders(),
-    }, 5000, 'StreamTicket');
-    if (!res.ok) return null;
-    const data = await res.json() as { ticket?: string };
-    if (!data.ticket) return null;
-    _streamTicket = data.ticket;
-    _streamTicketExpiresAt = Date.now() + 55_000; // margen de 5s sobre el TTL del backend
-    return _streamTicket;
-  } catch {
-    return null; // si falla, el caller cae al fallback ?k=
-  }
+  await renewStreamTicket();
+  return _streamTicket;
 }
 
 // ── ElevenLabs TTS ────────────────────────────────────────────────────────────
