@@ -48,6 +48,18 @@ type ResultBusqueda = {
   fuentes?: Fuente[];
 };
 
+/** "2 horas 30 minutos" → "2:30 Hs" | "45 minutos" → "0:45 Hs" | "1 hora" → "1:00 Hs" */
+function formatTiempo(t: string): string {
+  const h = t.match(/(\d+)\s*hora/i);
+  const m = t.match(/(\d+)\s*minu/i);
+  if (h || m) {
+    const hh = h ? parseInt(h[1]) : 0;
+    const mm = m ? parseInt(m[1]) : 0;
+    return `${hh}:${String(mm).padStart(2, '0')} Hs`;
+  }
+  return t;
+}
+
 type JobInbox = {
   id: string;
   tipo: string;
@@ -55,6 +67,10 @@ type JobInbox = {
   resultJson: unknown;
   createdAt: string;
 };
+
+function irANotas(router: ReturnType<typeof useRouter>) {
+  router.navigate('/notas' as Parameters<typeof router.navigate>[0]);
+}
 
 export default function NotaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,7 +88,7 @@ export default function NotaScreen() {
 
   useFocusEffect(useCallback(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      router.back();
+      irANotas(router);
       return true;
     });
     return () => sub.remove();
@@ -89,7 +105,7 @@ export default function NotaScreen() {
   if (!job) {
     return (
       <View style={styles.centered}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => irANotas(router)} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={24} color={M3.primary} />
         </Pressable>
         <Ionicons name="document-outline" size={48} color={M3.outlineVariant} />
@@ -101,7 +117,7 @@ export default function NotaScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={16}>
+        <Pressable onPress={() => irANotas(router)} style={styles.backBtn} hitSlop={16}>
           <Ionicons name="arrow-back" size={30} color={M3.primary} />
         </Pressable>
         <Text style={styles.headerTitle} numberOfLines={1}>
@@ -129,7 +145,7 @@ function RecetaViewer({ data }: { data: ResultReceta }) {
         {data.tiempo_total ? (
           <View style={styles.metaChip}>
             <Ionicons name="time-outline" size={22} color={M3.primary} />
-            <Text style={styles.metaText}>{data.tiempo_total}</Text>
+            <Text style={styles.metaText}>{formatTiempo(data.tiempo_total)}</Text>
           </View>
         ) : null}
         {data.porciones ? (
@@ -147,7 +163,7 @@ function RecetaViewer({ data }: { data: ResultReceta }) {
             <View key={i} style={styles.ingredienteRow}>
               <View style={styles.bullet} />
               <Text style={styles.ingredienteTexto}>
-                {ing.cantidad ? `${ing.cantidad} ${ing.unidad} `.trimEnd() : ''}{ing.item}
+                {ing.cantidad ? `${ing.cantidad}${ing.unidad} ` : ''}{ing.item}
                 {ing.notas ? <Text style={styles.notas}> ({ing.notas})</Text> : null}
               </Text>
             </View>
