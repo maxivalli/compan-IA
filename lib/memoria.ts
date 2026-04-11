@@ -281,11 +281,25 @@ export type MemoriaEpisodica = {
   id: string;
   resumen: string;
   keywords: string[];
+  categoria?: CategoriaMemoria;
   createdAt: number;
   updatedAt: number;
   lastAskedAt: number;
   mentions: number;
 };
+
+export type CategoriaMemoria = 'familia' | 'salud' | 'gustos' | 'recetas' | 'recuerdos' | 'entretenimiento' | 'otro';
+
+export function inferirCategoria(resumen: string, keywords: string[]): CategoriaMemoria {
+  const t = (resumen + ' ' + keywords.join(' ')).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/\b(hijo|hija|nieto|nieta|hermano|hermana|mama|papa|madre|padre|esposo|esposa|marido|familiar|familia|nacio|nacimiento|boda|casamiento|divorcio)\b/.test(t)) return 'familia';
+  if (/\b(dolor|salud|medico|medicamento|pastilla|remedio|enfermedad|cirugia|operacion|hospital|clinica|artritis|diabetes|colesterol|presion|corazon|espalda|rodilla|andador|ejercicio|rehabilitacion)\b/.test(t)) return 'salud';
+  if (/\b(gusta|prefiere|le encanta|favorito|favorita|disfruta|pasion|hobby|bordar|coser|tejer|jardin|musica|bailar|leer|libro|pelicula|serie|novela|tango|folklore)\b/.test(t)) return 'gustos';
+  if (/\b(receta|ingrediente|cocinar|cocina|horno|salsa|masa|guiso|torta|pastel|empanada|milanesa|asado|fideos|arroz|sopa|caldo|postre|dulce|mermelada)\b/.test(t)) return 'recetas';
+  if (/\b(recuerdo|cuando era|de chica|de joven|infancia|ninez|adolescencia|antes|antiguamente|guerra|peron|epoca|aquel|anecdota|historia|viaje|fui a|estuve en|vivi en)\b/.test(t)) return 'recuerdos';
+  if (/\b(programa|canal|tele|television|radio|cancion|artista|actor|actriz|pelicula|serie|novela|chiste|cuento|juego|tateti|ahorcado)\b/.test(t)) return 'entretenimiento';
+  return 'otro';
+}
 
 const CLAVE_MEMORIA_EPISODICA = 'rosa_memoria_episodica';
 const STOPWORDS_MEMORIA = new Set([
@@ -400,6 +414,7 @@ export async function registrarMemoriaEpisodica(textoUsuario: string, textoAsist
     } else {
       memorias.push({
         id: `${ahora}_${Math.random().toString(36).slice(2, 8)}`,
+        categoria: inferirCategoria(resumen, keywords),
         resumen,
         keywords,
         createdAt: ahora,
@@ -452,13 +467,40 @@ export function construirResumenMemoriasEpisodicas(
     return 'Memoria episódica: todavía no hay charlas previas resumidas.';
   }
 
+  const CATEGORIA_LABELS: Record<string, string> = {
+    familia: '👨‍👩‍👧 Familia',
+    salud: '🏥 Salud',
+    gustos: '💝 Gustos',
+    recetas: '🍲 Recetas',
+    recuerdos: '📖 Recuerdos',
+    entretenimiento: '🎭 Entretenimiento',
+    otro: '💬 Otros temas',
+  };
+
   const lineas: string[] = ['Memoria episódica:'];
+
+  // Group by category
+  const porCategoria = new Map<string, MemoriaEpisodica[]>();
   for (const memoria of ordenadas) {
-    const linea = `- ${truncarMemoria(memoria.resumen, 180)}`;
-    const tamañoActual = lineas.join('\n').length;
-    if (tamañoActual + linea.length + 1 > maxChars) break;
-    lineas.push(linea);
+    const cat = memoria.categoria ?? 'otro';
+    if (!porCategoria.has(cat)) porCategoria.set(cat, []);
+    porCategoria.get(cat)!.push(memoria);
   }
+
+  // Order: familia, salud, recuerdos, gustos, recetas, entretenimiento, otro
+  const categoriaOrden = ['familia', 'salud', 'recuerdos', 'gustos', 'recetas', 'entretenimiento', 'otro'];
+  for (const cat of categoriaOrden) {
+    const mems = porCategoria.get(cat);
+    if (!mems?.length) continue;
+    const label = CATEGORIA_LABELS[cat] ?? cat;
+    for (const memoria of mems) {
+      const linea = `- [${label}] ${truncarMemoria(memoria.resumen, 180)}`;
+      const tamañoActual = lineas.join('\n').length;
+      if (tamañoActual + linea.length + 1 > maxChars) break;
+      lineas.push(linea);
+    }
+  }
+
   lineas.push('Usala para continuidad si realmente suma.');
   return lineas.join('\n');
 }

@@ -24,7 +24,7 @@ import {
   cargarPerfil, guardarHistorial, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, borrarRecordatorio,
   registrarMusicaHoy, guardarUltimaRadio,
-  registrarMemoriaEpisodica, cargarMemoriasEpisodicas, construirResumenMemoriasEpisodicas, extraerKeywordsMemoria,
+  registrarMemoriaEpisodica, cargarMemoriasEpisodicas, guardarMemoriasEpisodicas, construirResumenMemoriasEpisodicas, extraerKeywordsMemoria,
   Seguimiento, cargarSeguimientos, guardarSeguimiento, borrarTodosSeguimientos, construirTextoSeguimientos,
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
   Perfil, TelegramContacto,
@@ -42,6 +42,7 @@ import {
   beginTurnTelemetry, getCurrentTurnMetrics, logCliente, sincronizarAnimo,
   fetchNoticiasDiarias, NoticiasDia,
   crearAsyncJob,
+  sincronizarMemoriasEpisodicas, fetchMemoriasEpisodicasRemoto, buscarMemoriasSemanticoRemoto,
 } from '../lib/ai';
 import { Dispositivo } from '../lib/smartthings';
 import { DomoticaAction } from './useSmartThings';
@@ -659,6 +660,19 @@ export function useBrain(deps: BrainDeps) {
   async function refrescarYConstruirMemoria(query: string): Promise<{ texto: string; count: number; chars: number }> {
     const memorias = await cargarMemoriasEpisodicas();
 
+    // Si hay una query suficientemente larga, enriquecer con búsqueda semántica remota (fire-and-forget)
+    // Los resultados se merguean en el cache local para el próximo turno, sin bloquear el actual.
+    if (query.trim().length >= 12) {
+      buscarMemoriasSemanticoRemoto(query)
+        .then(remotas => {
+          if (!remotas.length) return;
+          return guardarMemoriasEpisodicas(
+            [...memorias, ...remotas.filter(r => !memorias.some(m => m.id === r.id))],
+          );
+        })
+        .catch(() => {});
+    }
+
     // Refrescar cache de resumen completo
     const key = memorias
       .slice(0, 24)
@@ -743,6 +757,22 @@ export function useBrain(deps: BrainDeps) {
 
     // Cargar y evictar seguimientos pendientes
     seguimientosRef.current = await cargarSeguimientos();
+
+    // Mejora A: primer arranque — sincronizar memorias con backend en background
+    (async () => {
+      try {
+        const locales = await cargarMemoriasEpisodicas();
+        if (locales.length > 0) {
+          sincronizarMemoriasEpisodicas(locales).catch(() => {});
+        } else {
+          const remotas = await fetchMemoriasEpisodicasRemoto();
+          if (remotas.length > 0) {
+            await guardarMemoriasEpisodicas(remotas);
+          }
+        }
+      } catch {}
+    })();
+
     // Refrescar cache de memorias episódicas para que getSystemPayload las incluya
     // y para saber si hay algo reciente que Rosita debería retomar
     await refrescarYConstruirMemoria('');
@@ -1565,7 +1595,10 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (sinPregunta.length > 15) parsed.respuesta = sinPregunta;
       }
 
-      registrarMemoriaEpisodica(textoUsuario, parsed.respuesta).catch(() => {});
+      registrarMemoriaEpisodica(textoUsuario, parsed.respuesta)
+        .then(() => cargarMemoriasEpisodicas())
+        .then(mems => sincronizarMemoriasEpisodicas(mems))
+        .catch(() => {});
 
       // ── ASYNC_JOB: disparo fire-and-forget ANTES de cualquier early return ──
       // Debe estar aquí para que los handlers de JUEGOS, MÚSICA, etc. no lo bloqueen.

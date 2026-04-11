@@ -1,4 +1,4 @@
-import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken } from './memoria';
+import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken, MemoriaEpisodica } from './memoria';
 import { RositaSystemPayload } from './systemPayload';
 
 const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
@@ -601,6 +601,56 @@ export async function generarSonido(
     return data.audio ?? null;
   } catch {
     return null;
+  }
+}
+
+// ── Sync de memorias episódicas (Mejora A+C+D) ────────────────────────────────
+
+/** Sincroniza memorias episódicas locales al backend (fire-and-forget seguro). */
+export async function sincronizarMemoriasEpisodicas(memorias: MemoriaEpisodica[]): Promise<boolean> {
+  if (!memorias.length) return true;
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/memorias-sync`, {
+      method: 'POST',
+      headers: await jsonHeaders(),
+      body: JSON.stringify({ memorias }),
+    }, 10000, 'MemoriasSync');
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Trae memorias episódicas almacenadas en el backend. */
+export async function fetchMemoriasEpisodicasRemoto(): Promise<MemoriaEpisodica[]> {
+  try {
+    const res = await fetchConTimeout(`${BACKEND_URL}/ai/memorias-sync`, {
+      headers: await jsonHeaders(),
+    }, 8000, 'MemoriasFetch');
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.memorias) ? data.memorias : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Búsqueda semántica de memorias en el backend (usa embeddings ada-002 + pgvector).
+ *  Timeout corto: si el backend no responde en 2s, devuelve vacío sin bloquear. */
+export async function buscarMemoriasSemanticoRemoto(query: string): Promise<MemoriaEpisodica[]> {
+  if (!query.trim() || query.trim().length < 6) return [];
+  try {
+    const res = await fetchConTimeout(
+      `${BACKEND_URL}/ai/memorias-semantico?q=${encodeURIComponent(query.slice(0, 200))}`,
+      { headers: await jsonHeaders() },
+      2500,
+      'MemoriasSemantico',
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.memorias) ? data.memorias : [];
+  } catch {
+    return [];
   }
 }
 
