@@ -514,7 +514,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         } else {
           await d.onNuevaCapturaVision();
         }
-      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá])\b/.test(textoNorm)) {
+      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá]|ayud[aá](me)?\s+(a\s+)?ver|no\s+(veo|puedo\s+ver)|us[aá]\s+la\s+c[aá]mara|abr[ií]\s+la\s+c[aá]mara|qu[eé]\s+es\s+(esto|eso)|qu[eé]\s+dice\s+(ac[aá]|ah[ií]|esto|eso))\b/.test(textoNorm)) {
         await d.onFlujoModoVision();
       } else {
         await d.onTextoReconocido(texto, newTurnId);
