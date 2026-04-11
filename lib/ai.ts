@@ -517,7 +517,7 @@ export async function fetchNoticiasDiarias(): Promise<NoticiasDia[]> {
   }
 }
 
-/** Envía una imagen al backend (Gemini 2.0 Flash) en modo cámara live. */
+/** Envía una imagen al backend (Claude Vision) en modo cámara live. */
 export async function verVision(base64: string): Promise<string | null> {
   try {
     const res = await fetchConTimeout(`${BACKEND_URL}/ai/ver-vision`, {
@@ -525,10 +525,15 @@ export async function verVision(base64: string): Promise<string | null> {
       headers: await jsonHeaders(),
       body: JSON.stringify({ imagen: base64 }),
     }, 25000, 'Vision');
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error('[verVision] HTTP error:', res.status, await res.text().catch(() => ''));
+      return null;
+    }
     const data = await res.json();
+    if (!data.texto) console.warn('[verVision] respuesta sin texto:', JSON.stringify(data));
     return data.texto ?? null;
-  } catch {
+  } catch (e) {
+    console.error('[verVision] catch:', e instanceof Error ? e.message : e);
     return null;
   }
 }

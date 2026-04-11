@@ -807,13 +807,13 @@ export function useRosita() {
       await pipeline.hablar('No pude sacar la foto. ¿Lo intentamos de nuevo?');
       return;
     }
-    // Muletilla y Gemini en paralelo — la muletilla cubre la latencia
+    // Claude Vision y muletilla en paralelo — la muletilla cubre la latencia
     const [resultado] = await Promise.all([
       verVision(base64),
       pipeline.hablar('Esperáte, que estoy mirando...'),
     ]);
     if (!resultado) {
-      await pipeline.hablar('No pude ver bien. ¿Acercás un poco más la cámara?');
+      await pipeline.hablar('Uy, no me llegó bien la imagen. ¿Probamos de nuevo?');
       return;
     }
     await pipeline.hablar(formatearTextoVision(resultado));
