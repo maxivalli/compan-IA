@@ -48,16 +48,23 @@ type ResultBusqueda = {
   fuentes?: Fuente[];
 };
 
-/** "2 horas 30 minutos" → "2:30 Hs" | "45 minutos" → "0:45 Hs" | "1 hora" → "1:00 Hs" */
+/** "2 horas 30 minutos" → "2:30 Hs" | "45 minutos" → "45 min" | "1 hora" → "1:00 Hs" */
 function formatTiempo(t: string): string {
   const h = t.match(/(\d+)\s*hora/i);
   const m = t.match(/(\d+)\s*minu/i);
   if (h || m) {
     const hh = h ? parseInt(h[1]) : 0;
     const mm = m ? parseInt(m[1]) : 0;
+    if (hh === 0) return `${mm} min`;
     return `${hh}:${String(mm).padStart(2, '0')} Hs`;
   }
   return t;
+}
+
+/** "200" + "g" → "200g " | "1" + "taza" → "1 taza " */
+function formatCantidad(cantidad: string, unidad: string): string {
+  const abreviada = /^(g|kg|ml|l|cc|cm|mm|oz|lb|gr)$/i.test(unidad.trim());
+  return abreviada ? `${cantidad}${unidad} ` : `${cantidad} ${unidad} `;
 }
 
 type JobInbox = {
@@ -163,7 +170,7 @@ function RecetaViewer({ data }: { data: ResultReceta }) {
             <View key={i} style={styles.ingredienteRow}>
               <View style={styles.bullet} />
               <Text style={styles.ingredienteTexto}>
-                {ing.cantidad ? `${ing.cantidad}${ing.unidad} ` : ''}{ing.item}
+                {ing.cantidad ? formatCantidad(ing.cantidad, ing.unidad) : ''}{ing.item}
                 {ing.notas ? <Text style={styles.notas}> ({ing.notas})</Text> : null}
               </Text>
             </View>
