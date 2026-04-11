@@ -403,11 +403,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       return;
     }
 
-    // Protección de eco post-TTS: ignorar SR results por 1200ms después de que Rosita
+    // Protección de eco post-TTS: ignorar SR results por 700ms después de que Rosita
     // terminó de hablar (state='esperando'). Durante 'hablando' el barge-in maneja su
     // propio filtrado. Sin esto, el eco de la voz de Rosita en la sala puede disparar
     // un nuevo turno de Claude.
-    if (d.estadoRef.current === 'esperando' && Date.now() - ultimoFinTTSRef.current < 1200) {
+    if (d.estadoRef.current === 'esperando' && Date.now() - ultimoFinTTSRef.current < 700) {
       if (__DEV__) console.log('[SR] result bloqueado por eco post-TTS, ms:', Date.now() - ultimoFinTTSRef.current);
       return;
     }

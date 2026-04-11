@@ -275,7 +275,8 @@ export default function TatetiScreen() {
       hablandoRef.current = false;
       lastSpokeRef.current = Date.now();
       onDone?.();
-      setTimeout(iniciarSR, 800);
+      // Si onDone ya arranca SR (o encadena otro decir), no lanzar un segundo start.
+      if (!onDone) setTimeout(iniciarSR, 800);
     }
 
     setTimeout(() => {

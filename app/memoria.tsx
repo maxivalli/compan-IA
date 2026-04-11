@@ -220,7 +220,8 @@ export default function MemoriaScreen() {
       hablandoRef.current = false;
       lastSpokeRef.current = Date.now(); // marca fin de TTS
       onDone?.();
-      setTimeout(iniciarSR, 800); // 800ms de silencio antes de reactivar SR
+      // Si onDone ya arranca SR (o encadena otro decir), no lanzar un segundo start.
+      if (!onDone) setTimeout(iniciarSR, 800);
     }
     setTimeout(() => {
       if (uri && feedbackPlayer.playing) {
