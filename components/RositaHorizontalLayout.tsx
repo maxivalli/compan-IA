@@ -334,8 +334,8 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             )}
           </View>
 
-          {/* ZZZ modo durmiendo */}
-          {props.modoNoche === 'durmiendo' && <ZZZ modoHorizontal />}
+          {/* ZZZ modo durmiendo — oculto en modo reloj para no tapar la hora */}
+          {props.modoNoche === 'durmiendo' && !props.modoReloj && <ZZZ modoHorizontal />}
 
           {/* ── HUD mínimo ─────────────────────────────────────────────────── */}
 
