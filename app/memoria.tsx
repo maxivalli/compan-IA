@@ -176,7 +176,7 @@ export default function MemoriaScreen() {
         (height - insets.top - insets.bottom - hdrH - questCardH - scoreLineH - TILE_GAP * (numRows - 1) - vertPad) / numRows,
         (width  - insets.left - insets.right - 32) / numCols - TILE_GAP
       );
-  const tileSize = Math.max(Math.floor(rawTileSize), 56);
+  const tileSize = Math.max(Math.floor(rawTileSize * (isTablet ? 0.9 : 1)), 56);
   const gridW    = tileSize * numCols + TILE_GAP * (numCols - 1);
 
   // ── Pre-cacheo de frases ──────────────────────────────────────────────────────
