@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRootNavigationState } from 'expo-router';
 import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
@@ -77,6 +77,7 @@ function RelojNoche() {
 
 export default function Index() {
   const router = useRouter();
+  const navigationState = useRootNavigationState();
   const {
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     musicaActiva, silbando, noMolestar, setNoMolestar,
@@ -352,15 +353,15 @@ export default function Index() {
   const vozGenero       = refs.perfilRef.current?.vozGenero ?? 'femenina';
 
   // ── Auto-navegar al onboarding en primer uso ─────────────────────────────────
+  // Espera a que navigationState.key esté definido (router listo) antes de navegar.
+  // Sin esta guarda, router.replace falla silenciosamente en el primer arranque post-install.
   useEffect(() => {
+    if (!navigationState?.key) return; // router todavía no está listo
     if (mostrarOnboarding && !refs.perfilRef.current?.nombreAbuela) {
       setMostrarOnboarding(false);
-      // setTimeout 300: dar tiempo a expo-router para inicializar en el primer arranque
-      // (evita que el replace falle silenciosamente en el primer arranque post-install)
-      const t = setTimeout(() => router.replace('/onboarding' as any), 300);
-      return () => clearTimeout(t);
+      router.replace('/onboarding' as any);
     }
-  }, [mostrarOnboarding]);
+  }, [navigationState?.key, mostrarOnboarding]);
 
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom, top: safeTop } = useSafeAreaInsets();
