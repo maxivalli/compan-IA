@@ -17,7 +17,6 @@
 import { useRef } from 'react';
 import { Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Brightness from 'expo-brightness';
 import * as Location from 'expo-location';
 // ExpoSpeechRecognitionModule eliminado — el SR se gestiona exclusivamente en useAudioPipeline
 // a través de pararSRIntencional (centraliza intentionalStopRef + srActivoRef).
@@ -1619,7 +1618,8 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.tagPrincipal === 'LINTERNA') {
         d.setLinternaActiva(true);
         Animated.timing(d.flashAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
-        try { await Brightness.setBrightnessAsync(1); } catch {}
+        // No llamar Brightness directamente: setLinternaActiva dispara el effect
+        // en useRosita que centraliza todo el brillo via aplicarBrilloDeseado.
         await d.hablar(parsed.respuesta);
         return;
       }
