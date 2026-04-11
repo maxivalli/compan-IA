@@ -423,8 +423,8 @@ function CabezaGato({ scale = 1, noseOffsetY = 0 }: { scale?: number; noseOffset
       <Path d="M 284,148 L 296,32 L 168,107 Z" fill="url(#gcEarIn)" />
 
       {/* ── Cara ── */}
-      <Ellipse cx={160} cy={218} rx={152} ry={155} fill="url(#gcFace)" />
-      <Ellipse cx={160} cy={218} rx={152} ry={155} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
+      <Ellipse cx={160} cy={218} rx={152} ry={143} fill="url(#gcFace)" />
+      <Ellipse cx={160} cy={218} rx={152} ry={143} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
 
       {/* ── Rayas tabby ── */}
       <Path d="M 152,102 Q 160,92 168,102" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
