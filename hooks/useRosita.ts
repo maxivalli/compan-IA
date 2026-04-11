@@ -462,7 +462,7 @@ export function useRosita() {
       // verificar igual si necesita onboarding antes de mostrar la pantalla principal.
       try {
         const perfil = await cargarPerfil();
-        if (!perfil.nombreAbuela) { setMostrarOnboarding(true); return; }
+        if (!perfil.nombreAbuela) { setCargando(false); setMostrarOnboarding(true); return; }
       } catch {}
       setCargando(false);
       pipeline.iniciarSpeechRecognition();
@@ -534,6 +534,7 @@ export function useRosita() {
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
 
     if (!perfilGuardado.nombreAbuela) {
+      setCargando(false);
       setMostrarOnboarding(true);
     } else {
       pipeline.precachearMuletillas(perfilGuardado.vozId, perfilGuardado.nombreAbuela).catch(() => {});
