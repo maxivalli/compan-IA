@@ -28,6 +28,11 @@ async function escribirCache(clave: string, url: string): Promise<void> {
   try { await AsyncStorage.setItem(CACHE_PREFIX + clave, JSON.stringify({ url, ts: Date.now() })); } catch {}
 }
 
+/** Confirma que una URL funcionó y la guarda en caché. Llamar desde el reproductor tras verificar playback. */
+export async function confirmarRadio(termino: string, url: string): Promise<void> {
+  await escribirCache(termino.toLowerCase().trim(), url);
+}
+
 // ── Fallbacks hardcodeados (último recurso si la API falla) ───────────────────
 export const STREAMS_FALLBACK: Record<string, string[]> = {
   cadena3:     ['https://liveradio.mediainbox.net/radio3.mp3'],
@@ -53,14 +58,9 @@ export const STREAMS_FALLBACK: Record<string, string[]> = {
   bolero:      ['https://stream.zeno.fm/b10wvksv7mruv'],
   folklore:    ['https://sa.mp3.icecast.magma.edge-access.net/sc_rad38'],
   romantica:   ['https://stream.zeno.fm/aa5f9m2rtg0uv'],
-  clasica:     ['https://stream.srg-ssr.ch/srgssr/rco/mp3/128'],
   jazz:        ['https://stream.srg-ssr.ch/srgssr/rsj/mp3/128'],
   pop:         ['https://playerservices.streamtheworld.com/api/livestream-redirect/FM999_56.mp3'],
-  cumbia:      ['https://stream.zeno.fm/2kfhqpf3meguv'],
-  cuarteto:    ['https://stream.zeno.fm/8dghkyfbpqzuv'],
-  rock:        ['https://playerservices.streamtheworld.com/api/livestream-redirect/ROCKANDPOPAAC.aac'],
-  salsa:       ['https://stream.zeno.fm/p87ttnn3twzuv'],
-  tropical:    ['https://stream.zeno.fm/2kfhqpf3meguv'],
+  rock:        ['https://playerservices.streamtheworld.com/api/livestream-redirect/ROCKANDPOPAAC.aac'], 
 };
 
 // ── Alias de búsqueda → nombre real para la API ───────────────────────────────
@@ -126,10 +126,25 @@ function esStreamDirecto(url: string): boolean {
   return esStreamValido(url) && !url.endsWith('.m3u8');
 }
 
-function mejorStream(stations: any[]): string | null {
-  // Ordenar: con url_resolved HTTPS directo, mayor votes
+// Tags incompatibles por género: si una estación los tiene, se descarta.
+const TAGS_EXCLUIDOS: Record<string, string[]> = {
+  romantica: ['dance', 'electronic', 'electronica', 'techno', 'house', 'reggaeton', 'urban', 'trap', 'edm', 'disco'],
+  bolero:    ['dance', 'electronic', 'electronica', 'techno', 'house', 'reggaeton', 'urban', 'trap', 'edm'],
+  clasica:   ['dance', 'electronic', 'electronica', 'techno', 'house', 'reggaeton', 'rock', 'pop', 'cumbia'],
+  tango:     ['dance', 'electronic', 'electronica', 'techno', 'house', 'reggaeton', 'pop'],
+  folklore:  ['dance', 'electronic', 'electronica', 'techno', 'house', 'reggaeton', 'pop'],
+  jazz:      ['dance', 'electronic', 'electronica', 'techno', 'house', 'reggaeton'],
+};
+
+function mejorStream(stations: any[], genero?: string): string | null {
+  const tagsExcluidos = genero ? (TAGS_EXCLUIDOS[genero] ?? []) : [];
   const candidatos = stations
-    .filter((s: any) => esStreamDirecto(s.url_resolved ?? ''))
+    .filter((s: any) => {
+      if (!esStreamDirecto(s.url_resolved ?? '')) return false;
+      if (tagsExcluidos.length === 0) return true;
+      const stationTags = (s.tags ?? '').toLowerCase().split(',').map((t: string) => t.trim());
+      return !tagsExcluidos.some(excluido => stationTags.includes(excluido));
+    })
     .sort((a: any, b: any) => (b.votes ?? 0) - (a.votes ?? 0));
   return candidatos[0]?.url_resolved ?? null;
 }
@@ -167,15 +182,15 @@ async function buscarPorNombre(termino: string, countrycode = 'AR'): Promise<{ u
   return null;
 }
 
-async function buscarPorTag(tag: string): Promise<{ url: string; uuid: string } | null> {
+async function buscarPorTag(tag: string, genero?: string): Promise<{ url: string; uuid: string } | null> {
   for (const servidor of SERVIDORES) {
     try {
-      const url = `${servidor}/json/stations/search?tag=${encodeURIComponent(tag)}&language=spanish&hidebroken=true&order=votes&reverse=true&limit=20`;
+      const url = `${servidor}/json/stations/search?tag=${encodeURIComponent(tag)}&language=spanish&hidebroken=true&order=votes&reverse=true&limit=40`;
       const res = await fetchConTimeout(url, 7000, { headers: HEADERS });
       if (!res.ok) continue;
       const stations = await res.json();
       if (!Array.isArray(stations) || stations.length === 0) continue;
-      const stream = mejorStream(stations);
+      const stream = mejorStream(stations, genero);
       if (stream) return { url: stream, uuid: stations.find((s: any) => s.url_resolved === stream)?.stationuuid ?? '' };
     } catch {}
   }
@@ -220,7 +235,6 @@ export async function buscarRadio(termino: string): Promise<string | null> {
   if (esRadioNombrada) {
     const resultado = await buscarPorNombre(key, 'AR');
     if (resultado) {
-      await escribirCache(key, resultado.url);
       notificarClick(resultado.uuid);
       return resultado.url;
     }
@@ -234,12 +248,10 @@ export async function buscarRadio(termino: string): Promise<string | null> {
     const curadas = STREAMS_FALLBACK[key];
     const primeraCurada = curadas?.[0];
     if (primeraCurada && esStreamValido(primeraCurada)) {
-      await escribirCache(key, primeraCurada);
       return primeraCurada;
     }
-    const resultado = await buscarPorTag(tagAPI);
+    const resultado = await buscarPorTag(tagAPI, key);
     if (resultado) {
-      await escribirCache(key, resultado.url);
       notificarClick(resultado.uuid);
       return resultado.url;
     }
@@ -249,19 +261,13 @@ export async function buscarRadio(termino: string): Promise<string | null> {
   if (!esRadioNombrada && !tagAPI) {
     const resultado = await buscarAbierto(key);
     if (resultado) {
-      await escribirCache(key, resultado.url);
       notificarClick(resultado.uuid);
       return resultado.url;
     }
   }
 
   // 4. Fallback hardcodeado (emisora sin API, o género tras fallo de tag / curada inválida)
-  const fallback = STREAMS_FALLBACK[key]?.[0] ?? null;
-  if (fallback) {
-    if (esStreamValido(fallback)) await escribirCache(key, fallback);
-    return fallback;
-  }
-  return null;
+  return STREAMS_FALLBACK[key]?.[0] ?? null;
 }
 
 /**

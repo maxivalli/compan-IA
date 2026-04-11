@@ -655,6 +655,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     playerMusica.pause();
     depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);
+    // Rearrancar SR después de parar la música — la música lo había detenido
+    // intencionalmente y nadie más lo reactiva al parar manualmente.
+    setTimeout(() => iniciarSpeechRecognition(), 300);
   }
   function reanudarMusica() {
     playerMusica.play();

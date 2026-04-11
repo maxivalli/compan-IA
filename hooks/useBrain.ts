@@ -30,7 +30,7 @@ import {
   Lista, cargarListas, guardarLista, agregarItemLista, borrarLista,
   Perfil, TelegramContacto,
 } from '../lib/memoria';
-import { buscarRadio, getFallbackAlt, nombreRadioOGenero } from '../lib/musica';
+import { buscarRadio, getFallbackAlt, nombreRadioOGenero, confirmarRadio } from '../lib/musica';
 import { obtenerJuego, formatearJuegoParaClaude, obtenerChiste, formatearChisteParaClaude } from '../lib/juegos';
 import { Expresion } from '../components/RosaOjos';
 import {
@@ -508,6 +508,7 @@ interface AudioPlayerLike {
   play(): void;
   volume: number;
   readonly currentTime: number;
+  readonly playing: boolean;
 }
 
 export interface BrainDeps {
@@ -911,32 +912,40 @@ export function useBrain(deps: BrainDeps) {
         musicaFallbackTimerRef.current = setTimeout(async () => {
           musicaFallbackTimerRef.current = null;
           if (!d.musicaActivaRef.current) return;
-          if (d.playerMusica.currentTime >= 0.5) return;
+          // currentTime es 0 en streams de radio en vivo (Icecast/Shoutcast no lo avanza).
+          // Usar playerMusica.playing como indicador de que el stream conectó correctamente.
+          if (d.playerMusica.playing) {
+            // Stream confirmado como funcionando → guardar en caché
+            confirmarRadio(generoMusica, urlStream).catch(() => {});
+            return;
+          }
           const altUrl = getFallbackAlt(generoMusica, urlStream);
+
+          async function hablarError(texto: string) {
+            d.pararMusica();
+            d.pararSRIntencional();
+            await new Promise(r => setTimeout(r, 300));
+            if (d.estadoRef.current === 'pensando' || d.estadoRef.current === 'hablando') return;
+            await d.hablar(texto);
+          }
+
           if (altUrl) {
             try {
               d.playerMusica.replace({ uri: altUrl });
               d.playerMusica.play();
               setTimeout(async () => {
                 if (!d.musicaActivaRef.current) return;
-                if (d.playerMusica.currentTime < 0.5) {
-                  d.pararMusica();
-                  if (d.estadoRef.current !== 'esperando') return;
-                  await new Promise(r => setTimeout(r, 300));
-                  await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
+                if (d.playerMusica.playing) {
+                  confirmarRadio(generoMusica, altUrl).catch(() => {});
+                  return;
                 }
+                await hablarError('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
               }, 8000);
             } catch {
-              d.pararMusica();
-              if (d.estadoRef.current !== 'esperando') return;
-              await new Promise(r => setTimeout(r, 300));
-              await d.hablar('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
+              await hablarError('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
             }
           } else {
-            d.pararMusica();
-            if (d.estadoRef.current !== 'esperando') return;
-            await new Promise(r => setTimeout(r, 300));
-            await d.hablar('La radio no está respondiendo. ¿Querés que intente con otra?');
+            await hablarError('La radio no está respondiendo. ¿Querés que intente con otra?');
           }
         }, 10000);
       } catch {
@@ -1283,7 +1292,9 @@ export function useBrain(deps: BrainDeps) {
     const contextoInterlocutor = interlocutorActivo
       ? `\nInterlocutor actual: ${interlocutorActivo}. Respondé a ${interlocutorActivo}.`
       : `\nSi no sabés quién habla, no uses nombres propios.`;
-    const maxTokBase  = (pideCuento || pideJuego || pideChiste)
+    const maxTokBase  = pideCuento
+      ? 1100
+      : (pideJuego || pideChiste)
       ? 700
       : ofrecerMenuAburrimiento
         ? 150
