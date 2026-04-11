@@ -36,7 +36,7 @@ export default function CameraAutoCaptura({ visible, onCaptura, onCancelar, faci
       if (capturaVisionRef) {
         capturaVisionRef.current = async () => {
           try {
-            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.6, shutterSound: false, skipProcessing: true });
+            const foto = await cameraRef.current?.takePictureAsync({ base64: true, quality: 0.25, shutterSound: false, skipProcessing: true });
             if (foto?.base64) onCaptura(foto.base64);
           } catch {}
         };
