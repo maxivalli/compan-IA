@@ -213,7 +213,10 @@ export default function MemoriaScreen() {
     if (uri) { feedbackPlayer.replace({ uri }); feedbackPlayer.play(); }
     const durMs = Math.max(texto.length * 85, 800) + 600;
 
+    let terminated = false;
     function terminate() {
+      if (terminated) return;
+      terminated = true;
       hablandoRef.current = false;
       lastSpokeRef.current = Date.now(); // marca fin de TTS
       onDone?.();

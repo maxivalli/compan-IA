@@ -48,7 +48,7 @@ const M = {
 
 function al<T>(arr: readonly T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
 
-const TATETI_CACHE_VERSION = 'v2';
+const TATETI_CACHE_VERSION = 'v3';
 
 const FRASES = {
   movUsuario: [
@@ -240,6 +240,8 @@ export default function TatetiScreen() {
             const remoteUrl = urlFrasePrecacheada(voiceId, 'tateti', cat, i);
             const dl = await FileSystem.downloadAsync(remoteUrl, localUri).catch(() => null);
             if (!dl || dl.status !== 200) {
+              // Borrar el archivo que downloadAsync escribió aunque el status no sea 200
+              await FileSystem.deleteAsync(localUri, { idempotent: true }).catch(() => {});
               const base64 = await sintetizarVoz(frase, voiceId, 1.0, 'juego').catch(() => null);
               if (base64) await FileSystem.writeAsStringAsync(localUri, base64, { encoding: 'base64' }).catch(() => {});
               else continue;
@@ -266,7 +268,10 @@ export default function TatetiScreen() {
     }
     const durMs = Math.max(texto.length * 85, 800) + 600;
 
+    let terminated = false;
     function terminate() {
+      if (terminated) return;
+      terminated = true;
       hablandoRef.current = false;
       lastSpokeRef.current = Date.now();
       onDone?.();
