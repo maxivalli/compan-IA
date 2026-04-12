@@ -1,14 +1,22 @@
-apply plugin: 'expo-module'
-
-// expo-module configura automáticamente: compileSdk, minSdk, targetSdk,
-// kotlin-android y el plugin de Android library.
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
 
 android {
+  compileSdk 34
+  defaultConfig {
+    minSdk 26
+    targetSdk 34
+  }
   kotlinOptions {
     jvmTarget = "17"
   }
 }
 
+repositories {
+  mavenCentral()
+}
+
 dependencies {
+  implementation project(':expo-modules-core')
   implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
 }
