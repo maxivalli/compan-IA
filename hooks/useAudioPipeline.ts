@@ -47,7 +47,7 @@ const MULETILLA_CACHE_VERSION = 'v18';
 
 // ── Feature flag: true = Deepgram Nova-3, false = expo-speech-recognition ────
 // Cambiar a true una vez que el build con AudioCapture nativo esté instalado.
-const USE_DEEPGRAM_SR = false;
+const USE_DEEPGRAM_SR = true;
 
 const BARGE_IN_ARM_DELAY_MS = 1200;
 const BARGE_IN_MIN_SPEECH_MS = 700;
