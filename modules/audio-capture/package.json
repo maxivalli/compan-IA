@@ -1,0 +1,9 @@
+{
+  "name": "audio-capture",
+  "version": "1.0.0",
+  "description": "Expo Module para captura de audio PCM16 en tiempo real",
+  "main": "src/AudioCaptureModule",
+  "dependencies": {
+    "expo-modules-core": "*"
+  }
+}

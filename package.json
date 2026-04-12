@@ -19,6 +19,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "amplificador-audio": "file:./modules/amplificador-audio",
+    "audio-capture": "file:./modules/audio-capture",
     "expo": "~54.0.33",
     "expo-audio": "~1.1.1",
     "expo-brightness": "~14.0.8",
