@@ -966,7 +966,7 @@ export function useBrain(deps: BrainDeps) {
         guardarUltimaRadio(generoMusica).catch(() => {});
         d.setEstado('esperando');
         d.estadoRef.current = 'esperando';
-        d.iniciarSpeechRecognition();
+        // SR queda parado mientras suena música — se reactiva en pararMusica()
         if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
         d.expresionTimerRef.current = setTimeout(() => d.setExpresion('neutral'), 5000);
         // Timer cancelable: si el usuario pide otra radio antes de 10s,
