@@ -8,8 +8,6 @@
  * llaman a estas funciones — nunca directamente a los callbacks de useRosita.
  */
 
-// ExpoSpeechRecognitionModule eliminado — el SR se gestiona exclusivamente
-// a través de pararSRIntencional (centraliza intentionalStopRef + srActivoRef).
 import { useCallback, useRef } from 'react';
 import { EstadoRosita } from './useBrain';
 
@@ -23,8 +21,6 @@ export interface AccionesRositaDeps {
   dispararSOS:                 () => Promise<void>;
   setNoMolestar:               (v: boolean) => void;
   iniciarSpeechRecognition:    () => void;
-  // Centralizado en pipeline — setea intentionalStopRef + srActivoRef para evitar
-  // que el handler 'end' interprete el stop como un corte inesperado (backoff + restart).
   pararSRIntencional:          () => void;
   detenerSilbido:              () => void;
   chequearPendientesAlActivar: () => void;
@@ -59,9 +55,7 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
     const d = depsRef.current;
     const nuevo = !d.noMolestar;
     if (nuevo) {
-      // pararSRIntencional centraliza el flag intentionalStopRef en el pipeline:
-      // evita que el handler 'end' interprete el stop como corte inesperado
-      // (que incrementaría el backoff y reiniciaría el SR en modo No Molestar).
+      // pararSRIntencional pausa AudioCapture (Deepgram) sin cerrar el WS.
       d.pararSRIntencional();
       d.setNoMolestar(true);
       d.detenerSilbido();

@@ -18,8 +18,6 @@ import { useRef } from 'react';
 import { Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
-// ExpoSpeechRecognitionModule eliminado — el SR se gestiona exclusivamente en useAudioPipeline
-// a través de pararSRIntencional (centraliza intentionalStopRef + srActivoRef).
 import {
   cargarPerfil, guardarHistorial, guardarEntradaAnimo, agregarRecuerdo,
   guardarRecordatorio, borrarRecordatorio,

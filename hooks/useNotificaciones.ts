@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAudioPlayer } from 'expo-audio';
 import { useAudioRecorder, RecordingPresets } from 'expo-audio';
-// ExpoSpeechRecognitionModule eliminado — usamos pararSRIntencional de los refs
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Perfil,

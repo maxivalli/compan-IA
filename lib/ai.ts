@@ -295,8 +295,8 @@ export async function transcribirAudio(uri: string): Promise<string> {
     method: 'POST',
     headers: await formHeaders(),
     body: formData,
-  }, 25000, 'Whisper');
-  if (!res.ok) throw new Error(`Whisper ${res.status}`);
+  }, 25000, 'Deepgram-transcribe');
+  if (!res.ok) throw new Error(`Deepgram-transcribe ${res.status}`);
   const data = await res.json();
   return data.text?.trim() ?? '';
 }

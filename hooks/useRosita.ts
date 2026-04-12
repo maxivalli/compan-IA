@@ -126,8 +126,7 @@ export function useRosita() {
   // brainRef se actualiza en cada render y el pipeline lo lee sólo en callbacks async.
   const brainRef = useRef<ReturnType<typeof useBrain> | null>(null);
 
-  // safeStopSpeechRecognition local ELIMINADA — usar pipeline.pararSpeechRecognitionIntencional()
-  // que centraliza el intentionalStopRef + srActivoRef.
+  // SR se gestiona a través de pipeline.pararSpeechRecognitionIntencional() (pausa AudioCapture vía Deepgram).
 
   function setNoMolestar(v: boolean) {
     noMolestarRef.current = v;

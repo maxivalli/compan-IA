@@ -2,7 +2,7 @@
  * useAudioPipeline — motor de audio de Rosita.
  *
  * Responsabilidades:
- *   - Speech Recognition continuo (expo-speech-recognition)
+ *   - Speech Recognition continuo vía Deepgram Nova-3 (useDeepgramSR)
  *   - TTS con cache disco + streaming HTTP (expo-audio)
  *   - Cola de oraciones (hablarConCola) con pre-cache solapado
  *   - Muletillas: pre-cache al inicio y reproducción en race con Claude
@@ -18,12 +18,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer, AudioPlayer } from 'expo-audio';
+import { useAudioRecorder, RecordingPresets, useAudioPlayer, AudioPlayer } from 'expo-audio';
 
 // expo-audio no expone duration, currentTime ni loop en sus tipos TypeScript,
 // pero sí existen en el objeto subyacente de Android/iOS.
 type AudioPlayerExt = AudioPlayer & { duration?: number; currentTime?: number; loop?: boolean };
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useDeepgramSR } from './useDeepgramSR';
 import { Perfil } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
@@ -45,12 +44,7 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, Cat
 const TTS_CACHE_VERSION = 'v6';
 const MULETILLA_CACHE_VERSION = 'v18';
 
-// ── Feature flag: true = Deepgram Nova-3, false = expo-speech-recognition ────
-// Cambiar a true una vez que el build con AudioCapture nativo esté instalado.
-const USE_DEEPGRAM_SR = true;
-
 const BARGE_IN_ARM_DELAY_MS = 1200;
-const BARGE_IN_MIN_SPEECH_MS = 700;
 const BARGE_IN_MIN_CHARS = 110;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
@@ -159,52 +153,8 @@ export function splitEnOraciones(texto: string): string[] {
   return oraciones.filter(s => s.length > 0);
 }
 
-function normalizarTextoPlano(texto: string): string {
-  return texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
 
-function esEcoDelTTS(reconocido: string, hablado: string | null): boolean {
-  if (!hablado) return false;
-  const r = normalizarTextoPlano(reconocido);
-  const h = normalizarTextoPlano(hablado);
-  if (!r || !h) return false;
-  if (r.length < 6) return false;
-  if (h.includes(r) || r.includes(h.slice(0, Math.min(h.length, 24)))) return true;
-  const tokensR = new Set(r.split(' ').filter(p => p.length >= 3));
-  const tokensH = new Set(h.split(' ').filter(p => p.length >= 3));
-  if (!tokensR.size || !tokensH.size) return false;
-  let overlap = 0;
-  tokensR.forEach(token => { if (tokensH.has(token)) overlap++; });
-  return overlap >= Math.min(3, tokensR.size);
-}
 
-function coincideConColaDelTTS(reconocido: string, hablado: string | null): boolean {
-  if (!hablado) return false;
-  const r = normalizarTextoPlano(reconocido);
-  const h = normalizarTextoPlano(hablado);
-  if (!r || !h) return false;
-
-  const colaChars = h.slice(-Math.min(h.length, 48));
-  if (colaChars.includes(r)) return true;
-
-  const tokensH = h.split(' ').filter(Boolean);
-  const tokensR = r.split(' ').filter(Boolean);
-  if (!tokensH.length || !tokensR.length) return false;
-
-  const cola3 = tokensH.slice(-3).join(' ');
-  const cola4 = tokensH.slice(-4).join(' ');
-  const cola5 = tokensH.slice(-5).join(' ');
-  if (cola3.includes(r) || cola4.includes(r) || cola5.includes(r)) return true;
-
-  // Si lo reconocido es muy corto y comparte casi toda la cola, preferimos
-  // ignorarlo para evitar que Rosita se auto-interrumpa con su propio cierre.
-  if (r.length <= 16 && tokensR.length <= 3) {
-    const overlap = tokensR.filter(token => token.length >= 3 && (cola4.includes(token) || cola5.includes(token))).length;
-    if (overlap >= Math.max(1, tokensR.length)) return true;
-  }
-
-  return false;
-}
 
 
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
@@ -269,11 +219,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Refs de SR ────────────────────────────────────────────────────────────
   const srActivoRef            = useRef(false);
   const ultimaActivacionSrRef  = useRef<number>(0);
-  // Previene que el evento 'end' del stop() interno de iniciarSpeechRecognition()
-  // dispare un restart espurio (root cause del loop de sr_start mudo).
-  const intentionalStopRef     = useRef(false);
-  // Cuenta cuántos 'end' consecutivos hubo sin result; alimenta el backoff exponencial.
-  const srConsecutiveEndsRef   = useRef(0);
   // Suspendido por blur (ej: usuario navegó a un juego) — el watchdog no reinicia SR.
   const srSuspendidoRef        = useRef(false);
 
@@ -293,7 +238,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const precacheRapidasRunningRef    = useRef(false);
   const precacheSistemaRunningRef    = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
-  const ultimaSistemaRef           = useRef<Partial<Record<string, number>>>({});
   const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
 
   // ── Refs de silbido ──────────────────────────────────────────────────────
@@ -308,9 +252,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
     onReady: () => {
       srActivoRef.current = true;
+      ultimaActivacionSrRef.current = Date.now(); // reset zombie timer tras reconexión
       logCliente('dg_sr_ready', { estado: depsRef.current.estadoRef.current });
     },
     onPartial: (texto) => {
+      // Partials de Deepgram = hay voz activa → mostrar waveform
+      activarFeedbackSonido();
       depsRef.current.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
@@ -327,20 +274,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     },
   });
 
-  // safeStopSpeechRecognition centraliza TODO stop del SR:
-  // - setea intentionalStopRef si el SR estaba activo → el handler 'end' lo ignora
-  // - resetea srActivoRef para que el watchdog no crea que sigue corriendo
+  // Pausa AudioCapture para evitar eco (Rosita escuchándose a sí misma).
+  // El WS queda abierto — se reanuda cuando termine de hablar.
   function safeStopSpeechRecognition() {
-    if (USE_DEEPGRAM_SR) {
-      // Pausa AudioCapture para evitar eco (Rosita escuchándose a sí misma).
-      // El WS queda abierto — se reanuda cuando termine de hablar.
-      srActivoRef.current = false;
-      pausarCapturaDG();
-      return;
-    }
-    if (srActivoRef.current) intentionalStopRef.current = true;
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
     srActivoRef.current = false;
+    pausarCapturaDG();
   }
 
   // ── Limpiar cache viejo (TTS files > 7 días) ─────────────────────────────
@@ -385,42 +323,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       d.srResultTsRef.current = 0;
     }
 
-    if (USE_DEEPGRAM_SR) {
-      // Marcar activo inmediatamente para que el watchdog no vuelva a llamar antes del onReady.
-      srActivoRef.current = true;
-      // reanudarCapturaDG: reactiva AudioCapture si el WS sigue abierto,
-      // o reconecta si el WS cayó mientras Rosita hablaba.
-      reanudarCapturaDG();
-      logCliente('sr_start', { modo: 'deepgram', estado: depsRef.current.estadoRef.current });
-      return;
-    }
-
-    try {
-      // safeStopSpeechRecognition() ya maneja el intentionalStopRef internamente.
-      safeStopSpeechRecognition();
-      ExpoSpeechRecognitionModule.start({
-        lang: 'es-AR',
-        continuous: true,
-        interimResults: false,
-        androidIntentOptions: {
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 550,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 280,
-        },
-      });
-      srActivoRef.current = true;
-      logCliente('sr_start', { estado: depsRef.current.estadoRef.current });
-    } catch {
-      intentionalStopRef.current = false;
-      srActivoRef.current = false;
-      logCliente('sr_start_error', { estado: depsRef.current.estadoRef.current });
-    }
+    // Marcar activo inmediatamente para que el watchdog no vuelva a llamar antes del onReady.
+    srActivoRef.current = true;
+    // reanudarCapturaDG: reactiva AudioCapture si el WS sigue abierto,
+    // o reconecta si el WS cayó mientras Rosita hablaba.
+    reanudarCapturaDG();
+    logCliente('sr_start', { estado: depsRef.current.estadoRef.current });
   }
 
-  // ── SR: event handlers ────────────────────────────────────────────────────
-
   // ── procesarTextoReconocido ───────────────────────────────────────────────
-  // Lógica compartida entre SR nativo y Deepgram: recibe el texto ya validado
-  // y ejecuta el flujo completo (foto, visión, Claude, etc.)
   async function procesarTextoReconocido(texto: string) {
     const d = depsRef.current;
     const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -468,177 +379,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
   }
 
-  useSpeechRecognitionEvent('result', async (event) => {
-    const d = depsRef.current;
-    if (srSuspendidoRef.current) return;
-    srConsecutiveEndsRef.current = 0; // result exitoso → resetear contador de backoff
-    const texto = event.results?.[0]?.transcript?.trim();
-    if (__DEV__) console.log('[SR] result:', texto, '| proc:', procesandoRef.current, '| flujo:', enFlujoVozRef.current, '| estado:', d.estadoRef.current, '| asistente:', d.nombreAsistenteRef.current);
-    if (procesandoRef.current) return;
-    if (enFlujoVozRef.current) return;
-    if (!texto || texto.length < 2) {
-      // Si el usuario habló (speechend reciente) pero el SR no captó nada reconocible,
-      // responder con "no_escuche" para que la usuaria sepa que Rosita la oyó pero no entendió.
-      // Condiciones: habló hace menos de 3s, no es eco del TTS propio, y Rosita está libre.
-      const speechEndAge = d.speechEndTsRef.current ? Date.now() - d.speechEndTsRef.current : Infinity;
-      const ecoAge       = Date.now() - ultimoFinTTSRef.current;
-      if (
-        speechEndAge < 3000 &&
-        ecoAge > 1500 &&
-        d.estadoRef.current === 'esperando' &&
-        !enColaHablaRef.current
-      ) {
-        const p = d.perfilRef.current;
-        const genero: 'femenina' | 'masculina' = (p?.vozGenero ?? 'femenina') === 'masculina' ? 'masculina' : 'femenina';
-        const lista  = RESPUESTAS_RAPIDAS.no_escuche[genero];
-        const ultimo = ultimaRapidaRef.current.no_escuche ?? -1;
-        let idx: number;
-        do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
-        ultimaRapidaRef.current.no_escuche = idx;
-        logCliente('no_escuche', { speechEndAge, genero });
-        await hablar(lista[idx], 'neutral');
-      }
-      return;
-    }
-
-    // Protección de eco post-TTS: ignorar SR results por 700ms después de que Rosita
-    // terminó de hablar (state='esperando'). Durante 'hablando' el barge-in maneja su
-    // propio filtrado. Sin esto, el eco de la voz de Rosita en la sala puede disparar
-    // un nuevo turno de Claude.
-    if (d.estadoRef.current === 'esperando' && Date.now() - ultimoFinTTSRef.current < 400) {
-      if (__DEV__) console.log('[SR] result bloqueado por eco post-TTS, ms:', Date.now() - ultimoFinTTSRef.current);
-      return;
-    }
-
-    // Reactivación en modo no molestar
-    if (d.noMolestarRef.current) {
-      const nombreNormNM  = d.nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const textoNormNM   = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const mencionaNombreNM = new RegExp('(^|\\s)' + nombreNormNM.slice(0, 5), 'i').test(textoNormNM);
-      if (mencionaNombreNM && /\b(podes hablar|podes volver|volvé|vuelve|ya podes|despierta|activa(te)?|estoy aca|hola)\b/.test(textoNormNM)) {
-        d.setNoMolestar(false);
-        const { frases, emotion } = FRASES_SISTEMA.modo_no_molestar_off;
-        const ultimo = ultimaSistemaRef.current.modo_no_molestar_off ?? -1;
-        let idx: number;
-        do { idx = Math.floor(Math.random() * frases.length); } while (idx === ultimo && frases.length > 1);
-        ultimaSistemaRef.current.modo_no_molestar_off = idx;
-        await hablar(frases[idx], emotion);
-      }
-      return;
-    }
-
-    if (d.musicaActivaRef.current) duckMusica();
-
-    const nombreNorm  = d.nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const textoNorm   = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const nombreRegex = new RegExp('(^|\\s)' + nombreNorm.slice(0, 5), 'i');
-    const mencionaNombre = nombreRegex.test(textoNorm);
-    const esNoche = d.modoNocheRef.current !== 'despierta';
-    const tiempoDesdeUltimaCharla = Date.now() - d.ultimaCharlaRef.current;
-    // 60s (antes 30s): adultos mayores necesitan más tiempo para procesar y responder
-    // sin tener que mencionar el nombre del asistente explícitamente.
-    const enConversacion = d.musicaActivaRef.current ? false : tiempoDesdeUltimaCharla < 60 * 1000;
-
-    const _imp    = /^(pone|pon|avisa(me)?|recorda(me)?|acordate|apaga|prende|encende|enciende|llama|manda|busca)\b/.test(textoNorm);
-    const _info   = /(que hora|que dia|que fecha|que tiempo (hace|va|esta)|va a llover|que temperatura|cuanto (es|son|vale|valen))/.test(textoNorm);
-    const _entret = /^(contame (un|una)|cantame|jugamos)\b/.test(textoNorm) || /\b(un chiste|una adivinanza)\b/.test(textoNorm);
-    const esPreguntaDirecta = (d.musicaActivaRef.current || esNoche) ? false : (_imp || _info || _entret);
-    if (__DEV__) console.log('[SR] check → menciona:', mencionaNombre, '| enConv:', enConversacion, '| pregunta:', esPreguntaDirecta);
-
-    if (d.estadoRef.current === 'hablando') {
-      const msHablando = hablandoDesdeRef.current ? Date.now() - hablandoDesdeRef.current : 0;
-      const esRelevante = mencionaNombre || esPreguntaDirecta || (enConversacion && textoNorm.length >= 10);
-      if (msHablando < BARGE_IN_MIN_SPEECH_MS) {
-        logCliente('barge_in_ignored', { motivo: 'grace', chars: texto.length, ms_hablando: msHablando });
-        unduckMusica();
-        return;
-      }
-      if (esEcoDelTTS(texto, ultimoTextoHabladoRef.current)) {
-        logCliente('barge_in_ignored', { motivo: 'echo', chars: texto.length });
-        unduckMusica();
-        return;
-      }
-      if (coincideConColaDelTTS(texto, ultimoTextoHabladoRef.current)) {
-        logCliente('barge_in_ignored', { motivo: 'echo_tail', chars: texto.length });
-        unduckMusica();
-        return;
-      }
-      if (!esRelevante) {
-        logCliente('barge_in_ignored', { motivo: 'irrelevante', chars: texto.length });
-        unduckMusica();
-        return;
-      }
-      logCliente('barge_in_committed', { chars: texto.length, ms_hablando: msHablando });
-      try { cancelarHablaRef.current?.(); } catch {}
-    } else if (d.estadoRef.current === 'pensando') {
-      return;
-    }
-
-    if (!mencionaNombre && !enConversacion && !esPreguntaDirecta && !d.modoVisionRef.current) { unduckMusica(); return; }
-
-    // Comando de silencio: "[nombre] hacé silencio" → confirmar y activar modo no molestar
-    if (mencionaNombre && /\b(silencio|callate|calla(te)?|no molestes|no hables|modo silencio|no molestar)\b/.test(textoNorm)) {
-      unduckMusica();
-      const { frases, emotion } = FRASES_SISTEMA.modo_no_molestar_on;
-      const ultimo = ultimaSistemaRef.current.modo_no_molestar_on ?? -1;
-      let idx: number;
-      do { idx = Math.floor(Math.random() * frases.length); } while (idx === ultimo && frases.length > 1);
-      ultimaSistemaRef.current.modo_no_molestar_on = idx;
-      await hablar(frases[idx], emotion);
-      d.setNoMolestar(true);
-      return;
-    }
-
-    await procesarTextoReconocido(texto);
-  });
-
-  useSpeechRecognitionEvent('end', () => {
-    const d = depsRef.current;
-    srActivoRef.current = false;
-
-    // Si el 'end' viene del stop() que nosotros mismos lanzamos dentro de
-    // iniciarSpeechRecognition(), ignorarlo para no crear un restart espurio
-    // (era la causa principal del loop de sr_start mudo post-hablar_end).
-    if (intentionalStopRef.current) {
-      intentionalStopRef.current = false;
-      return;
-    }
-
-    if (enFlujoVozRef.current) return;
-    if (enColaHablaRef.current) return;  // hablarConCola aún corriendo — no iniciar SR entre oraciones
-    if (!d.perfilRef.current?.nombreAbuela) return;
-    if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !srSuspendidoRef.current) {
-      // Backoff exponencial: cada 'end' sin result aumenta la espera.
-      // Base 2 s (> lock de 1500 ms para garantizar que el lock nunca bloquee
-      // un restart legítimo). Crece hasta 10 s tras múltiples fallas seguidas.
-      srConsecutiveEndsRef.current += 1;
-      const delay = Math.min(2000 * Math.pow(1.4, srConsecutiveEndsRef.current - 1), 10000);
-      setTimeout(() => {
-        if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current && !srSuspendidoRef.current) {
-          if (!d.verificarCharlaProactiva()) iniciarSpeechRecognition();
-        }
-      }, delay);
-    }
-  });
-
-  useSpeechRecognitionEvent('error', (event) => {
-    const d = depsRef.current;
-    if (__DEV__) console.log('[SR] error:', event.error);
-    srActivoRef.current = false;
-    intentionalStopRef.current = false; // limpiar por si acaso
-    if (enFlujoVozRef.current) return;
-    if (enColaHablaRef.current) return;  // hablarConCola corriendo — no reiniciar
-    if (!d.perfilRef.current?.nombreAbuela) return;
-    if (d.estadoRef.current === 'esperando' && !procesandoRef.current && !srSuspendidoRef.current) {
-      srConsecutiveEndsRef.current += 1;
-      const delay = event.error === 'network' ? 5000 : Math.min(2000 * Math.pow(1.4, srConsecutiveEndsRef.current - 1), 10000);
-      setTimeout(() => {
-        if (!procesandoRef.current && !enFlujoVozRef.current && !enColaHablaRef.current && !srSuspendidoRef.current && !d.verificarCharlaProactiva()) {
-          iniciarSpeechRecognition();
-        }
-      }, delay);
-    }
-  });
 
   function activarFeedbackSonido() {
     // Side-effect intencional: actualizar ultimaActivacionSrRef evita que el watchdog
@@ -650,23 +390,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 4000);
     }
   }
-  function desactivarFeedbackSonido() {
-    if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
-    setDetectandoSonido(false);
-  }
-  function registrarFinDeVozUsuario() {
-    const d = depsRef.current;
-    desactivarFeedbackSonido();
-    if (enFlujoVozRef.current || enColaHablaRef.current) return;
-    if (d.estadoRef.current === 'hablando') return;
-    d.speechEndTsRef.current = Date.now();
-    logCliente('end_of_user_speech', { estado: d.estadoRef.current });
-  }
-  useSpeechRecognitionEvent('soundstart',  activarFeedbackSonido);
-  useSpeechRecognitionEvent('speechstart', activarFeedbackSonido);
-  useSpeechRecognitionEvent('soundend',    desactivarFeedbackSonido);
-  useSpeechRecognitionEvent('speechend',   registrarFinDeVozUsuario);
-
   // ── Watchdog de SR ────────────────────────────────────────────────────────
   useEffect(() => {
     const watchdog = setInterval(() => {
@@ -700,7 +423,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }, 3000);
     return () => {
       clearInterval(watchdog);
-      if (USE_DEEPGRAM_SR) detenerDG();
+      detenerDG();
     };
   }, []);
 
@@ -992,8 +715,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── TTS principal ─────────────────────────────────────────────────────────
   async function hablar(texto: string, emotion?: string) {
     const d = depsRef.current;
-    // Hubo interacción exitosa: resetear el contador de backoff exponencial del SR.
-    srConsecutiveEndsRef.current = 0;
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     const lagRcMs = d.rcStartTsRef.current ? Date.now() - d.rcStartTsRef.current : -1;
