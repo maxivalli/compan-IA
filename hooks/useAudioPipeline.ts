@@ -44,8 +44,6 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, Cat
 const TTS_CACHE_VERSION = 'v6';
 const MULETILLA_CACHE_VERSION = 'v19';
 
-const BARGE_IN_ARM_DELAY_MS = 1200;
-const BARGE_IN_MIN_CHARS = 110;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
 const SILBIDOS_ASSETS = [
@@ -741,16 +739,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     detenerSilbido();
     d.estadoRef.current = 'hablando';
     hablandoDesdeRef.current = Date.now();
-    const shouldArmBargeIn = turnAudio.firstForTurn && texto.length >= BARGE_IN_MIN_CHARS;
+    // Barge-in desactivado temporalmente — causa eco del TTS en el SR
     if (bargeInTimerRef.current) clearTimeout(bargeInTimerRef.current);
-    if (shouldArmBargeIn) {
-      bargeInTimerRef.current = setTimeout(() => {
-        if (depsRef.current.estadoRef.current === 'hablando' && !depsRef.current.noMolestarRef.current) {
-          iniciarSpeechRecognition(true);
-          logCliente('barge_in_listening', { chars: texto.length });
-        }
-      }, BARGE_IN_ARM_DELAY_MS);
-    }
 
     texto = limpiarTextoParaTTS(texto);
 
