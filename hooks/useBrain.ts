@@ -982,6 +982,8 @@ export function useBrain(deps: BrainDeps) {
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             return;
           }
+          // Stream no arrancó → invalidar caché para que la próxima vez busque URL fresca
+          AsyncStorage.removeItem(`radio_cache_v2_${generoMusica.toLowerCase().trim()}`).catch(() => {});
           const altUrl = getFallbackAlt(generoMusica, urlStream);
 
           async function hablarError(texto: string) {

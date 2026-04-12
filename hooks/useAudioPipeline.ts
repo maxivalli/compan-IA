@@ -926,6 +926,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           depsRef.current.estadoRef.current === 'esperando'
           && !enFlujoVozRef.current
           && !enColaHablaRef.current
+          && !depsRef.current.musicaActivaRef.current // no arrancar SR si música ya está activa
         ) iniciarSpeechRecognition();
       }, 400);
     } else if (enColaHablaRef.current) {

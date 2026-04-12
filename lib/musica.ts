@@ -52,7 +52,7 @@ export const STREAMS_FALLBACK: Record<string, string[]> = {
   radio10:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO10AAC.aac'],
   destape:     ['https://ipanel.instream.audio/8004/stream'],
   mega:        ['https://playerservices.streamtheworld.com/api/livestream-redirect/MEGA983AAC.aac'],
-  vida:        ['https://streaming450tb.locucionar.com/proxy/fmvida979?mp=/stream'],
+  // vida: URL muerta (streaming450tb.locucionar.com caído) — se busca por API/búsqueda abierta
   rockpop:     ['https://playerservices.streamtheworld.com/api/livestream-redirect/ROCKANDPOPAAC.aac'],
   tango:       ['https://ais-edge94-nyc04.cdnstream.com/2202_128.mp3'],
   bolero:      ['https://stream.zeno.fm/b10wvksv7mruv'],
