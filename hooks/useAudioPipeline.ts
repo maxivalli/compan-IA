@@ -686,15 +686,17 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       if (!info.exists) { logCliente('muletilla_miss', { categoria, idx }); return texto; }
       if (abort?.current) { logCliente('muletilla_abort', { categoria }); return texto; }
       logCliente('muletilla_play', { categoria, idx, texto: texto.slice(0, 20) });
+      pausarCapturaDG();
       player.replace({ uri });
       player.play();
       onPlay?.();
       await new Promise<void>(resolve => {
-        const safety = setTimeout(() => resolve(), 6000);
+        const safety = setTimeout(() => { reanudarCapturaDG(); resolve(); }, 6000);
         const poll = setInterval(() => {
           if (abort?.current) {
             clearTimeout(safety);
             clearInterval(poll);
+            reanudarCapturaDG();
             resolve();
             return;
           }
@@ -703,6 +705,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           if (dur > 0 && pos >= dur - 0.05) {
             clearTimeout(safety);
             clearInterval(poll);
+            reanudarCapturaDG();
             resolve();
           }
         }, 80);
