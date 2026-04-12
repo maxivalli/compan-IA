@@ -1109,7 +1109,9 @@ export function useBrain(deps: BrainDeps) {
     const GENEROS_AMBIGUOS   = /\b(tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical)\b/;
     const VERBO_MUSICA       = /\b(pon[eé]|poneme|poné|pone|quiero escuchar|quiero oír|mand[aá]|dej[aá])\b/;
     const pideMusicaDirecta =
-      /\b(pon[eé]|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b/.test(textoNorm) ||
+      // "poneme música", "pone música", "quiero música", "poné música", etc.
+      // Incluye poneme/poné explícitamente porque \bpone\b no matchea "poneme" como palabra completa.
+      /\b(pon[eé]me?|poneme|poné|pone|quiero|mand[aá]|dej[aá])\b.{0,20}\b(musica|música|radio)\b/.test(textoNorm) ||
       RADIOS_INEQUIVOCAS.test(textoNorm) ||
       (VERBO_MUSICA.test(textoNorm) && GENEROS_AMBIGUOS.test(textoNorm));
     const generoDirecto = detectarGenero(textoNorm);
@@ -1119,6 +1121,7 @@ export function useBrain(deps: BrainDeps) {
       const claveMusica = generoDirecto || textoNorm
         .replace(/\b(pon[eé]|pone|quiero|mand[aá]|dej[aá]|pone|poné|quiero escuchar|pon[eé]me|poneme)\b/gi, '')
         .replace(/\b(musica|música|radio|fm|la radio|una radio)\b/gi, '')
+        .replace(/[^a-záéíóúüñ0-9\s]/gi, '') // eliminar puntuación residual (ej: ".")
         .trim();
       if (claveMusica) {
         const nombreRadio = nombreRadioOGenero(claveMusica);
