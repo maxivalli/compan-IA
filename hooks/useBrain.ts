@@ -89,8 +89,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
   },
   lista: {
-    femenina:  ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...'],
-    masculina: ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...'],
+    femenina:  ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...', 'Ya lo anoto, un segundito...'],
+    masculina: ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...', 'Ya lo anoto, un segundito...'],
   },
   juego: {
     femenina:  ['¡Me encanta! Dejame que preparo algo divertido...', 'Buenísimo, dame un segundito que armo el juego...'],
@@ -109,16 +109,16 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntos, dame un momento...'],
   },
   default: {
-    femenina:  ['A ver...', 'Mmm...', 'Claro.', 'Te escucho...'],
-    masculina: ['A ver...', 'Mmm...', 'Claro.', 'Te escucho...'],
+    femenina:  ['A ver...', 'Mmm...', 'Claro.', 'Ya veo...'],
+    masculina: ['A ver...', 'Mmm...', 'Claro.', 'Ya veo...'],
   },
   latencia: {
     femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
     masculina: ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
   },
   clima: {
-    femenina:  ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver cómo viene el clima hoy...'],
-    masculina: ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver cómo viene el clima hoy...'],
+    femenina:  ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver qué dice el pronóstico...'],
+    masculina: ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver qué dice el pronóstico...'],
   },
   telegram: {
     femenina:  ['Mandando el mensaje a tu familia, un segundito...', 'Ya le aviso, dame un momento...', 'Ahí va el mensajito, esperate...', 'Un segundito que lo mando...'],
