@@ -589,6 +589,42 @@ export function useBrain(deps: BrainDeps) {
   // anterior siga corriendo cuando el usuario pide otra música antes de que pasen los 10s.
   const musicaFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Ejecución especulativa (Deepgram partials) ───────────────────────────────
+  // Cuando llega un partial con suficiente señal de categoría, arrancamos la
+  // muletilla ANTES de que el usuario termine de hablar.
+  // responderConClaude la reutiliza si la categoría coincide, o la aborta si no.
+  const especulativoCatRef     = useRef<CategoriaMuletilla | null>(null);
+  const especulativoAbortRef   = useRef<{ current: boolean }>({ current: false });
+  const especulativoPromiseRef = useRef<Promise<string | null> | null>(null);
+
+  function cancelarEspeculativo() {
+    if (especulativoCatRef.current) {
+      especulativoAbortRef.current.current = true;
+      especulativoCatRef.current     = null;
+      especulativoPromiseRef.current = null;
+    }
+  }
+
+  function onPartialReconocido(textoParcial: string) {
+    const d = depsRef.current;
+    if (d.estadoRef.current !== 'esperando') return;
+    if (especulativoCatRef.current) return; // ya hay una especulativa en curso
+
+    // No arrancar si el parcial es claramente una respuesta rápida (saludos, gracias…)
+    const norm = textoParcial.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (textoParcial.length <= 30 && PATRON_SKIP.test(norm)) return;
+
+    const cat = categorizarMuletilla(textoParcial);
+    // 'default' es poco predecible — no vale arriesgar un mismatch
+    if (!cat || cat === 'default') return;
+
+    const abortFlag = { current: false };
+    especulativoAbortRef.current   = abortFlag;
+    especulativoCatRef.current     = cat;
+    especulativoPromiseRef.current = d.reproducirMuletilla(cat, abortFlag);
+    logCliente('spec_muletilla_start', { cat, chars: textoParcial.length });
+  }
+
   async function cargarNoticiasDiarias(): Promise<void> {
     if (new Date().getHours() < 8) return;
     const hoy = new Date().toISOString().slice(0, 10);
@@ -1047,6 +1083,9 @@ export function useBrain(deps: BrainDeps) {
       interlocutorRef.current = null;
     }
 
+    // En cualquier early return, cancelar muletilla especulativa para no dejarla sonando
+    cancelarEspeculativo();
+
     const esPararMusicaDirecto = /\b(par[áa]|apaga|corta|saca)\b.{0,20}\b(musica|música|radio)\b|\b(parar_musica)\b/.test(textoNorm);
     if (esPararMusicaDirecto && d.musicaActivaRef.current) {
       const respuesta = 'Listo, apago la música.';
@@ -1380,12 +1419,32 @@ export function useBrain(deps: BrainDeps) {
       let resultadosBusqueda: string | null = null;
       let claudePromise: Promise<string>;
 
-      const muletillaAbort = { current: false };
-      const tecleoAbort    = { current: false };
-      // Muletilla arranca INMEDIATAMENTE — no espera memoria ni búsqueda
-      const muletillaPromise = catMuletillaEfectiva
-        ? d.reproducirMuletilla(catMuletillaEfectiva, muletillaAbort)
-        : Promise.resolve(null);
+      const tecleoAbort = { current: false };
+
+      // ── Muletilla: reutilizar especulativa si la categoría coincide ───────────
+      let muletillaAbort: { current: boolean };
+      let muletillaPromise: Promise<string | null>;
+
+      if (
+        catMuletillaEfectiva &&
+        especulativoCatRef.current === catMuletillaEfectiva &&
+        especulativoPromiseRef.current
+      ) {
+        // La muletilla especulativa ya está sonando con la categoría correcta → reutilizar
+        muletillaAbort   = especulativoAbortRef.current;
+        muletillaPromise = especulativoPromiseRef.current;
+        logCliente('spec_muletilla_hit', { cat: catMuletillaEfectiva });
+      } else {
+        // Categoría no coincide o no había especulativa → cancelar y arrancar la correcta
+        cancelarEspeculativo();
+        muletillaAbort   = { current: false };
+        muletillaPromise = catMuletillaEfectiva
+          ? d.reproducirMuletilla(catMuletillaEfectiva, muletillaAbort)
+          : Promise.resolve(null);
+      }
+      // Limpiar refs de estado especulativo — ya tomamos el control
+      especulativoCatRef.current     = null;
+      especulativoPromiseRef.current = null;
 
       // Tecleo arranca en canal separado (playerMusica) cuando hay búsqueda externa
       // O cuando la muletilla es de búsqueda (ej. clima desde system prompt)
@@ -1905,6 +1964,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
     ultimaRapidaRef,
     getSystemPayload,
     responderConClaude,
+    onPartialReconocido,
     arrancarCharlaProactiva,
     generarResumenSesion,
     cargarNoticiasDiarias,

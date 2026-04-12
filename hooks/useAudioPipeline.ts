@@ -305,7 +305,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const escuchaAutoDetenerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
-  const { iniciarDG, detenerDG } = useDeepgramSR({
+  const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
     onReady: () => {
       srActivoRef.current = true;
       logCliente('dg_sr_ready', { estado: depsRef.current.estadoRef.current });
@@ -314,7 +314,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       depsRef.current.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
-      srActivoRef.current = false;
       const d = depsRef.current;
       if (procesandoRef.current || enFlujoVozRef.current) return;
       if (d.noMolestarRef.current) return;
@@ -325,7 +324,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     onError: (reason) => {
       srActivoRef.current = false;
       logCliente('dg_sr_error', { reason });
-      // useDeepgramSR ya maneja reconexión automática internamente
     },
   });
 
@@ -334,8 +332,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // - resetea srActivoRef para que el watchdog no crea que sigue corriendo
   function safeStopSpeechRecognition() {
     if (USE_DEEPGRAM_SR) {
-      // Deepgram: no detener el WS entre turnos — solo marcar que no está procesando
+      // Pausa AudioCapture para evitar eco (Rosita escuchándose a sí misma).
+      // El WS queda abierto — se reanuda cuando termine de hablar.
       srActivoRef.current = false;
+      pausarCapturaDG();
       return;
     }
     if (srActivoRef.current) intentionalStopRef.current = true;
@@ -386,8 +386,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
 
     if (USE_DEEPGRAM_SR) {
-      // Deepgram: el WS se mantiene abierto; solo necesitamos asegurar que esté conectado
-      iniciarDG().catch(() => {});
+      // Marcar activo inmediatamente para que el watchdog no vuelva a llamar antes del onReady.
+      srActivoRef.current = true;
+      // reanudarCapturaDG: reactiva AudioCapture si el WS sigue abierto,
+      // o reconecta si el WS cayó mientras Rosita hablaba.
+      reanudarCapturaDG();
       logCliente('sr_start', { modo: 'deepgram', estado: depsRef.current.estadoRef.current });
       return;
     }
