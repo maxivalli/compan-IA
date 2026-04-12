@@ -404,6 +404,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
 
       if (d.estadoRef.current !== 'esperando' || procesandoRef.current) return;
+      if (d.musicaActivaRef.current) return; // SR intencionalmente parado mientras suena música
 
       const ahora = Date.now();
       const tiempoDesdeInicio = ahora - ultimaActivacionSrRef.current;
@@ -834,7 +835,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           // Stream HTTP → 6s (buffering); archivo local → 4s (debería arrancar casi de inmediato).
           // Se basa en playUri (ya resuelto) y NO en info.exists para evitar el bug donde el
           // fallback REST escribe cacheUri pero info.exists sigue siendo false → 10s de silencio.
-          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, typeof playUri === 'string' && playUri.startsWith('http') ? 6000 : 4000);
+          // HTTP: 9s para cubrir el peor caso (Fish RT slot ocupado 3s + REST fallback ~1.5s + buffering ExoPlayer).
+          // Local: 4s sigue siendo suficiente para archivos cacheados.
+          const noStartTimer = setTimeout(() => { if (!started) done('no-start'); }, typeof playUri === 'string' && playUri.startsWith('http') ? 9000 : 4000);
 
           let playRetries = 0;
           const pollInterval = setInterval(() => {

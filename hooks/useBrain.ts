@@ -1128,6 +1128,18 @@ export function useBrain(deps: BrainDeps) {
         logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
         await ejecutarMusica(claveMusica, respuesta, nuevoHistorial);
         return;
+      } else {
+        // "poneme música" sin género: repetir última radio si la hubo, si no pop como default.
+        // Se maneja localmente para que Claude no interprete "Última radio: X" y la repita sin contexto.
+        const defaultClave = d.ultimaRadioRef.current ?? 'pop';
+        const nombreRadio = nombreRadioOGenero(defaultClave);
+        const respuesta = d.ultimaRadioRef.current
+          ? `¡Dale! Sigo con ${nombreRadio}.`
+          : '¡Dale! Pongo algo de música.';
+        d.ultimaActividadRef.current = Date.now();
+        logCliente('rapida_msg', { cat: 'musica_local_default', clave: defaultClave, texto: respuesta });
+        await ejecutarMusica(defaultClave, respuesta, nuevoHistorial);
+        return;
       }
     }
 
