@@ -340,6 +340,8 @@ function esCharlaSocialBreve(texto: string): boolean {
   if (texto.length > 40) return false;
   if (/[¿?]/.test(texto)) return false;
   if (PATRON_EMPATICO.test(texto) || PATRON_BUSQUEDA.test(texto) || PATRON_COMANDO.test(texto)) return false;
+  // "acá ando" solo si la frase termina ahí o con "bien/tranqui" — no si sigue con estado negativo
+  if (/\b(aca ando|ac[aá] ando)\b/i.test(texto) && !/\b(bien|tranqui|re bien)\b/i.test(texto)) return false;
   return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir|tengo fr[ií]o|hace fr[ií]o)\b/i.test(texto);
 }
 
