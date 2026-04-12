@@ -24,6 +24,7 @@ import { useAudioRecorder, AudioModule, RecordingPresets, useAudioPlayer, AudioP
 // pero sí existen en el objeto subyacente de Android/iOS.
 type AudioPlayerExt = AudioPlayer & { duration?: number; currentTime?: number; loop?: boolean };
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { useDeepgramSR } from './useDeepgramSR';
 import { Perfil } from '../lib/memoria';
 import { ModoNoche } from '../components/RosaOjos';
 import { hashTexto, velocidadSegunEdad } from '../lib/claudeParser';
@@ -43,8 +44,13 @@ import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, Cat
 
 const TTS_CACHE_VERSION = 'v6';
 const MULETILLA_CACHE_VERSION = 'v18';
-const BARGE_IN_ARM_DELAY_MS = 2600;
-const BARGE_IN_MIN_SPEECH_MS = 1400;
+
+// ── Feature flag: true = Deepgram Nova-3, false = expo-speech-recognition ────
+// Cambiar a true una vez que el build con AudioCapture nativo esté instalado.
+const USE_DEEPGRAM_SR = false;
+
+const BARGE_IN_ARM_DELAY_MS = 1200;
+const BARGE_IN_MIN_SPEECH_MS = 700;
 const BARGE_IN_MIN_CHARS = 110;
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
@@ -223,6 +229,7 @@ export interface AudioPipelineDeps {
   setNoMolestar:            (v: boolean) => void;
 
   // Callbacks de useRosita / brain (funciones que quedan fuera del pipeline)
+  onPartialReconocido?:     (texto: string) => void;        // opcional — para ejecución especulativa
   onTextoReconocido:        (texto: string, turnId: string) => Promise<void>;
   onFlujoFoto:              () => Promise<void>;
   onFlujoLeerImagen:        () => Promise<void>;
@@ -297,10 +304,40 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // pulsa el botón de detener antes de que se agote el tiempo.
   const escuchaAutoDetenerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Deepgram SR hook ─────────────────────────────────────────────────────
+  const { iniciarDG, detenerDG } = useDeepgramSR({
+    onReady: () => {
+      srActivoRef.current = true;
+      logCliente('dg_sr_ready', { estado: depsRef.current.estadoRef.current });
+    },
+    onPartial: (texto) => {
+      depsRef.current.onPartialReconocido?.(texto);
+    },
+    onFinal: (texto) => {
+      srActivoRef.current = false;
+      const d = depsRef.current;
+      if (procesandoRef.current || enFlujoVozRef.current) return;
+      if (d.noMolestarRef.current) return;
+      if (d.estadoRef.current === 'pensando') return;
+      if (d.musicaActivaRef.current) duckMusica();
+      procesarTextoReconocido(texto).catch(() => {});
+    },
+    onError: (reason) => {
+      srActivoRef.current = false;
+      logCliente('dg_sr_error', { reason });
+      // useDeepgramSR ya maneja reconexión automática internamente
+    },
+  });
+
   // safeStopSpeechRecognition centraliza TODO stop del SR:
   // - setea intentionalStopRef si el SR estaba activo → el handler 'end' lo ignora
   // - resetea srActivoRef para que el watchdog no crea que sigue corriendo
   function safeStopSpeechRecognition() {
+    if (USE_DEEPGRAM_SR) {
+      // Deepgram: no detener el WS entre turnos — solo marcar que no está procesando
+      srActivoRef.current = false;
+      return;
+    }
     if (srActivoRef.current) intentionalStopRef.current = true;
     try { ExpoSpeechRecognitionModule.stop(); } catch {}
     srActivoRef.current = false;
@@ -347,6 +384,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       d.speechEndTsRef.current = 0;
       d.srResultTsRef.current = 0;
     }
+
+    if (USE_DEEPGRAM_SR) {
+      // Deepgram: el WS se mantiene abierto; solo necesitamos asegurar que esté conectado
+      iniciarDG().catch(() => {});
+      logCliente('sr_start', { modo: 'deepgram', estado: depsRef.current.estadoRef.current });
+      return;
+    }
+
     try {
       // safeStopSpeechRecognition() ya maneja el intentionalStopRef internamente.
       safeStopSpeechRecognition();
@@ -369,6 +414,56 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   // ── SR: event handlers ────────────────────────────────────────────────────
+
+  // ── procesarTextoReconocido ───────────────────────────────────────────────
+  // Lógica compartida entre SR nativo y Deepgram: recibe el texto ya validado
+  // y ejecuta el flujo completo (foto, visión, Claude, etc.)
+  async function procesarTextoReconocido(texto: string) {
+    const d = depsRef.current;
+    const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const tiempoDesdeUltimaCharla = Date.now() - d.ultimaCharlaRef.current;
+    const enConversacion = d.musicaActivaRef.current ? false : tiempoDesdeUltimaCharla < 60 * 1000;
+    try {
+      procesandoRef.current = true;
+      procesandoDesdeRef.current = Date.now();
+      safeStopSpeechRecognition();
+      const esRepeticion = enConversacion
+        && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
+        && ultimoAudioUriRef.current !== null;
+      d.srResultTsRef.current = Date.now();
+      const lagSpeechEndMs = d.speechEndTsRef.current ? d.srResultTsRef.current - d.speechEndTsRef.current : -1;
+      const newTurnId = beginTurnTelemetry();
+      logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs });
+      if (esRepeticion) {
+        await hablar(ultimoTextoHabladoRef.current!);
+      } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
+        await d.onFlujoFoto();
+      } else if (d.modoVisionRef.current) {
+        if (/\b(listo|cerra|cerr[aá]|gracias|ya est[aá]|no m[aá]s|sal[ií])\b/.test(textoNorm)) {
+          d.onCerrarModoVision();
+        } else {
+          await d.onNuevaCapturaVision();
+        }
+      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá]|ayud[aá](me)?\s+(a\s+)?ver|no\s+(veo|puedo\s+ver)|us[aá]\s+la\s+c[aá]mara|abr[ií]\s+la\s+c[aá]mara|qu[eé]\s+es\s+(esto|eso)|qu[eé]\s+dice\s+(ac[aá]|ah[ií]|esto|eso))\b/.test(textoNorm)) {
+        await d.onFlujoModoVision();
+      } else {
+        await d.onTextoReconocido(texto, newTurnId);
+      }
+    } finally {
+      unduckMusica();
+      procesandoRef.current = false;
+      procesandoDesdeRef.current = 0;
+      if (
+        d.estadoRef.current === 'esperando'
+        && !enFlujoVozRef.current
+        && !enColaHablaRef.current
+        && !d.noMolestarRef.current
+        && !srSuspendidoRef.current
+      ) {
+        iniciarSpeechRecognition();
+      }
+    }
+  }
 
   useSpeechRecognitionEvent('result', async (event) => {
     const d = depsRef.current;
@@ -407,7 +502,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // terminó de hablar (state='esperando'). Durante 'hablando' el barge-in maneja su
     // propio filtrado. Sin esto, el eco de la voz de Rosita en la sala puede disparar
     // un nuevo turno de Claude.
-    if (d.estadoRef.current === 'esperando' && Date.now() - ultimoFinTTSRef.current < 700) {
+    if (d.estadoRef.current === 'esperando' && Date.now() - ultimoFinTTSRef.current < 400) {
       if (__DEV__) console.log('[SR] result bloqueado por eco post-TTS, ms:', Date.now() - ultimoFinTTSRef.current);
       return;
     }
@@ -491,48 +586,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       return;
     }
 
-    try {
-      procesandoRef.current = true;
-      procesandoDesdeRef.current = Date.now();
-      safeStopSpeechRecognition();
-      const esRepeticion = enConversacion
-        && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
-        && ultimoAudioUriRef.current !== null;
-
-      d.srResultTsRef.current = Date.now();
-      const lagSpeechEndMs = d.speechEndTsRef.current ? d.srResultTsRef.current - d.speechEndTsRef.current : -1;
-      const newTurnId = beginTurnTelemetry();
-      logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs });
-      if (esRepeticion) {
-        await hablar(ultimoTextoHabladoRef.current!);
-      } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
-        await d.onFlujoFoto();
-      } else if (d.modoVisionRef.current) {
-        // En modo visión: "listo"/"cerrá" cierra; cualquier otra frase = nueva captura
-        if (/\b(listo|cerra|cerr[aá]|gracias|ya est[aá]|no m[aá]s|sal[ií])\b/.test(textoNorm)) {
-          d.onCerrarModoVision();
-        } else {
-          await d.onNuevaCapturaVision();
-        }
-      } else if (/\b(que (dice|pone|ves|hay)|leeme|lee (esto|eso|ahi|aca)|describime|describi (esto|eso)|mir[aá]\s+(esto|eso|ac[aá]|ah[ií])|que\s+ves\s+ac[aá]|qu[eé]\s+hay\s+ac[aá]|ayud[aá](me)?\s+(a\s+)?ver|no\s+(veo|puedo\s+ver)|us[aá]\s+la\s+c[aá]mara|abr[ií]\s+la\s+c[aá]mara|qu[eé]\s+es\s+(esto|eso)|qu[eé]\s+dice\s+(ac[aá]|ah[ií]|esto|eso))\b/.test(textoNorm)) {
-        await d.onFlujoModoVision();
-      } else {
-        await d.onTextoReconocido(texto, newTurnId);
-      }
-    } finally {
-      unduckMusica();
-      procesandoRef.current = false;
-      procesandoDesdeRef.current = 0;
-      if (
-        d.estadoRef.current === 'esperando'
-        && !enFlujoVozRef.current
-        && !enColaHablaRef.current
-        && !d.noMolestarRef.current
-        && !srSuspendidoRef.current
-      ) {
-        iniciarSpeechRecognition();
-      }
-    }
+    await procesarTextoReconocido(texto);
   });
 
   useSpeechRecognitionEvent('end', () => {
@@ -629,19 +683,22 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
       const ahora = Date.now();
       const tiempoDesdeInicio = ahora - ultimaActivacionSrRef.current;
-      const srZombie  = srActivoRef.current && tiempoDesdeInicio > 25000;
-      const srVencido = srActivoRef.current && tiempoDesdeInicio > 45000;
+      const srZombie  = srActivoRef.current && tiempoDesdeInicio > 8000;
+      const srVencido = srActivoRef.current && tiempoDesdeInicio > 15000;
 
       if (srSuspendidoRef.current) return;
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
-          if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (45s)' : 'zombie — reiniciando');
+          if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (15s)' : 'zombie — reiniciando');
           srActivoRef.current = false;
         }
         iniciarSpeechRecognition();
       }
-    }, 5000);
-    return () => clearInterval(watchdog);
+    }, 3000);
+    return () => {
+      clearInterval(watchdog);
+      if (USE_DEEPGRAM_SR) detenerDG();
+    };
   }, []);
 
   // ── Duck / unduck música ──────────────────────────────────────────────────
