@@ -1103,7 +1103,7 @@ export function useBrain(deps: BrainDeps) {
     }
 
     // Radios nombradas: inequívocas, pueden matchear sin verbo de música
-    const RADIOS_INEQUIVOCAS = /\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|vida|del plata|delplata|lt8|lv3)\b/;
+    const RADIOS_INEQUIVOCAS = /\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|fm\s+vida|radio\s+vida|del plata|delplata|lt8|lv3)\b/;
     // Géneros ambiguos (salsa/rock/pop son también comida o contexto no-musical):
     // solo se activan si hay un verbo explícito de música antes o después
     const GENEROS_AMBIGUOS   = /\b(tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical)\b/;
@@ -1122,7 +1122,7 @@ export function useBrain(deps: BrainDeps) {
         .trim();
       if (claveMusica) {
         const nombreRadio = nombreRadioOGenero(claveMusica);
-        const esRadioNombrada = /^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|vida|delplata|lt8)$/.test(claveMusica);
+        const esRadioNombrada = /^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|fm\s*vida|radio\s*vida|delplata|lt8)$/.test(claveMusica);
         const respuesta = esRadioNombrada ? `¡Claro! Va ${nombreRadio}.` : `¡Dale! Pongo ${nombreRadio}.`;
         d.ultimaActividadRef.current = Date.now();
         logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
