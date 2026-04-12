@@ -42,7 +42,7 @@ import {
 import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
 
 const TTS_CACHE_VERSION = 'v6';
-const MULETILLA_CACHE_VERSION = 'v18';
+const MULETILLA_CACHE_VERSION = 'v19';
 
 const BARGE_IN_ARM_DELAY_MS = 1200;
 const BARGE_IN_MIN_CHARS = 110;
