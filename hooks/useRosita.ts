@@ -224,6 +224,7 @@ export function useRosita() {
     reproducirTecleo:         pipeline.reproducirTecleo,
     detenerSilbido:           pipeline.detenerSilbido,
     pararMusica:              pipeline.pararMusica,
+    cerrarDGParaMusica:       pipeline.cerrarDGParaMusica,
     playerMusica:             pipeline.playerMusica,
     iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
     pararSRIntencional:       pipeline.pararSpeechRecognitionIntencional,

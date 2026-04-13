@@ -320,7 +320,9 @@ export default function TatetiScreen() {
 
   useSpeechRecognitionEvent('end', () => {
     setEscuchando(false);
-    if (!hablandoRef.current) setTimeout(iniciarSR, 600);
+    // No reiniciar SR si la IA está en su turno (pensando o moviendo):
+    // lo rearrancaremos manualmente al terminar el turno.
+    if (!hablandoRef.current && !iaRef.current) setTimeout(iniciarSR, 600);
   });
 
   function iniciarSR() {
@@ -376,12 +378,15 @@ export default function TatetiScreen() {
 
     setTurno('O');
     iaRef.current = true;
+    // Detener SR mientras la IA "piensa" para evitar que un "salir" accidental
+    // interrumpa el turno cuando el tablero ya cambió pero la IA aún no movió.
+    detenerSR();
     decir(al(FRASES.movUsuario), () => {
       // Pausa de "pensamiento" antes de que la IA mueva (600–1400 ms)
       const pensar = 600 + Math.random() * 800;
       setTimeout(() => {
         const movIA = calcularMovimientoIA(nuevo);
-        if (movIA === -1) { iaRef.current = false; return; }
+        if (movIA === -1) { iaRef.current = false; iniciarSR(); return; }
         const t2 = [...nuevo] as Tablero;
         t2[movIA] = 'O';
         setTablero(t2);
@@ -400,7 +405,8 @@ export default function TatetiScreen() {
         } else {
           setTurno('X');
           iaRef.current = false;
-          setTimeout(() => decir(al(FRASES.movIA), () => setBloqueado(false)), 200);
+          // Reanuda SR recién después de que la IA habló su comentario
+          setTimeout(() => decir(al(FRASES.movIA), () => { setBloqueado(false); iniciarSR(); }), 200);
         }
       }, pensar);
     });

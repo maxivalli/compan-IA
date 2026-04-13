@@ -211,7 +211,7 @@ export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|q
 export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
 export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|nació\b|embarazada|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
-export const PATRON_CLIMA        = /\b(clima|llover|llueve|temperatura|pronóstico|pronostico|mucho calor|mucho frío|mucho frio|qué tiempo|que tiempo|va a llover|va a hacer)\b/i;
+export const PATRON_CLIMA        = /\b(clima|llover|llueve|temperatura|pronóstico|pronostico|mucho calor|mucho frío|mucho frio|qué tiempo|que tiempo|el tiempo|va a llover|va a hacer)\b/i;
 export const PATRON_BUSQUEDA     = /noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|qué pasó|qué dice|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 export const PATRON_MUSICA       = /\b(música|canción|canciones|folklore|tango|cumbia|cuarteto|zamba|chacarera|bolero|vals|bailar|cantame|cantá una)\b|la radio\b/i;
 export const PATRON_RECORDATORIO = /\b(acordame|recordame|anotá(me)?|no te olvid|que no se me olvide|recordatorio|agend[aá](me)?|que quede (anotado|guardado)|una alarma|un timer|despertame)\b/i;
@@ -282,8 +282,10 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (PATRON_MUSICA.test(texto))       return null;
   if (PATRON_RECORDATORIO.test(texto)) return null;
   if (PATRON_COMANDO.test(texto))      return null;
-  // Si hay una pregunta o contenido sustancial después del saludo, dejar que Claude responda
-  if (/[¿?]/.test(texto) || /,\s*\w/.test(texto)) return null;
+  // Si hay una pregunta o contenido sustancial después del saludo, dejar que Claude responda.
+  // La coma sola no es suficiente: "Hola, Rosita." tiene coma pero no es contenido extra.
+  // Exigimos al menos dos palabras tras la coma para considerar que hay una cláusula adicional.
+  if (/[¿?]/.test(texto) || /,\s*\w+\s+\w/.test(texto)) return null;
   if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
@@ -550,6 +552,7 @@ export interface BrainDeps {
   reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
   detenerSilbido:      () => void;
   pararMusica:         () => void;
+  cerrarDGParaMusica:  () => void;
   playerMusica:        AudioPlayerLike;
   iniciarSpeechRecognition: () => void;
   pararSRIntencional: () => void;
@@ -947,13 +950,18 @@ export function useBrain(deps: BrainDeps) {
       clearTimeout(musicaFallbackTimerRef.current);
       musicaFallbackTimerRef.current = null;
     }
+    // Marcar música activa ANTES de hablar: así el cleanup de hablar() no reinicia SR
+    // cuando la respuesta TTS termina (o falla con no-start). musicaActivaRef es la guardia
+    // que usan el watchdog y el cleanup de hablar() para decidir si arrancar SR.
+    d.musicaActivaRef.current = true;
+    // Cerrar WS de Deepgram completamente: la pausa será larga (modo música)
+    // y no queremos que Deepgram transcriba el audio del altavoz.
+    d.cerrarDGParaMusica();
     const streamPromise = buscarRadio(generoMusica);
     logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 300) });
-    await d.hablar(`${respuesta} Para pararla, tocá la pantalla.`);
+    await d.hablar(`${respuesta} Para detenerla, tocá la pantalla.`);
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
-    // Stop intencional: setar flag para que el handler 'end' no dispare restart
-    d.pararSRIntencional();
     const urlStream = await streamPromise;
     if (urlStream) {
       try {
@@ -1016,11 +1024,18 @@ export function useBrain(deps: BrainDeps) {
           }
         }, 10000);
       } catch {
+        d.musicaActivaRef.current = false;
         d.setMusicaActiva(false);
+        d.setEstado('esperando');
+        d.estadoRef.current = 'esperando';
         await new Promise(r => setTimeout(r, 300));
         await d.hablar('No pude conectar con la radio, perdoname.');
       }
     } else {
+      // Radio no encontrada — resetear estado de música para que SR pueda volver
+      d.musicaActivaRef.current = false;
+      d.setEstado('esperando');
+      d.estadoRef.current = 'esperando';
       await d.hablar('No pude conectar con esa radio ahora, perdoname. Podés intentar con otra o pedirme un género musical.');
     }
     const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: respuesta }].slice(-30);
@@ -1085,9 +1100,6 @@ export function useBrain(deps: BrainDeps) {
       interlocutorRef.current = null;
     }
 
-    // En cualquier early return, cancelar muletilla especulativa para no dejarla sonando
-    cancelarEspeculativo();
-
     const esPararMusicaDirecto = /\b(par[áa]|apaga|corta|saca)\b.{0,20}\b(musica|música|radio)\b|\b(parar_musica)\b/.test(textoNorm);
     if (esPararMusicaDirecto && d.musicaActivaRef.current) {
       const respuesta = 'Listo, apago la música.';
@@ -1102,6 +1114,7 @@ export function useBrain(deps: BrainDeps) {
       d.ultimaCharlaRef.current    = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'parar_musica', texto: respuesta });
+      cancelarEspeculativo();
       await d.hablar(respuesta);
       return;
     }
@@ -1127,25 +1140,34 @@ export function useBrain(deps: BrainDeps) {
         .replace(/\b(musica|música|radio|fm|la radio|una radio)\b/gi, '')
         .replace(/[^a-záéíóúüñ0-9\s]/gi, '') // eliminar puntuación residual (ej: ".")
         .trim();
-      if (claveMusica) {
-        const nombreRadio = nombreRadioOGenero(claveMusica);
-        const esRadioNombrada = /^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|fm\s*vida|radio\s*vida|delplata|lt8)$/.test(claveMusica);
+      // "Rosita pone música" → al eliminar verbo y "música" queda "rosita" → no es una radio,
+      // es el nombre de la asistente. Tratar como petición genérica (preguntar qué quieren).
+      const nombreAsist = (p?.nombreAsistente ?? 'rosita').toLowerCase().trim();
+      const claveReal   = claveMusica && claveMusica !== nombreAsist ? claveMusica : '';
+      if (claveReal) {
+        const nombreRadio = nombreRadioOGenero(claveReal);
+        const esRadioNombrada = /^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|fm\s*vida|radio\s*vida|delplata|lt8)$/.test(claveReal);
         const respuesta = esRadioNombrada ? `¡Claro! Va ${nombreRadio}.` : `¡Dale! Pongo ${nombreRadio}.`;
         d.ultimaActividadRef.current = Date.now();
         logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
-        await ejecutarMusica(claveMusica, respuesta, nuevoHistorial);
+        cancelarEspeculativo();
+        await ejecutarMusica(claveReal, respuesta, nuevoHistorial);
         return;
       } else {
-        // "poneme música" sin género: repetir última radio si la hubo, si no pop como default.
-        // Se maneja localmente para que Claude no interprete "Última radio: X" y la repita sin contexto.
-        const defaultClave = d.ultimaRadioRef.current ?? 'pop';
-        const nombreRadio = nombreRadioOGenero(defaultClave);
-        const respuesta = d.ultimaRadioRef.current
-          ? `¡Dale! Sigo con ${nombreRadio}.`
-          : '¡Dale! Pongo algo de música.';
+        // "poneme música" sin género: preguntar qué quieren escuchar.
+        // No auto-reproducir la última radio — mejor preguntar para que el usuario elija.
+        const opcionesMusica = d.ultimaRadioRef.current
+          ? `¿Querés seguir con ${nombreRadioOGenero(d.ultimaRadioRef.current)}, o preferís otra cosa? Puedo poner folklore, tango, cumbia, pop, una radio clásica...`
+          : '¿Qué querés escuchar? Puedo poner folklore, tango, cumbia, pop, una radio, lo que quieras.';
         d.ultimaActividadRef.current = Date.now();
-        logCliente('rapida_msg', { cat: 'musica_local_default', clave: defaultClave, texto: respuesta });
-        await ejecutarMusica(defaultClave, respuesta, nuevoHistorial);
+        logCliente('rapida_msg', { cat: 'musica_pregunta', texto: opcionesMusica });
+        cancelarEspeculativo();
+        d.setExpresion('feliz');
+        const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: opcionesMusica }].slice(-30);
+        historialRef.current = nuevoHist;
+        guardarHistorial(nuevoHist).catch(() => {});
+        d.ultimaCharlaRef.current    = Date.now();
+        await d.hablar(opcionesMusica);
         return;
       }
     }
@@ -1174,6 +1196,7 @@ export function useBrain(deps: BrainDeps) {
         d.ultimaCharlaRef.current    = Date.now();
         d.ultimaActividadRef.current = Date.now();
         logCliente('rapida_msg', { cat: catRapida, texto });
+        cancelarEspeculativo();
         await d.hablar(texto, emotion);
         // Timer de vuelta a neutral — sin esto la expresión ('feliz', etc.) quedaba
         // pegada indefinidamente porque este path retorna sin pasar por el timer normal.
@@ -1195,6 +1218,7 @@ export function useBrain(deps: BrainDeps) {
       d.ultimaCharlaRef.current    = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'instantanea', texto: instantanea.texto });
+      cancelarEspeculativo();
       await d.hablar(instantanea.texto, instantanea.emotion);
       return;
     }
@@ -1208,6 +1232,7 @@ export function useBrain(deps: BrainDeps) {
       d.ultimaCharlaRef.current = Date.now();
       d.ultimaActividadRef.current = Date.now();
       logCliente('rapida_msg', { cat: 'social_breve', texto: socialBreve.texto });
+      cancelarEspeculativo();
       await d.hablar(socialBreve.texto, socialBreve.emotion);
       // Timer de vuelta a neutral — sin esto 'cansada' o 'feliz' quedaba pegada.
       if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
@@ -1246,6 +1271,7 @@ export function useBrain(deps: BrainDeps) {
       guardarHistorial(nuevoHist).catch(() => {});
       d.ultimaCharlaRef.current = Date.now();
       d.ultimaActividadRef.current = Date.now();
+      cancelarEspeculativo();
       await d.hablar('¡Qué lindo, dale! Juguemos un rato...', 'entusiasmada');
       d.lanzarJuego?.(pideTateti ? 'tateti' : pideAhorcado ? 'ahorcado' : 'memoria');
       // Timer de vuelta a neutral — la pantalla del juego carga sobre Rosita;

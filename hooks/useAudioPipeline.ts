@@ -252,6 +252,16 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       srActivoRef.current = true;
       ultimaActivacionSrRef.current = Date.now(); // reset zombie timer tras reconexión
       logCliente('dg_sr_ready', { estado: depsRef.current.estadoRef.current });
+      // Si DG reconectó mientras el SR está suspendido (juego activo, Rosita hablando,
+      // o flujo de voz en curso), pausar AudioCapture inmediatamente para evitar eco.
+      if (
+        srSuspendidoRef.current
+        || depsRef.current.estadoRef.current === 'hablando'
+        || enFlujoVozRef.current
+        || enColaHablaRef.current
+      ) {
+        pausarCapturaDG();
+      }
     },
     onPartial: (texto) => {
       // Partials de Deepgram = hay voz activa → mostrar waveform
@@ -260,9 +270,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     },
     onFinal: (texto) => {
       const d = depsRef.current;
+      // speech_final de Deepgram es el proxy más cercano a "el usuario dejó de hablar".
+      // Registrar acá para poder medir lag_speech_end_ms correctamente.
+      d.speechEndTsRef.current = Date.now();
       if (procesandoRef.current || enFlujoVozRef.current) return;
       if (d.noMolestarRef.current) return;
       if (d.estadoRef.current === 'pensando') return;
+      // Bloquear transcripciones mientras Rosita habla (eco de TTS) o SR suspendido (juego activo)
+      if (d.estadoRef.current === 'hablando') return;
+      if (srSuspendidoRef.current) return;
       if (d.musicaActivaRef.current) duckMusica();
       procesarTextoReconocido(texto).catch(() => {});
     },
@@ -371,6 +387,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         && !enColaHablaRef.current
         && !d.noMolestarRef.current
         && !srSuspendidoRef.current
+        && !d.musicaActivaRef.current // no arrancar SR mientras suena música
       ) {
         iniciarSpeechRecognition();
       }
@@ -440,6 +457,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // Rearrancar SR después de parar la música — la música lo había detenido
     // intencionalmente y nadie más lo reactiva al parar manualmente.
     setTimeout(() => iniciarSpeechRecognition(), 300);
+  }
+  /** Cierra completamente el WebSocket de Deepgram. Usar cuando la pausa va a ser
+   *  larga (modo música) para que Deepgram no siga recibiendo audio del altavoz. */
+  function cerrarDGParaMusica() {
+    srActivoRef.current = false;
+    detenerDG();
   }
   function reanudarMusica() {
     playerMusica.play();
@@ -757,17 +780,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       let playUri: string | null = info.exists ? cacheUri : null;
 
       if (!playUri) {
-        // Si precachearTexto ya está descargando este audio, esperar el resultado en vez de
-        // lanzar una segunda llamada Fish Audio (elimina el double-TTS por race condition).
-        const inFlight = precacheInFlightRef.current.get(cacheKey);
-        if (inFlight) {
-          try { await inFlight; } catch {}
-          const retry = await FileSystem.getInfoAsync(cacheUri);
-          if (retry.exists) playUri = cacheUri;
-        }
-      }
-
-      if (!playUri) {
         // Stream directo: ExoPlayer empieza a reproducir cuando llegan los primeros chunks
         // (~300-400ms) en vez de esperar la descarga completa (~850-1000ms).
         // En paralelo, descargamos y cacheamos con sintetizarVoz para el próximo turn.
@@ -1070,6 +1082,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     iniciarSilbido,
     detenerSilbido,
     pararMusica,
+    cerrarDGParaMusica,
     reanudarMusica,
 
     // SR y escucha manual

@@ -7,6 +7,12 @@ async function h(): Promise<Record<string, string>> {
   return { 'Content-Type': 'application/json', 'x-device-token': token };
 }
 
+function fetchTelegram(url: string, init: RequestInit, timeoutMs = 15000): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 export async function enviarAlertaTelegram(chatIds: string[], mensaje: string, nombreAsistente = 'Rosita'): Promise<void> {
   if (!chatIds.length) return;
   try {
@@ -25,13 +31,10 @@ export type MensajeVoz = {
   updateId: number;
 };
 
-export async function recibirMensajesVoz(
-  _offsetRef: { current: number },
-  chatIds: string[] = [],
-): Promise<MensajeVoz[]> {
+export async function recibirMensajesVoz(chatIds: string[] = []): Promise<MensajeVoz[]> {
   if (!chatIds.length) return [];
   try {
-    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-voz`, {
+    const res  = await fetchTelegram(`${BACKEND_URL}/telegram/mensajes-voz`, {
       method: 'POST',
       headers: await h(),
       body: JSON.stringify({ chatIds }),
@@ -78,7 +81,7 @@ export type MensajeFoto = {
 export async function recibirMensajesFoto(chatIds: string[] = []): Promise<MensajeFoto[]> {
   if (!chatIds.length) return [];
   try {
-    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-foto`, {
+    const res  = await fetchTelegram(`${BACKEND_URL}/telegram/mensajes-foto`, {
       method: 'POST',
       headers: await h(),
       body: JSON.stringify({ chatIds }),
@@ -99,7 +102,7 @@ export type MensajeTexto = {
 export async function recibirMensajesTexto(chatIds: string[] = []): Promise<MensajeTexto[]> {
   if (!chatIds.length) return [];
   try {
-    const res  = await fetch(`${BACKEND_URL}/telegram/mensajes-texto`, {
+    const res  = await fetchTelegram(`${BACKEND_URL}/telegram/mensajes-texto`, {
       method: 'POST',
       headers: await h(),
       body: JSON.stringify({ chatIds }),

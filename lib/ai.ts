@@ -372,6 +372,12 @@ export async function urlFishRealtimeStream(
     return '';
   }
   const ticket = await getStreamTicket();
+  // Ticket es single-use en backend — limpiar cache del cliente e iniciar renovación
+  // proactiva para que el próximo TTS-RT no bloquee esperando un ticket fresco.
+  if (ticket) {
+    _streamTicket = null;
+    renewStreamTicket().catch(() => {});
+  }
   const params = new URLSearchParams({
     text: texto,
     voiceId,

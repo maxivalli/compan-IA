@@ -791,35 +791,35 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       if (!p) return;
       const chatIds = (p.telegramContactos ?? []).map(c => c.id);
       if (!chatIds.length) return;
-      const ahora = new Date();
-      if (ahora.getHours() !== 22 || ahora.getMinutes() > 5) return;
-      const clave = `resumen_${ahora.toISOString().slice(0, 10)}`;
+      // Disparar a partir de las 22:00, cualquier tick del día — sin ventana estrecha.
+      // Si la app estuvo cerrada/offline a las 22:00, el backend ya habrá avisado
+      // a la familia a las 22:15. Si la app se abre después, igual confirma para
+      // que el watchdog no vuelva a disparar al día siguiente.
+      if (new Date().getHours() < 22) return;
+      // fechaLocal() devuelve la fecha en hora AR (UTC-3), evita bug de UTC en medianoche.
+      const fechaHoyISO = fechaLocal();
+      const clave = `resumen_${fechaHoyISO}`;
       const ya = await yaRecordo(clave);
       if (ya) return;
       await marcarRecordado(clave);
       const mensaje = await generarMensajeResumen(p);
       await enviarMensajeTelegram(chatIds, mensaje);
-      // Notificar al backend que el informe fue enviado (watchdog).
+      // Notificar al backend que el informe fue enviado (desactiva watchdog para hoy).
       // Reintento único si falla (red caída) para evitar alerta falsa nocturna.
-      const fechaHoyISO = ahora.toISOString().slice(0, 10);
       confirmarInformeEnviado(fechaHoyISO).catch(() => {
         setTimeout(() => confirmarInformeEnviado(fechaHoyISO).catch(() => {}), 30 * 1000);
       });
     }
 
     async function resetearAnimo() {
-      const ahora = new Date();
-      const hora = ahora.getHours();
-      const minuto = ahora.getMinutes();
-      const puedeResetearTemprano = hora === 22 && minuto > 5;
-      const enVentanaOriginal = hora === 23 && minuto <= 5;
-      if (!puedeResetearTemprano && !enVentanaOriginal) return;
-      if (puedeResetearTemprano) {
-        const claveResumen = `resumen_${ahora.toISOString().slice(0, 10)}`;
-        const resumenEnviado = await yaRecordo(claveResumen);
-        if (!resumenEnviado) return;
-      }
-      const clave = `reset_animo_${ahora.toISOString().slice(0, 10)}`;
+      // Resetear ánimo a partir de las 22:00 (igual que el informe), pero solo
+      // después de que el informe haya sido enviado — para que el informe incluya
+      // el estado del día completo antes de limpiar.
+      if (new Date().getHours() < 22) return;
+      const fechaHoyISO = fechaLocal();
+      const resumenEnviado = await yaRecordo(`resumen_${fechaHoyISO}`);
+      if (!resumenEnviado) return;
+      const clave = `reset_animo_${fechaHoyISO}`;
       const ya = await yaRecordo(clave);
       if (ya) return;
       await marcarRecordado(clave);
@@ -1035,7 +1035,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const chatIds = (p.telegramContactos ?? []).map(c => c.id);
       if (!chatIds.length) return;
 
-      const mensajes = await recibirMensajesVoz(telegramOffsetRef, chatIds);
+      const mensajes = await recibirMensajesVoz(chatIds);
       if (!mensajes.length) return;
 
       for (const msg of mensajes) {
