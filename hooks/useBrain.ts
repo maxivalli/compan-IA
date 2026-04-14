@@ -305,8 +305,8 @@ export function respuestaInstantanea(textoNorm: string): { texto: string; emotio
     const now = new Date();
     const hh = now.getHours();
     const mm = now.getMinutes();
-    const mmStr = mm === 0 ? 'en punto' : mm < 10 ? `y ${mm}` : `y ${mm}`;
-    const periodo = hh < 12 ? 'de la mañana' : hh < 13 ? 'del mediodía' : hh < 20 ? 'de la tarde' : 'de la noche';
+    const mmStr = mm === 0 ? 'en punto' : `y ${mm}`;
+    const periodo = hh < 5 ? 'de la madrugada' : hh < 12 ? 'de la mañana' : hh < 13 ? 'del mediodía' : hh < 20 ? 'de la tarde' : 'de la noche';
     const horaDisplay = hh > 12 ? hh - 12 : hh === 0 ? 12 : hh;
     return { texto: `Son las ${horaDisplay} ${mmStr} ${periodo}.`, emotion: 'neutral' };
   }
@@ -1060,6 +1060,24 @@ export function useBrain(deps: BrainDeps) {
 
     // Gate offline: evita esperar el timeout de red si ya sabemos que no hay conexión
     if (d.sinConexionRef.current) {
+      const textoNormOffline = normalizarTextoPlano(textoUsuario);
+      // Hora, fecha y cálculos se resuelven localmente aunque no haya red
+      const instantaneaOffline = respuestaInstantanea(textoNormOffline);
+      if (instantaneaOffline) {
+        d.setEstado('esperando');
+        d.estadoRef.current = 'esperando';
+        await d.hablar(instantaneaOffline.texto, instantaneaOffline.emotion);
+        return;
+      }
+      // Chistes: usar pool local en lugar de decir "necesito conexión"
+      if (/\b(chiste|chistecito|cuentame algo gracioso)\b/i.test(textoNormOffline)) {
+        const ch = obtenerChiste();
+        const textoChiste = `${ch.setup} ... ${ch.remate}`;
+        d.setEstado('esperando');
+        d.estadoRef.current = 'esperando';
+        await d.hablar(textoChiste);
+        return;
+      }
       const respLocal = respuestaOffline(textoUsuario, p.nombreAbuela, p.nombreAsistente ?? 'Rosita', d.climaRef.current, p.vozGenero ?? 'femenina');
       d.setEstado('esperando');
       d.estadoRef.current = 'esperando';
