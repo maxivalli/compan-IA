@@ -109,8 +109,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntos, dame un momento...'],
   },
   default: {
-    femenina:  ['A ver...', 'Mmm...', 'Claro.', 'Ya veo...'],
-    masculina: ['A ver...', 'Mmm...', 'Claro.', 'Ya veo...'],
+    femenina:  ['A ver...', 'Claro.', 'Ya veo...'],
+    masculina: ['A ver...', 'Claro.', 'Ya veo...'],
   },
   latencia: {
     femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
