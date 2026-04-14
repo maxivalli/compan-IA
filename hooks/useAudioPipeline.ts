@@ -457,6 +457,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     playerMusica.pause();
     depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);
+    // Resetear el cooldown de charla proactiva: el tiempo de música no debe
+    // contar como "2 horas sin charla". Si no, al parar la música después de
+    // 2h+ Rosita arrancaría una charla proactiva inmediatamente.
+    depsRef.current.ultimaCharlaRef.current = Date.now();
     // Rearrancar SR después de parar la música — la música lo había detenido
     // intencionalmente y nadie más lo reactiva al parar manualmente.
     setTimeout(() => iniciarSpeechRecognition(), 300);
