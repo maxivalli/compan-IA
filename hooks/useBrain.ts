@@ -556,6 +556,7 @@ export interface BrainDeps {
   playerMusica:        AudioPlayerLike;
   iniciarSpeechRecognition: () => void;
   pararSRIntencional: () => void;
+  setNoMolestar: (v: boolean) => void;
   suspenderSR?: () => void;
   reanudarSR?:  () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
@@ -1116,6 +1117,25 @@ export function useBrain(deps: BrainDeps) {
       logCliente('rapida_msg', { cat: 'parar_musica', texto: respuesta });
       cancelarEspeculativo();
       await d.hablar(respuesta);
+      return;
+    }
+
+    // ── No Molestar por voz ─────────────────────────────────────────────────────
+    // Activar: "hacé silencio", "callate", "no me molestes", "modo silencio"
+    // No requiere pasar por Claude — respuesta instantánea desde cache.
+    const pideNoMolestar =
+      /\b(hac[eé]|pon[eé](te)?|activ[aá]|entr[aá]\s+en|modo)\s+(silencio|no\s+molestar)\b/i.test(textoNorm) ||
+      /\bno\s+me\s+molest[eé]s?\b/i.test(textoNorm) ||
+      /\bcall[aá](te)?\b/i.test(textoNorm);
+    if (pideNoMolestar) {
+      const { frases, emotion } = FRASES_SISTEMA.modo_no_molestar_on;
+      const frase = frases[Math.floor(Math.random() * frases.length)];
+      cancelarEspeculativo();
+      logCliente('rapida_msg', { cat: 'no_molestar_on', texto: frase });
+      d.ultimaActividadRef.current = Date.now();
+      await d.hablar(frase, emotion);
+      d.setNoMolestar(true);
+      d.pararSRIntencional();
       return;
     }
 

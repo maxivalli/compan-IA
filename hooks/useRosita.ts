@@ -228,6 +228,7 @@ export function useRosita() {
     playerMusica:             pipeline.playerMusica,
     iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
     pararSRIntencional:       pipeline.pararSpeechRecognitionIntencional,
+    setNoMolestar,
     suspenderSR:              pipeline.suspenderSR,
     reanudarSR:               pipeline.reanudarSR,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
