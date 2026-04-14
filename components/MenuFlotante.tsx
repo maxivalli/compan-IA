@@ -201,7 +201,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
 }
 
 const s = StyleSheet.create({
-  btn:      { position: 'absolute', top: 52, right: 20, zIndex: 10, borderRadius: 100, shadowColor: '#1e3a5f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.55, shadowRadius: 10, elevation: 10 },
+  btn:      { position: 'absolute', top: 52, right: 20, zIndex: 10, borderRadius: 100 },
   scrim:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', zIndex: 20 },
 
   panel: {

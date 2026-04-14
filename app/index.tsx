@@ -461,7 +461,7 @@ export default function Index() {
         const topPos  = 52; // igual que MenuFlotante — no suma safeTop
         return (
       <TouchableOpacity
-        style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize, shadowColor: noMolestar ? '#c2410c' : '#1e3a5f' }]}
+        style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }]}
         onPress={acciones.toggleDoNotDisturb}
         activeOpacity={0.85}
       >
@@ -672,7 +672,7 @@ export default function Index() {
           <TouchableOpacity
             onPress={acciones.toggleTalkOrStopMusic}
             activeOpacity={musicaActiva ? 0.75 : 0.9}
-            style={[styles.estadoBadgeWrap, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: glowColor }]}
+            style={[styles.estadoBadgeWrap, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
           >
             {/* Bisel cromado */}
             <LinearGradient
@@ -714,7 +714,7 @@ export default function Index() {
           {/* Botón SOS */}
           <View style={{ alignItems: 'center' }}>
             <TouchableOpacity
-              style={[styles.botonSOSWrap, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: sosShadowColor, shadowOpacity: sosShadowOpacity }]}
+              style={[styles.botonSOSWrap, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
               onPress={mostrarHintSOS}
               onPressIn={sosPresionado}
               onPressOut={sosSoltado}
@@ -888,18 +888,18 @@ const styles = StyleSheet.create({
   statusDot:          { width: 13, height: 13, borderRadius: 7 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
   botonDeshabilitado: { opacity: 0.55 },
-  estadoBadgeWrap:      { shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.55, shadowRadius: 14, elevation: 12 },
+  estadoBadgeWrap:      {},
   estadoBadgeGradient:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
   estadoBadgeShine:     { position: 'absolute', top: 4, left: '12%', width: '76%', height: '42%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.28)' },
   estadoBadgeTexto:     { fontWeight: '600' },
-  botonSOSWrap:         { shadowOffset: { width: 0, height: 2 }, shadowRadius: 14, elevation: 12 },
+  botonSOSWrap:         {},
   botonSOSTexto:        { fontSize: fs(18), fontWeight: '700', color: '#fff' },
   botonSOSHint:         { fontSize: fs(11), color: '#ffffff99' },
   sosModalOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 36, paddingVertical: 56, paddingHorizontal: 60, alignItems: 'center', gap: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20, width: '85%' },
   sosModalTitulo:       { fontSize: fs(42), fontWeight: '800', color: '#fff' },
   sosModalTexto:        { fontSize: fs(30), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(42) },
-btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, borderRadius: 100, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.55, shadowRadius: 10, elevation: 10 },
+btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, borderRadius: 100 },
   infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },
   relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
