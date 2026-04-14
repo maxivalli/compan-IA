@@ -326,7 +326,7 @@ export default function Index() {
     : estado === 'hablando'           ? '#22c55e'
     : esBotonesNoche                  ? '#1a1f2e'
     : '#ffffff';
-  const badgeColor = noMolestar       ? '#ef4444'
+  const badgeColor = noMolestar       ? '#ffffff'
     : musicaActiva                    ? '#ffffff'
     : estado === 'pensando'           ? '#ffffff'
     : estado === 'hablando'           ? '#ffffff'
@@ -338,19 +338,19 @@ export default function Index() {
     : estado === 'hablando'           ? 'Hablando'
     : 'Esperando';
 
-  const badgeGradient: [string, string] = noMolestar   ? ['#fff5f5', '#fecaca']
+  const badgeGradient: [string, string] = noMolestar   ? ['#4b5563', '#1f2937']
     : musicaActiva                                      ? ['#fdba74', '#ea580c']
     : estado === 'pensando'                             ? ['#93c5fd', '#1d4ed8']
     : estado === 'hablando'                             ? ['#86efac', '#15803d']
     : esBotonesNoche                                    ? ['#2d3748', '#0f1117']
-    : ['#92400e', '#451a03'];   // ámbar oscuro base para el pulso esperando
+    : ['#92400e', '#451a03'];
 
-  const glowColor = noMolestar  ? '#ef4444'
+  const glowColor = noMolestar  ? '#374151'
     : musicaActiva              ? '#f97316'
     : estado === 'pensando'     ? '#3b82f6'
     : estado === 'hablando'     ? '#22c55e'
     : esBotonesNoche            ? '#6366f1'
-    : '#f59e0b';   // glow ámbar para esperando
+    : '#f59e0b';
 
   // Rojo oscuro = luz apagada (base siempre visible)
   const sosGradientOff: [string, string] = esBotonesNoche ? ['#7f1d1d', '#450a0a'] : ['#b91c1c', '#7f1d1d'];
