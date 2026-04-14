@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRootNavigationState } from 'expo-router';
 import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
 
@@ -21,7 +20,7 @@ import RositaHorizontalLayout from '../components/RositaHorizontalLayout';
 import RosaOjos, { BG, CAT_FACE_TOP_EXTRA } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
 import ExpresionOverlay from '../components/ExpresionOverlay';
-import { AnimacionMusica, ZZZ, CieloNoche, WaveformDetectando } from '../components/FondoAnimado';
+import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import CamaraPresenciaOverlay from '../components/CamaraPresenciaOverlay';
@@ -83,7 +82,7 @@ export default function Index() {
     musicaActiva, silbando, noMolestar, setNoMolestar,
     linternaActiva, apagarLinterna,
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
-    iniciarEscucha, detenerEscucha, pararMusica, reanudarMusica, dispararSOS,
+    pararMusica, reanudarMusica, dispararSOS,
     resetExpresion,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, modoVision, capturaVisionFnRef,
@@ -256,7 +255,6 @@ export default function Index() {
   const sosProgreso = useRef(new Animated.Value(0)).current;  
   const sosPulsoRef    = useRef<Animated.CompositeAnimation | null>(null);
   const sosProgresoRef  = useRef<Animated.CompositeAnimation | null>(null);
-  const dotPulseAnim   = useRef<Animated.CompositeAnimation | null>(null);
 
   function sosPresionado() {
     setSosPresionando(true);
@@ -284,69 +282,6 @@ export default function Index() {
     Animated.timing(sosProgreso, { toValue: 0, duration: 200, useNativeDriver: false }).start();
   }
 
-  // ── Animación del botón (dot pulsante + glow respirando) ────────────────────
-  const escuchando    = estado === 'escuchando';
-  const botonDisabled = estado === 'pensando' || estado === 'hablando' || noMolestar;
-  const pulso       = useRef(new Animated.Value(1)).current;
-  const glowOpacity = useRef(new Animated.Value(0.30)).current;
-  const detectRing  = useRef(new Animated.Value(0)).current;
-  const detectScale = useRef(new Animated.Value(1)).current;
-  const detectScaleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-
-  // Feedback visual cuando el SR detecta sonido: ring + pulso de escala en el botón
-  useEffect(() => {
-    const activo = detectandoSonido && estado === 'esperando' && !noMolestar;
-    Animated.timing(detectRing, {
-      toValue: activo ? 1 : 0,
-      duration: activo ? 80 : 500,
-      useNativeDriver: true,
-    }).start();
-    if (activo) {
-      detectScaleLoopRef.current?.stop();
-      detectScaleLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(detectScale, { toValue: 1.03, duration: 200, useNativeDriver: true }),
-          Animated.timing(detectScale, { toValue: 1.0,  duration: 200, useNativeDriver: true }),
-        ])
-      );
-      detectScaleLoopRef.current.start();
-    } else {
-      detectScaleLoopRef.current?.stop();
-      detectScale.stopAnimation();
-      detectScale.setValue(1);
-    }
-    return () => {
-      detectScaleLoopRef.current?.stop();
-    };
-  }, [detectandoSonido, estado, noMolestar]);
-
-  useEffect(() => {
-    dotPulseAnim.current?.stop();
-    pulso.setValue(1);
-    const speed = (estado === 'hablando' || estado === 'escuchando') ? 450 : 1800;
-    dotPulseAnim.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulso, { toValue: 1.5, duration: speed, useNativeDriver: true }),
-        Animated.timing(pulso, { toValue: 1,   duration: speed, useNativeDriver: true }),
-      ])
-    );
-    dotPulseAnim.current.start();
-    return () => {
-      dotPulseAnim.current?.stop();
-      dotPulseAnim.current = null;
-    };
-  }, [estado, musicaActiva]);
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowOpacity, { toValue: 0.55, duration: 1750, useNativeDriver: true }),
-        Animated.timing(glowOpacity, { toValue: 0.20, duration: 1750, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, []);
 
   // ── Nombre del asistente para el onboarding ─────────────────────────────────
   const nombreAsistente = refs.perfilRef.current?.nombreAsistente ?? 'Rosita';
@@ -377,27 +312,29 @@ export default function Index() {
   const sosFontTablet = fs(43);
   const tabletPadV = isTablet ? Math.round(screenH * 0.08) : 0;
 
-  // ── Color del dot / borde / glow según estado ───────────────────────────────
-  const btnDotColor = musicaActiva            ? '#E8392A'
-    : estado === 'escuchando' ? '#E85D24'
-    : estado === 'pensando'   ? '#3b82f6'
-    : estado === 'hablando'   ? '#22c55e'
-    : '#ef4444';
-  const btnGradient: [string, string] = musicaActiva            ? ['#fca5a5', '#E8392A']
-    : estado === 'escuchando' ? ['#fdba74', '#E85D24']
-    : estado === 'pensando'   ? ['#93c5fd', '#3b82f6']
-    : estado === 'hablando'   ? ['#86efac', '#22c55e']
-    : ['#fca5a5', '#ef4444'];
-  const btnLabel = musicaActiva            ? 'Parar'
-    : estado === 'escuchando' ? 'Escuchando'
-    : estado === 'pensando'   ? 'Pensando...'
-    : estado === 'hablando'   ? 'Hablando'
-    : 'Hablar';
+  // ── Badge de estado ──────────────────────────────────────────────────────────
+  const badgeBg = noMolestar          ? '#ffffff'
+    : musicaActiva                    ? '#f97316'
+    : estado === 'pensando'           ? '#3b82f6'
+    : estado === 'hablando'           ? '#22c55e'
+    : esBotonesNoche                  ? '#1a1f2e'
+    : '#ffffff';
+  const badgeColor = noMolestar       ? '#ef4444'
+    : musicaActiva                    ? '#ffffff'
+    : estado === 'pensando'           ? '#ffffff'
+    : estado === 'hablando'           ? '#ffffff'
+    : esBotonesNoche                  ? '#e2e8f0'
+    : '#111827';
+  const badgeLabel = noMolestar       ? 'Silencio'
+    : musicaActiva                    ? 'Parar'
+    : estado === 'pensando'           ? 'Pensando'
+    : estado === 'hablando'           ? 'Hablando'
+    : 'Esperando';
 
   // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
   const acciones = useAccionesRosita({
     estado, musicaActiva, noMolestar,
-    iniciarEscucha, detenerEscucha, pararMusica, dispararSOS,
+    pararMusica, dispararSOS,
     setNoMolestar,
     iniciarSpeechRecognition: refs.iniciarSpeechRecognition,
     pararSRIntencional:       refs.pararSRIntencional,
@@ -687,51 +624,19 @@ export default function Index() {
       {/* ── Zona de botones ── */}
       <View style={[styles.botonesZona, isTablet && styles.botonesZonaTablet]}>
 
-        {/* Fila superior: Hablar + SOS */}
+        {/* Fila de botones */}
         <View style={[styles.botonesFilaPrincipal, isTablet && { flexDirection: 'row', gap: 32 }]}>
 
-          {/* Botón Hablar */}
-          <View style={[styles.botonContenedor, { position: 'relative' }]}>
-            {!noMolestar && (() => { const gW = btnW + 90; const gH = btnH + 70; return (
-              <Animated.View style={[styles.btnGlow, { opacity: glowOpacity, top: -(gH - btnH) / 2, left: -(gW - btnW) / 2 }]}>
-                <Svg width={gW} height={gH}>
-                  <Defs>
-                    <RadialGradient id="btnGlow" cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
-                      <Stop offset="0%"   stopColor={btnDotColor} stopOpacity={0.9} />
-                      <Stop offset="40%"  stopColor={btnDotColor} stopOpacity={0.5} />
-                      <Stop offset="100%" stopColor={btnDotColor} stopOpacity={0}   />
-                    </RadialGradient>
-                  </Defs>
-                  <Ellipse cx={gW / 2} cy={gH / 2} rx={gW / 2} ry={gH / 2} fill="url(#btnGlow)" />
-                </Svg>
-              </Animated.View>
-            ); })() }
-
-            <Animated.View style={{ width: btnW, height: btnH, borderRadius: btnH / 2 }}>
-              <TouchableOpacity
-                style={{ borderRadius: btnH / 2, width: btnW, height: btnH }}
-                onPress={acciones.toggleTalkOrStopMusic}
-                activeOpacity={0.85}
-                disabled={botonDisabled && !musicaActiva}
-              >
-                <View style={[styles.boton, { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: btnH / 2 }, esBotonesNoche && { backgroundColor: '#1a1f2e' }, botonDisabled && !noMolestar && !musicaActiva && styles.botonDeshabilitado]}>
-                  <View style={[styles.btnInner, { width: btnW }]}>
-                    {!noMolestar && (
-                      <Animated.View style={[styles.statusDot, { position: 'absolute', left: Math.round(btnW * 0.08), backgroundColor: btnDotColor, transform: [{ scale: pulso }], width: Math.round(13 * (isTablet ? faceScale : 1)), height: Math.round(13 * (isTablet ? faceScale : 1)), borderRadius: Math.round(7 * (isTablet ? faceScale : 1)) }]} />
-                    )}
-                    {noMolestar && !musicaActiva
-                      ? <Ionicons name="mic-off" size={Math.round(btnFont * 1.4)} color="#E85D24" />
-                      : detectandoSonido && estado === 'esperando' && !musicaActiva
-                        ? <WaveformDetectando />
-                        : <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={[styles.botonTexto, { fontSize: musicaActiva && !isTablet ? Math.round(btnFont * 1.2) : btnFont, fontWeight: musicaActiva && !isTablet ? '800' : '600', color: esBotonesNoche ? '#e2e8f0' : '#374151', width: Math.round(btnW * (isTablet ? 0.65 : 0.68)), textAlign: 'center' }]}>
-                            {btnLabel}
-                          </Text>
-                    }
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
+          {/* Badge de estado */}
+          <TouchableOpacity
+            onPress={acciones.toggleTalkOrStopMusic}
+            activeOpacity={musicaActiva ? 0.75 : 1}
+            style={[styles.estadoBadge, { backgroundColor: badgeBg, width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+          >
+            <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
+              {badgeLabel}
+            </Text>
+          </TouchableOpacity>
 
           {/* Botón SOS */}
           <Animated.View style={{ transform: [{ scale: sosPulso }], alignItems: 'center' }}>
@@ -885,6 +790,8 @@ const styles = StyleSheet.create({
   statusDot:          { width: 13, height: 13, borderRadius: 7 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
   botonDeshabilitado: { opacity: 0.55 },
+  estadoBadge:          { alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 3 },
+  estadoBadgeTexto:     { fontWeight: '600' },
   botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
   botonSOSActivo:       { backgroundColor: '#FF1A1A', borderColor: '#ffffff', shadowOpacity: 0.7, elevation: 16 },
   botonSOSTexto:        { fontSize: fs(18), fontWeight: '700', color: '#fff' },

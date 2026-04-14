@@ -8,7 +8,6 @@
  *   - Muletillas: pre-cache al inicio y reproducción en race con Claude
  *   - Respuestas rápidas: pre-cache de audios sin Claude
  *   - Silbido de inactividad (assets locales)
- *   - Grabación manual (expo-audio recorder) + transcripción Whisper
  *   - Watchdog de SR (zombie / vencido / procesandoRef colgado)
  *
  * NO gestiona: lógica de Claude, historial, prompts, domótica, Telegram,
@@ -18,7 +17,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
-import { useAudioRecorder, RecordingPresets, useAudioPlayer, AudioPlayer } from 'expo-audio';
+import { useAudioPlayer, AudioPlayer } from 'expo-audio';
 
 // expo-audio no expone duration, currentTime ni loop en sus tipos TypeScript,
 // pero sí existen en el objeto subyacente de Android/iOS.
@@ -31,7 +30,6 @@ import {
   beginTurnTelemetry,
   getCurrentTurnMetrics,
   markTurnFirstAudio,
-  transcribirAudio,
   sintetizarVoz,
   urlFishRealtimeStream,
   logCliente,
@@ -195,8 +193,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
 
-  // ── Reproductores y grabador ──────────────────────────────────────────────
-  const recorderConv = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  // ── Reproductores ─────────────────────────────────────────────────────────
   const player       = useAudioPlayer(null);
   const playerMusica = useAudioPlayer(null);
 
@@ -212,7 +209,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const procesandoRef      = useRef(false);
   const procesandoDesdeRef = useRef<number>(0);
   const hablarCancelledRef = useRef(false); // true solo cuando cancelarHablaRef cancela efectivamente (barge-in real)
-  const yaDetuvRef         = useRef(false);
 
   // ── Refs de SR ────────────────────────────────────────────────────────────
   const srActivoRef            = useRef(false);
@@ -242,9 +238,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const silbidoActivoRef  = useRef(false);
   const silbidoIndexRef   = useRef(0);
   const silbidoTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Ref para el auto-stop de 8s en iniciarEscucha — permite cancelarlo si el usuario
-  // pulsa el botón de detener antes de que se agote el tiempo.
-  const escuchaAutoDetenerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
@@ -977,84 +970,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
   }
 
-  // ── Escucha manual (botón) ────────────────────────────────────────────────
-  async function iniciarEscucha() {
-    const d = depsRef.current;
-    if (d.estadoRef.current !== 'esperando') return;
-    detenerSilbido();
-    enFlujoVozRef.current = true;
-    try {
-      if (d.musicaActivaRef.current) { playerMusica.pause(); d.setMusicaActiva(false); }
-      safeStopSpeechRecognition();
-      await new Promise(r => setTimeout(r, 400));
-      d.setEstado('escuchando');
-      d.estadoRef.current = 'escuchando';
-      await recorderConv.prepareToRecordAsync();
-      recorderConv.record();
-      yaDetuvRef.current = false;
-      if (escuchaAutoDetenerRef.current) clearTimeout(escuchaAutoDetenerRef.current);
-      escuchaAutoDetenerRef.current = setTimeout(() => {
-        escuchaAutoDetenerRef.current = null;
-        if (!yaDetuvRef.current) detenerEscucha();
-      }, 8000);
-    } catch {
-      enFlujoVozRef.current = false;
-      d.setEstado('esperando');
-      d.estadoRef.current = 'esperando';
-    }
-  }
-
-  async function detenerEscucha() {
-    const d = depsRef.current;
-    if (yaDetuvRef.current) return;
-    yaDetuvRef.current = true;
-    // Cancelar el auto-stop de 8s si el usuario presionó detener manualmente
-    if (escuchaAutoDetenerRef.current) { clearTimeout(escuchaAutoDetenerRef.current); escuchaAutoDetenerRef.current = null; }
-    try {
-      await recorderConv.stop();
-      const uri = recorderConv.uri;
-      if (uri) { await enviarAudio(uri); }
-      else { enFlujoVozRef.current = false; d.setEstado('esperando'); d.estadoRef.current = 'esperando'; iniciarSpeechRecognition(); }
-    } catch {
-      enFlujoVozRef.current = false; d.setEstado('esperando'); d.estadoRef.current = 'esperando'; iniciarSpeechRecognition();
-    }
-  }
-
-  async function enviarAudio(uri: string) {
-    const d = depsRef.current;
-    d.setEstado('pensando');
-    d.estadoRef.current = 'pensando';
-    try {
-      const info = await FileSystem.getInfoAsync(uri);
-      if (__DEV__) console.log('[AUDIO] uri:', uri, '| existe:', info.exists, '| size:', (info as { size?: number }).size ?? '?');
-      const muletillaPromise = reproducirMuletilla('busqueda');
-      const texto = await transcribirAudio(uri);
-      await muletillaPromise;
-      if (__DEV__) console.log('[AUDIO] transcripcion:', JSON.stringify(texto));
-      if (!texto.trim()) {
-        const noEntendido = Math.random() < 0.5
-          ? 'Perdoname, me distraje un cachito, ¿me lo repetís?'
-          : 'Uy, se me cortó un poquito, ¿qué me decías?';
-        await hablar(noEntendido); return;
-      }
-      const newTurnId = beginTurnTelemetry();
-      await d.onTextoReconocido(texto, newTurnId);
-    } catch (e: any) {
-      if (__DEV__) console.log('[AUDIO] CATCH:', e?.message ?? e);
-      d.setEstado('esperando');
-      d.estadoRef.current = 'esperando';
-    } finally {
-      enFlujoVozRef.current = false;
-      if (d.estadoRef.current === 'esperando') iniciarSpeechRecognition();
-    }
-  }
-
   // ── Interfaz pública ──────────────────────────────────────────────────────
   return {
     // Reproductores (brain y useRosita los necesitan)
     player,
     playerMusica,
-    recorderConv,
 
     // Estado
     silbando,
@@ -1120,7 +1040,5 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         }, 200);
       }
     },
-    iniciarEscucha,
-    detenerEscucha,
   };
 }

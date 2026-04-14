@@ -1060,8 +1060,6 @@ export function useRosita() {
       // No restaurar acá: el effect de brillo decide según modoNoche.
     },
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
-    iniciarEscucha:  pipeline.iniciarEscucha,
-    detenerEscucha:  pipeline.detenerEscucha,
     pararMusica:     pipeline.pararMusica,
     reanudarMusica:  pipeline.reanudarMusica,
     dispararSOS,

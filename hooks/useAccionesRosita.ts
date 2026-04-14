@@ -15,8 +15,6 @@ export interface AccionesRositaDeps {
   estado:                      EstadoRosita;
   musicaActiva:                boolean;
   noMolestar:                  boolean;
-  iniciarEscucha:              () => Promise<void>;
-  detenerEscucha:              () => Promise<void>;
   pararMusica:                 () => void;
   dispararSOS:                 () => Promise<void>;
   setNoMolestar:               (v: boolean) => void;
@@ -32,16 +30,11 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
   depsRef.current = deps;
 
   /**
-   * Acción principal: hablar si está esperando, parar grabación si está
-   * escuchando, o parar música si está sonando.
+   * Acción principal: para la música si está sonando (toque en cara, BLE beacon).
    */
   const toggleTalkOrStopMusic = useCallback(() => {
     const d = depsRef.current;
-    if (d.musicaActiva)            { d.pararMusica();    return; }
-    if (d.estado === 'escuchando') { d.detenerEscucha(); return; }
-    // iniciarEscucha puede fallar por permisos revocados — capturar para no
-    // silenciar el error y poder loguearlo si hace falta.
-    if (d.estado === 'esperando')  { d.iniciarEscucha().catch(() => {}); }
+    if (d.musicaActiva) { d.pararMusica(); }
   }, []);
 
   /** Envía alerta SOS a todos los contactos familiares. */
