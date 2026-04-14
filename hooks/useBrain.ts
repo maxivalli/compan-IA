@@ -344,6 +344,8 @@ function esCharlaSocialBreve(texto: string): boolean {
   if (PATRON_EMPATICO.test(texto) || PATRON_BUSQUEDA.test(texto) || PATRON_COMANDO.test(texto)) return false;
   // "acá ando" solo si la frase termina ahí o con "bien/tranqui" — no si sigue con estado negativo
   if (/\b(aca ando|ac[aá] ando)\b/i.test(texto) && !/\b(bien|tranqui|re bien)\b/i.test(texto)) return false;
+  // "todo bien por/para/voy/de/con X" indica actividad próxima → Claude
+  if (/\btodo bien\b.*\b(para|por|voy|a hacer|de|con|pero)\b/i.test(texto)) return false;
   return /\b(todo bien|bien bien|ando bien|aca ando|ac[aá] ando|tranqui|cansad[oa]|con sue[ñn]o|por dormir|tengo fr[ií]o|hace fr[ií]o)\b/i.test(texto);
 }
 
