@@ -74,6 +74,10 @@ function RelojNoche() {
   );
 }
 
+
+// Bisel cromado retro — alto contraste, diagonal para simular curvatura del metal
+const CHROME_BEZEL = ['#e8e8e8', '#ffffff', '#cccccc', '#707070', '#b4b4b4', '#383838'] as const;
+
 export default function Index() {
   const router = useRouter();
   const navigationState = useRootNavigationState();
@@ -330,6 +334,21 @@ export default function Index() {
     : estado === 'pensando'           ? 'Pensando'
     : estado === 'hablando'           ? 'Hablando'
     : 'Esperando';
+
+  const badgeGradient: [string, string] = noMolestar   ? ['#fff5f5', '#fecaca']
+    : musicaActiva                                      ? ['#fdba74', '#ea580c']
+    : estado === 'pensando'                             ? ['#93c5fd', '#1d4ed8']
+    : estado === 'hablando'                             ? ['#86efac', '#15803d']
+    : esBotonesNoche                                    ? ['#2d3748', '#0f1117']
+    : ['#ffffff', '#e2e8f0'];
+
+  const glowColor = noMolestar  ? '#ef4444'
+    : musicaActiva              ? '#f97316'
+    : estado === 'pensando'     ? '#3b82f6'
+    : estado === 'hablando'     ? '#22c55e'
+    : esBotonesNoche            ? '#6366f1'
+    : '#94a3b8';
+
 
   // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
   const acciones = useAccionesRosita({
@@ -630,12 +649,31 @@ export default function Index() {
           {/* Badge de estado */}
           <TouchableOpacity
             onPress={acciones.toggleTalkOrStopMusic}
-            activeOpacity={musicaActiva ? 0.75 : 1}
-            style={[styles.estadoBadge, { backgroundColor: badgeBg, width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+            activeOpacity={musicaActiva ? 0.75 : 0.9}
+            style={[styles.estadoBadgeWrap, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: glowColor }]}
           >
-            <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
-              {badgeLabel}
-            </Text>
+            {/* Bisel cromado */}
+            <LinearGradient
+              colors={CHROME_BEZEL}
+              start={{ x: 0.15, y: 0 }}
+              end={{ x: 0.85, y: 1 }}
+              style={{ flex: 1, borderRadius: btnH / 2, padding: 8 }}
+            >
+              {/* Panel LED recesado */}
+              <View style={{ flex: 1, borderRadius: btnH / 2 - 8, borderWidth: 2.5, borderColor: 'rgba(0,0,0,0.32)', overflow: 'hidden' }}>
+                <LinearGradient
+                  colors={badgeGradient}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.estadoBadgeGradient}
+                >
+                  <View style={styles.estadoBadgeShine} />
+                  <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
+                    {badgeLabel}
+                  </Text>
+                </LinearGradient>
+              </View>
+            </LinearGradient>
           </TouchableOpacity>
 
           {/* Botón SOS */}
@@ -790,7 +828,9 @@ const styles = StyleSheet.create({
   statusDot:          { width: 13, height: 13, borderRadius: 7 },
   botonTexto:         { fontSize: fs(18), fontWeight: '600', color: '#374151' },
   botonDeshabilitado: { opacity: 0.55 },
-  estadoBadge:          { alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.10, shadowRadius: 6, elevation: 3 },
+  estadoBadgeWrap:      { shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.55, shadowRadius: 14, elevation: 12 },
+  estadoBadgeGradient:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  estadoBadgeShine:     { position: 'absolute', top: 4, left: '12%', width: '76%', height: '42%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.28)' },
   estadoBadgeTexto:     { fontWeight: '600' },
   botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
   botonSOSActivo:       { backgroundColor: '#FF1A1A', borderColor: '#ffffff', shadowOpacity: 0.7, elevation: 16 },

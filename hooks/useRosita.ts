@@ -39,7 +39,7 @@ import { PERFIL_LOCAL_GUARDADO } from '../lib/perfilSync';
 const MINUTOS_SIN_CHARLA = 120;
 const HORA_DESPERTAR     = 7;
 const HORA_CHARLA_INICIO = 9;
-const HORA_FIN           = 21;
+const HORA_FIN           = 23;
 
 // Tipos re-exportados desde useBrain (declarados allá, usados acá)
 // CategoriaMuletilla, CategoriaRapida, Mensaje, EstadoRosita → importados arriba
@@ -827,9 +827,8 @@ export function useRosita() {
     await pipeline.hablar(
       `Bueno${nombre ? ` ${nombre}` : ''}, apuntame la cámara a lo que querés que vea.`
     );
-    const { width: w, height: h } = Dimensions.get('window');
-    const facingVision = w > h ? 'front' : 'back';
-    setCamaraFacing(facingVision);
+    // Siempre cámara trasera para ver el entorno (no selfie)
+    setCamaraFacing('back');
     modoVisionRef.current = true;
     setModoVision(true);
     // Esperar a que la cámara esté lista (onCameraReady setea el ref)
