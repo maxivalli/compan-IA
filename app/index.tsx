@@ -252,38 +252,41 @@ export default function Index() {
     hintTimerRef.current = setTimeout(() => setHintSOS(false), 3500);
   }
 
+  // ── Pulso ámbar del badge "esperando" ───────────────────────────────────────
+  const badgePulso    = useRef(new Animated.Value(0)).current;
+  const badgePulsoRef = useRef<Animated.CompositeAnimation | null>(null);
+  const isEsperando   = !noMolestar && !musicaActiva && !esBotonesNoche && estado === 'esperando';
+
+  useEffect(() => {
+    if (isEsperando) {
+      badgePulsoRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(badgePulso, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(badgePulso, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ])
+      );
+      badgePulsoRef.current.start();
+    } else {
+      badgePulsoRef.current?.stop();
+      badgePulso.setValue(0);
+    }
+    return () => { badgePulsoRef.current?.stop(); };
+  }, [isEsperando]);
+
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
   const [mostrarListas,  setMostrarListas]  = useState(false);
-  const sosPulso   = useRef(new Animated.Value(1)).current;   
-  const sosProgreso = useRef(new Animated.Value(0)).current;  
-  const sosPulsoRef    = useRef<Animated.CompositeAnimation | null>(null);
-  const sosProgresoRef  = useRef<Animated.CompositeAnimation | null>(null);
+  const sosBrillo = useRef(new Animated.Value(0)).current;
 
   function sosPresionado() {
     setSosPresionando(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
-    sosPulsoRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sosPulso, { toValue: 1.22, duration: 280, useNativeDriver: true }),
-        Animated.timing(sosPulso, { toValue: 1,    duration: 280, useNativeDriver: true }),
-      ])
-    );
-    sosPulsoRef.current.start();
-
-    sosProgresoRef.current = Animated.timing(sosProgreso, {
-      toValue: 1, duration: 2000, useNativeDriver: false,
-    });
-    sosProgresoRef.current.start();
+    Animated.timing(sosBrillo, { toValue: 1, duration: 150, useNativeDriver: true }).start();
   }
 
   function sosSoltado() {
     setSosPresionando(false);
-    sosPulsoRef.current?.stop();
-    sosPulso.setValue(1);
-    sosProgresoRef.current?.stop();
-    Animated.timing(sosProgreso, { toValue: 0, duration: 200, useNativeDriver: false }).start();
+    Animated.timing(sosBrillo, { toValue: 0, duration: 200, useNativeDriver: true }).start();
   }
 
 
@@ -328,7 +331,7 @@ export default function Index() {
     : estado === 'pensando'           ? '#ffffff'
     : estado === 'hablando'           ? '#ffffff'
     : esBotonesNoche                  ? '#e2e8f0'
-    : '#111827';
+    : '#fff8e7';   // crema claro sobre el ámbar oscuro
   const badgeLabel = noMolestar       ? 'Silencio'
     : musicaActiva                    ? 'Parar'
     : estado === 'pensando'           ? 'Pensando'
@@ -340,14 +343,22 @@ export default function Index() {
     : estado === 'pensando'                             ? ['#93c5fd', '#1d4ed8']
     : estado === 'hablando'                             ? ['#86efac', '#15803d']
     : esBotonesNoche                                    ? ['#2d3748', '#0f1117']
-    : ['#ffffff', '#e2e8f0'];
+    : ['#92400e', '#451a03'];   // ámbar oscuro base para el pulso esperando
 
   const glowColor = noMolestar  ? '#ef4444'
     : musicaActiva              ? '#f97316'
     : estado === 'pensando'     ? '#3b82f6'
     : estado === 'hablando'     ? '#22c55e'
     : esBotonesNoche            ? '#6366f1'
-    : '#94a3b8';
+    : '#f59e0b';   // glow ámbar para esperando
+
+  // Rojo oscuro = luz apagada (base siempre visible)
+  const sosGradientOff: [string, string] = esBotonesNoche ? ['#7f1d1d', '#450a0a'] : ['#b91c1c', '#7f1d1d'];
+  // Rojo brillante = luz encendida (se mezcla encima con opacity animada)
+  const sosGradientOn:  [string, string] = ['#fca5a5', '#ef4444'];
+  const sosShadowColor   = sosPresionando ? '#ff2222' : esBotonesNoche ? '#6B1111' : '#CC2222';
+  const sosShadowOpacity = sosPresionando ? 0.85       : esBotonesNoche ? 0.20      : 0.55;
+  const sosInnerBorder   = sosPresionando ? 'rgba(255,255,255,0.40)' : 'rgba(0,0,0,0.32)';
 
 
   // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
@@ -661,25 +672,38 @@ export default function Index() {
             >
               {/* Panel LED recesado */}
               <View style={{ flex: 1, borderRadius: btnH / 2 - 8, borderWidth: 2.5, borderColor: 'rgba(0,0,0,0.32)', overflow: 'hidden' }}>
-                <LinearGradient
-                  colors={badgeGradient}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={styles.estadoBadgeGradient}
-                >
+                <View style={styles.estadoBadgeGradient}>
+                  {/* Capa base */}
+                  <LinearGradient
+                    colors={badgeGradient}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={StyleSheet.absoluteFill}
+                  />
+                  {/* Pulso ámbar — solo activo en estado esperando */}
+                  {isEsperando && (
+                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>
+                      <LinearGradient
+                        colors={['#fde68a', '#f59e0b']}
+                        start={{ x: 0.5, y: 0 }}
+                        end={{ x: 0.5, y: 1 }}
+                        style={{ flex: 1 }}
+                      />
+                    </Animated.View>
+                  )}
                   <View style={styles.estadoBadgeShine} />
                   <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
                     {badgeLabel}
                   </Text>
-                </LinearGradient>
+                </View>
               </View>
             </LinearGradient>
           </TouchableOpacity>
 
           {/* Botón SOS */}
-          <Animated.View style={{ transform: [{ scale: sosPulso }], alignItems: 'center' }}>
+          <View style={{ alignItems: 'center' }}>
             <TouchableOpacity
-              style={[styles.botonSOS, sosPresionando && styles.botonSOSActivo, { width: btnW, height: btnH, borderRadius: btnH / 2 }, esBotonesNoche && !sosPresionando && { backgroundColor: '#6B1111', shadowOpacity: 0.15 }]}
+              style={[styles.botonSOSWrap, { width: btnW, height: btnH, borderRadius: btnH / 2, shadowColor: sosShadowColor, shadowOpacity: sosShadowOpacity }]}
               onPress={mostrarHintSOS}
               onPressIn={sosPresionado}
               onPressOut={sosSoltado}
@@ -687,16 +711,41 @@ export default function Index() {
               delayLongPress={2000}
               activeOpacity={1}
             >
-              <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.2) }]}>{sosPresionando ? 'Aguantá...' : 'SOS'}</Text>
+              {/* Bisel cromado — estático, no se mueve */}
+              <LinearGradient
+                colors={CHROME_BEZEL}
+                start={{ x: 0.15, y: 0 }}
+                end={{ x: 0.85, y: 1 }}
+                style={{ flex: 1, borderRadius: btnH / 2, padding: 8 }}
+              >
+                {/* Hueco recesado — estático, mismo color que el LED apagado para no mostrar franjas */}
+                <View style={{ flex: 1, borderRadius: btnH / 2 - 8, borderWidth: 2.5, borderColor: sosInnerBorder, overflow: 'hidden', backgroundColor: esBotonesNoche ? '#450a0a' : '#7f1d1d' }}>
+                  <View style={styles.estadoBadgeGradient}>
+                    {/* Capa base: rojo oscuro (apagado) */}
+                    <LinearGradient
+                      colors={sosGradientOff}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={StyleSheet.absoluteFill}
+                    />
+                    {/* Capa encendida: rojo brillante, se enciende al presionar */}
+                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
+                      <LinearGradient
+                        colors={sosGradientOn}
+                        start={{ x: 0.5, y: 0 }}
+                        end={{ x: 0.5, y: 1 }}
+                        style={{ flex: 1 }}
+                      />
+                    </Animated.View>
+                    <View style={styles.estadoBadgeShine} />
+                    <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.2), fontWeight: sosPresionando ? '400' : '700', marginBottom: sosPresionando ? 3 : 0 }]}>
+                      {sosPresionando ? 'Espera...' : 'SOS'}
+                    </Text>
+                  </View>
+                </View>
+              </LinearGradient>
             </TouchableOpacity>
-            {sosPresionando && (
-              <View style={styles.sosBarra}>
-                <Animated.View style={[styles.sosBarraRelleno, {
-                  width: sosProgreso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
-                }]} />
-              </View>
-            )}
-          </Animated.View>
+          </View>
 
         </View>
 
@@ -832,11 +881,8 @@ const styles = StyleSheet.create({
   estadoBadgeGradient:  { flex: 1, alignItems: 'center', justifyContent: 'center' },
   estadoBadgeShine:     { position: 'absolute', top: 4, left: '12%', width: '76%', height: '42%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.28)' },
   estadoBadgeTexto:     { fontWeight: '600' },
-  botonSOS:             { width: 200, height: 64, borderRadius: 32, backgroundColor: '#CC2222', alignItems: 'center', justifyContent: 'center', shadowColor: '#CC2222', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10, elevation: 8, borderWidth: 3, borderColor: 'transparent' },
-  botonSOSActivo:       { backgroundColor: '#FF1A1A', borderColor: '#ffffff', shadowOpacity: 0.7, elevation: 16 },
+  botonSOSWrap:         { shadowOffset: { width: 0, height: 2 }, shadowRadius: 14, elevation: 12 },
   botonSOSTexto:        { fontSize: fs(18), fontWeight: '700', color: '#fff' },
-  sosBarra:             { height: 8, borderRadius: 4, backgroundColor: '#ffffff44', marginTop: 6, overflow: 'hidden' },
-  sosBarraRelleno:      { height: '100%', backgroundColor: '#fff', borderRadius: 4 },
   botonSOSHint:         { fontSize: fs(11), color: '#ffffff99' },
   sosModalOverlay:      { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: 'center', justifyContent: 'center' },
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 36, paddingVertical: 56, paddingHorizontal: 60, alignItems: 'center', gap: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20, width: '85%' },
