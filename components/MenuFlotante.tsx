@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,6 +15,8 @@ const ITEMS = [
   { ruta: '/configuracion',  label: 'Configuración',   sub: 'Perfil y preferencias', icono: 'settings-outline',       color: '#5B0073', bg: '#EDD9FF' },
   { ruta: '/guia',           label: 'Guía de uso',     sub: 'Funciones y comandos',  icono: 'book-outline',           color: '#6A0D91', bg: '#F0DEFF' },
 ] as const;
+
+const CHROME_BEZEL = ['#e8e8e8', '#ffffff', '#cccccc', '#707070', '#b4b4b4', '#383838'] as const;
 
 const M3 = {
   primary:          '#0097b2',
@@ -107,11 +110,22 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   return (
     <>
       <Pressable
-        style={({ pressed }) => [s.btn, oscuro ? s.btnOscuro : s.btnClaro, pressed && { opacity: 0.75 }, { width: btnSize, height: btnSize }]}
+        style={({ pressed }) => [s.btn, { width: btnSize, height: btnSize, opacity: pressed ? 0.80 : 1 }]}
         onPress={abrir}
         android_ripple={{ color: M3.primaryContainer, radius: btnSize / 2 }}
       >
-        <Ionicons name="menu" size={icoMenu} color={oscuro ? M3.onPrimary : M3.primary} />
+        <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
+          style={{ flex: 1, borderRadius: btnSize / 2, padding: 6 }}>
+          <View style={{ flex: 1, borderRadius: btnSize / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+            <LinearGradient
+              colors={['#1e3a5f', '#0f2040']}
+              start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
+            <Ionicons name="menu" size={icoMenu} color='#ffffff' />
+          </View>
+        </LinearGradient>
       </Pressable>
 
       {abierto && (
@@ -187,9 +201,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
 }
 
 const s = StyleSheet.create({
-  btn:      { position: 'absolute', top: 52, right: 20, zIndex: 10, width: 44, height: 44, borderRadius: 100, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  btnOscuro:{ backgroundColor: '#ffffff1a' },
-  btnClaro: { backgroundColor: '#cef5ff' },
+  btn:      { position: 'absolute', top: 52, right: 20, zIndex: 10, borderRadius: 100, shadowColor: '#1e3a5f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.55, shadowRadius: 10, elevation: 10 },
   scrim:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', zIndex: 20 },
 
   panel: {

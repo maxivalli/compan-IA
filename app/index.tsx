@@ -461,11 +461,22 @@ export default function Index() {
         const topPos  = 52; // igual que MenuFlotante — no suma safeTop
         return (
       <TouchableOpacity
-        style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }, noMolestar && styles.btnNoMolestarFlotanteActivo]}
+        style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize, shadowColor: noMolestar ? '#c2410c' : '#1e3a5f' }]}
         onPress={acciones.toggleDoNotDisturb}
-        activeOpacity={0.75}
+        activeOpacity={0.85}
       >
-        <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={icoSize} color={noMolestar ? '#E85D24' : '#ffffffcc'} />
+        <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
+          style={{ flex: 1, borderRadius: btnSize / 2, padding: 6 }}>
+          <View style={{ flex: 1, borderRadius: btnSize / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+            <LinearGradient
+              colors={noMolestar ? ['#c2410c', '#7c2d12'] : ['#1e3a5f', '#0f2040']}
+              start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
+            <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={icoSize} color='#ffffff' />
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
         );
       })()}
@@ -888,8 +899,7 @@ const styles = StyleSheet.create({
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 36, paddingVertical: 56, paddingHorizontal: 60, alignItems: 'center', gap: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20, width: '85%' },
   sosModalTitulo:       { fontSize: fs(42), fontWeight: '800', color: '#fff' },
   sosModalTexto:        { fontSize: fs(30), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(42) },
-btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, width: 44, height: 44, borderRadius: 100, alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff1a' },
-  btnNoMolestarFlotanteActivo: { backgroundColor: '#ffffff1a' },
+btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, borderRadius: 100, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.55, shadowRadius: 10, elevation: 10 },
   infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },
   relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
