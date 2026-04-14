@@ -435,6 +435,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           srActivoRef.current = false;
         }
         iniciarSpeechRecognition();
+      } else {
+        // SR sano — verificar si corresponde arrancar charla proactiva
+        d.verificarCharlaProactiva();
       }
     }, 3000);
     return () => {
