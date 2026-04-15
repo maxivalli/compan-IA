@@ -63,10 +63,10 @@ export function slugNombre(nombre: string): string {
   return nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').slice(0, 12) || 'user';
 }
 
-// Convierte enteros 0–999 a español rioplatense.
+// Convierte enteros 0–999.999.999 a español rioplatense.
 // ElevenLabs Flash lee "40" como "cuatro coma cero"; pasar "cuarenta" lo resuelve.
 function numToSpanish(n: number): string {
-  if (!Number.isInteger(n) || n < 0 || n > 999) return String(n);
+  if (!Number.isInteger(n) || n < 0 || n > 999_999_999) return String(n);
   const ones  = ['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve',
                   'diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve'];
   const veint = ['veinte','veintiuno','veintidós','veintitrés','veinticuatro','veinticinco',
@@ -78,8 +78,22 @@ function numToSpanish(n: number): string {
   if (n < 30)  return veint[n - 20];
   if (n === 100) return 'cien';
   if (n < 100) { const t = Math.floor(n / 10), o = n % 10; return o ? `${tens[t]} y ${ones[o]}` : tens[t]; }
-  const h = Math.floor(n / 100), rest = n % 100;
-  return rest ? `${hunds[h]} ${numToSpanish(rest)}` : hunds[h];
+  if (n < 1000) { const h = Math.floor(n / 100), rest = n % 100; return rest ? `${hunds[h]} ${numToSpanish(rest)}` : hunds[h]; }
+  if (n < 1_000_000) {
+    const miles = Math.floor(n / 1000), resto = n % 1000;
+    const milesStr = miles === 1 ? 'mil' : `${numToSpanish(miles)} mil`;
+    return resto ? `${milesStr} ${numToSpanish(resto)}` : milesStr;
+  }
+  const millones = Math.floor(n / 1_000_000), resto = n % 1_000_000;
+  const millonesStr = millones === 1 ? 'un millón' : `${numToSpanish(millones)} millones`;
+  return resto ? `${millonesStr} ${numToSpanish(resto)}` : millonesStr;
+}
+
+// Extrae el entero de un string numérico con separadores de miles (. o ,) y posibles centavos.
+// "70,000" → 70000 | "70.000" → 70000 | "1.500.000,50" → 1500000 | "70.5" → 70
+function parseMilesInt(s: string): number {
+  const sinCentavos = s.replace(/[.,]\d{1,2}$/, '');
+  return parseInt(sinCentavos.replace(/[.,]/g, ''), 10) || 0;
 }
 
 /** Limpia texto para TTS: recorta, elimina markup, expande unidades. Pura y determinista. */
@@ -110,12 +124,17 @@ export function limpiarTextoParaTTS(texto: string): string {
       return `${word} ${num.split('').join(', ')}`;
     })
     .replace(/\b(\d{1,2})\s*hs\b/gi, '$1 horas')
-    .replace(/\b(\d{1,3})\b/g, (m) => {
-      const n = parseInt(m);
-      if (n >= 100 && n <= 999) return numToSpanish(n);
-      if (n < 100) return numToSpanish(n);
-      return m;
-    });
+    // Monedas: USD/u$s/US$ → dólares | $ solo → pesos | € → euros | £ → libras
+    .replace(/\b(?:USD|US\$|u\$s)\s*([\d.,]+)/gi, (_, s) => `${numToSpanish(parseMilesInt(s))} dólares`)
+    .replace(/\$\s*([\d.,]+)/g,  (_, s) => `${numToSpanish(parseMilesInt(s))} pesos`)
+    .replace(/€\s*([\d.,]+)/g,   (_, s) => `${numToSpanish(parseMilesInt(s))} euros`)
+    .replace(/£\s*([\d.,]+)/g,   (_, s) => `${numToSpanish(parseMilesInt(s))} libras`)
+    // Números con separadores de miles: 70.000 / 70,000 / 1.500.000
+    .replace(/\b(\d{1,3}(?:[.,]\d{3})+)\b/g, (_, s) => numToSpanish(parseMilesInt(s)))
+    // Números grandes sin separadores (4+ dígitos): 70000, 1500000
+    .replace(/\b(\d{4,9})\b/g, (m) => numToSpanish(parseInt(m, 10)))
+    // Números pequeños (1–3 dígitos)
+    .replace(/\b(\d{1,3})\b/g, (m) => numToSpanish(parseInt(m, 10)));
 }
 
 /** Extrae la primera frase y el resto de un texto. */
