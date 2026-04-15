@@ -385,7 +385,7 @@ export default function Index() {
     : musicaActiva                    ? 'Parar'
     : estado === 'pensando'           ? 'Pensando'
     : estado === 'hablando'           ? 'Hablando'
-    : 'Esperando';
+    : 'Escuchando';
 
   const badgeGradient: [string, string] = noMolestar   ? ['#4b5563', '#1f2937']
     : musicaActiva                                      ? ['#fdba74', '#ea580c']
@@ -550,9 +550,11 @@ export default function Index() {
           ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
         const verticalCatOffset = layoutMode === 'vertical' && refs.perfilRef.current?.cabezaGato !== false
           ? Math.round(screenH * 0.10) : 0;
+        // Subir Rosita un ~15% del área disponible del personaje
+        const shiftUp = isTablet ? Math.round(screenH * 0.04) : Math.round(screenH * 0.10);
         return isTablet
-          ? Math.max(0, Math.round(screenH * 0.06) - catOffset + verticalCatOffset)
-          : Math.max(0, 180 - catOffset + verticalCatOffset);
+          ? Math.max(0, Math.round(screenH * 0.06) - catOffset + verticalCatOffset - shiftUp)
+          : Math.max(0, 180 - catOffset + verticalCatOffset - shiftUp);
       })() },
   ]}
   {...panCaricia.panHandlers}
@@ -666,10 +668,10 @@ export default function Index() {
               colors={CHROME_BEZEL}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.85, y: 1 }}
-              style={{ width: '61%', height: '100%', borderRadius: 10, padding: 5 }}
+              style={{ width: '61%', height: '100%', borderRadius: 10, padding: 3 }}
             >
               {/* Panel LCD recesado */}
-              <View style={{ flex: 1, borderRadius: 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.30)', overflow: 'hidden' }}>
+              <View style={{ flex: 1, borderRadius: 4, borderWidth: 2, borderColor: 'rgba(0,0,0,0.30)', overflow: 'hidden' }}>
                 {/* Fondo verde retroiluminado */}
                 <LinearGradient
                   colors={['#010D01', '#021202', '#010E01']}
@@ -744,8 +746,8 @@ export default function Index() {
             activeOpacity={0.85}
           >
             <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
-              style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}>
-              <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              style={{ flex: 1, borderRadius: btnH / 2, padding: 4 }}>
+              <View style={{ flex: 1, borderRadius: btnH / 2 - 4, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
                 <LinearGradient colors={['#1e3a5f', '#0f2040']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
                 <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
                 <Ionicons name="menu" size={Math.round(btnH * 0.38)} color="#ffffff" />
@@ -764,10 +766,10 @@ export default function Index() {
               colors={CHROME_BEZEL}
               start={{ x: 0.15, y: 0 }}
               end={{ x: 0.85, y: 1 }}
-              style={{ flex: 1, borderRadius: btnH / 2, padding: 8 }}
+              style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}
             >
               {/* Panel LED recesado */}
-              <View style={{ flex: 1, borderRadius: btnH / 2 - 8, borderWidth: 2.5, borderColor: 'rgba(0,0,0,0.32)', overflow: 'hidden' }}>
+              <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2.5, borderColor: 'rgba(0,0,0,0.32)', overflow: 'hidden' }}>
                 <View style={styles.estadoBadgeGradient}>
                   {/* Capa base */}
                   <LinearGradient
@@ -803,8 +805,8 @@ export default function Index() {
             activeOpacity={0.85}
           >
             <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
-              style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}>
-              <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              style={{ flex: 1, borderRadius: btnH / 2, padding: 4 }}>
+              <View style={{ flex: 1, borderRadius: btnH / 2 - 4, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
                 <LinearGradient colors={noMolestar ? ['#c2410c', '#7c2d12'] : ['#1e3a5f', '#0f2040']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
                 <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
                 <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={Math.round(btnH * 0.38)} color="#ffffff" />
@@ -830,10 +832,10 @@ export default function Index() {
                 colors={CHROME_BEZEL}
                 start={{ x: 0.15, y: 0 }}
                 end={{ x: 0.85, y: 1 }}
-                style={{ flex: 1, borderRadius: btnH / 2, padding: 8 }}
+                style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}
               >
                 {/* Hueco recesado — estático, mismo color que el LED apagado para no mostrar franjas */}
-                <View style={{ flex: 1, borderRadius: btnH / 2 - 8, borderWidth: 2.5, borderColor: sosInnerBorder, overflow: 'hidden', backgroundColor: esBotonesNoche ? '#450a0a' : '#7f1d1d' }}>
+                <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2.5, borderColor: sosInnerBorder, overflow: 'hidden', backgroundColor: esBotonesNoche ? '#450a0a' : '#7f1d1d' }}>
                   <View style={styles.estadoBadgeGradient}>
                     {/* Capa base: rojo oscuro (apagado) */}
                     <LinearGradient
@@ -924,19 +926,6 @@ export default function Index() {
         style={{ position: 'absolute', bottom: safeBottom + 50, left: 0, width: 70, height: 70 }}
       />
 
-      {__DEV__ && (
-        <View style={{ position: 'absolute', bottom: safeBottom + 8, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-          <TouchableOpacity onPress={() => router.push('/ahorcado' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>🔤 Ahorcado</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/tateti' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>⭕ Tateti</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/memoria' as any)} style={{ backgroundColor: '#0097b2cc', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 }}>
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>🧠 Memoria</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       <Animated.View
         pointerEvents="none"

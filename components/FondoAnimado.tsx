@@ -108,7 +108,7 @@ export function ZZZ({ modoHorizontal = false }: { modoHorizontal?: boolean } = {
               right: Math.round(screenW * 0.17),
               bottom: Math.round(screenH * 0.34),
             }
-          : (esTablet ? { bottom: '60%' } : (screenW >= 600 ? { bottom: '65%' } : null)),
+          : (esTablet ? { bottom: '66%' } : (screenW >= 600 ? { bottom: '71%' } : null)),
       ]}
     >
       {zetas.map((z, i) => (
@@ -327,6 +327,6 @@ const s = StyleSheet.create({
 });
 
 const sz = StyleSheet.create({
-  contenedor: { position: 'absolute', bottom: '52%', right: '18%', width: 80, height: 90 },
+  contenedor: { position: 'absolute', bottom: '62%', right: '18%', width: 80, height: 90 },
   z:          { position: 'absolute', fontWeight: '700', color: '#5DCAA5', opacity: 0 },
 });
