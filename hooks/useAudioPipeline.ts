@@ -40,7 +40,7 @@ import {
 import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
 
 const TTS_CACHE_VERSION = 'v6';
-const MULETILLA_CACHE_VERSION = 'v19';
+const MULETILLA_CACHE_VERSION = 'v20';
 
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
