@@ -123,7 +123,9 @@ export function MarcoCuero() {
       <Svg width={W} height={H}>
         <Defs>
           {/* Gradiente horizontal igual que PanelCuero */}
-          <SvgGradient id="cuero" x1="0" y1="0" x2="1" y2="0">
+          {/* colorInterpolation="sRGB" asegura que el SVG interpole igual que expo-linear-gradient */}
+          {/* Sin esto, react-native-svg usa linearRGB por defecto → el borde aparece más claro en móvil */}
+          <SvgGradient id="cuero" x1="0" y1="0" x2="1" y2="0" colorInterpolation="sRGB">
             <Stop offset="0%"   stopColor="#3A1608" />
             <Stop offset="8%"   stopColor="#7A3C18" />
             <Stop offset="38%"  stopColor="#A05530" />
@@ -132,7 +134,7 @@ export function MarcoCuero() {
             <Stop offset="100%" stopColor="#3A1608" />
           </SvgGradient>
           {/* Sheen: destello de luz cálida sobre el cuero */}
-          <SvgGradient id="sheen" x1="0.5" y1="0" x2="0.5" y2="1">
+          <SvgGradient id="sheen" x1="0.5" y1="0" x2="0.5" y2="1" colorInterpolation="sRGB">
             <Stop offset="0%"   stopColor="rgba(255,190,120,0.20)" />
             <Stop offset="40%"  stopColor="rgba(255,190,120,0.06)" />
             <Stop offset="100%" stopColor="rgba(255,190,120,0)" />
