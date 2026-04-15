@@ -485,8 +485,8 @@ function UnaNube({ w, h, top, startX, dur, delay, opacity: op, borderRadius: br,
     const anim = Animated.loop(
       Animated.sequence([
         Animated.delay(delay),
-        Animated.timing(x, { toValue: destino,  duration: dur, useNativeDriver: true }),
-        Animated.timing(x, { toValue: startX,   duration: 0,   useNativeDriver: true }),
+        Animated.timing(x, { toValue: destino, duration: dur, useNativeDriver: true }),
+        Animated.timing(x, { toValue: startX,  duration: 0,   useNativeDriver: true }),
       ])
     );
     anim.start();
