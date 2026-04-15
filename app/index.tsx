@@ -622,10 +622,10 @@ export default function Index() {
       </View>
       {modoNoche === 'durmiendo' && <ZZZ />}
 
-      <PanelCuero top={faceBottom} />
+      <PanelCuero top={faceBottom + Math.round(screenH * 0.05)} />
       <MarcoCuero />
 
-      <View style={[styles.ecualizadorWrap, { height: displayH }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
+      <View style={[styles.ecualizadorWrap, { height: displayH, marginTop: Math.round(screenH * 0.05) }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
         {listas.length > 0
           ? (() => {
               const PEEK = 20;
