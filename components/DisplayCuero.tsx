@@ -25,7 +25,7 @@ function iconoClima(desc?: string): string {
 // ── Waveform animado ──────────────────────────────────────────────────────────
 const BAR_N = 7;
 
-function WaveformLED({ activa }: { activa: boolean }) {
+function WaveformLED({ activa, color }: { activa: boolean; color: string }) {
   const bars = useRef(
     Array.from({ length: BAR_N }, (_, i) => new Animated.Value(0.2 + (i % 3) * 0.15))
   ).current;
@@ -65,7 +65,7 @@ function WaveformLED({ activa }: { activa: boolean }) {
             sw.barra,
             {
               transform: [{ scaleY: bar }],
-              backgroundColor: activa ? LED : LED_DIM,
+              backgroundColor: activa ? color : LED_DIM,
             },
           ]}
         />
@@ -75,8 +75,8 @@ function WaveformLED({ activa }: { activa: boolean }) {
 }
 
 const sw = StyleSheet.create({
-  wrap:  { flexDirection: 'row', alignItems: 'center', gap: 3, height: 32 },
-  barra: { width: 3, height: 32, borderRadius: 2 },
+  wrap:  { flexDirection: 'row', alignItems: 'center', gap: 2, height: 20 },
+  barra: { width: 2, height: 20, borderRadius: 1 },
 });
 
 // ── DisplayCuero ──────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ export default function DisplayCuero({ horaMinuto, climaObj, musicaActiva, alert
 
         {/* Waveform */}
         <View style={s.waveWrap}>
-          <WaveformLED activa={musicaActiva} />
+          <WaveformLED activa={musicaActiva} color={color} />
         </View>
 
         {/* Separador */}
