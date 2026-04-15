@@ -1652,12 +1652,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
         d.splitEnOraciones(ppc.respuesta).forEach(s => d.precachearTexto(s, ppc.expresion).catch(() => {}));
       }
 
-      // Claude ya llegó (winner lo confirma) — parar tecleo ahora para que no
-      // siga sonando durante la reproducción de la muletilla ni del TTS.
+      // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
+      // El tecleo sigue sonando durante la muletilla para minimizar silencios
+      await muletillaPromise;
+      
+      // Parar tecleo JUSTO antes de que Rosita empiece a hablar
       tecleoAbort.current = true;
       await tecleoPromise;
-      // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
-      await muletillaPromise;
 
       // ── Sprint B: latencia extendida ──────────────────────────────────────────
       // Si la muletilla terminó pero Claude aún no llegó, reproducir aviso de espera
