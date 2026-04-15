@@ -104,6 +104,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       iniciarAudioCapture(ws);
+    } else if (ws && ws.readyState === WebSocket.CONNECTING) {
+      // Ya hay una conexión en progreso — esperar el evento 'ready', no abrir otra.
+      return;
     } else {
       // WS caído mientras Rosita hablaba → reconectar
       iniciar();
@@ -171,6 +174,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         if (activoRef.current) scheduleReconnect();
         return;
       }
+
+      // Re-check: detener() pudo haber sido llamado mientras esperábamos el ticket.
+      if (!activoRef.current) return;
 
       const wsUrl = BACKEND_URL
         .replace(/^https:\/\//, 'wss://')

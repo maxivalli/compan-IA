@@ -85,8 +85,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['Qué lindo recuerdo, dejame pensar un poquito en eso...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
   },
   comando: {
-    femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
-    masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
+    femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Dale, dame un segundito y ya queda...'],
+    masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Dale, dame un segundito y ya queda...'],
   },
   lista: {
     femenina:  ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...', 'Ya lo anoto, un segundito...'],
@@ -290,7 +290,7 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
   if (/\b(chau|chao|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
-  if (/\b(perfecto|entendido|re bien|todo bien|genial|b[aá]rbaro|de acuerdo)\b/i.test(texto)) return 'afirmacion';
+  if (/\b(perfecto|entendido|re bien|todo bien|genial|de acuerdo)\b/i.test(texto)) return 'afirmacion';
   return null;
 }
 
