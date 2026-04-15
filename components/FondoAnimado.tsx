@@ -320,8 +320,8 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  ecualizador: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 60 },
-  barra:       { width: 7, height: 60, borderRadius: 4, backgroundColor: '#5DCAA5' },
+  ecualizador: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 28 },
+  barra:       { width: 4, height: 28, borderRadius: 2, backgroundColor: '#33FF66' },
   waveform:    { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26 },
   waveBar:     { width: 5, height: 26, borderRadius: 3, backgroundColor: '#ef4444' },
 });

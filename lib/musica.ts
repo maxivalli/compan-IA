@@ -35,8 +35,8 @@ export async function confirmarRadio(termino: string, url: string): Promise<void
 
 // ── Fallbacks hardcodeados (último recurso si la API falla) ───────────────────
 export const STREAMS_FALLBACK: Record<string, string[]> = {
-  cadena3:     ['https://liveradio.mediainbox.net/radio3.mp3'],
-  lv3:         ['https://liveradio.mediainbox.net/radio3.mp3'],
+  cadena3:     ['https://liveradio.mediainbox.net/radio3.mp3', 'https://streams.cadena3.com/cadena3/mp3/128/stream'],
+  lv3:         ['https://liveradio.mediainbox.net/radio3.mp3', 'https://streams.cadena3.com/cadena3/mp3/128/stream'],
   delplata:    ['https://streaming01.shockmedia.com.ar:10217/stream'],
   lt8:         ['https://stream.lt8.com.ar:8080/lt8radio.mp3'],
   mitre:       ['https://27363.live.streamtheworld.com/AM790_56AAC_SC'],
@@ -230,9 +230,15 @@ export async function buscarRadio(termino: string): Promise<string | null> {
   const cached = await leerCache(key);
   if (cached) return cached;
 
-  // 2a. Radios con nombre conocido → buscar por nombre en AR
+  // 2a. Radios con nombre conocido → primero URL curada si existe, luego API por nombre en AR.
+  // Las URLs curadas son más confiables que RadioBrowser (evitan streams efímeros o con límite de sesión).
   const esRadioNombrada = key in ALIAS_BUSQUEDA;
   if (esRadioNombrada) {
+    const curadas = STREAMS_FALLBACK[key];
+    const primeraCurada = curadas?.find(u => esStreamValido(u));
+    if (primeraCurada) return primeraCurada;
+
+    // Sin URL curada → RadioBrowser
     const resultado = await buscarPorNombre(key, 'AR');
     if (resultado) {
       notificarClick(resultado.uuid);

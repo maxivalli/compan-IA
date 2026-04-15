@@ -740,7 +740,7 @@ export default function Index() {
           {/* Botón Menú */}
           <TouchableOpacity
             style={{ width: btnH, height: btnH, borderRadius: btnH / 2 }}
-            onPress={() => { playClick(); menuTriggerRef.current?.(); }}
+            onPress={() => { menuTriggerRef.current?.(); }}
             activeOpacity={0.85}
           >
             <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}

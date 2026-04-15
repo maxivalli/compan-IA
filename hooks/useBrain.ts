@@ -1025,7 +1025,7 @@ export function useBrain(deps: BrainDeps) {
           } else {
             await hablarError('La radio no está respondiendo. ¿Querés que intente con otra?');
           }
-        }, 10000);
+        }, 30000);
       } catch {
         d.musicaActivaRef.current = false;
         d.setMusicaActiva(false);
