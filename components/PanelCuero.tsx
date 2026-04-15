@@ -1,6 +1,6 @@
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Path, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -85,85 +85,117 @@ export default function PanelCuero({ top }: { top: number }) {
 const FRAME = 26; // grosor del marco en px
 const R     = 22; // radio de las esquinas interiores
 
+// Paleta idéntica a PanelCuero — se declara aquí para compartirla fácilmente
+const CUERO_COLORS  = ['#3A1608', '#7A3C18', '#A05530', '#9A5028', '#7A3C18', '#3A1608'] as const;
+const CUERO_LOCS    = [0, 0.08, 0.38, 0.62, 0.92, 1] as const;
+const HORIZ         = { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } };
+
+// Colores de los flancos verticales (porción izquierda/derecha de la misma paleta,
+// ~6.5 % del ancho total ≈ FRAME px sobre un teléfono de ~390 dp)
+// Interpolación entre stop 0 % (#3A1608) y stop 8 % (#7A3C18) al 81 % de ese tramo
+const FLANCO_INNER  = '#6E3416';   // ~81 % entre #3A1608 y #7A3C18
+const FLANCO_L      = [CUERO_COLORS[0], FLANCO_INNER] as const;
+const FLANCO_R      = [FLANCO_INNER, CUERO_COLORS[0]] as const;
+
 /**
  * Marco de cuero envejecido que rodea toda la pantalla.
- * Usa SVG con fillRule="evenodd" para un marco sólido con esquinas interiores redondeadas.
+ *
+ * NOTA: La versión anterior usaba SVG fillRule="evenodd" + gradient fill, que
+ * en Android (react-native-svg) no renderiza el relleno degradado — el path
+ * queda transparente y se ve el fondo de la app en su lugar.
+ * Esta versión usa expo-linear-gradient (igual que PanelCuero) para garantizar
+ * colores idénticos en iOS y Android.
  */
 export function MarcoCuero() {
   const { width: W, height: H } = useWindowDimensions();
   const { top: safeTop } = useSafeAreaInsets();
 
-  // Ventana interior: empieza debajo de la safe area + margen del marco
   const ix = FRAME;
-  const iy = safeTop + FRAME;
+  const iy = safeTop + FRAME;   // top del área interior (debajo de status bar + marco)
   const iw = W - FRAME * 2;
   const ih = H - iy - FRAME;
-
-  // Rectángulo exterior (toda la pantalla, horario)
-  const outer = `M 0 0 L ${W} 0 L ${W} ${H} L 0 ${H} Z`;
-
-  // Rectángulo interior redondeado (antihorario = recorte "evenodd")
-  const inner = [
-    `M ${ix + R} ${iy}`,
-    `L ${ix + iw - R} ${iy}`,
-    `Q ${ix + iw} ${iy} ${ix + iw} ${iy + R}`,
-    `L ${ix + iw} ${iy + ih - R}`,
-    `Q ${ix + iw} ${iy + ih} ${ix + iw - R} ${iy + ih}`,
-    `L ${ix + R} ${iy + ih}`,
-    `Q ${ix} ${iy + ih} ${ix} ${iy + ih - R}`,
-    `L ${ix} ${iy + R}`,
-    `Q ${ix} ${iy} ${ix + R} ${iy} Z`,
-  ].join(' ');
-
-  const frame = `${outer} ${inner}`;
-  const ST    = 6; // distancia de la costura al borde interior
+  const ST = 6;                 // distancia costura → borde interior
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
+
+      {/* ── Franja superior (incluye zona de status bar + grosor del marco) ── */}
+      <LinearGradient
+        colors={CUERO_COLORS} locations={CUERO_LOCS}
+        {...HORIZ}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: iy }}
+      />
+
+      {/* ── Franja inferior ── */}
+      <LinearGradient
+        colors={CUERO_COLORS} locations={CUERO_LOCS}
+        {...HORIZ}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: FRAME }}
+      />
+
+      {/* ── Flanco izquierdo ── */}
+      <LinearGradient
+        colors={FLANCO_L}
+        {...HORIZ}
+        style={{ position: 'absolute', top: iy, left: 0, width: FRAME, height: ih }}
+      />
+
+      {/* ── Flanco derecho ── */}
+      <LinearGradient
+        colors={FLANCO_R}
+        {...HORIZ}
+        style={{ position: 'absolute', top: iy, right: 0, width: FRAME, height: ih }}
+      />
+
+      {/* ── Sheen: destello de luz cálida en el borde superior ── */}
+      <LinearGradient
+        colors={['rgba(255,190,120,0.18)', 'rgba(255,190,120,0.05)', 'rgba(255,190,120,0)']}
+        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: iy + 20 }}
+      />
+
+      {/* ── Sombra superior: transición suave entre el ojo y el marco ── */}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.28)', 'rgba(0,0,0,0)']}
+        start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }}
+        style={{ position: 'absolute', top: iy, left: FRAME, right: FRAME, height: 14 }}
+      />
+
+      {/* ── Costuras + sombra interior del borde de ventana (SVG — solo strokes, sin fills) ── */}
       <Svg width={W} height={H}>
-        <Defs>
-          {/* Gradiente horizontal igual que PanelCuero */}
-          {/* colorInterpolation="sRGB" asegura que el SVG interpole igual que expo-linear-gradient */}
-          {/* Sin esto, react-native-svg usa linearRGB por defecto → el borde aparece más claro en móvil */}
-          <SvgGradient id="cuero" x1="0" y1="0" x2="1" y2="0" colorInterpolation="sRGB">
-            <Stop offset="0%"   stopColor="#3A1608" />
-            <Stop offset="8%"   stopColor="#7A3C18" />
-            <Stop offset="38%"  stopColor="#A05530" />
-            <Stop offset="62%"  stopColor="#9A5028" />
-            <Stop offset="92%"  stopColor="#7A3C18" />
-            <Stop offset="100%" stopColor="#3A1608" />
-          </SvgGradient>
-          {/* Sheen: destello de luz cálida sobre el cuero */}
-          <SvgGradient id="sheen" x1="0.5" y1="0" x2="0.5" y2="1" colorInterpolation="sRGB">
-            <Stop offset="0%"   stopColor="rgba(255,190,120,0.20)" />
-            <Stop offset="40%"  stopColor="rgba(255,190,120,0.06)" />
-            <Stop offset="100%" stopColor="rgba(255,190,120,0)" />
-          </SvgGradient>
-        </Defs>
-
-        {/* Cuero base */}
-        <Path d={frame} fillRule="evenodd" fill="url(#cuero)" />
-        {/* Sheen sobre el cuero */}
-        <Path d={frame} fillRule="evenodd" fill="url(#sheen)" />
-
-        {/* Costura doble — sobre el cuero superior (encima de la ventana) */}
+        {/* Costura doble superior */}
         <Path d={`M ${ix + R} ${iy - ST} L ${ix + iw - R} ${iy - ST}`}
           stroke="#D4906A" strokeWidth={1.5} strokeDasharray="10,7" fill="none" opacity={0.82} />
         <Path d={`M ${ix + R} ${iy - ST - 9} L ${ix + iw - R} ${iy - ST - 9}`}
           stroke="#D4906A" strokeWidth={1.5} strokeDasharray="10,7" strokeDashoffset={5} fill="none" opacity={0.42} />
 
-        {/* Costura lateral izquierda — sobre el cuero, a la izquierda de la ventana */}
+        {/* Costura izquierda */}
         <Path d={`M ${ix - ST} ${iy + R} L ${ix - ST} ${iy + ih - R}`}
           stroke="#D4906A" strokeWidth={1.5} strokeDasharray="8,6" fill="none" opacity={0.75} />
 
-        {/* Costura lateral derecha — sobre el cuero, a la derecha de la ventana */}
+        {/* Costura derecha */}
         <Path d={`M ${ix + iw + ST} ${iy + R} L ${ix + iw + ST} ${iy + ih - R}`}
           stroke="#D4906A" strokeWidth={1.5} strokeDasharray="8,6" fill="none" opacity={0.75} />
 
-        {/* Sombra interior — profundidad en el borde de la ventana */}
-        <Path d={frame} fillRule="evenodd"
-          fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={4} />
+        {/* Sombra interior — profundidad en el borde de la ventana interior */}
+        <Path
+          d={[
+            `M ${ix + R} ${iy}`,
+            `L ${ix + iw - R} ${iy}`,
+            `Q ${ix + iw} ${iy} ${ix + iw} ${iy + R}`,
+            `L ${ix + iw} ${iy + ih - R}`,
+            `Q ${ix + iw} ${iy + ih} ${ix + iw - R} ${iy + ih}`,
+            `L ${ix + R} ${iy + ih}`,
+            `Q ${ix} ${iy + ih} ${ix} ${iy + ih - R}`,
+            `L ${ix} ${iy + R}`,
+            `Q ${ix} ${iy} ${ix + R} ${iy}`,
+          ].join(' ')}
+          fill="none"
+          stroke="rgba(0,0,0,0.35)"
+          strokeWidth={4}
+        />
       </Svg>
+
     </View>
   );
 }

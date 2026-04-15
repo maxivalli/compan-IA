@@ -145,7 +145,14 @@ export function splitEnOraciones(texto: string): string[] {
     }
   }
   const cola = texto.slice(lastIdx).trim();
-  if (cola.length >= 4 && /\w/.test(cola)) oraciones.push(cola);
+  // Solo agregar la cola si no hay oraciones completas todavía (toda la respuesta es la cola,
+  // p.ej. "Bien, acá estoy") o si es muy corta (<= 30 chars).
+  // Si ya hay oraciones y la cola es larga, es un fragmento sin terminar del LLM → descartar
+  // para evitar que Rosita hable una frase a medias al final de respuestas largas.
+  const colaSustancial = cola.length > 30;
+  if (cola.length >= 4 && /\w/.test(cola) && (!colaSustancial || oraciones.length === 0)) {
+    oraciones.push(cola);
+  }
   return oraciones.filter(s => s.length > 0);
 }
 

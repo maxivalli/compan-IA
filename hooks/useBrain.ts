@@ -961,7 +961,7 @@ export function useBrain(deps: BrainDeps) {
     // y no queremos que Deepgram transcriba el audio del altavoz.
     d.cerrarDGParaMusica();
     const streamPromise = buscarRadio(generoMusica);
-    logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 300) });
+    logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 500) });
     await d.hablar(`${respuesta} Para detenerla, tocá la pantalla.`);
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
@@ -1702,7 +1702,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         mensajesSesionRef.current += 2;
         d.ultimaCharlaRef.current    = Date.now();
         d.ultimaActividadRef.current = Date.now();
-        logCliente('rosita_msg', { tag: parsedFallback.tagPrincipal ?? 'none', texto: parsedFallback.respuesta.slice(0, 300) });
+        logCliente('rosita_msg', { tag: parsedFallback.tagPrincipal ?? 'none', texto: parsedFallback.respuesta.slice(0, 500) });
         await d.hablar(parsedFallback.respuesta, parsedFallback.expresion);
         return;
       }
@@ -1971,7 +1971,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         response_chars: parsed.respuesta.length,
         oraciones: oracionesTotal.length,
       });
-      logCliente('rosita_msg', { tag: parsed.tagPrincipal ?? 'none', texto: parsed.respuesta.slice(0, 300) });
+      logCliente('rosita_msg', { tag: parsed.tagPrincipal ?? 'none', texto: parsed.respuesta.slice(0, 500) });
       if (oracionesTotal.length === 0 && !primeraFraseReproducida) {
         logCliente('rc_parse_vacio', { rawSlice: respuestaRaw.slice(0, 150) });
         await d.hablar('No entendí bien, ¿podés repetir?');
@@ -1982,6 +1982,17 @@ REGLAS CRÍTICAS PARA RESPONDER:
         if (resto) await d.hablarConCola(d.splitEnOraciones(resto), parsed.expresion);
       } else {
         await d.hablarConCola(oracionesTotal, parsed.expresion);
+      }
+
+      // ── Aviso inmediato de nota en preparación ──
+      // Si Claude despachó un async job, anunciarlo con voz AHORA (justo después del resumen)
+      // para que el usuario sepa que va a aparecer una nota completa. El segundo aviso
+      // ("Te dejé una nota con...") llega cuando el backend termina (polling ~45s).
+      if (parsed.asyncJob) {
+        const avisoNota = parsed.asyncJob.tipo === 'receta'
+          ? 'Ahora te preparo una nota con la receta completa para que la puedas ver cuando quieras.'
+          : 'Voy a buscar más información y la voy a guardar en una nota para que la tengas a mano.';
+        await d.hablar(avisoNota);
       }
 
       // ── Recordatorio de medicamento pendiente ──
