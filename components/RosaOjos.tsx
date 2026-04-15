@@ -6,6 +6,8 @@ import Svg, {
   ClipPath,
   Defs,
   Ellipse,
+  FeDropShadow,
+  Filter,
   LinearGradient,
   Path,
   RadialGradient,
@@ -532,7 +534,7 @@ const Ojo = memo(function Ojo({
   return (
     <Animated.View style={{ transform: [{ translateX: offsetX }] }}>
     <Animated.View style={[s.eyeContainer, { transform: [{ scaleY }] }]}>
-      <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`}>
+      <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`} overflow="visible">
         <Defs>
           {/* IDs sufijados con "side" para evitar conflictos entre el ojo L y el R */}
           <ClipPath id={`huevo${side}`}>
@@ -578,7 +580,15 @@ const Ojo = memo(function Ojo({
             <Stop offset="100%" stopColor="#000000" stopOpacity="0.28"/>
           </RadialGradient>
 
+          {/* Drop shadow: sombra exterior para efecto de profundidad 3D */}
+          <Filter id={`eyeShadow${side}`} x="-30%" y="-20%" width="160%" height="150%">
+            <FeDropShadow dx="0" dy="7" stdDeviation="7" floodColor="#060108" floodOpacity="0.52" />
+          </Filter>
+
         </Defs>
+
+        {/* ── Sombra exterior (drop shadow) — se renderiza antes que todo el contenido ── */}
+        <Path d={pathFormaOjo} fill={BG} filter={`url(#eyeShadow${side})`} />
 
         {/* ── Fondo piel (forma recalculated completa) ── */}
         <Path
