@@ -291,7 +291,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       esFondoNoche={props.esFondoNoche}
                       modoHorizontal
                     />
-                    <View style={{ transform: [{ translateY: faceTranslateY }, { scale: 1.04 }] }}>
+                    <View style={{ transform: [{ translateY: faceTranslateY }, { scale: 1.04 }], zIndex: 5 }}>
                       <RosaOjos
                         estado={props.estado}
                         expresion={props.expresion}

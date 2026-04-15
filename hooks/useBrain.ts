@@ -85,8 +85,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['Qué lindo recuerdo, dejame pensar un poquito en eso...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
   },
   comando: {
-    femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Dale, dame un segundito y ya queda...'],
-    masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Dale, dame un segundito y ya queda...'],
+    femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
+    masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
   },
   lista: {
     femenina:  ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...', 'Ya lo anoto, un segundito...'],
@@ -207,7 +207,7 @@ const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
 // ── Patrones de clasificación (exportados para uso en SR y otros hooks) ─────────
 
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
-export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien)\b/i;
+export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien|b[aá]rbaro)\b/i;
 export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
 export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|nació\b|embarazada|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
@@ -290,7 +290,7 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
   if (/\b(chau|chao|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
-  if (/\b(perfecto|entendido|re bien|todo bien|genial|de acuerdo)\b/i.test(texto)) return 'afirmacion';
+  if (/\b(perfecto|entendido|re bien|todo bien|genial|de acuerdo|b[aá]rbaro)\b/i.test(texto)) return 'afirmacion';
   return null;
 }
 

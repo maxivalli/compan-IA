@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { LinearGradient as ExpoGradient } from 'expo-linear-gradient';
 import Svg, {
   Circle,
   ClipPath,
@@ -225,7 +226,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     <Animated.View style={[
       sb.boca,
       forma,
-      { transform: [{ scaleX }, { scaleY }] },
+      { transform: [{ scaleX }, { scaleY }], overflow: 'hidden' },
       esCurvaNeutral && {
         backgroundColor: 'transparent',
         borderBottomWidth: 3,
@@ -233,17 +234,32 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         borderRightWidth: 1.5,
         borderColor: '#8B5E3C',
       }
-    ]} />
+    ]}>
+      {!esCurvaNeutral && (
+        <ExpoGradient
+          colors={['#C87848', '#8B5E3C', '#3D1E08']}
+          locations={[0, 0.45, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+    </Animated.View>
   );
 }
 
 const sb = StyleSheet.create({
   boca: {
-    width:  BOCA_W,
-    height: BOCA_H,
+    width:           BOCA_W,
+    height:          BOCA_H,
     backgroundColor: '#8B5E3C',
-    marginTop: 55,
-    elevation: 0,
+    marginTop:       55,
+    // Drop shadow — da volumen, parece levemente elevada sobre la cara
+    shadowColor:     '#2A0E00',
+    shadowOffset:    { width: 0, height: 3 },
+    shadowOpacity:   0.45,
+    shadowRadius:    4,
+    elevation:       4,
   },
 });
 
@@ -489,6 +505,10 @@ const Ojo = memo(function Ojo({
   const reflejo2CX = useRef(Animated.add(irisX, new Animated.Value(PUPIL * 0.22))).current;
   const reflejo2CY = useRef(Animated.add(irisY, new Animated.Value(PUPIL * 0.25))).current;
 
+  // Highlight corneal: sigue al iris, posicionado arriba para simular vidrio convexo
+  const corneaCX = useRef(Animated.add(irisX, new Animated.Value(IRIS * 0.05))).current;
+  const corneaCY = useRef(Animated.add(irisY, new Animated.Value(-IRIS * 0.20))).current;
+
   // Posición Y del párpado inferior: EYE_H - lowerLid
   const lowerLidY = useRef(Animated.add(new Animated.Value(EYE_H), Animated.multiply(lowerLid, -1))).current;
 
@@ -551,6 +571,13 @@ const Ojo = memo(function Ojo({
             <Stop offset="0%"   stopColor="#000000" stopOpacity="0.18"/>
             <Stop offset="100%" stopColor="#000000" stopOpacity="0"/>
           </RadialGradient>
+
+          {/* Rim shadow difuminado: transparente en el centro, oscuro en los bordes */}
+          <RadialGradient id={`gradRim${side}`} cx="50%" cy="30%" rx="52%" ry="50%">
+            <Stop offset="75%"  stopColor="#000000" stopOpacity="0"/>
+            <Stop offset="100%" stopColor="#000000" stopOpacity="0.28"/>
+          </RadialGradient>
+
         </Defs>
 
         {/* ── Fondo piel (forma recalculated completa) ── */}
@@ -570,6 +597,14 @@ const Ojo = memo(function Ojo({
             ry={EYE_H * 0.46}
             fill={`url(#gradEsclera${side})`}
           />
+          {/* Rim shadow difuminado: sombra suave en los bordes de la esclera */}
+          <Ellipse
+            cx={CX}
+            cy={EYE_H * 0.68}
+            rx={EYE_W * 0.54}
+            ry={EYE_H * 0.46}
+            fill={`url(#gradRim${side})`}
+          />
 
           {/* Iris + pupila animados ── */}
           {/* Iris */}
@@ -579,14 +614,14 @@ const Ojo = memo(function Ojo({
             r={IRIS / 2}
             fill={`url(#gradIris${side})`}
           />
-          {/* Anillo exterior del iris */}
+          {/* Limbal ring: anillo exterior del iris — más pronunciado para dar esfericidad */}
           <AnimatedCircle
             cx={irisX as any}
             cy={irisY as any}
             r={IRIS / 2}
             fill="none"
-            stroke="rgba(8,30,80,0.25)"
-            strokeWidth={1.5}
+            stroke="rgba(5,18,60,0.55)"
+            strokeWidth={2.5}
           />
           {/* Anillo interior del iris */}
           <AnimatedCircle
@@ -594,7 +629,7 @@ const Ojo = memo(function Ojo({
             cy={irisY as any}
             r={IRIS * 0.6 / 2}
             fill="none"
-            stroke="rgba(8,30,80,0.12)"
+            stroke="rgba(8,30,80,0.14)"
             strokeWidth={1}
           />
           {/* Pupila */}
@@ -603,6 +638,15 @@ const Ojo = memo(function Ojo({
             cy={irisY as any}
             r={PUPIL / 2}
             fill={`url(#gradPupila${side})`}
+          />
+          {/* Highlight corneal: arco suave en la parte superior del iris, simula el vidrio convexo */}
+          <AnimatedEllipse
+            cx={corneaCX as any}
+            cy={corneaCY as any}
+            rx={IRIS * 0.42}
+            ry={IRIS * 0.16}
+            fill="white"
+            opacity={0.20}
           />
           {/* Reflejo principal ── */}
           <AnimatedEllipse
@@ -622,7 +666,6 @@ const Ojo = memo(function Ojo({
             fill="white"
             opacity={0.45}
           />
-
           {/* Sombra suave del párpado cayendo sobre el ojo */}
           <Rect
             x={0} y={0}
