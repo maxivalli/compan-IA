@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cargarPerfil } from '../lib/memoria';
 import { obtenerEstadoSmartThings } from '../lib/smartthings';
+import { useClickSound } from '../hooks/useClickSound';
 
 const ITEMS = [
   { ruta: '/',               label: 'ASISTENTE',       sub: 'Pantalla principal',    icono: 'heart',                  color: '#7C5200', bg: '#FFE0A0' },
@@ -40,6 +41,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   const [vozGenero, setVozGenero]      = useState<'femenina' | 'masculina'>('femenina');
   const [smartLinkVisible, setSmartLinkVisible] = useState(false);
   const insets = useSafeAreaInsets();
+  const { playClick } = useClickSound();
 
   const { width: screenW } = useWindowDimensions();
   const isTablet  = screenW >= 600;
@@ -78,6 +80,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
   }, [abierto, pathname]);
 
   function abrir() {
+    playClick();
     setAbierto(true);
     Animated.parallel([
       Animated.timing(slide,   { toValue: 1, duration: 380, useNativeDriver: true }),

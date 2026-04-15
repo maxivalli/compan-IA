@@ -16,6 +16,7 @@ import { useRosita } from '../hooks/useRosita';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { useAccionesRosita } from '../hooks/useAccionesRosita';
 import { useBLEBeacon } from '../hooks/useBLEBeacon';
+import { useClickSound } from '../hooks/useClickSound';
 import RositaHorizontalLayout from '../components/RositaHorizontalLayout';
 import RosaOjos, { BG, CAT_FACE_TOP_EXTRA } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
@@ -308,6 +309,7 @@ export default function Index() {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom, top: safeTop } = useSafeAreaInsets();
   const layoutMode = screenW > screenH ? 'horizontal' : 'vertical';
+  const { playClick } = useClickSound();
   const isTablet  = screenW >= 600;
   const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : layoutMode === 'vertical' ? 1.15 : 1;
   const textScale = faceScale; 
@@ -462,7 +464,10 @@ export default function Index() {
         return (
       <TouchableOpacity
         style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }]}
-        onPress={acciones.toggleDoNotDisturb}
+        onPress={() => {
+          playClick();
+          acciones.toggleDoNotDisturb();
+        }}
         activeOpacity={0.85}
       >
         <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
