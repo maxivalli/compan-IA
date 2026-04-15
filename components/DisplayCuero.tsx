@@ -75,8 +75,8 @@ function WaveformLED({ activa, color }: { activa: boolean; color: string }) {
 }
 
 const sw = StyleSheet.create({
-  wrap:  { flexDirection: 'row', alignItems: 'center', gap: 2, height: 20 },
-  barra: { width: 2, height: 20, borderRadius: 1 },
+  wrap:  { flexDirection: 'row', alignItems: 'center', gap: 2, height: 16 },
+  barra: { width: 2, height: 16, borderRadius: 1 },
 });
 
 // ── DisplayCuero ──────────────────────────────────────────────────────────────
@@ -219,6 +219,7 @@ const s = StyleSheet.create({
     flex:            1,
     alignItems:      'center',
     justifyContent:  'center',
+    maxHeight:       16,
   },
 
   climaGroup: {
