@@ -35,7 +35,15 @@ const M3 = {
   elevation1:       '#edf6f8',
 } as const;
 
-export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
+export default function MenuFlotante({
+  oscuro = false,
+  hideBtn = false,
+  triggerRef,
+}: {
+  oscuro?: boolean;
+  hideBtn?: boolean;
+  triggerRef?: React.MutableRefObject<(() => void) | null>;
+}) {
   const [abierto, setAbierto] = useState(false);
   const [nombreAsistente, setNombre]   = useState('Rosita');
   const [vozGenero, setVozGenero]      = useState<'femenina' | 'masculina'>('femenina');
@@ -79,6 +87,10 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
     return () => { viva = false; };
   }, [abierto, pathname]);
 
+  useEffect(() => {
+    if (triggerRef) triggerRef.current = abrir;
+  });
+
   function abrir() {
     playClick();
     setAbierto(true);
@@ -112,7 +124,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
 
   return (
     <>
-      <Pressable
+      {!hideBtn && <Pressable
         style={({ pressed }) => [s.btn, { width: btnSize, height: btnSize, opacity: pressed ? 0.80 : 1 }]}
         onPress={abrir}
         android_ripple={{ color: M3.primaryContainer, radius: btnSize / 2 }}
@@ -129,7 +141,7 @@ export default function MenuFlotante({ oscuro = false }: { oscuro?: boolean }) {
             <Ionicons name="menu" size={icoMenu} color='#ffffff' />
           </View>
         </LinearGradient>
-      </Pressable>
+      </Pressable>}
 
       {abierto && (
         <>

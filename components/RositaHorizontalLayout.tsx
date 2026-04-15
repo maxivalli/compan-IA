@@ -17,7 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { useFonts } from 'expo-font';
 import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche, CAT_FACE_TOP_EXTRA, CAT_SVG_H } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
 import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
@@ -85,7 +85,10 @@ export interface RositaHorizontalProps {
 }
 
 function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
-  const [fontsLoaded] = useFonts({ Poppins_700Bold });
+  const [fontsLoaded] = useFonts({
+    'DSEG7Classic':  require('../assets/fonts/DSEG7Classic-Regular.ttf'),
+    'DSEG14Classic': require('../assets/fonts/DSEG14Classic-Regular.ttf'),
+  });
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
     return {
@@ -139,7 +142,7 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
     return () => clearInterval(id);
   }, [climaObj?.temperatura]);
 
-  const fontFamily = fontsLoaded ? 'Poppins_700Bold' : undefined;
+  const fontFamily = fontsLoaded ? 'DSEG7Classic' : undefined;
 
   // Nunca desmontar la vista de hora: el native driver pierde el nodo y el latido muere.
   // Controlamos visibilidad con opacity + position absolute en la vista oculta.
@@ -159,7 +162,7 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
         </View>
       )}
       <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
-        <Text style={[styles.relojHora, { fontFamily, fontSize: 72, textAlign: 'center' }]} adjustsFontSizeToFit numberOfLines={1}>
+        <Text style={[styles.relojHora, { fontFamily: fontsLoaded ? 'DSEG14Classic' : undefined, fontSize: 72, textAlign: 'center' }]} adjustsFontSizeToFit numberOfLines={1}>
           {climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : (climaObj?.descripcion?.toUpperCase() || 'ALERTA METEOROLÓGICA')}
         </Text>
       </View>

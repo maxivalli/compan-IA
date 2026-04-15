@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRootNavigationState } from 'expo-router';
-import { Animated, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
+import { useFonts } from 'expo-font';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -29,10 +29,12 @@ import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOve
 
 const USE_VISION_PRESENCIA = true;
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
+import PanelCuero, { MarcoCuero } from '../components/PanelCuero';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
 
-function RelojNoche() {
-  const [fontsLoaded] = useFonts({ Poppins_700Bold });
+
+function RelojNoche({ fontSize }: { fontSize: number }) {
+  const [fontsLoaded] = useFonts({ 'DSEG7Classic': require('../assets/fonts/DSEG7Classic-Regular.ttf') });
   const [tiempo, setTiempo] = React.useState(() => {
     const now = new Date();
     return {
@@ -49,7 +51,7 @@ function RelojNoche() {
         hh: String(now.getHours()).padStart(2, '0'),
         mm: String(now.getMinutes()).padStart(2, '0'),
       });
-    }, 60000); // 60s: los minutos no cambian más rápido, 10s era desperdicio de CPU
+    }, 60000);
     return () => clearInterval(id);
   }, []);
 
@@ -64,17 +66,50 @@ function RelojNoche() {
     return () => anim.stop();
   }, []);
 
-  const fontFamily = fontsLoaded ? 'Poppins_700Bold' : undefined;
+  const fontFamily = fontsLoaded ? 'DSEG7Classic' : undefined;
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={[styles.relojNoche, { fontFamily }]}>{tiempo.hh}</Text>
-      <Animated.Text style={[styles.relojNoche, { fontFamily, opacity: latido, marginHorizontal: 2 }]}>:</Animated.Text>
-      <Text style={[styles.relojNoche, { fontFamily }]}>{tiempo.mm}</Text>
+      <Text style={[styles.relojNoche, { fontFamily, fontSize }]}>{tiempo.hh}</Text>
+      <Animated.Text style={[styles.relojNoche, { fontFamily, fontSize, opacity: latido, marginHorizontal: 2 }]}>:</Animated.Text>
+      <Text style={[styles.relojNoche, { fontFamily, fontSize }]}>{tiempo.mm}</Text>
     </View>
   );
 }
 
+function MarqueeText({ text, style }: { text: string; style?: object }) {
+  const translateX   = useRef(new Animated.Value(0)).current;
+  const [containerW, setContainerW] = React.useState(0);
+
+  useEffect(() => {
+    if (!containerW) return;
+    // El texto entra desde la derecha y sale por la izquierda.
+    // Usamos una distancia fija generosa (containerW + 600) sin necesidad de medir el texto.
+    const totalDistance = containerW + 600;
+    translateX.setValue(containerW);
+    const anim = Animated.loop(
+      Animated.timing(translateX, {
+        toValue: -600,
+        duration: totalDistance * 18,  // ~18ms/px ≈ velocidad cómoda de lectura
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [containerW]);
+
+  return (
+    <View
+      style={{ flex: 1, overflow: 'hidden' }}
+      onLayout={e => setContainerW(e.nativeEvent.layout.width)}
+    >
+      <Animated.Text style={[style, { transform: [{ translateX }] }]} numberOfLines={1}>
+        {text}
+      </Animated.Text>
+    </View>
+  );
+}
 
 // Bisel cromado retro — alto contraste, diagonal para simular curvatura del metal
 const CHROME_BEZEL = ['#e8e8e8', '#ffffff', '#cccccc', '#707070', '#b4b4b4', '#383838'] as const;
@@ -98,6 +133,12 @@ export default function Index() {
     monitoreoActivo,
   } = useRosita();
 
+  const menuTriggerRef = useRef<(() => void) | null>(null);
+
+  const [dsegLoaded] = useFonts({
+    'DSEG7Classic':  require('../assets/fonts/DSEG7Classic-Regular.ttf'),
+    'DSEG14Classic': require('../assets/fonts/DSEG14Classic-Regular.ttf'),
+  });
 
   const panCaricia = useRef(PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dy) < 40,
@@ -177,7 +218,8 @@ export default function Index() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
   const [horaMinuto, setHoraMinuto] = useState(fmtHoraMinuto);
-  const [infoIdx, setInfoIdx]       = useState(0); // 0 = hora, 1 = temperatura
+  const [infoIdx, setInfoIdx]       = useState(0); // 0 = hora, 1 = temperatura, 2 = alerta clima
+  const [faceBottom, setFaceBottom] = useState(0); // Y bottom del ojoContenedor → posición del panel cuero
   const climaObjRef = useRef(climaObj);
   useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
 
@@ -223,11 +265,9 @@ export default function Index() {
            const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
            const max = hasAlert ? 2 : 1;
            const next = prev >= max ? 0 : prev + 1;
-           // Siempre entra desde la derecha, incluyendo wrap-around.
            hintTranslate.setValue(30);
            return next;
         });
-        // No setear hintTranslate.setValue(30) acá: ya se hizo dentro del updater de estado.
         hintAnimRef.current?.stop();
         hintAnimRef.current = Animated.parallel([
           Animated.timing(hintOpacity,   { toValue: 1, duration: 500, useNativeDriver: true }),
@@ -313,8 +353,15 @@ export default function Index() {
   const isTablet  = screenW >= 600;
   const faceScale = isTablet ? Math.min(screenW / 390, 1.35) : layoutMode === 'vertical' ? 1.15 : 1;
   const textScale = faceScale; 
-  const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : 200;
-  const btnH      = isTablet ? Math.round(64 * textScale) : 64;
+  // Row = sideBtn + gap + mainBtn + gap + sideBtn, donde mainBtn ≈ 3.125 * sideBtn (ratio original 200/64)
+  // Disponible = screenW - 52px marco cuero - 32px gaps - 16px padding lateral
+  const btnH      = isTablet ? Math.round(64 * textScale) : Math.min(64, Math.floor((screenW - 100) / 5.125));
+  const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : Math.round(btnH * 3.125);
+  // Display: escala proporcional a btnH; fonts derivados del alto del contenedor
+  const displayH  = isTablet ? Math.round(72 * textScale) : Math.min(72, Math.round(btnH * 1.125));
+  const displayFontInfo  = Math.round(displayH * 0.44);   // hora / temperatura
+  const displayFontAlert = Math.round(displayH * 0.34);   // alerta (DSEG14, texto más largo)
+  const displayFontReloj = Math.round(displayH * 0.70);   // reloj noche (pantalla completa)
   const icoBtn    = Math.round(btnH * 0.46);
   const icoSOS    = Math.round(btnH * 0.50);
   const btnFont   = isTablet ? fs(26) : fs(18);
@@ -453,38 +500,7 @@ export default function Index() {
       locations={degradadoCielo.length === 4 ? [0, 0.25, 0.55, 1] : [0, 0.4, 1]} 
       style={[styles.contenedor, isTablet && { justifyContent: 'space-evenly', paddingVertical: tabletPadV }]}
     >
-      <MenuFlotante oscuro />
-
-      {/* No molestar — espejo del botón de menú, arriba a la izquierda */}
-      {(() => {
-        const ms      = isTablet ? Math.min(screenW / 390, 1.6) : 1;
-        const btnSize = Math.round(44 * ms);
-        const icoSize = Math.round(22 * ms);
-        const topPos  = 52; // igual que MenuFlotante — no suma safeTop
-        return (
-      <TouchableOpacity
-        style={[styles.btnNoMolestarFlotante, { top: topPos, left: 20, width: btnSize, height: btnSize }]}
-        onPress={() => {
-          playClick();
-          acciones.toggleDoNotDisturb();
-        }}
-        activeOpacity={0.85}
-      >
-        <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
-          style={{ flex: 1, borderRadius: btnSize / 2, padding: 6 }}>
-          <View style={{ flex: 1, borderRadius: btnSize / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-            <LinearGradient
-              colors={noMolestar ? ['#c2410c', '#7c2d12'] : ['#1e3a5f', '#0f2040']}
-              start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
-            <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={icoSize} color='#ffffff' />
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
-        );
-      })()}
+      <MenuFlotante oscuro hideBtn triggerRef={menuTriggerRef} />
 
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
@@ -540,6 +556,10 @@ export default function Index() {
       })() },
   ]}
   {...panCaricia.panHandlers}
+  onLayout={(e) => {
+    const { y, height } = e.nativeEvent.layout;
+    setFaceBottom(y + height);
+  }}
 >
         <ExpresionOverlay
           capa="fondo"
@@ -600,7 +620,10 @@ export default function Index() {
       </View>
       {modoNoche === 'durmiendo' && <ZZZ />}
 
-      <View style={[styles.ecualizadorWrap, isTablet && { height: Math.round(90 * textScale) }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
+      <PanelCuero top={faceBottom} />
+      <MarcoCuero />
+
+      <View style={[styles.ecualizadorWrap, { height: displayH }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
         {listas.length > 0
           ? (() => {
               const PEEK = 20;
@@ -637,28 +660,69 @@ export default function Index() {
               );
             })()
 
-          : musicaActiva
-          ? <AnimacionMusica />
-          : modoNoche !== 'despierta'
-          ? <RelojNoche />
-          : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%', alignItems: 'center' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                <Text
-                  style={[styles.infoText, textScale !== 1 ? { fontSize: fs(52) * textScale } : {}, infoIdx === 2 && { fontSize: fs(32), textAlign: 'center' }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >{
-                  infoIdx === 2
-                    ? (climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : (climaObj?.descripcion?.toUpperCase() || 'ALERTA METEOROLÓGICA'))
-                    : infoIdx === 1 && climaObj?.temperatura != null
-                    ? `${Math.round(climaObj.temperatura)}°`
-                    : horaMinuto
-                }</Text>
-                {infoIdx === 1 && (!!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3))) ? (
-                  <Ionicons name="warning" size={fs(36)} color="#FFD700" style={{ transform: [{ translateY: 2 }] }} />
-                ) : null}
+          : (
+            /* ── Display cromado retro ── */
+            <LinearGradient
+              colors={CHROME_BEZEL}
+              start={{ x: 0.15, y: 0 }}
+              end={{ x: 0.85, y: 1 }}
+              style={{ width: '61%', height: '100%', borderRadius: 10, padding: 5 }}
+            >
+              {/* Panel LCD recesado */}
+              <View style={{ flex: 1, borderRadius: 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.30)', overflow: 'hidden' }}>
+                {/* Fondo verde retroiluminado */}
+                <LinearGradient
+                  colors={['#010D01', '#021202', '#010E01']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                {/* Brillo fosfórico superior */}
+                <LinearGradient
+                  colors={['rgba(51,255,102,0.12)', 'rgba(51,255,102,0)']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 30 }}
+                />
+                {/* Contenido */}
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  {musicaActiva
+                    ? <AnimacionMusica />
+                    : modoNoche !== 'despierta'
+                    ? <RelojNoche fontSize={displayFontReloj} />
+                    : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
+                        {infoIdx === 2
+                          ? <MarqueeText
+                              text={
+                                climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO'
+                                : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRIO EXTREMO'
+                                : (climaObj?.descripcion?.toUpperCase() || 'ALERTA')
+                              }
+                              style={[styles.infoText, { fontFamily: dsegLoaded ? 'DSEG14Classic' : undefined, fontSize: displayFontAlert }]}
+                            />
+                          : <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text
+                                style={[styles.infoText, { fontFamily: dsegLoaded ? 'DSEG7Classic' : undefined, fontSize: displayFontInfo }]}
+                                numberOfLines={1}
+                              >
+                                {infoIdx === 1 && climaObj?.temperatura != null
+                                  ? `${Math.round(climaObj.temperatura)}°`
+                                  : horaMinuto}
+                              </Text>
+                              {infoIdx === 1 && (!!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3))) && (
+                                <Ionicons name="warning" size={displayFontInfo} color="#33FF66" style={{ transform: [{ translateY: 2 }] }} />
+                              )}
+                            </View>
+                        }
+                      </Animated.View>
+                  }
+                </View>
+                {/* Biseles interiores */}
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(0,0,0,0.50)' }} />
+                <View style={{ position: 'absolute', top: 0, left: 0, width: 2, bottom: 0, backgroundColor: 'rgba(0,0,0,0.30)' }} />
               </View>
-            </Animated.View>
+            </LinearGradient>
+          )
         }
       </View>
 
@@ -670,8 +734,24 @@ export default function Index() {
       {/* ── Zona de botones ── */}
       <View style={[styles.botonesZona, isTablet && styles.botonesZonaTablet]}>
 
-        {/* Fila de botones */}
-        <View style={[styles.botonesFilaPrincipal, isTablet && { flexDirection: 'row', gap: 32 }]}>
+        {/* Fila principal — Menú | Badge estado | No molestar */}
+        <View style={[styles.botonesFilaPrincipal, isTablet && { gap: 20 }]}>
+
+          {/* Botón Menú */}
+          <TouchableOpacity
+            style={{ width: btnH, height: btnH, borderRadius: btnH / 2 }}
+            onPress={() => { playClick(); menuTriggerRef.current?.(); }}
+            activeOpacity={0.85}
+          >
+            <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
+              style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}>
+              <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                <LinearGradient colors={['#1e3a5f', '#0f2040']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
+                <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
+                <Ionicons name="menu" size={Math.round(btnH * 0.38)} color="#ffffff" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
 
           {/* Badge de estado */}
           <TouchableOpacity
@@ -716,8 +796,26 @@ export default function Index() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Botón SOS */}
-          <View style={{ alignItems: 'center' }}>
+          {/* Botón No Molestar */}
+          <TouchableOpacity
+            style={{ width: btnH, height: btnH, borderRadius: btnH / 2 }}
+            onPress={() => { playClick(); acciones.toggleDoNotDisturb(); }}
+            activeOpacity={0.85}
+          >
+            <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
+              style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}>
+              <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                <LinearGradient colors={noMolestar ? ['#c2410c', '#7c2d12'] : ['#1e3a5f', '#0f2040']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
+                <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
+                <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={Math.round(btnH * 0.38)} color="#ffffff" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+
+        </View>
+
+        {/* Botón SOS */}
+        <View style={{ alignItems: 'center' }}>
             <TouchableOpacity
               style={[styles.botonSOSWrap, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
               onPress={mostrarHintSOS}
@@ -762,9 +860,6 @@ export default function Index() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-
-        </View>
-
 
       </View>
 
@@ -877,10 +972,27 @@ const styles = StyleSheet.create({
   contenedor:         { flex: 1, alignItems: 'center', justifyContent: 'space-evenly' },
   updateId:           { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
   ojoContenedor:      { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
-  ecualizadorWrap:    { height: 90, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  ecualizadorWrap:    { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  infoText: {
+    fontSize: fs(26),
+    color: '#33FF66',
+    textAlign: 'center',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(51,255,102,0.60)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
+  },
+  relojNoche: {
+    fontSize: fs(51),
+    color: '#33FF66',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(51,255,102,0.50)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 14,
+  },
   botonesZona:        { alignItems: 'center', gap: 12 },
   botonesZonaTablet:  { alignItems: 'center', gap: 16 },
-  botonesFilaPrincipal: { alignItems: 'center', justifyContent: 'center', gap: 24 },
+  botonesFilaPrincipal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center' },
   postIt:             { borderRadius: 6, width: 280, height: 80, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.22, shadowRadius: 6, elevation: 5 },
@@ -904,9 +1016,7 @@ const styles = StyleSheet.create({
   sosModalCard:         { backgroundColor: '#CC2222', borderRadius: 36, paddingVertical: 56, paddingHorizontal: 60, alignItems: 'center', gap: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 20, elevation: 20, width: '85%' },
   sosModalTitulo:       { fontSize: fs(42), fontWeight: '800', color: '#fff' },
   sosModalTexto:        { fontSize: fs(30), fontWeight: '500', color: '#ffffffdd', textAlign: 'center', lineHeight: fs(42) },
-btnNoMolestarFlotante:       { position: 'absolute', zIndex: 10, borderRadius: 100 },
-  infoText:           { fontSize: fs(52), fontWeight: '200', color: '#ffffffcc', textAlign: 'center', letterSpacing: 3 },
-  relojNoche:         { fontSize: fs(90), fontWeight: '700', color: '#ffffff55', letterSpacing: 2 },
+
   musicaOverlay:      { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', zIndex: 50 },
   onboardingOverlay:    { ...StyleSheet.absoluteFillObject, backgroundColor: '#00000066', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 28 },
   onboardingCard:       { backgroundColor: '#f9fafb', borderRadius: 28, width: '100%', maxWidth: 340, overflow: 'hidden', elevation: 6, shadowColor: '#0097b2', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 20 },
