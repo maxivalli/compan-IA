@@ -208,21 +208,21 @@ const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
 
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
 export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien|b[aá]rbaro)\b/i;
-export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|sola?\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|caminar|no puedo|mas o menos|más o menos|medio ca[ií]d|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad/i;
-export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|nació\b|embarazada|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
+export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|\b(me siento|estoy|me quedé|vivo)\s+sol[ao]\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|\bno puedo (moverme|caminar|levantarme|respirar|dormir)\b|malas? noticias?|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad|medio ca[ií]d|\b(estoy|me siento|ando)\s+más?\s*o\s*menos\b/i;
+export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|embarazada|\bnació\s+(mi|el bebé|la bebé|sano|bien|nuestro|nuestra)\b|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
 export const PATRON_CLIMA        = /\b(clima|llover|llueve|temperatura|pronóstico|pronostico|mucho calor|mucho frío|mucho frio|qué tiempo|que tiempo|el tiempo|va a llover|va a hacer)\b/i;
-export const PATRON_BUSQUEDA     = /noticias?|partido|fútbol|quiniela|qué hora|intendente|municipalidad|qué pasó|qué dice|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
+export const PATRON_BUSQUEDA     = /\bnoticias?\s+(de|del|sobre|deportivas?|locales?|nacionales?|internacionales?)\b|\b(dame|pasame|contame|qué hay de|hay)\s+(las\s+)?noticias?\b|partido|fútbol|quiniela|qué hora|intendente|municipalidad|qué pasó|qué dice|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 export const PATRON_MUSICA       = /\b(música|canción|canciones|folklore|tango|cumbia|cuarteto|zamba|chacarera|bolero|vals|bailar|cantame|cantá una)\b|la radio\b/i;
 export const PATRON_RECORDATORIO = /\b(acordame|recordame|anotá(me)?|no te olvid|que no se me olvide|recordatorio|agend[aá](me)?|que quede (anotado|guardado)|una alarma|un timer|despertame)\b/i;
-export const PATRON_NOSTALGIA    = /\bantes\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|mi madre|mi padre|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
-export const PATRON_COMANDO      = /pon[eé]|apag[aá]|prend[eé]|para\s+(la|el|esto|eso|todo|las|los)\b|parar\b|las luces?|la luz|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
+export const PATRON_NOSTALGIA    = /\b(de antes|como antes|tiempos de antes)\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
+export const PATRON_COMANDO      = /\bpon[eé](me|le|la|lo)?\s+(la\s+|el\s+|un\s+|una\s+)?(música|tele|televisión|radio|aire|ventilador|calefactor|calefacción|algo|eso)\b|apag[aá]|prend[eé]|\bpar[aá]\b|\bparar\b|las luces?|\bla luz\b|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
 export const PATRON_LISTA        = /\b(lista\s+de|una lista|nueva lista|agrega(me|le)?\s+(a\s+la\s+lista|esto|eso)|pone\s+en\s+la\s+lista|anota\s+(esto|eso)|post.?it|papelito|nota\s+de\s+compra|compras:|la lista\s+de|guard[aá](me)?\s+(esto|eso|una nota)|anot[aá](me)?\s+(en|esto|eso))\b/i;
 export const PATRON_TELEGRAM     = /\b(mand[aá](me)?.*mensaj|mensaj.*famil|avis[aá](me)?.*famil|telegram|decile.*famil|contale.*famil)\b/i;
 export const PATRON_FOTO         = /\b(foto|fotograf|c[aá]mara|sac[aá](me)? una foto|tom[aá](me)? una foto|mir[aá] la foto|le[eé] la foto)\b/i;
 export const PATRON_ADIVINANZA   = /\b(adivinanza|acertijo|charada|adivina[^r]|adivináme)\b/i;
-export const PATRON_JUEGO        = /\b(juego|jugar|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|trabalengua|cuenta|cuantos|cuanto es|matematica|rompecabeza)\b/i;
-export const PATRON_CHISTE       = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|cuento corto|cuento\b|historia graciosa|reírme|me rei)\b/i;
+export const PATRON_JUEGO        = /\b(juego|jugar|trivia|preguntas?|quiz|memori|refranes?|adivina|calcul[aá](me)?|trabale|trabalengua|matematica|rompecabeza)\b/i;
+export const PATRON_CHISTE       = /\b(cont[aá](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|dec[ií](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|and[aá]\s+cont[aá](me)?\s+(un\s+)?chiste|chistecito|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|cuento corto|historia graciosa|reírme|me rei)\b/i;
 export const PATRON_ABURRIMIENTO = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/i;
 
 // Mapeo de texto del usuario → tipo OSM (para Overpass API)
@@ -1072,7 +1072,7 @@ export function useBrain(deps: BrainDeps) {
         return;
       }
       // Chistes: usar pool local en lugar de decir "necesito conexión"
-      if (/\b(chiste|chistecito|cuentame algo gracioso)\b/i.test(textoNormOffline)) {
+      if (/\b(cont[aá](me)?(\s+un|\s+otro)?\s+chiste|dec[ií](me)?(\s+un|\s+otro)?\s+chiste|chistecito|cuentame algo gracioso)\b/i.test(textoNormOffline)) {
         const ch = obtenerChiste();
         const textoChiste = `${ch.setup} ... ${ch.remate}`;
         d.setEstado('esperando');
@@ -1287,7 +1287,7 @@ export function useBrain(deps: BrainDeps) {
     const pideAhorcado = /\b(ahorcado|juego del ahorcado|adivinar la palabra)\b/.test(textoNorm);
     const pideMemoria  = /\b(memoria|juego de memoria|juego de fichas|encontrar las fichas|encontra las fichas)\b/.test(textoNorm);
     const pideJuegoBase = pideTateti || pideAhorcado || pideMemoria || /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
-    const pideChisteBase = /\b(chiste|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|divertido|me rei)\b/.test(textoNorm)
+    const pideChisteBase = /\b(cont[aá](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|dec[ií](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|and[aá]\s+cont[aá](me)?\s+(un\s+)?chiste|chistecito|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
           && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
     // Si expresa aburrimiento y no pidió algo específico, Rosita propone un menú de opciones
