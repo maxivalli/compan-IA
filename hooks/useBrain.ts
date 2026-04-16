@@ -57,12 +57,12 @@ export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | '
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
   empatico: {
-    femenina:  ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...', 'Te escucho tranquila, contame con calma...'],
-    masculina: ['Te re entiendo, acá estoy con vos...', 'Tomémonos un momento, te escucho...', 'Te escucho tranquilo, contame con calma...'],
+    femenina:  ['[con ternura] Te re entiendo, acá estoy con vos...', '[voz suave] Tomémonos un momento, te escucho...', '[voz suave] Te escucho tranquila, contame con calma...'],
+    masculina: ['[con ternura] Te re entiendo, acá estoy con vos...', '[voz suave] Tomémonos un momento, te escucho...', '[voz suave] Te escucho tranquilo, contame con calma...'],
   },
   alegria: {
-    femenina:  ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...', 'Me pone re contenta escucharte así, contame un poquito más...'],
-    masculina: ['¡Qué lindo, che! Contame un poco más...', 'Me alegraste el día, dejame que...', 'Me pone re contento escucharte así, contame un poquito más...'],
+    femenina:  ['¡Qué lindo, che! [risa suave] Contame un poco más...', '[risa suave] Me alegraste el día, dejame que...', '[risa suave] Me pone re contenta escucharte así, contame un poquito más...'],
+    masculina: ['¡Qué lindo, che! [risa suave] Contame un poco más...', '[risa suave] Me alegraste el día, dejame que...', '[risa suave] Me pone re contento escucharte así, contame un poquito más...'],
   },
   salud: {
     femenina:  ['Vamos a mirar esto con cuidado, dame un segundito...', 'Tranqui, dame un instante que reviso esa información...'],
@@ -81,8 +81,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['Anotado, dame un segundito que lo guardo bien así no se nos pasa...', 'Dejame que lo dejo por escrito acá...'],
   },
   nostalgia: {
-    femenina:  ['Qué lindo recuerdo, dejame pensar un poquito en eso...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
-    masculina: ['Qué lindo recuerdo, dejame pensar un poquito en eso...', 'Hagamos memoria juntos, a ver... dame un segundo.'],
+    femenina:  ['[con ternura] Qué lindo recuerdo, dejame pensar un poquito en eso...', '[con ternura] Hagamos memoria juntos, a ver... dame un segundo.'],
+    masculina: ['[con ternura] Qué lindo recuerdo, dejame pensar un poquito en eso...', '[con ternura] Hagamos memoria juntos, a ver... dame un segundo.'],
   },
   comando: {
     femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
@@ -97,8 +97,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Me encanta! Dejame que preparo algo divertido...', 'Buenísimo, dame un segundito que armo el juego...'],
   },
   chiste: {
-    femenina:  ['¡Jaja, dale! A ver si me sale uno bueno...', 'Esperame que busco uno que te haga reír...'],
-    masculina: ['¡Jaja, dale! A ver si me sale uno bueno...', 'Esperame que busco uno que te haga reír...'],
+    femenina:  ['[risa suave] ¡Jaja, dale! A ver si me sale uno bueno...', '[risa suave] Esperame que busco uno que te haga reír...'],
+    masculina: ['[risa suave] ¡Jaja, dale! A ver si me sale uno bueno...', '[risa suave] Esperame que busco uno que te haga reír...'],
   },
   aburrimiento: {
     femenina:  ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
