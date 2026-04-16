@@ -63,25 +63,47 @@ const EYE_SILUETA = {
   vueltaAlCentroIzqX: 0.16,
 } as const;
 
-function pathFormaOjoSvg(): string {
+function pathFormaOjoSvg(side: 'L' | 'R' = 'R'): string {
   const W = EYE_W;
   const H = EYE_H;
   const s = EYE_SILUETA;
   const top = s.puntaSuperiorY;
   const bot = H - s.bordeInferior;
+  // El path base describe el ojo DERECHO (bulge exterior en el lado derecho del SVG).
+  // Para el ojo izquierdo lo espejamos horizontalmente (x → W - x) para que
+  // el bulge exterior quede en el lado izquierdo — simetría correcta en pantalla.
+  if (side === 'R') {
+    return `
+      M ${W / 2}, ${top}
+      C ${W * s.hombroSuperiorX}, ${top}
+        ${W * s.bulgeLateralX}, ${H * s.anclaMediaY}
+        ${W * s.anclaBajaX}, ${H * s.anclaBajaY}
+      C ${W * s.curvaHaciaPuntaX}, ${H * s.curvaHaciaPuntaY}
+        ${W * s.esquinaInferiorInteriorX}, ${bot}
+        ${W / 2}, ${bot}
+      C ${W * (1 - s.esquinaInferiorInteriorX)}, ${bot}
+        ${W * s.curvaInteriorBajaIzqX}, ${H * s.curvaHaciaPuntaY}
+        ${0}, ${H * s.anclaBajaY}
+      C ${W * s.curvaExteriorIzqX}, ${H * s.anclaMediaY}
+        ${W * s.vueltaAlCentroIzqX}, ${top}
+        ${W / 2}, ${top}
+      Z
+    `;
+  }
+  // Espejo: reemplaza cada coeficiente x por (1 - coeficiente)
   return `
     M ${W / 2}, ${top}
-    C ${W * s.hombroSuperiorX}, ${top}
-      ${W * s.bulgeLateralX}, ${H * s.anclaMediaY}
-      ${W * s.anclaBajaX}, ${H * s.anclaBajaY}
-    C ${W * s.curvaHaciaPuntaX}, ${H * s.curvaHaciaPuntaY}
-      ${W * s.esquinaInferiorInteriorX}, ${bot}
+    C ${W * (1 - s.hombroSuperiorX)}, ${top}
+      ${W * (1 - s.bulgeLateralX)}, ${H * s.anclaMediaY}
+      ${W * (1 - s.anclaBajaX)}, ${H * s.anclaBajaY}
+    C ${W * (1 - s.curvaHaciaPuntaX)}, ${H * s.curvaHaciaPuntaY}
+      ${W * (1 - s.esquinaInferiorInteriorX)}, ${bot}
       ${W / 2}, ${bot}
-    C ${W * (1 - s.esquinaInferiorInteriorX)}, ${bot}
-      ${W * s.curvaInteriorBajaIzqX}, ${H * s.curvaHaciaPuntaY}
-      ${0}, ${H * s.anclaBajaY}
-    C ${W * s.curvaExteriorIzqX}, ${H * s.anclaMediaY}
-      ${W * s.vueltaAlCentroIzqX}, ${top}
+    C ${W * s.esquinaInferiorInteriorX}, ${bot}
+      ${W * (1 - s.curvaInteriorBajaIzqX)}, ${H * s.curvaHaciaPuntaY}
+      ${W}, ${H * s.anclaBajaY}
+    C ${W * (1 - s.curvaExteriorIzqX)}, ${H * s.anclaMediaY}
+      ${W * (1 - s.vueltaAlCentroIzqX)}, ${top}
       ${W / 2}, ${top}
     Z
   `;
@@ -526,13 +548,13 @@ const Ojo = memo(function Ojo({
     outputRange: [0, 0.5], // Reducido de 0.82 a 0.5 para que los párpados no se vean tan oscuros
   })).current;
 
-  const pathFormaOjo = pathFormaOjoSvg();
+  const pathFormaOjo = pathFormaOjoSvg(side);
 
   // offsetX (eyeGap) va en un Animated.View SEPARADO con useNativeDriver:false.
   // Si estuviera junto a scaleY (native:true), el redraw nativo a 60fps del SVG
   // podría coincidir con el commit de React y dejar el bounding box en 0 → crash RadialGradient.
   return (
-    <Animated.View style={{ transform: [{ translateX: offsetX }] }}>
+    <Animated.View style={{ transform: [{ translateX: offsetX }], overflow: 'visible' }}>
     <Animated.View style={[s.eyeContainer, { transform: [{ scaleY }] }]}>
       <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`} overflow="visible">
         <Defs>
@@ -1157,10 +1179,10 @@ export default function RosaOjos({
       {cabezaGato && <View style={{ height: CAT_FACE_TOP_EXTRA * scale }} />}
       <View style={[s.wrap, wrapTransform.length > 0 && { transform: wrapTransform }]}>
         <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
-          <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1}>
+          <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1} style={{ overflow: 'visible' }}>
             <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={cabezaGato ? CAT_FUR : bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1}>
+          <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1} style={{ overflow: 'visible' }}>
             <Ojo side="R" pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={cabezaGato ? CAT_FUR : bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
         </View>
