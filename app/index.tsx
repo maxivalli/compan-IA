@@ -27,9 +27,6 @@ import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import CamaraPresenciaOverlay from '../components/CamaraPresenciaOverlay';
 import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOverlay';
 
-// true  = VisionCamera + ML Kit Image Labeling (real-time, 3fps, detecta sin ver la cara)
-// false = expo-camera frame diff (fallback si VisionCamera no está disponible)
-const USE_VISION_PRESENCIA = true;
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
 import PanelCuero, { MarcoCuero } from '../components/PanelCuero';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
@@ -162,6 +159,8 @@ export default function Index() {
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
+  // Presencia: arranca con VisionCamera, cae a expo-camera si VisionCamera falla
+  const [useVisionPresencia, setUseVisionPresencia] = useState(true);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup de ambos timers al desmontar
@@ -509,9 +508,9 @@ export default function Index() {
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
-      {/* Presencia: VisionCamera (nuevo) + fallback al overlay anterior */}
-      <CamaraPresenciaVisionOverlay activo={USE_VISION_PRESENCIA && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
-      <CamaraPresenciaOverlay activo={!USE_VISION_PRESENCIA && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
+      {/* Presencia: VisionCamera (ML Kit) con fallback automático a expo-camera */}
+      <CamaraPresenciaVisionOverlay activo={useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onFalló={() => setUseVisionPresencia(false)} />
+      <CamaraPresenciaOverlay activo={!useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>

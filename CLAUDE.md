@@ -24,17 +24,19 @@ La app principal corre en `AbuApp/`. El backend protege credenciales, centraliza
 
 - **Expo SDK 54** + **React 19** + **React Native 0.81**
 - **expo-router** para navegación
-- **expo-speech-recognition** para escucha continua
+- **expo-speech-recognition** para escucha continua (con opción Deepgram WebSocket)
 - **expo-audio** para reproducción, streaming y grabación
 - **AsyncStorage** para perfil, historial, recuerdos, listas, recordatorios y estado local
-- **Anthropic Claude Haiku 4.5** vía backend con prompt caching activo
-- **Whisper** vía backend para transcripción manual
-- **Fish Audio / Cartesia / Google TTS** resueltos en backend
+- **Anthropic Claude Haiku 4.5** vía backend con prompt caching activo (mínimo 4096 tokens)
+- **Deepgram** para transcripción en tiempo real (WebSocket directo desde app)
+- **Fish Audio** (principal TTS con streaming WebSocket) / **Cartesia** / **Google TTS** resueltos en backend
 - **OpenWeather** para clima y pronóstico
 - **Telegram** para alertas, fotos y mensajes familiares
-- **SmartThings** para dispositivos del hogar
-- **Railway** para deploy del backend
+- **SmartThings OAuth** para dispositivos del hogar (PAT legacy deprecado)
+- **Cloudinary** para almacenamiento de fotos de Telegram
+- **Railway** para deploy del backend con volumen persistente para audio
 - **EAS / Expo Updates** para builds y OTA
+- **pgvector** para búsqueda semántica de memorias (embeddings OpenAI)
 
 ---
 
@@ -96,12 +98,20 @@ Landing2/
 
 ### Backend
 
-- `POST /auth/bootstrap` emite `deviceToken` por instalación.
+- `POST /auth/bootstrap` emite `deviceToken` por instalación (64 chars hex).
 - Todas las rutas privadas usan `x-device-token`; ya no se usa `x-api-key` desde la app.
-- `/ai/chat` y `/ai/chat-stream` proxyean a Claude con prompt caching.
-- `/ai/tts`, `/ai/tts-stream`, `/ai/tts-cartesia-stream` resuelven voz.
-- También hay endpoints de búsqueda web, Wikipedia, lugares, visión, sincronización de ánimo y debug.
-- Los mensajes de Telegram ya se guardan por `familia_id`, no solo por `chat_id`, para evitar consumo cruzado entre dos instalaciones.
+- `/ai/chat` y `/ai/chat-stream` proxyean a Claude con prompt caching automático (≥4096 tokens).
+- `/ai/tts` (Fish Audio REST), `/ai/tts-stream` (ElevenLabs legacy), `/ai/tts-fish-realtime-stream` (Fish WebSocket con latencia ~300-500ms).
+- `/ai/stream-ticket` genera tickets de un solo uso para endpoints de streaming (expo-audio no puede enviar headers).
+- `/ai/deepgram-token` emite API keys temporales de Deepgram (60s TTL) para SR directo desde app.
+- Endpoints de búsqueda: web (Serper), Wikipedia, lugares (OpenStreetMap), noticias, visión (Claude).
+- `/ai/memorias-sync` sincroniza memorias episódicas con embeddings para búsqueda semántica.
+- `/ai/animo` sincroniza estado de ánimo en tiempo real.
+- Los mensajes de Telegram se guardan por `familia_id`, no solo por `chat_id`, para evitar consumo cruzado.
+- Watchdogs: informe diario (22:15 AR), heartbeat (cada 5 min), comandos/mensajes sin procesar (cada 5 min).
+- SmartThings OAuth con refresh automático de tokens (cifrados con AES-256-GCM).
+- Rate limiting persistido en DB: global (200 req/min por IP), chat (1 req/s burst + 300 req/día por familia).
+- Async jobs para búsquedas largas con deduplicación y límite de concurrencia.
 
 ---
 
@@ -114,17 +124,26 @@ Landing2/
 
 ### Backend
 
-- `ANTHROPIC_API_KEY`
-- `CARTESIA_API_KEY`
-- `FISH_AUDIO_API_KEY` (fallback TTS)
-- `GOOGLE_TTS_API_KEY`
-- `OPENAI_API_KEY`
-- `SERPER_API_KEY`
-- `BACKEND_ENCRYPTION_KEY` recomendable para cifrar PAT/tokens sensibles en DB
-- credenciales de Telegram
-- credenciales de DB / Railway
+- `DATABASE_URL` (PostgreSQL con pgvector)
+- `BACKEND_ENCRYPTION_KEY` (requerido para cifrar tokens SmartThings con AES-256-GCM)
+- `ANTHROPIC_API_KEY` (Claude Haiku 4.5)
+- `FISH_AUDIO_API_KEY` (TTS principal)
+- `FISH_AUDIO_MODEL` (s2-pro o s1)
+- `CARTESIA_API_KEY` (TTS fallback)
+- `GOOGLE_TTS_API_KEY` (TTS fallback)
+- `OPENAI_API_KEY` (embeddings para búsqueda semántica)
+- `SERPER_API_KEY` (búsquedas web)
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `DEBUG_TELEGRAM_CHAT_ID` (para crash reports)
+- `SMARTTHINGS_CLIENT_ID` y `SMARTTHINGS_CLIENT_SECRET` (OAuth)
+- `SMARTTHINGS_REDIRECT_URI`
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+- `DEEPGRAM_PROJECT_ID` y `DEEPGRAM_KEYGEN_API_KEY` (para emitir tokens temporales)
+- `WEBHOOK_URL` (URL pública del backend)
+- `PORT` y `NODE_ENV`
 
-Nota: documentación vieja todavía menciona `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PUBLIC_ELEVENLABS_API_KEY` y WeatherAPI, pero el código actual ya no depende de eso del lado de la app.
+Nota: Ya no se usan `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PUBLIC_ELEVENLABS_API_KEY` ni WeatherAPI del lado de la app.
 
 ---
 
@@ -165,52 +184,92 @@ Nota: documentación vieja todavía menciona `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PU
 
 ## Integraciones actuales
 
-- **Telegram**: alertas SOS, mensajes, fotos, voz entrante y texto.
-- **SmartThings**: vincular PAT, listar dispositivos, consultar estado y controlar.
-- **Clima**: OpenWeather con clima actual + pronóstico.
+- **Telegram**: 
+  - Alertas SOS con ubicación
+  - Mensajes de voz (descarga, transcripción y respuesta)
+  - Fotos (descripción con Claude Vision + Cloudinary)
+  - Mensajes de texto
+  - Comandos: /informe, /camara, /recordatorios, /desvincular, /ayuda
+  - Polling cada 30s desde la app
+  - Webhook para recepción inmediata
+  - Proxy firmado para archivos (no expone BOT_TOKEN)
+  
+- **SmartThings**: 
+  - OAuth 2.0 con refresh automático de tokens
+  - PAT legacy (deprecado pero funcional)
+  - Listar dispositivos
+  - Consultar estado
+  - Control por voz (on/off, nivel)
+  - Tokens cifrados con AES-256-GCM en DB
+  
+- **Clima**: 
+  - OpenWeather con clima actual + pronóstico de 3 días
+  - Alertas de clima adverso (tormenta, calor/frío extremo)
+  - Integración visual con efectos animados
+  
 - **Búsquedas**:
-  - lugares físicos cercanos
-  - web general
-  - Wikipedia
-  - noticias por RSS en algunos casos
+  - Lugares físicos cercanos (OpenStreetMap Overpass API)
+  - Web general (Google vía Serper)
+  - Wikipedia español
+  - Noticias del día (Serper News con filtro de contenido violento)
+  - Visión (Claude para leer texto o describir imágenes)
 
 ---
 
 ## Correcciones recientes importantes
 
 - Se volvió a **Anthropic** como proveedor principal y se descartó Gemini para producción actual.
-- El cache de Claude Haiku quedó funcional y ya se observó `cache_write` en primer turno y `cache_read` en siguientes.
+- El cache de Claude Haiku quedó funcional con detección automática de umbral (≥4096 tokens) y ya se observó `cache_write` en primer turno y `cache_read` en siguientes.
+- **Fish Audio WebSocket streaming** implementado con concurrency limiter (1 stream activo) y fallback automático a REST en caso de 429 o timeout.
+- **Stream tickets** para endpoints de audio (expo-audio no puede enviar headers custom).
+- **Deepgram WebSocket** directo desde app con tokens temporales (60s TTL) emitidos por backend.
 - La app recibió una tanda grande de hardening:
   - timers y loops con cleanup
   - menos carreras en audio/SR/notificaciones/BLE
   - filtros mejores para eco/barge-in
-  - menor latencia percibida en TTS
+  - menor latencia percibida en TTS (~300-500ms con Fish streaming)
 - `useBrain`, `useNotificaciones`, `useSmartThings`, `useAccionesRosita` y `useBLEBeacon` tuvieron una pasada de robustez completa.
 - Se ajustó fuerte la UI horizontal/tablet:
   - tamaño/posición de ojos y boca
   - zipper en modo no molestar
   - sol en clima horizontal
   - tamaño y posición de las `ZZZ`
+  - layout adaptativo para tablets vs teléfonos
 - Backend endurecido en:
-  - validación de payloads de `/ai/chat`
+  - validación de payloads de `/ai/chat` con límites estrictos
   - logging de chunks malformados en stream Claude
   - aborto de streams TTS cuando el cliente corta
   - timeout de requests SmartThings
-  - rate limiting persistido
-  - cifrado compatible de PAT/tokens sensibles en DB
-  - cache corta en búsquedas externas repetidas
+  - rate limiting persistido en DB (sobrevive reinicios)
+  - cifrado AES-256-GCM de PAT/tokens sensibles en DB
+  - cache corta (5 min) en búsquedas externas repetidas
+  - watchdogs para informe diario, heartbeat y comandos sin procesar
+  - SmartThings OAuth con refresh automático
+  - Telegram: descripción de fotos con Claude Vision + Cloudinary
+  - Memoria episódica con embeddings (OpenAI) + pgvector para búsqueda semántica
+  - Async jobs con deduplicación y límite de concurrencia
 
 ---
 
 ## Comportamientos importantes
 
-- `useAudioPipeline` limpia cache TTS viejo y pre-cachea frases frecuentes.
+- `useAudioPipeline` limpia cache TTS viejo y pre-cachea frases frecuentes (muletillas, respuestas rápidas, juegos).
 - Hay watchdogs para reiniciar Speech Recognition si queda colgado.
-- Existe modo `noMolestar`.
+- Existe modo `noMolestar` con zipper visual sobre la boca.
 - Hay charla proactiva por momento del día.
 - Hay silbidos locales de inactividad.
-- Hay flujo de cámara para sacar o leer fotos.
-- `useNotificaciones` maneja alarmas, recordatorios, cumpleaños y eventos Telegram.
+- Hay flujo de cámara para sacar o leer fotos (con Claude Vision).
+- `useNotificaciones` maneja alarmas, recordatorios, cumpleaños, clima adverso y eventos Telegram.
+- Polling de Telegram cada 30s para mensajes de voz, foto y texto.
+- Heartbeat cada 10 min si monitoreo activo (para watchdog de disponibilidad).
+- Memoria episódica se sincroniza al backend y se busca semánticamente cuando es relevante.
+- Ánimo se sincroniza en tiempo real al backend.
+- Primera frase de Claude se reproduce apenas está lista (streaming), el resto continúa en background.
+- Respuestas rápidas locales para saludos, gracias, despedidas (sin llamar a IA).
+- Muletillas para cubrir latencia mientras Claude piensa.
+- BLE Beacon para control remoto (acciones táctiles simuladas).
+- Modo noche automático según hora (párpados cerrados, reloj visible).
+- Layout horizontal optimizado para tablets con modo reloj de escritorio.
 
 ---
 

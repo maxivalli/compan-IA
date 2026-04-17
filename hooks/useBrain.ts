@@ -1995,7 +1995,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
       const turnMetrics = getCurrentTurnMetrics();
       logCliente('turn_summary', {
         turn_id: turnId,
-        e2e_first_audio_ms: turnMetrics.e2eFirstAudioMs ?? -1,
         e2e_total_ms: turnMetrics.e2eNowMs ?? -1,
         response_chars: parsed.respuesta.length,
         oraciones: oracionesTotal.length,

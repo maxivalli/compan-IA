@@ -177,7 +177,6 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         reconnCount.current = 0;
         iniciarAudioCapture(ws);
         optsRef.current.onReady();
-        logCliente('dg_sr_ready', {});
       };
 
       ws.onmessage = (event) => {

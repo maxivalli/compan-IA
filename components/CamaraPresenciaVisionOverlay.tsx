@@ -58,14 +58,16 @@ const COOLDOWN_MS     = 1200;    // evita spam al callback (además del cooldown
 type Props = {
   activo: boolean;
   onPresenciaDetectada: () => void;
+  onFalló?: () => void;
 };
 
-export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada }: Props) {
+export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada, onFalló }: Props) {
   // Hooks siempre al top
   const device      = useCameraDevice('front');
   const camRef      = useRef<any>(null);
   const lastHitRef  = useRef(0);
   const [hasPerm, setHasPerm] = useState(false);
+  const falloReportadoRef = useRef(false);
 
   // Pedir permiso de cámara cuando se activa
   useEffect(() => {
@@ -81,6 +83,24 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     })();
     return () => { cancelled = true; };
   }, [activo]);
+
+  // Si activo pero VisionCamera no puede iniciar (sin dispositivo o sin permiso) → señalar fallo
+  useEffect(() => {
+    if (!activo || !onFalló || Platform.OS === 'web' || !VisionCamera) return;
+    if (hasPerm && device) {
+      falloReportadoRef.current = false; // se recuperó
+      return;
+    }
+    const id = setTimeout(() => {
+      if (!hasPerm || !device) {
+        if (!falloReportadoRef.current) {
+          falloReportadoRef.current = true;
+          onFalló();
+        }
+      }
+    }, 4000); // 4s de gracia para que el permiso se resuelva
+    return () => clearTimeout(id);
+  }, [activo, hasPerm, device, onFalló]);
 
   // Opciones del labeler — minConfidence 0.3 para detectar incluso presencias parciales
   const labelOptions = useMemo(() => ({ minConfidence: CONFIANZA_MINIMA as 0.3 }), []);
@@ -132,8 +152,8 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
 const s = StyleSheet.create({
   contenedor: {
     position: 'absolute',
-    width: 64,
-    height: 64,
+    width: 160,
+    height: 160,
     bottom: 0,
     right: 0,
     opacity: 0.01,
