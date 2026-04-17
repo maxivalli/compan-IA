@@ -159,8 +159,8 @@ export default function Index() {
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
-  // Presencia: arranca con VisionCamera, cae a expo-camera si VisionCamera falla
-  const [useVisionPresencia, setUseVisionPresencia] = useState(true);
+  // Presencia: expo-camera frame diff (VisionCamera ML Kit requiere rebuild nativo)
+  const [useVisionPresencia, setUseVisionPresencia] = useState(false);
   const [debugLabels, setDebugLabels] = useState<string[]>([]);
   const [debugLabelCount, setDebugLabelCount] = useState(0);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
