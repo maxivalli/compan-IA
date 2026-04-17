@@ -1498,6 +1498,7 @@ export function useBrain(deps: BrainDeps) {
             messages: params.messages,
             maxTokens: params.maxTokens,
             onPrimeraFrase,
+            speechFinalTs: d.speechEndTsRef.current || undefined,
           });
           if (esRespuestaUtil(streamText)) {
             resolverPrimeraFrase(null);

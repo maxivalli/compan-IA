@@ -173,6 +173,7 @@ export async function llamarClaudeConStreaming(options: {
   messages: Mensaje[];
   maxTokens?: number;
   onPrimeraFrase?: (primera: string, tag: string) => void;
+  speechFinalTs?: number;
 }): Promise<string> {
   const headers = await jsonHeaders();
 
@@ -269,18 +270,11 @@ export async function llamarClaudeConStreaming(options: {
     xhr.onerror   = () => rejectOnce(new Error('Stream network error'));
     xhr.ontimeout = () => rejectOnce(new Error('Stream timeout'));
 
+    const baseBody = typeof options.system === 'string' || Array.isArray(options.system)
+      ? { max_tokens: options.maxTokens ?? 140, system: options.system, messages: options.messages }
+      : { max_tokens: options.maxTokens ?? 140, system_payload: options.system, messages: options.messages };
     xhr.send(JSON.stringify(
-      typeof options.system === 'string' || Array.isArray(options.system)
-        ? {
-            max_tokens: options.maxTokens ?? 140,
-            system: options.system,
-            messages: options.messages,
-          }
-        : {
-            max_tokens: options.maxTokens ?? 140,
-            system_payload: options.system,
-            messages: options.messages,
-          }
+      options.speechFinalTs ? { ...baseBody, speech_final_ts: options.speechFinalTs } : baseBody
     ));
   });
 }
