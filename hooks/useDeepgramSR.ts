@@ -68,12 +68,19 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return; // ya activa
     try {
+      let primerChunkEnviado = false;
       audioSubRef.current = addAudioDataListener(({ data }) => {
         if (ws.readyState !== WebSocket.OPEN) return;
         try {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-          ws.send(binary.buffer);
-        } catch {}
+          ws.send(binary);
+          if (!primerChunkEnviado) {
+            primerChunkEnviado = true;
+            logCliente('dg_first_chunk', { bytes: binary.length });
+          }
+        } catch (e: any) {
+          logCliente('dg_send_error', { msg: e?.message ?? 'unknown' });
+        }
       });
       startCapture({ sampleRate: 16000, channels: 1, chunkMs: 100 });
       capturaActivaRef.current = true;
