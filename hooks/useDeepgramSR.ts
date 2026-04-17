@@ -173,7 +173,6 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
       if (!activoRef.current) return;
 
       const params = new URLSearchParams({
-        token: dgToken,
         model: 'nova-3',
         language: 'es-419',
         smart_format: 'true',
@@ -185,7 +184,12 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         sample_rate: '16000',
         channels: '1',
       });
-      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`);
+      // React Native acepta headers custom como tercer argumento del constructor
+      const ws = new (WebSocket as any)(
+        `wss://api.deepgram.com/v1/listen?${params.toString()}`,
+        undefined,
+        { headers: { Authorization: `Token ${dgToken}` } },
+      ) as WebSocket;
       wsRef.current = ws;
 
       ws.onopen = () => {
