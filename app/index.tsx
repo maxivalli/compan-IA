@@ -511,6 +511,12 @@ export default function Index() {
       {/* Presencia: VisionCamera (ML Kit) con fallback automático a expo-camera */}
       <CamaraPresenciaVisionOverlay activo={useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onFalló={() => setUseVisionPresencia(false)} />
       <CamaraPresenciaOverlay activo={!useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
+      {/* DEBUG presencia — borrar cuando funcione */}
+      <View pointerEvents="none" style={{ position: 'absolute', top: 48, left: 12, backgroundColor: modoWatchingPresencia ? '#00e676' : '#ff1744', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, opacity: 0.85 }}>
+        <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>
+          {modoWatchingPresencia ? `👁 watching (${useVisionPresencia ? 'ML Kit' : 'frame diff'})` : '⏳ esperando inactividad'}
+        </Text>
+      </View>
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
