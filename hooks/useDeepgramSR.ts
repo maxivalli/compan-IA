@@ -32,11 +32,6 @@ const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
 // rápida si speech_final falla, sin cortar frases naturales con pausa corta.
 const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
-export type DGMessage =
-  | { type: 'ready' }
-  | { type: 'partial'; text: string; confidence: number }
-  | { type: 'final';   text: string; speech_final: boolean; confidence: number };
-
 export type UseDeepgramSROptions = {
   onPartial?:  (texto: string) => void;
   onFinal:     (texto: string) => void;
@@ -153,69 +148,79 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     async function conectar() {
       if (!activoRef.current) return;
 
-      let ticket: string | null = null;
+      let dgToken: string | null = null;
       try {
         const { obtenerTokenDispositivo } = await import('../lib/ai');
         const deviceToken = await obtenerTokenDispositivo();
-        const res = await fetch(`${BACKEND_URL}/ai/stream-ticket`, {
+        const res = await fetch(`${BACKEND_URL}/ai/deepgram-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
         });
         if (res.ok) {
           const data = await res.json();
-          ticket = data.ticket ?? null;
+          dgToken = data.key ?? null;
         }
       } catch (e: any) {
-        logCliente('dg_ticket_error', { reason: e?.message ?? 'unknown' });
+        logCliente('dg_token_error', { reason: e?.message ?? 'unknown' });
       }
 
-      if (!ticket) {
-        optsRef.current.onError('sin ticket');
+      if (!dgToken) {
+        optsRef.current.onError('sin token');
         if (activoRef.current) scheduleReconnect();
         return;
       }
 
-      // Re-check: detener() pudo haber sido llamado mientras esperábamos el ticket.
       if (!activoRef.current) return;
 
-      const wsUrl = BACKEND_URL
-        .replace(/^https:\/\//, 'wss://')
-        .replace(/^http:\/\//, 'ws://') + `/audio-ws?tk=${ticket}`;
-
-      const ws = new WebSocket(wsUrl);
+      const params = new URLSearchParams({
+        token: dgToken,
+        model: 'nova-3',
+        language: 'es-419',
+        smart_format: 'true',
+        interim_results: 'true',
+        endpointing: '250',
+        utterance_end_ms: '1000',
+        vad_events: 'true',
+        encoding: 'linear16',
+        sample_rate: '16000',
+        channels: '1',
+      });
+      const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
         reconnCount.current = 0;
+        iniciarAudioCapture(ws);
+        optsRef.current.onReady();
+        logCliente('dg_sr_ready', {});
       };
 
       ws.onmessage = (event) => {
-        let msg: DGMessage;
+        let msg: any;
         try { msg = JSON.parse(event.data); } catch { return; }
 
-        if (msg.type === 'ready') {
-          iniciarAudioCapture(ws);
-          optsRef.current.onReady();
-          logCliente('dg_sr_ready', {});
+        if (msg.type !== 'Results') return;
 
-        } else if (msg.type === 'partial') {
-          if (msg.text) optsRef.current.onPartial?.(msg.text);
+        const alt = msg?.channel?.alternatives?.[0];
+        const text: string = (alt?.transcript ?? '').trim();
+        if (!text) return;
 
-        } else if (msg.type === 'final') {
-          if (!msg.text) return;
+        const isFinal: boolean = msg.is_final ?? false;
+        const speechFinal: boolean = msg.speech_final ?? false;
 
-          if (msg.speech_final) {
-            // speech_final=true: Deepgram confirmó el endpoint de utterance.
-            // Reemplazamos el acumulador (en lugar de push) para evitar duplicar
-            // el texto: Deepgram envía el mismo transcript en el evento is_final
-            // previo (speech_final=false) Y en éste → no acumular dos veces.
-            acumuladorRef.current = [msg.text];
-            flushAcumulador();
-          } else {
-            // is_final=true, speech_final=false: segmento intermedio confirmado.
-            acumuladorRef.current.push(msg.text);
-            programarFlushDebounce();
-          }
+        if (!isFinal) {
+          optsRef.current.onPartial?.(text);
+        } else if (speechFinal) {
+          // speech_final=true: Deepgram confirmó el endpoint de utterance.
+          // Reemplazamos el acumulador (en lugar de push) para evitar duplicar
+          // el texto: Deepgram envía el mismo transcript en el evento is_final
+          // previo (speech_final=false) Y en éste → no acumular dos veces.
+          acumuladorRef.current = [text];
+          flushAcumulador();
+        } else {
+          // is_final=true, speech_final=false: segmento intermedio confirmado.
+          acumuladorRef.current.push(text);
+          programarFlushDebounce();
         }
       };
 
