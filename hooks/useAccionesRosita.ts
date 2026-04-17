@@ -1,21 +1,28 @@
 /**
  * useAccionesRosita — interfaz canónica de acciones de la app.
  *
- * Define las 3 acciones de alto nivel que pueden dispararse desde cualquier
+ * Define las acciones de alto nivel que pueden dispararse desde cualquier
  * input: botón táctil, control Bluetooth BLE, teclado accesibilidad, etc.
  *
  * Todas las fuentes de entrada (touch, BLE beacon, futura voz de interrupción)
  * llaman a estas funciones — nunca directamente a los callbacks de useRosita.
+ *
+ * Gestos del beacon:
+ *   Click simple  → para música (si hay) / alterna no molestar
+ *   Doble click   → abre flujo foto
+ *   Long press 2s → SOS
  */
 
-import { useCallback, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { EstadoRosita } from './useBrain';
 
 export interface AccionesRositaDeps {
   estado:                      EstadoRosita;
   musicaActiva:                boolean;
+  musicaActivaRef?:            React.MutableRefObject<boolean>;
   noMolestar:                  boolean;
   pararMusica:                 () => void;
+  iniciarFlujoFoto:            () => void;
   dispararSOS:                 () => Promise<void>;
   setNoMolestar:               (v: boolean) => void;
   iniciarSpeechRecognition:    () => void;
@@ -48,18 +55,51 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
     const d = depsRef.current;
     const nuevo = !d.noMolestar;
     if (nuevo) {
-      // pararSRIntencional pausa AudioCapture (Deepgram) sin cerrar el WS.
       d.pararSRIntencional();
       d.setNoMolestar(true);
       d.detenerSilbido();
     } else {
       d.setNoMolestar(false);
-      d.iniciarSpeechRecognition();
-      d.chequearPendientesAlActivar();
+      // No reiniciar SR si hay música — el SR se apagó por la música, no por No Molestar.
+      // Cuando el usuario pare la música, el efecto de musicaActiva arranca el SR solo.
+      if (!d.musicaActivaRef?.current) {
+        d.iniciarSpeechRecognition();
+        d.chequearPendientesAlActivar();
+      }
     }
   }, []);
 
-  return { toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb };
+  const pararMusica = useCallback(() => {
+    depsRef.current.pararMusica();
+  }, []);
+
+  /**
+   * Click simple del beacon:
+   *  - Si hay música → la para (prioridad máxima)
+   *  - Si no → alterna no molestar (on/off)
+   */
+  const onClickBeacon = useCallback(() => {
+    const d = depsRef.current;
+    if (d.musicaActiva || d.musicaActivaRef?.current) {
+      d.pararMusica();
+      return;
+    }
+    // Alterna no molestar
+    toggleDoNotDisturb();
+  }, [toggleDoNotDisturb]);
+
+  /**
+   * Doble click del beacon → abre el flujo de foto.
+   * No hace nada si hay música o si no molestar está activo.
+   */
+  const onDobleClickBeacon = useCallback(() => {
+    const d = depsRef.current;
+    if (d.musicaActiva || d.musicaActivaRef?.current) return;
+    if (d.noMolestar) return;
+    d.iniciarFlujoFoto();
+  }, []);
+
+  return { toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb, pararMusica, onClickBeacon, onDobleClickBeacon };
 }
 
 export type AccionesRosita = ReturnType<typeof useAccionesRosita>;

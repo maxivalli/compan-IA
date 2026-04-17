@@ -1,34 +1,70 @@
 import React, { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { CameraView } from 'expo-camera';
-import {
-  detectFacesAsync,
-  FaceDetectorMode,
-  FaceDetectorLandmarks,
-  FaceDetectorClassifications,
-} from 'expo-face-detector';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
-const INTERVALO_MS = 2000; // captura cada 2 s cuando está activo
+/**
+ * Detección de presencia por movimiento (frame diff).
+ * Compara fotogramas consecutivos de la cámara frontal.
+ * No requiere que el usuario mire a la cámara — detecta cualquier movimiento
+ * en el campo visual (persona caminando, agitando la mano, etc.).
+ *
+ * Estrategia:
+ *  - Captura un frame cada INTERVALO_MS a calidad mínima (0.05)
+ *  - Compara la distribución de bytes JPEG del frame actual vs el anterior
+ *  - Si la diferencia supera UMBRAL_MOVIMIENTO → onPresenciaDetectada()
+ */
+
+const INTERVALO_MS       = 2500;  // ms entre capturas
+const UMBRAL_TAMANIO     = 0.18;  // si el tamaño del JPEG difiere >18% → movimiento
+const UMBRAL_BYTES       = 0.06;  // si el diff de bytes muestreados supera 6% → movimiento
+const SKIP_HEADER        = 600;   // saltar header JPEG (~450 bytes = 600 chars base64)
+const SAMPLES            = 250;   // cantidad de muestras a comparar
+
+function hayMovimiento(prev: string, curr: string): boolean {
+  // 1. Diferencia de tamaño: cuando alguien entra al encuadre,
+  //    la compresión JPEG cambia significativamente.
+  const lenMax = Math.max(prev.length, curr.length);
+  if (Math.abs(prev.length - curr.length) / lenMax > UMBRAL_TAMANIO) return true;
+
+  // 2. Comparar bytes muestreados de la sección de datos (evitar header)
+  const len = Math.min(prev.length, curr.length);
+  const available = len - SKIP_HEADER;
+  if (available < SAMPLES) return false;
+
+  const step = Math.floor(available / SAMPLES);
+  let diffTotal = 0;
+  for (let i = 0; i < SAMPLES; i++) {
+    const pos = SKIP_HEADER + i * step;
+    // charCodeAt sobre base64 da valores en rango ~43–122 (diferencia máx ~79)
+    diffTotal += Math.abs(prev.charCodeAt(pos) - curr.charCodeAt(pos));
+  }
+  return (diffTotal / (SAMPLES * 79)) > UMBRAL_BYTES;
+}
 
 type Props = {
   activo: boolean;
   onPresenciaDetectada: () => void;
 };
 
-/**
- * Overlay invisible de cámara frontal.
- * Solo se monta cuando `activo=true` (modo watching: +30 min sin actividad).
- * Cada 2 s captura un frame y corre expo-face-detector sobre él.
- * Si detecta un rostro llama `onPresenciaDetectada`.
- */
 export default function CamaraPresenciaOverlay({ activo, onPresenciaDetectada }: Props) {
-  if (Platform.OS === 'web') return null;
+  const cameraRef     = useRef<CameraView>(null);
+  const corriendo     = useRef(false);
+  const frameAnterior = useRef<string | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
 
-  const cameraRef = useRef<CameraView>(null);
-  const corriendo = useRef(false);
-
+  // Pedir permiso cuando se activa
   useEffect(() => {
-    if (!activo) { corriendo.current = false; return; }
+    if (Platform.OS === 'web' || !activo) return;
+    if (!permission?.granted) requestPermission().catch(() => {});
+  }, [activo, permission?.granted]);
+
+  // Loop de captura y comparación
+  useEffect(() => {
+    if (Platform.OS === 'web' || !activo || !permission?.granted) {
+      corriendo.current = false;
+      frameAnterior.current = null;
+      return;
+    }
 
     corriendo.current = true;
 
@@ -36,36 +72,37 @@ export default function CamaraPresenciaOverlay({ activo, onPresenciaDetectada }:
       if (!corriendo.current) return;
       try {
         const foto = await cameraRef.current?.takePictureAsync({
-          quality:        0.1,
+          quality:        0.05,   // calidad mínima → frames pequeños y rápidos
+          base64:         true,   // no escribir a disco
           skipProcessing: true,
           shutterSound:   false,
         });
-        if (!foto?.uri || !corriendo.current) return;
 
-        const result = await detectFacesAsync(foto.uri, {
-          mode:               FaceDetectorMode.fast,
-          detectLandmarks:    FaceDetectorLandmarks.none,
-          runClassifications: FaceDetectorClassifications.none,
-          tracking:           false,
-        });
-        if (result.faces.length > 0 && corriendo.current) {
+        if (!foto?.base64 || !corriendo.current) return;
+
+        const prev = frameAnterior.current;
+        frameAnterior.current = foto.base64;
+
+        // El primer frame solo sirve de referencia, no comparar
+        if (prev && hayMovimiento(prev, foto.base64)) {
           onPresenciaDetectada();
         }
       } catch {
-        // Ignorar errores de captura (ej. cámara ocupada por foto Telegram)
+        // Ignorar errores de captura (ej. cámara ocupada por flujo de foto)
       } finally {
-        // setTimeout recursivo en lugar de setInterval:
-        // evita que dos takePictureAsync se superpongan si la cámara tarda > 2s.
         if (corriendo.current) setTimeout(detectar, INTERVALO_MS);
       }
     }
 
-    // Arrancar el ciclo
     const arranque = setTimeout(detectar, INTERVALO_MS);
-    return () => { corriendo.current = false; clearTimeout(arranque); };
-  }, [activo, onPresenciaDetectada]);
+    return () => {
+      corriendo.current = false;
+      frameAnterior.current = null;
+      clearTimeout(arranque);
+    };
+  }, [activo, permission?.granted, onPresenciaDetectada]);
 
-  if (!activo) return null;
+  if (Platform.OS === 'web' || !activo || !permission?.granted) return null;
 
   return (
     <View style={s.contenedor} pointerEvents="none">
@@ -85,7 +122,7 @@ const s = StyleSheet.create({
     height: 64,
     bottom: 0,
     right: 0,
-    opacity: 0.01,    // invisible (0.01 evita cuelgues vs 0 en Android) — solo detecta
+    opacity: 0.01,    // invisible (0.01 evita cuelgues en Android vs 0)
     overflow: 'hidden',
   },
   camara: { flex: 1 },

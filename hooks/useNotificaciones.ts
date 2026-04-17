@@ -56,6 +56,7 @@ export type NotificacionesRefs = {
   pararSRIntencional:    (() => void) | undefined;
   flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
   mostrarFoto:           (urlFoto: string, descripcion: string) => void;
+  cerrarFoto:            () => void;
   monitoreoActivo:       boolean;
 };
 
@@ -159,7 +160,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
     setEstado, hablar, iniciarSpeechRecognition,
-    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional, flujoFoto, mostrarFoto,
+    modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional, flujoFoto, mostrarFoto, cerrarFoto,
     monitoreoActivo,
   } = refs;
 
@@ -372,6 +373,9 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       mostrarFoto(msg.urlFoto, msg.descripcion);
       await waitMs(600);
       await hablar(msg.descripcion);
+      // Cerrar la foto automáticamente 4 segundos después de que Rosita termina de describirla
+      await waitMs(4000);
+      cerrarFoto();
 
       resultado = 'respondido';
     } catch {
@@ -565,7 +569,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       `😊 <b>Estado de ánimo:</b>\n${animoLineas}\n\n` +
       `💬 <b>Temas del día:</b> ${temasTexto}\n\n` +
       `🎵 <b>Música:</b> ${escuchodMusica ? 'Sí escuchó música' : 'No escuchó música'}\n\n` +
-      `💬 <b>Charlas con ${asistente}:</b> ${cantCharlas} vez${cantCharlas !== 1 ? 'es' : ''} hoy (${horasActiva})` +
+      `💬 <b>Charlas con ${asistente}:</b> ${cantCharlas !== 1 ? `${cantCharlas} veces` : '1 vez'} hoy (${horasActiva})` +
       (alertasHoy > 0 ? `\n\n🚨 <b>Alertas enviadas:</b> ${alertasHoy}` : '') +
       (recPendientes > 0 ? `\n\n⏰ <b>Recordatorios pendientes:</b> ${recPendientes}` : '') +
       (enNoMolestar ? `\n\n🔇 <b>Modo no molestar:</b> activo al cierre del día` : '')

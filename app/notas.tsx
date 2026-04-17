@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -64,13 +64,14 @@ export default function NotasScreen() {
   const router = useRouter();
   const [notas, setNotas] = useState<JobInbox[]>([]);
   const [cargando, setCargando] = useState(true);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   useFocusEffect(useCallback(() => {
     setCargando(true);
     AsyncStorage.getItem(ASYNC_JOBS_INBOX_KEY)
       .then(raw => {
         const inbox: JobInbox[] = raw ? JSON.parse(raw) : [];
-        // Ordenar por fecha descendente y tomar las últimas MAX_NOTAS
         const ordenadas = [...inbox].sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         ).slice(0, MAX_NOTAS);
@@ -88,13 +89,16 @@ export default function NotasScreen() {
     return () => sub.remove();
   }, [router]));
 
+  // Ancho de cada card en modo horizontal (2 columnas con gap de 10)
+  const cardWidth = isLandscape ? (width - 32 - 10) / 2 : undefined;
+
   return (
     <View style={s.flex}>
       <ScreenHeader titulo="Notas" eyebrow="guardadas" icono="document-text-outline" />
 
       <ScrollView
         style={s.scroll}
-        contentContainerStyle={s.contenido}
+        contentContainerStyle={[s.contenido, isLandscape && s.contenidoHorizontal]}
         showsVerticalScrollIndicator={false}
       >
         {cargando ? (
@@ -112,38 +116,42 @@ export default function NotasScreen() {
           </View>
         ) : (
           <>
-            <Text style={s.seccionLabel}>Últimas {notas.length} notas</Text>
-            {notas.map(nota => (
-              <Pressable
-                key={nota.id}
-                style={({ pressed }) => [s.card, pressed && s.cardPressed]}
-                onPress={() => router.push(`/nota/${nota.id}` as Parameters<typeof router.push>[0])}
-                android_ripple={{ color: M.primaryContainer, radius: 300 }}
-              >
-                {/* Ícono por tipo */}
-                <View style={[s.iconWrap, nota.tipo === 'receta' ? s.iconReceta : s.iconBusqueda]}>
-                  <Ionicons
-                    name={nota.tipo === 'receta' ? 'restaurant-outline' : 'search-outline'}
-                    size={22}
-                    color={nota.tipo === 'receta' ? '#7D2D00' : '#004785'}
-                  />
-                </View>
-
-                {/* Textos */}
-                <View style={s.textos}>
-                  <View style={s.tipoRow}>
-                    <Text style={[s.tipoBadge, nota.tipo === 'receta' ? s.tipoBadgeReceta : s.tipoBadgeBusqueda]}>
-                      {nota.tipo === 'receta' ? 'Receta' : 'Búsqueda'}
-                    </Text>
-                    <Text style={s.fecha}>{fechaRelativa(nota.createdAt)}</Text>
+            <Text style={[s.seccionLabel, isLandscape && s.seccionLabelFull]}>
+              Últimas {notas.length} notas
+            </Text>
+            <View style={[s.grid, isLandscape && s.gridHorizontal]}>
+              {notas.map(nota => (
+                <Pressable
+                  key={nota.id}
+                  style={({ pressed }) => [s.card, isLandscape && { width: cardWidth }, pressed && s.cardPressed]}
+                  onPress={() => router.push(`/nota/${nota.id}` as Parameters<typeof router.push>[0])}
+                  android_ripple={{ color: M.primaryContainer, radius: 300 }}
+                >
+                  {/* Ícono por tipo */}
+                  <View style={[s.iconWrap, nota.tipo === 'receta' ? s.iconReceta : s.iconBusqueda]}>
+                    <Ionicons
+                      name={nota.tipo === 'receta' ? 'restaurant-outline' : 'search-outline'}
+                      size={22}
+                      color={nota.tipo === 'receta' ? '#7D2D00' : '#004785'}
+                    />
                   </View>
-                  <Text style={s.titulo} numberOfLines={2}>{tituloNota(nota)}</Text>
-                  <Text style={s.resumen} numberOfLines={2}>{resumenNota(nota)}</Text>
-                </View>
 
-                <Ionicons name="chevron-forward" size={18} color={M.outlineVariant} />
-              </Pressable>
-            ))}
+                  {/* Textos */}
+                  <View style={s.textos}>
+                    <View style={s.tipoRow}>
+                      <Text style={[s.tipoBadge, nota.tipo === 'receta' ? s.tipoBadgeReceta : s.tipoBadgeBusqueda]}>
+                        {nota.tipo === 'receta' ? 'Receta' : 'Búsqueda'}
+                      </Text>
+                      <Text style={s.fecha}>{fechaRelativa(nota.createdAt)}</Text>
+                    </View>
+                    <Text style={s.titulo} numberOfLines={2}>{tituloNota(nota)}</Text>
+                    <Text style={s.resumen} numberOfLines={2}>{resumenNota(nota)}</Text>
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={18} color={M.outlineVariant} />
+                </Pressable>
+              ))}
+            </View>
 
             <Text style={s.piePagina}>
               Se muestran las últimas {MAX_NOTAS} notas. Las más antiguas se reemplazan automáticamente.
@@ -158,20 +166,24 @@ export default function NotasScreen() {
 const s = StyleSheet.create({
   flex:    { flex: 1, backgroundColor: M.background },
   scroll:  { flex: 1 },
-  contenido: { padding: 16, paddingBottom: 48 },
+  contenido:           { padding: 16, paddingBottom: 48 },
+  contenidoHorizontal: { paddingHorizontal: 16 },
 
   seccionLabel: {
     fontSize: 12, fontWeight: '600', color: M.onSurfaceVariant,
     textTransform: 'uppercase', letterSpacing: 0.8,
     marginBottom: 12, marginTop: 4, marginLeft: 4,
   },
+  seccionLabelFull: { width: '100%' },
+
+  grid:           { gap: 10 },
+  gridHorizontal: { flexDirection: 'row', flexWrap: 'wrap' },
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 10,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -214,6 +226,6 @@ const s = StyleSheet.create({
 
   piePagina: {
     fontSize: 11, color: M.outlineVariant, textAlign: 'center',
-    marginTop: 16, lineHeight: 17,
+    marginTop: 16, lineHeight: 17, width: '100%',
   },
 });

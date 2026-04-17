@@ -10,9 +10,18 @@ type Deps = {
   estadoRef:          React.MutableRefObject<string>;
   hablarRef:          React.MutableRefObject<((texto: string) => Promise<void>) | null>;
   perfilRef:          React.MutableRefObject<Perfil | null>;
+  noMolestarRef:      React.MutableRefObject<boolean>;
+  musicaActivaRef:    React.MutableRefObject<boolean>;
 };
 
-export function useCamaraPresencia({ ultimaActividadRef, estadoRef, hablarRef, perfilRef }: Deps) {
+export function useCamaraPresencia({
+  ultimaActividadRef,
+  estadoRef,
+  hablarRef,
+  perfilRef,
+  noMolestarRef,
+  musicaActivaRef,
+}: Deps) {
   const [modoWatching,  setModoWatching]  = useState(false);
   const modoWatchingRef = useRef(false);
   const ultimaDeteccion = useRef(0);
@@ -45,6 +54,10 @@ export function useCamaraPresencia({ ultimaActividadRef, estadoRef, hablarRef, p
   const onPresenciaDetectada = useCallback(() => {
     if (!modoWatchingRef.current) return;
     if (estadoRef.current !== 'esperando') return;
+    // No interrumpir si el usuario activó No Molestar
+    if (noMolestarRef.current) return;
+    // No interrumpir si hay música sonando
+    if (musicaActivaRef.current) return;
 
     const ahora = Date.now();
     if (ahora - ultimaDeteccion.current < COOLDOWN_MS) return;
@@ -72,7 +85,7 @@ export function useCamaraPresencia({ ultimaActividadRef, estadoRef, hablarRef, p
 
     const texto = frases[Math.floor(Math.random() * frases.length)];
     hablarRef.current?.(texto).catch(() => {});
-  }, [estadoRef, hablarRef, perfilRef, ultimaActividadRef]);
+  }, [estadoRef, hablarRef, perfilRef, ultimaActividadRef, noMolestarRef, musicaActivaRef]);
 
   return { modoWatching, onPresenciaDetectada };
 }

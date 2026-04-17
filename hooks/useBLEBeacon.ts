@@ -1,70 +1,65 @@
 /**
- * useBLEBeacon — control por BLE beacon (Holyiot HOLYIOT-21014 nRF52810).
+ * useBLEBeacon — control por BLE beacon Holy-IOT (Holyiot HOLYIOT-21014 nRF52810).
  *
- * Escanea en background buscando el beacon por UUID de servicio 0x5242.
- * Decodifica el manufacturer data y mapea eventos a las acciones canónicas.
+ * Se conecta al beacon via GATT y escucha notificaciones en el Nordic UART Service.
+ * Mapea los eventos del botón a las acciones canónicas de Rosita.
  *
- * Eventos soportados:
- *   Click simple   → toggleTalkOrStopMusic
- *   Click largo 2s → triggerSOS
+ * Protocolo observado (5 bytes):
+ *   F3 15 F3 [event] [state]
+ *   event 0x01 = botón
+ *   state 0x01 = presionado  |  0x00 = suelto
+ *
+ * Gestos:
+ *   Click simple   → para música (si hay música) o abre cámara (si no)
  *   Doble click    → toggleDoNotDisturb
- *   Caída          → onCaida (solo activo en modo horizontal)
+ *   Long press 2s  → triggerSOS
  *
- * ─── PAYLOAD MAPPING (ajustar cuando llegue el dispositivo) ───────────────
- * Los bytes exactos están en BEACON_PAYLOAD. Están marcados con TODO para
- * que sea fácil encontrarlos y ajustarlos una vez que se pruebe el beacon.
- * ──────────────────────────────────────────────────────────────────────────
+ * Se reconecta automáticamente si el dispositivo se desconecta.
  *
- * IMPORTANTE: este hook solo funciona en Android/iOS con build nativo.
- * En Expo Go o web queda en modo silencioso (no hace nada, no rompe).
+ * IMPORTANTE: solo funciona en Android/iOS con build nativo.
+ * En web queda en modo silencioso (no hace nada, no rompe).
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { Platform } from 'react-native';
+import { Buffer } from 'buffer';
 import { AccionesRosita } from './useAccionesRosita';
 
 // ── Configuración del beacon ───────────────────────────────────────────────
 
-/** UUID de servicio del beacon Holyiot nRF52810. */
-const BEACON_SERVICE_UUID = '0x5242';
+/** Nordic UART Service UUID */
+const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 
-/**
- * Bytes del manufacturer data que identifican cada evento.
- * TODO: ajustar cuando llegue el dispositivo físico y se pueda verificar.
- */
-const BEACON_PAYLOAD = {
-  /** Botón presionado (click). */
-  BUTTON_PRESS: 0x06,
-  /** Movimiento / caída detectada por acelerómetro. */
-  FALL_OR_SHAKE: 0x04,
-  /** Doble click (si el firmware lo soporta como evento distinto). */
-  DOUBLE_CLICK: 0x08,    // TODO: verificar con el dispositivo real
-  /** Long press directo del firmware (alternativa al timing de la app). */
-  LONG_PRESS: 0x0A,      // TODO: verificar con el dispositivo real
-} as const;
+/** TX Characteristic — notificaciones del dispositivo hacia la app */
+const NUS_TX_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-/**
- * Índice del byte en el manufacturer data que contiene el tipo de evento.
- * TODO: verificar con el dispositivo real.
- */
-const PAYLOAD_EVENT_BYTE_INDEX = 10;
+/** Header fijo de los paquetes del beacon (bytes 0-2) */
+const HDR = [0xF3, 0x15, 0xF3] as const;
 
-// ── Timing de gestos (app-side) ────────────────────────────────────────────
+/** Byte [3]: tipo de evento */
+const EV_BUTTON = 0x01;
+
+/** Byte [4]: estado del botón */
+const ST_PRESSED  = 0x01;
+const ST_RELEASED = 0x00;
+
+// ── Timing de gestos ────────────────────────────────────────────────────────
 
 /** Ventana para detectar doble click (ms). */
-const DOUBLE_CLICK_WINDOW_MS = 400;
+const DOUBLE_CLICK_WINDOW_MS = 800;
 
-/** Duración de long press si el firmware no lo reporta directamente (ms). */
+/** Duración para detectar long press (ms). */
 const LONG_PRESS_MS = 2000;
+
+/** Delay antes de reintentar conexión tras desconexión (ms). */
+const RECONNECT_DELAY_MS = 3000;
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 
 export interface BLEBeaconDeps {
-  acciones:    AccionesRosita;
-  /** Solo cuando es true se procesa la detección de caídas. */
-  modoHorizontal: boolean;
-  /** Callback de caída detectada. */
-  onCaida: () => void;
+  acciones:        AccionesRosita;
+  /** Ref externo a actualizar con el estado de conexión BLE. */
+  conectadoRef?:   React.MutableRefObject<boolean>;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -72,16 +67,17 @@ export interface BLEBeaconDeps {
 export function useBLEBeacon(deps: BLEBeaconDeps) {
   const depsRef = useRef(deps);
   depsRef.current = deps;
-  const bleManagerRef = useRef<any>(null);
-  const bleStateSubRef = useRef<any>(null);
-  const gestureSeqRef = useRef(0);
 
-  // Timing de gestos app-side
-  const ultimoClickRef    = useRef<number>(0);
+  /** Ref estable que indica si el beacon está actualmente conectado. */
+  const conectadoRef = useRef(false);
+
+  // ── Timing de gestos ──────────────────────────────────────────────────
+  const gestureSeqRef     = useRef(0);
   const pendingClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ultimoPresRef     = useRef<number>(0);
+  const isPressedRef      = useRef(false);
 
-  /** Cancela timers de gesto pendientes. */
   const cancelarTimers = useCallback(() => {
     gestureSeqRef.current += 1;
     if (pendingClickTimer.current) { clearTimeout(pendingClickTimer.current); pendingClickTimer.current = null; }
@@ -89,168 +85,203 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
   }, []);
 
   /**
-   * Procesa un evento de botón recibido del beacon.
-   * Lógica de timing:
-   *  1. Si llega DOUBLE_CLICK o LONG_PRESS directo del firmware → los usa tal cual.
-   *  2. Si llega BUTTON_PRESS → timing app-side:
-   *     - Inicia timer de long press (2s).
-   *     - Si llega otro BUTTON_PRESS antes de DOUBLE_CLICK_WINDOW_MS → doble click.
-   *     - Si no llega nada en DOUBLE_CLICK_WINDOW_MS → click simple (al soltar).
+   * Lógica al detectar botón presionado.
    *
-   * Nota: como el beacon emite advertising packets (no conexión), no hay evento
-   * "button released". El long press se detecta si el beacon sigue emitiendo el
-   * mismo byte durante 2s O si soporta un byte distinto para long press.
-   * TODO: ajustar la lógica de long press cuando se pruebe el dispositivo real.
+   * Estados posibles:
+   *  - Segundo press dentro de la ventana → doble click inmediato.
+   *  - Press nuevo → arranca longPress(2s) y ventana de doble click(400ms).
+   *    · Si el timer de 400ms dispara y el usuario ya soltó → click simple.
+   *    · Si el timer de 400ms dispara y sigue presionado → espera longPress.
+   *    · Si el timer de 2s dispara → SOS.
    */
-  const procesarEventoBoton = useCallback((eventByte: number) => {
-    const { acciones } = depsRef.current;
+  const onButtonPressed = useCallback(() => {
     const ahora = Date.now();
+    const delta = ahora - ultimoPresRef.current;
 
-    // ── Long press reportado por firmware ─────────────────────────────────
-    if (eventByte === BEACON_PAYLOAD.LONG_PRESS) {
+    // Segundo press dentro de la ventana → doble click
+    if (pendingClickTimer.current && delta < DOUBLE_CLICK_WINDOW_MS) {
       cancelarTimers();
-      acciones.triggerSOS();
+      isPressedRef.current = false;
+      depsRef.current.acciones.onDobleClickBeacon();
       return;
     }
 
-    // ── Doble click reportado por firmware ────────────────────────────────
-    if (eventByte === BEACON_PAYLOAD.DOUBLE_CLICK) {
-      cancelarTimers();
-      acciones.toggleDoNotDisturb();
-      return;
-    }
+    cancelarTimers();
+    isPressedRef.current = true;
+    ultimoPresRef.current = ahora;
+    const seq = gestureSeqRef.current;
 
-    // ── Click simple: timing app-side ────────────────────────────────────
-    if (eventByte === BEACON_PAYLOAD.BUTTON_PRESS) {
-      const deltaDesdeUltimo = ahora - ultimoClickRef.current;
-      ultimoClickRef.current = ahora;
+    // Timer de long press (2s)
+    longPressTimer.current = setTimeout(() => {
+      if (gestureSeqRef.current !== seq) return;
+      longPressTimer.current    = null;
+      pendingClickTimer.current = null;
+      isPressedRef.current      = false;
+      depsRef.current.acciones.triggerSOS();
+    }, LONG_PRESS_MS);
 
-      // Si ya hay un click pendiente dentro de la ventana → doble click
-      if (pendingClickTimer.current && deltaDesdeUltimo < DOUBLE_CLICK_WINDOW_MS) {
-        cancelarTimers();
-        acciones.toggleDoNotDisturb();
-        return;
-      }
-
-      // Cancelar longPress anterior (nuevo click llegó antes)
-      cancelarTimers();
-      const gestureSeq = gestureSeqRef.current;
-
-      // Iniciar timer de long press
-      longPressTimer.current = setTimeout(() => {
-        if (gestureSeqRef.current !== gestureSeq) return;
-        longPressTimer.current = null;
-        pendingClickTimer.current = null;
-        acciones.triggerSOS();
-      }, LONG_PRESS_MS);
-
-      // Iniciar timer de "esperar doble click"
-      pendingClickTimer.current = setTimeout(() => {
-        if (gestureSeqRef.current !== gestureSeq) return;
-        pendingClickTimer.current = null;
-        // Si no llegó un segundo click y el long press no disparó → click simple
+    // Ventana de espera doble click (400ms)
+    pendingClickTimer.current = setTimeout(() => {
+      if (gestureSeqRef.current !== seq) return;
+      pendingClickTimer.current = null;
+      if (!isPressedRef.current) {
+        // Usuario ya soltó → click simple
         if (longPressTimer.current) {
           clearTimeout(longPressTimer.current);
           longPressTimer.current = null;
-          acciones.toggleTalkOrStopMusic();
         }
-      }, DOUBLE_CLICK_WINDOW_MS);
-    }
+        depsRef.current.acciones.onClickBeacon();
+      }
+      // Si sigue presionado → el longPress timer lo maneja
+    }, DOUBLE_CLICK_WINDOW_MS);
   }, [cancelarTimers]);
 
-  /** Procesa un evento de caída/sacudón del acelerómetro. */
-  const procesarCaida = useCallback(() => {
-    if (!depsRef.current.modoHorizontal) return; // solo en modo horizontal
-    depsRef.current.onCaida();
-  }, []);
-
-  /**
-   * Parsea el manufacturer data de un advertising packet del beacon.
-   * Devuelve el byte de evento en PAYLOAD_EVENT_BYTE_INDEX o null si
-   * el paquete no es del beacon esperado.
-   * TODO: ajustar el parsing cuando se tenga el dispositivo real.
-   */
-  const parsearPayload = useCallback((manufacturerData: string | null): number | null => {
-    if (!manufacturerData) return null;
-    try {
-      // manufacturerData viene en base64 desde react-native-ble-plx
-      const bytes = Buffer.from(manufacturerData, 'base64');
-      if (bytes.length <= PAYLOAD_EVENT_BYTE_INDEX) return null;
-      return bytes[PAYLOAD_EVENT_BYTE_INDEX];
-    } catch {
-      return null;
+  /** Al soltar el botón: cancela long press. El pendingClick sigue corriendo. */
+  const onButtonReleased = useCallback(() => {
+    isPressedRef.current = false;
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
   }, []);
 
+  /** Parsea una notificación del beacon y despacha el evento correspondiente. */
+  const procesarNotificacion = useCallback((value: string | null) => {
+    if (!value) return;
+    try {
+      const bytes = Buffer.from(value, 'base64');
+      if (bytes.length < 5) return;
+      if (bytes[0] !== HDR[0] || bytes[1] !== HDR[1] || bytes[2] !== HDR[2]) return;
+
+      const eventType  = bytes[3];
+      const eventState = bytes[4];
+
+      if (__DEV__) {
+        const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('-');
+        console.log(`[BLEBeacon] notif: ${hex}`);
+      }
+
+      if (eventType === EV_BUTTON) {
+        if (eventState === ST_PRESSED)  onButtonPressed();
+        if (eventState === ST_RELEASED) onButtonReleased();
+        return;
+      }
+
+    } catch {
+      // silencioso
+    }
+  }, [onButtonPressed, onButtonReleased]);
+
+  // Ref estable para evitar dependencias en el useEffect
+  const procesarRef = useRef(procesarNotificacion);
+  procesarRef.current = procesarNotificacion;
+
   useEffect(() => {
-    // En web o Expo Go el módulo nativo no existe — modo silencioso
     if (Platform.OS === 'web') return;
 
-    let BleManager: any;
+    let mounted = true;
+    let manager: any = null;
+    let subscription: any  = null;
+    let disconnectSub: any = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    function limpiarConexion() {
+      try { subscription?.remove?.();   } catch {}
+      try { disconnectSub?.remove?.();  } catch {}
+      subscription  = null;
+      disconnectSub = null;
+    }
+
+    function scheduleReconectar() {
+      conectadoRef.current = false;
+      if (deps.conectadoRef) deps.conectadoRef.current = false;
+      limpiarConexion();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      reconnectTimeout = setTimeout(() => {
+        if (!mounted) return;
+        reconnectTimeout = null;
+        conectar();
+      }, RECONNECT_DELAY_MS);
+    }
+
+    async function conectar() {
+      if (!mounted || !manager) return;
+      limpiarConexion();
+
+      try {
+        // Escanear hasta encontrar Holy-IOT
+        const device = await new Promise<any>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            manager.stopDeviceScan();
+            reject(new Error('scan timeout'));
+          }, 15000);
+
+          manager.startDeviceScan(null, null, (error: any, dev: any) => {
+            if (!mounted) { clearTimeout(timeout); manager.stopDeviceScan(); return; }
+            if (error)    { clearTimeout(timeout); reject(error); return; }
+            const nombre = (dev?.name ?? dev?.localName ?? '').toUpperCase();
+            if (nombre.includes('HOLY-IOT') || nombre.includes('HOLYIOT')) {
+              clearTimeout(timeout);
+              manager.stopDeviceScan();
+              resolve(dev);
+            }
+          });
+        });
+
+        if (!mounted) return;
+
+        const connected = await device.connect();
+        await connected.discoverAllServicesAndCharacteristics();
+
+        // Manejar desconexión inesperada
+        disconnectSub = manager.onDeviceDisconnected(connected.id, () => {
+          if (mounted) scheduleReconectar();
+        });
+
+        // Suscribir a notificaciones del TX characteristic
+        subscription = connected.monitorCharacteristicForService(
+          NUS_SERVICE_UUID,
+          NUS_TX_UUID,
+          (_error: any, char: any) => {
+            if (_error) return; // disconnectSub se encarga del reconect
+            procesarRef.current(char?.value ?? null);
+          }
+        );
+
+        conectadoRef.current = true;
+        if (deps.conectadoRef) deps.conectadoRef.current = true;
+        console.log('[BLEBeacon] conectado a Holy-IOT');
+
+      } catch (err) {
+        console.warn('[BLEBeacon] error conectando:', err);
+        if (mounted) scheduleReconectar();
+      }
+    }
 
     async function iniciar() {
       try {
         const { BleManager: BM } = await import('react-native-ble-plx');
-        BleManager = new BM();
-        bleManagerRef.current = BleManager;
+        manager = new BM();
 
         // Esperar a que el adaptador BLE esté encendido
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            bleStateSubRef.current?.remove?.();
-            bleStateSubRef.current = null;
-            reject(new Error('BLE init timeout'));
-          }, 10000);
-
-          const sub = BleManager.onStateChange((state: string) => {
+          const timeout = setTimeout(() => reject(new Error('BLE init timeout')), 10000);
+          const sub = manager.onStateChange((state: string) => {
             if (state === 'PoweredOn') {
               clearTimeout(timeout);
               sub.remove();
-              bleStateSubRef.current = null;
               resolve();
             }
             if (state === 'Unsupported' || state === 'Unauthorized') {
               clearTimeout(timeout);
               sub.remove();
-              bleStateSubRef.current = null;
               reject(new Error(state));
             }
           }, true);
-          bleStateSubRef.current = sub;
         });
 
-        // Escaneo continuo — sin conectar, solo advertising packets
-        BleManager.startDeviceScan(
-          null,           // sin filtro de UUID acá (filtramos por payload abajo)
-          { allowDuplicates: true },
-          (error: any, device: any) => {
-            if (error || !device) return;
-
-            // Filtrar por nombre o UUID de servicio
-            // TODO: ajustar el filtro cuando se conozca el nombre exacto del beacon
-            const nombre: string = device.name ?? device.localName ?? '';
-            const esBeacon =
-              nombre.toLowerCase().includes('holyiot') ||
-              (device.serviceUUIDs ?? []).some((u: string) =>
-                u.toLowerCase() === BEACON_SERVICE_UUID.toLowerCase() ||
-                u.toLowerCase() === '5242'
-              );
-
-            if (!esBeacon) return;
-
-            const eventByte = parsearPayload(device.manufacturerData);
-            if (eventByte === null) return;
-
-            if (eventByte === BEACON_PAYLOAD.FALL_OR_SHAKE) {
-              procesarCaida();
-            } else {
-              procesarEventoBoton(eventByte);
-            }
-          }
-        );
-
+        await conectar();
       } catch (err) {
-        // BLE no disponible o sin permisos — silencioso
         console.warn('[BLEBeacon] No disponible:', err);
       }
     }
@@ -258,11 +289,15 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
     iniciar();
 
     return () => {
+      mounted = false;
+      conectadoRef.current = false;
+      if (deps.conectadoRef) deps.conectadoRef.current = false;
       cancelarTimers();
-      try { bleManagerRef.current?.stopDeviceScan?.(); } catch {}
-      try { bleStateSubRef.current?.remove?.(); } catch {}
-      bleStateSubRef.current = null;
-      bleManagerRef.current = null;
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      limpiarConexion();
+      try { manager?.destroy?.(); } catch {}
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return { conectadoRef };
 }

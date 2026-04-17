@@ -27,6 +27,8 @@ import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import CamaraPresenciaOverlay from '../components/CamaraPresenciaOverlay';
 import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOverlay';
 
+// true  = VisionCamera + ML Kit Image Labeling (real-time, 3fps, detecta sin ver la cara)
+// false = expo-camera frame diff (fallback si VisionCamera no está disponible)
 const USE_VISION_PRESENCIA = true;
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
 import PanelCuero, { MarcoCuero } from '../components/PanelCuero';
@@ -125,8 +127,9 @@ export default function Index() {
     pararMusica, reanudarMusica, dispararSOS,
     resetExpresion,
     onOjoPicado, onCaricia, onRelampago, iniciarSilbido, detenerSilbido, reactivar, recargarPerfil,
-    mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, modoVision, capturaVisionFnRef,
+    mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, iniciarFlujoFoto, modoVision, capturaVisionFnRef,
     modoWatchingPresencia, onPresenciaDetectada,
+    bleConectadoRef,
     refs, player,
     listas, borrarListaVoz,
     detectandoSonido,
@@ -170,11 +173,17 @@ export default function Index() {
   function mostrarFoto(urlFoto: string, descripcion: string) {
     if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current);
     setFotoTelegram({ url: urlFoto, descripcion });
-    fotoTimerRef.current = setTimeout(() => setFotoTelegram(null), 30000);
+    // Fallback: cierra sola a los 60s si por algún motivo cerrarFoto no se llama
+    fotoTimerRef.current = setTimeout(() => setFotoTelegram(null), 60000);
+  }
+
+  function cerrarFoto() {
+    if (fotoTimerRef.current) { clearTimeout(fotoTimerRef.current); fotoTimerRef.current = null; }
+    setFotoTelegram(null);
   }
 
   // Conectar hook de notificaciones pasándole todos los refs del hook principal
-  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños, ultimaNotaId, clearUltimaNotaId } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional: refs.pararSRIntencional, mostrarFoto, monitoreoActivo }, player);
+  const { chequearPendientesAlActivar, esCumpleaños, triggerCumpleaños, ultimaNotaId, clearUltimaNotaId } = useNotificaciones({ ...refs, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional: refs.pararSRIntencional, mostrarFoto, cerrarFoto, monitoreoActivo }, player);
 
   // Auto-abrir la nota cuando esté lista
   useEffect(() => {
@@ -412,8 +421,9 @@ export default function Index() {
 
   // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
   const acciones = useAccionesRosita({
-    estado, musicaActiva, noMolestar,
+    estado, musicaActiva, musicaActivaRef: refs.musicaActivaRef, noMolestar,
     pararMusica, dispararSOS,
+    iniciarFlujoFoto,
     setNoMolestar,
     iniciarSpeechRecognition: refs.iniciarSpeechRecognition,
     pararSRIntencional:       refs.pararSRIntencional,
@@ -421,15 +431,9 @@ export default function Index() {
     chequearPendientesAlActivar,
   });
 
-  // ── BLE Beacon — solo activo en modo horizontal ──────────────────────────────
-  useBLEBeacon({
-    acciones,
-    modoHorizontal: layoutMode === 'horizontal',
-    onCaida: () => {
-      // Caída detectada: alerta inmediata por Telegram + voz
-      dispararSOS();
-    },
-  });
+  // ── BLE Beacon ────────────────────────────────────────────────────────────────
+  useBLEBeacon({ acciones, conectadoRef: bleConectadoRef });
+
 
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 

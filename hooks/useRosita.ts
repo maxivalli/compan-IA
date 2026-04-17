@@ -114,6 +114,9 @@ export function useRosita() {
   // ── Última radio reproducida ──────────────────────────────────────────────────
   const ultimaRadioRef = useRef<string | null>(null);
 
+  /** Ref mutable que indica si el beacon BLE está conectado. Se actualiza desde index.tsx. */
+  const bleConectadoRef = useRef(false);
+
   const sinConexionRef           = useRef(false);
   const ultimoSosRef             = useRef<number>(0);
   const alertaInactividadRef     = useRef<number>(0);
@@ -131,6 +134,9 @@ export function useRosita() {
   function setNoMolestar(v: boolean) {
     noMolestarRef.current = v;
     setNoMolestarState(v);
+    // Al desactivar No Molestar, resetear ultimaCharlaRef para que calcularModo
+    // vea actividad reciente y ponga 'soñolienta' en lugar de saltar a 'durmiendo'.
+    if (!v) ultimaCharlaRef.current = Date.now();
   }
 
   function clearMusicaNocheTimers() {
@@ -231,6 +237,7 @@ export function useRosita() {
     setNoMolestar,
     suspenderSR:              pipeline.suspenderSR,
     reanudarSR:               pipeline.reanudarSR,
+    isBleConectado: () => bleConectadoRef.current,
     ejecutarAccionDomotica:   smartthings.ejecutarAccion,
     lanzarJuego: (tipo) => {
       const rutaJuego = { tateti: '/tateti', ahorcado: '/ahorcado', memoria: '/memoria' } as const;
@@ -250,6 +257,8 @@ export function useRosita() {
     estadoRef,
     hablarRef: hablarPresenciaRef,
     perfilRef,
+    noMolestarRef,
+    musicaActivaRef,
   });
 
   // ── Sincronizar refs con estado ─────────────────────────────────────────────
@@ -898,7 +907,9 @@ export function useRosita() {
     // que podría capturar el audio del TTS del SOS como input del usuario.
     pipeline.pararSpeechRecognitionIntencional();
 
-    guardarEntradaAnimo('triste');
+    // SOS/caída no se registra como "triste" en el ánimo — tiene su propio contador
+    // en el informe diario (alertasHoy). El ánimo "triste" queda reservado para cuando
+    // el usuario menciona cosas que se categorizan emocionalmente como tristeza.
     sincronizarAnimo(opciones.syncTag, Date.now());
 
     if (chatIds.length) {
@@ -1076,6 +1087,13 @@ export function useRosita() {
     detenerSilbido:  pipeline.detenerSilbido,
     reactivar, recargarPerfil,
     mostrarCamara, camaraFacing, camaraSilenciosa, onFotoCapturada, onFotoCancelada, flujoFoto,
+    bleConectadoRef,
+    iniciarFlujoFoto: () => {
+      // Pausar SR antes de hablar para evitar que Rosita se escuche a sí misma
+      // diciendo "foto" y dispare un segundo flujo que cancela el primero.
+      pipeline.pararSpeechRecognitionIntencional();
+      flujoFoto();
+    },
     modoVision, capturaVisionFnRef,
     modoWatchingPresencia: camaraPresencia.modoWatching,
     onPresenciaDetectada: camaraPresencia.onPresenciaDetectada,

@@ -208,6 +208,12 @@ const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
 
 // Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
 export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien|b[aá]rbaro)\b/i;
+
+/**
+ * Tiempo máximo desde la última respuesta de Rosita para considerar que la
+ * conversación sigue activa (ventana deslizante — se extiende con cada respuesta).
+ */
+const VENTANA_CONVERSACION_MS = 60_000;
 export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|\b(me siento|estoy|me quedé|vivo)\s+sol[ao]\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|\bno puedo (moverme|caminar|levantarme|respirar|dormir)\b|malas? noticias?|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad|medio ca[ií]d|\b(estoy|me siento|ando)\s+más?\s*o\s*menos\b/i;
 export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|embarazada|\bnació\s+(mi|el bebé|la bebé|sano|bien|nuestro|nuestra)\b|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
@@ -563,6 +569,8 @@ export interface BrainDeps {
   reanudarSR?:  () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
   lanzarJuego?: (tipo: 'tateti' | 'ahorcado' | 'memoria') => void;
+  /** Función que retorna true si el beacon BLE está conectado en este momento. */
+  isBleConectado?: () => boolean;
 }
 
 // ── useBrain ───────────────────────────────────────────────────────────────────
@@ -962,7 +970,8 @@ export function useBrain(deps: BrainDeps) {
     d.cerrarDGParaMusica();
     const streamPromise = buscarRadio(generoMusica);
     logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 500) });
-    await d.hablar(`${respuesta} Para detenerla, tocá la pantalla.`);
+    const comoDetener = d.isBleConectado?.() ? 'tocá el botón.' : 'tocá la pantalla.';
+    await d.hablar(`${respuesta} Para detenerla, ${comoDetener}`);
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
     const urlStream = await streamPromise;
@@ -1054,6 +1063,26 @@ export function useBrain(deps: BrainDeps) {
     if (__DEV__) console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = d.perfilRef.current;
     if (!p) { if (__DEV__) console.log('[RC] sin perfil, saliendo'); return; }
+
+    // ── Wake word + ventana de conversación ────────────────────────────────────
+    // Rosita responde si: (1) la nombran, (2) está en ventana activa (<60s desde
+    // última respuesta), o (3) el mensaje es urgente (emocional/salud).
+    // Los patrones proactivos (clima, recordatorios, cumpleaños) no pasan por acá.
+    {
+      const textoNormGate  = normalizarTextoPlano(textoUsuario);
+      const nombreAsist    = normalizarTextoPlano(p.nombreAsistente ?? 'Rosita');
+      const nombreMencionado = textoNormGate.includes(nombreAsist);
+      const ventanaActiva    = (Date.now() - d.ultimaCharlaRef.current) < VENTANA_CONVERSACION_MS;
+      const esUrgente        = PATRON_EMPATICO.test(textoUsuario)
+                             || PATRON_ALEGRIA.test(textoUsuario)
+                             || PATRON_SALUD.test(textoUsuario);
+
+      if (!nombreMencionado && !ventanaActiva && !esUrgente) {
+        if (__DEV__) console.log('[RC] ignorado — sin nombre, ventana cerrada, sin urgencia');
+        return;
+      }
+    }
+    // ───────────────────────────────────────────────────────────────────────────
 
     // Lazy init: cargar seguimientos si la charla proactiva no corrió primero
     if (seguimientosRef.current.length === 0) {

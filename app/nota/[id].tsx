@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
   ActivityIndicator,
 } from 'react-native';
@@ -84,6 +85,8 @@ export default function NotaScreen() {
   const router = useRouter();
   const [job, setJob] = useState<JobInbox | null>(null);
   const [loading, setLoading] = useState(true);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   useEffect(() => {
     AsyncStorage.getItem(ASYNC_JOBS_INBOX_KEY).then(raw => {
@@ -123,31 +126,30 @@ export default function NotaScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, isLandscape && styles.headerLandscape]}>
         <Pressable onPress={() => irANotas(router)} style={styles.backBtn} hitSlop={16}>
-          <Ionicons name="arrow-back" size={30} color={M3.primary} />
+          <Ionicons name="arrow-back" size={isLandscape ? 24 : 30} color={M3.primary} />
         </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text style={[styles.headerTitle, isLandscape && styles.headerTitleLandscape]} numberOfLines={1}>
           {job.tipo === 'receta' ? 'Receta' : 'Nota'}
         </Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, isLandscape && styles.scrollLandscape]} showsVerticalScrollIndicator={false}>
         {job.tipo === 'receta'
-          ? <RecetaViewer data={job.resultJson as ResultReceta} />
-          : <BusquedaViewer data={job.resultJson as ResultBusqueda} />
+          ? <RecetaViewer data={job.resultJson as ResultReceta} isLandscape={isLandscape} />
+          : <BusquedaViewer data={job.resultJson as ResultBusqueda} isLandscape={isLandscape} />
         }
       </ScrollView>
     </View>
   );
 }
 
-function RecetaViewer({ data }: { data: ResultReceta }) {
-  return (
+function RecetaViewer({ data, isLandscape }: { data: ResultReceta; isLandscape: boolean }) {
+  const header = (
     <>
       <Text style={styles.titulo}>{data.titulo}</Text>
       {data.descripcion_corta ? <Text style={styles.descripcion}>{data.descripcion_corta}</Text> : null}
-
       <View style={styles.metaRow}>
         {data.tiempo_total ? (
           <View style={styles.metaChip}>
@@ -162,57 +164,97 @@ function RecetaViewer({ data }: { data: ResultReceta }) {
           </View>
         ) : null}
       </View>
+    </>
+  );
 
-      {data.ingredientes?.length ? (
-        <>
-          <Text style={styles.seccion}>Ingredientes</Text>
-          {data.ingredientes.map((ing, i) => (
-            <View key={i} style={styles.ingredienteRow}>
-              <View style={styles.bullet} />
-              <Text style={styles.ingredienteTexto}>
-                {ing.cantidad ? formatCantidad(ing.cantidad, ing.unidad) : ''}{ing.item}
-                {ing.notas ? <Text style={styles.notas}> ({ing.notas})</Text> : null}
-              </Text>
-            </View>
-          ))}
-        </>
-      ) : null}
+  const colIngredientes = data.ingredientes?.length ? (
+    <>
+      <Text style={styles.seccion}>Ingredientes</Text>
+      {data.ingredientes.map((ing, i) => (
+        <View key={i} style={styles.ingredienteRow}>
+          <View style={styles.bullet} />
+          <Text style={styles.ingredienteTexto}>
+            {ing.cantidad ? formatCantidad(ing.cantidad, ing.unidad) : ''}{ing.item}
+            {ing.notas ? <Text style={styles.notas}> ({ing.notas})</Text> : null}
+          </Text>
+        </View>
+      ))}
+    </>
+  ) : null;
 
-      {data.pasos?.length ? (
-        <>
-          <Text style={styles.seccion}>Preparación</Text>
-          {data.pasos.map((paso, i) => (
-            <View key={i} style={styles.pasoRow}>
-              <View style={styles.numeroBadge}>
-                <Text style={styles.numeroBadgeText}>{paso.n ?? i + 1}</Text>
-              </View>
-              <View style={styles.pasoContent}>
-                <Text style={styles.pasoTexto}>{paso.texto}</Text>
-                {paso.tiempo_aprox ? <Text style={styles.notas}>{paso.tiempo_aprox}</Text> : null}
-              </View>
-            </View>
-          ))}
-        </>
-      ) : null}
+  const colPasos = data.pasos?.length ? (
+    <>
+      <Text style={styles.seccion}>Preparación</Text>
+      {data.pasos.map((paso, i) => (
+        <View key={i} style={styles.pasoRow}>
+          <View style={styles.numeroBadge}>
+            <Text style={styles.numeroBadgeText}>{paso.n ?? i + 1}</Text>
+          </View>
+          <View style={styles.pasoContent}>
+            <Text style={styles.pasoTexto}>{paso.texto}</Text>
+            {paso.tiempo_aprox ? <Text style={styles.notas}>{paso.tiempo_aprox}</Text> : null}
+          </View>
+        </View>
+      ))}
+    </>
+  ) : null;
 
+  if (isLandscape) {
+    return (
+      <>
+        {header}
+        <View style={styles.dosColumnas}>
+          <View style={styles.columnaIzq}>{colIngredientes}</View>
+          <View style={styles.separadorVertical} />
+          <View style={styles.columnaDer}>{colPasos}</View>
+        </View>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {header}
+      {colIngredientes}
+      {colPasos}
     </>
   );
 }
 
-function BusquedaViewer({ data }: { data: ResultBusqueda }) {
-  return (
+function BusquedaViewer({ data, isLandscape }: { data: ResultBusqueda; isLandscape: boolean }) {
+  const colIzq = (
     <>
       <Text style={styles.titulo}>{data.titulo}</Text>
       {data.resumen ? <Text style={styles.resumen}>{data.resumen}</Text> : null}
+    </>
+  );
 
+  const colDer = (
+    <>
       {data.puntos_clave?.length ? (
         <>
           <Text style={styles.seccion}>Puntos clave</Text>
           {data.puntos_clave.map((p, i) => <Text key={i} style={styles.bulletItem}>• {p}</Text>)}
         </>
       ) : null}
-
       <FuentesSection fuentes={data.fuentes} />
+    </>
+  );
+
+  if (isLandscape) {
+    return (
+      <View style={styles.dosColumnas}>
+        <View style={styles.columnaIzq}>{colIzq}</View>
+        <View style={styles.separadorVertical} />
+        <View style={styles.columnaDer}>{colDer}</View>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      {colIzq}
+      {colDer}
     </>
   );
 }
@@ -235,6 +277,7 @@ function FuentesSection({ fuentes }: { fuentes?: Fuente[] }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: M3.surface },
   centered:  { flex: 1, backgroundColor: M3.surface, justifyContent: 'center', alignItems: 'center', gap: 12 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -246,12 +289,34 @@ const styles = StyleSheet.create({
     borderBottomColor: M3.outlineVariant,
     gap: 8,
   },
-  headerTitle: { flex: 1, fontSize: 24, fontWeight: '700', color: M3.onSurface },
+  headerLandscape: { paddingTop: 12 },
+  headerTitle:          { flex: 1, fontSize: 24, fontWeight: '700', color: M3.onSurface },
+  headerTitleLandscape: { fontSize: 20 },
+
   backBtn: { padding: 4 },
-  scroll: { padding: 24, paddingBottom: 56 },
-  titulo: { fontSize: 30, fontWeight: '800', color: M3.onSurface, marginBottom: 10 },
+
+  scroll:          { padding: 24, paddingBottom: 56 },
+  scrollLandscape: { padding: 20, paddingBottom: 32 },
+
+  // ── Layout 2 columnas ──────────────────────────────────────────────────
+  dosColumnas: {
+    flexDirection: 'row',
+    gap: 0,
+    alignItems: 'flex-start',
+  },
+  columnaIzq: { flex: 1, paddingRight: 16 },
+  columnaDer: { flex: 1, paddingLeft: 16 },
+  separadorVertical: {
+    width: 1,
+    backgroundColor: M3.outlineVariant,
+    alignSelf: 'stretch',
+  },
+
+  // ── Contenido ──────────────────────────────────────────────────────────
+  titulo:      { fontSize: 30, fontWeight: '800', color: M3.onSurface, marginBottom: 10 },
   descripcion: { fontSize: 20, color: M3.onSurfaceVariant, marginBottom: 14, lineHeight: 30 },
   resumen:     { fontSize: 20, color: M3.onSurface, marginBottom: 14, lineHeight: 30 },
+
   metaRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   metaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -259,11 +324,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 8,
   },
   metaText: { fontSize: 18, color: M3.primary, fontWeight: '600' },
+
   seccion: { fontSize: 22, fontWeight: '700', color: M3.primary, marginTop: 24, marginBottom: 12 },
+
   ingredienteRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 10 },
   bullet: { width: 8, height: 8, borderRadius: 4, backgroundColor: M3.primary, marginTop: 10 },
   ingredienteTexto: { flex: 1, fontSize: 20, color: M3.onSurface, lineHeight: 30 },
   notas: { fontSize: 17, color: M3.onSurfaceVariant },
+
   pasoRow: { flexDirection: 'row', marginBottom: 16, gap: 12, alignItems: 'flex-start' },
   numeroBadge: {
     width: 38, height: 38, borderRadius: 19,
@@ -273,8 +341,11 @@ const styles = StyleSheet.create({
   numeroBadgeText: { color: M3.onPrimary, fontSize: 18, fontWeight: '700' },
   pasoContent: { flex: 1 },
   pasoTexto: { fontSize: 20, color: M3.onSurface, lineHeight: 30 },
+
   bulletItem: { fontSize: 20, color: M3.onSurface, marginBottom: 10, lineHeight: 30 },
+
   fuenteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
   fuenteTexto: { flex: 1, fontSize: 18, color: M3.onSurfaceVariant, lineHeight: 26 },
+
   emptyText: { fontSize: 20, color: M3.onSurfaceVariant, marginTop: 8 },
 });

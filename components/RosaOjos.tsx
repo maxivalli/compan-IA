@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
-import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LinearGradient as ExpoGradient } from 'expo-linear-gradient';
 import Svg, {
   Circle,
@@ -247,10 +247,13 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     : { borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 };
 
   return (
+    // overflow: 'hidden' NO va en este View — combinarlo con elevation en Android
+    // hace que la sombra aparezca desplazada (arriba de la boca en lugar de abajo).
+    // El clip del gradiente se maneja en el View interno.
     <Animated.View style={[
       sb.boca,
       forma,
-      { transform: [{ scaleX }, { scaleY }], overflow: 'hidden' },
+      { transform: [{ scaleX }, { scaleY }] },
       esCurvaNeutral && {
         backgroundColor: 'transparent',
         borderBottomWidth: 3,
@@ -260,13 +263,17 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       }
     ]}>
       {!esCurvaNeutral && (
-        <ExpoGradient
-          colors={['#C87848', '#8B5E3C', '#3D1E08']}
-          locations={[0, 0.45, 1]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
+        // overflow: 'hidden' aquí para que el gradiente respete el border radius,
+        // sin interferir con el elevation del Animated.View padre.
+        <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }, forma]}>
+          <ExpoGradient
+            colors={['#C87848', '#8B5E3C', '#3D1E08']}
+            locations={[0, 0.45, 1]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </View>
       )}
     </Animated.View>
   );
@@ -278,12 +285,26 @@ const sb = StyleSheet.create({
     height:          BOCA_H,
     backgroundColor: '#8B5E3C',
     marginTop:       55,
-    // Drop shadow — da volumen, parece levemente elevada sobre la cara
-    shadowColor:     '#2A0E00',
-    shadowOffset:    { width: 0, height: 3 },
-    shadowOpacity:   0.45,
-    shadowRadius:    4,
-    elevation:       4,
+    // Drop shadow solo en iOS/web.
+    // En Android, elevation genera un "ambient shadow" que rodea todo el view
+    // incluyendo arriba — y como el transform de la animación corre en GPU
+    // (useNativeDriver: true) mientras el shadow se calcula en layout thread,
+    // el shadow queda fijo en los bounds originales y aparece encima de la boca.
+    ...Platform.select({
+      ios: {
+        shadowColor:   '#2A0E00',
+        shadowOffset:  { width: 0, height: 3 },
+        shadowOpacity: 0.45,
+        shadowRadius:  4,
+      },
+      web: {
+        shadowColor:   '#2A0E00',
+        shadowOffset:  { width: 0, height: 3 },
+        shadowOpacity: 0.45,
+        shadowRadius:  4,
+      },
+      // android: sin elevation — el gradiente ya da profundidad suficiente
+    }),
   },
 });
 
@@ -555,7 +576,14 @@ const Ojo = memo(function Ojo({
   // podría coincidir con el commit de React y dejar el bounding box en 0 → crash RadialGradient.
   return (
     <Animated.View style={{ transform: [{ translateX: offsetX }], overflow: 'visible' }}>
-    <Animated.View style={[s.eyeContainer, { transform: [{ scaleY }] }]}>
+    <Animated.View style={[s.eyeContainer, { 
+      transform: [{ scaleY }],
+      shadowColor: '#060108',
+      shadowOffset: { width: 0, height: 7 },
+      shadowOpacity: 0.52,
+      shadowRadius: 7,
+      elevation: 10,
+    }]}>
       <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`} overflow="visible">
         <Defs>
           {/* IDs sufijados con "side" para evitar conflictos entre el ojo L y el R */}
@@ -602,17 +630,9 @@ const Ojo = memo(function Ojo({
             <Stop offset="100%" stopColor="#000000" stopOpacity="0.28"/>
           </RadialGradient>
 
-          {/* Drop shadow: sombra exterior para efecto de profundidad 3D */}
-          <Filter id={`eyeShadow${side}`} x="-30%" y="-20%" width="160%" height="150%">
-            <FeDropShadow dx="0" dy="7" stdDeviation="7" floodColor="#060108" floodOpacity="0.52" />
-          </Filter>
-
         </Defs>
 
-        {/* ── Sombra exterior (drop shadow) — se renderiza antes que todo el contenido ── */}
-        <Path d={pathFormaOjo} fill={BG} filter={`url(#eyeShadow${side})`} />
-
-        {/* ── Fondo piel (forma recalculated completa) ── */}
+        {/* ── Fondo piel (forma completa) ── */}
         <Path
           d={pathFormaOjo}
           fill="#C4996A"
