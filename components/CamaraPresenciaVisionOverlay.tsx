@@ -59,9 +59,10 @@ type Props = {
   activo: boolean;
   onPresenciaDetectada: () => void;
   onFalló?: () => void;
+  onDebugLabels?: (labels: string[]) => void;
 };
 
-export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada, onFalló }: Props) {
+export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada, onFalló, onDebugLabels }: Props) {
   // Hooks siempre al top
   const device      = useCameraDevice('front');
   const camRef      = useRef<any>(null);
@@ -123,6 +124,7 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
   function onLabels(labelsPayload: unknown) {
     if (!activo) return;
     const etiquetas = extraerEtiquetas(labelsPayload);
+    onDebugLabels?.(etiquetas);
     const hayPersona = etiquetas.some(e => ETIQUETAS_HUMANAS.has(e));
     if (!hayPersona) return;
     const ahora = Date.now();

@@ -161,6 +161,7 @@ export default function Index() {
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
   // Presencia: arranca con VisionCamera, cae a expo-camera si VisionCamera falla
   const [useVisionPresencia, setUseVisionPresencia] = useState(true);
+  const [debugLabels, setDebugLabels] = useState<string[]>([]);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup de ambos timers al desmontar
@@ -509,13 +510,18 @@ export default function Index() {
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
       {/* Presencia: VisionCamera (ML Kit) con fallback automático a expo-camera */}
-      <CamaraPresenciaVisionOverlay activo={useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onFalló={() => setUseVisionPresencia(false)} />
+      <CamaraPresenciaVisionOverlay activo={useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onFalló={() => setUseVisionPresencia(false)} onDebugLabels={setDebugLabels} />
       <CamaraPresenciaOverlay activo={!useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
       {/* DEBUG presencia — borrar cuando funcione */}
-      <View pointerEvents="none" style={{ position: 'absolute', top: 48, left: 12, backgroundColor: modoWatchingPresencia ? '#00e676' : '#ff1744', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, opacity: 0.85 }}>
+      <View pointerEvents="none" style={{ position: 'absolute', top: 48, left: 12, backgroundColor: modoWatchingPresencia ? '#00e676' : '#ff1744', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, opacity: 0.85, maxWidth: 220 }}>
         <Text style={{ color: '#000', fontSize: 11, fontWeight: 'bold' }}>
           {modoWatchingPresencia ? `👁 watching (${useVisionPresencia ? 'ML Kit' : 'frame diff'})` : '⏳ esperando inactividad'}
         </Text>
+        {modoWatchingPresencia && (
+          <Text style={{ color: '#000', fontSize: 10 }}>
+            {debugLabels.length === 0 ? 'sin callbacks aún' : debugLabels.slice(0, 5).join(', ')}
+          </Text>
+        )}
       </View>
 
       {fotoTelegram && (
