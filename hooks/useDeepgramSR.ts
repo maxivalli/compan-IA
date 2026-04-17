@@ -40,6 +40,12 @@ const DG_WS_URL =
 
 const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
+// 100ms de silencio PCM16 a 16kHz mono (16000 × 0.1 × 2 bytes = 3200 bytes).
+// Se envía cada 8s durante la pausa anti-eco para que Deepgram no cierre la
+// conexión por inactividad (~10-15s timeout → código 1011).
+const SILENCE_FRAME = new ArrayBuffer(3200);
+const KEEPALIVE_INTERVAL_MS = 8000;
+
 export type UseDeepgramSROptions = {
   onPartial?:  (texto: string) => void;
   onFinal:     (texto: string) => void;
@@ -56,9 +62,25 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const optsRef        = useRef(opts);
   optsRef.current      = opts;
 
-  const acumuladorRef  = useRef<string[]>([]);
-  const flushTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const acumuladorRef    = useRef<string[]>([]);
+  const flushTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const capturaActivaRef = useRef(false);
+  const keepaliveRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function iniciarKeepalive(ws: WebSocket) {
+    if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+    keepaliveRef.current = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try { ws.send(SILENCE_FRAME); } catch {}
+      } else {
+        detenerKeepalive();
+      }
+    }, KEEPALIVE_INTERVAL_MS);
+  }
+
+  function detenerKeepalive() {
+    if (keepaliveRef.current) { clearInterval(keepaliveRef.current); keepaliveRef.current = null; }
+  }
 
   function detenerAudioCapture() {
     audioSubRef.current?.remove();
@@ -69,6 +91,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
 
   function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return;
+    detenerKeepalive();
     try {
       audioSubRef.current = addAudioDataListener(({ data }) => {
         if (ws.readyState !== WebSocket.OPEN) return;
@@ -92,6 +115,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const pausarCaptura = useCallback(() => {
     descartarAcumulador();
     detenerAudioCapture();
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) iniciarKeepalive(ws);
   }, []);
 
   const reanudarCaptura = useCallback(() => {
@@ -124,6 +149,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     activoRef.current = false;
     if (reconnTimerRef.current) { clearTimeout(reconnTimerRef.current); reconnTimerRef.current = null; }
     descartarAcumulador();
+    detenerKeepalive();
     detenerAudioCapture();
     try { wsRef.current?.close(); } catch {}
     wsRef.current = null;
@@ -210,6 +236,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
       };
 
       ws.onclose = (event) => {
+        detenerKeepalive();
         detenerAudioCapture();
         descartarAcumulador();
         logCliente('dg_ws_close', { code: event.code });
