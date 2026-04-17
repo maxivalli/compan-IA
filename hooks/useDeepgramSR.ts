@@ -228,12 +228,14 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         }
       };
 
-      ws.onerror = () => {
-        logCliente('dg_ws_error', {});
+      ws.onerror = (event: any) => {
+        const msg = event?.message ?? event?.type ?? 'unknown';
+        logCliente('dg_ws_error', { msg });
         optsRef.current.onError('ws error');
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event: any) => {
+        logCliente('dg_ws_close', { code: event?.code, reason: event?.reason ?? '' });
         detenerAudioCapture();
         descartarAcumulador();
         if (!activoRef.current) return;
