@@ -1,35 +1,43 @@
 /**
  * useDeepgramSR — Speech Recognition vía Deepgram Nova-3 streaming.
  *
- * Reemplaza expo-speech-recognition con un WebSocket al backend propio
- * que hace de proxy a Deepgram Nova-3 es-419 con interim_results.
+ * Conecta directamente a wss://api.deepgram.com/v1/listen usando una
+ * temporary API key obtenida del backend. Auth vía Sec-WebSocket-Protocol
+ * (subprotocolo 'token') — única forma de pasar auth + enviar binario en RN.
  *
  * Flujo:
- *   1. iniciarDG() → obtiene stream ticket → abre WebSocket /audio-ws
- *   2. Al recibir { type: 'ready' } → arranca AudioCapture nativo (PCM16 16kHz)
- *   3. Cada chunk de audio → ws.send(binaryPCM)
- *   4. Backend manda { type: 'partial' } → onPartial (opcional, para especulativo)
- *   5. Backend manda { type: 'final', speech_final: true } → flush acumulador → onFinal
- *      O si pasan 800ms sin nuevo is_final → flush por debounce (fallback)
- *   6. pausarCapturaDG() → para AudioCapture SIN cerrar el WS (anti-eco durante TTS)
- *   7. reanudarCapturaDG() → reactiva AudioCapture; si WS cayó, reconecta primero
- *   8. detenerDG() → cierra WS y detiene AudioCapture
- *   9. Reconexión automática con backoff exponencial (si activoRef = true)
+ *   1. iniciarDG() → obtiene temp key del backend (/ai/deepgram-token)
+ *   2. Abre WebSocket directo a Deepgram con subprotocolo ['token', key]
+ *   3. Al conectar → arranca AudioCapture nativo (PCM16 16kHz)
+ *   4. Cada chunk de audio → ws.send(binaryPCM)
+ *   5. Deepgram manda Results con is_final=false → onPartial (especulativo)
+ *   6. Deepgram manda Results con is_final=true, speech_final=true → flush → onFinal
+ *      O si pasan 300ms sin nuevo is_final → flush por debounce (fallback)
+ *   7. pausarCapturaDG() → para AudioCapture SIN cerrar el WS (anti-eco durante TTS)
+ *   8. reanudarCapturaDG() → reactiva AudioCapture; si WS cayó, reconecta primero
+ *   9. detenerDG() → cierra WS y detiene AudioCapture
+ *  10. Reconexión automática con backoff exponencial (si activoRef = true)
  */
 
 import { useRef, useCallback } from 'react';
 import { addAudioDataListener, start as startCapture, stop as stopCapture } from 'audio-capture';
 import type { EventSubscription } from 'expo-modules-core';
-import { logCliente } from '../lib/ai';
+import { logCliente, obtenerTokenDispositivo } from '../lib/ai';
 
-// URL del backend — misma que usa el resto de la app
 const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
+const DG_WS_URL =
+  'wss://api.deepgram.com/v1/listen' +
+  '?model=nova-3' +
+  '&language=es-419' +
+  '&smart_format=true' +
+  '&interim_results=true' +
+  '&endpointing=250' +
+  '&utterance_end_ms=1000' +
+  '&vad_events=true' +
+  '&encoding=linear16' +
+  '&sample_rate=16000' +
+  '&channels=1';
 
-// Tiempo sin nuevo is_final antes de forzar el flush del acumulador (fallback
-// para cuando speech_final nunca llega).
-// Con endpointing:400 Deepgram debería enviar speech_final ~550ms después de que
-// el usuario para de hablar (400ms silence + ~150ms red). 300ms garantiza respuesta
-// rápida si speech_final falla, sin cortar frases naturales con pausa corta.
 const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
 export type UseDeepgramSROptions = {
@@ -48,14 +56,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const optsRef        = useRef(opts);
   optsRef.current      = opts;
 
-  // Acumulador de texto: los is_final llegan como segmentos cortos.
-  // Esperamos speech_final=true para el flush; si no llega, forzamos a los 800ms.
   const acumuladorRef  = useRef<string[]>([]);
   const flushTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // ── Anti-eco: cuando Rosita habla, pausamos AudioCapture ─────────────────
-  // pausarCapturaDG() para el mic SIN cerrar el WS.
-  // reanudarCapturaDG() lo reinicia; si el WS cayó, reconecta primero.
   const capturaActivaRef = useRef(false);
 
   function detenerAudioCapture() {
@@ -66,7 +68,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   }
 
   function iniciarAudioCapture(ws: WebSocket) {
-    if (capturaActivaRef.current) return; // ya activa
+    if (capturaActivaRef.current) return;
     try {
       audioSubRef.current = addAudioDataListener(({ data }) => {
         if (ws.readyState !== WebSocket.OPEN) return;
@@ -87,23 +89,18 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     acumuladorRef.current = [];
   }
 
-  // Pausa AudioCapture y descarta texto acumulado (anti-eco mientras Rosita habla)
   const pausarCaptura = useCallback(() => {
     descartarAcumulador();
     detenerAudioCapture();
   }, []);
 
-  // Reanuda AudioCapture: si el WS sigue abierto, solo reinicia la captura local.
-  // Si el WS está cerrado o no existe, hace una reconexión completa via iniciar().
   const reanudarCaptura = useCallback(() => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
       iniciarAudioCapture(ws);
     } else if (ws && ws.readyState === WebSocket.CONNECTING) {
-      // Ya hay una conexión en progreso — esperar el evento 'ready', no abrir otra.
       return;
     } else {
-      // WS caído mientras Rosita hablaba → reconectar
       iniciar();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -135,7 +132,6 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
 
   const iniciar = useCallback(async () => {
     if (activoRef.current) {
-      // Si ya está activo pero la captura está pausada, reanudar directo
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN && !capturaActivaRef.current) {
         iniciarAudioCapture(ws);
@@ -148,65 +144,62 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     async function conectar() {
       if (!activoRef.current) return;
 
-      let ticket: string | null = null;
+      // Obtener temporary key del backend
+      let dgKey: string | null = null;
       try {
-        const { obtenerTokenDispositivo } = await import('../lib/ai');
         const deviceToken = await obtenerTokenDispositivo();
-        const res = await fetch(`${BACKEND_URL}/ai/stream-ticket`, {
+        const res = await fetch(`${BACKEND_URL}/ai/deepgram-token`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
         });
         if (res.ok) {
           const data = await res.json();
-          ticket = data.ticket ?? null;
+          dgKey = data.key ?? null;
         }
       } catch (e: any) {
-        logCliente('dg_ticket_error', { reason: e?.message ?? 'unknown' });
+        logCliente('dg_token_error', { reason: e?.message ?? 'unknown' });
       }
 
-      if (!ticket) {
-        optsRef.current.onError('sin ticket');
+      if (!dgKey) {
+        optsRef.current.onError('sin token deepgram');
         if (activoRef.current) scheduleReconnect();
         return;
       }
 
       if (!activoRef.current) return;
 
-      const wsUrl = BACKEND_URL
-        .replace(/^https:\/\//, 'wss://')
-        .replace(/^http:\/\//, 'ws://') + `/audio-ws?tk=${ticket}`;
-
-      const ws = new WebSocket(wsUrl);
+      // Subprotocolo 'token' — forma oficial de autenticar desde clientes móviles/web
+      // sin usar el tercer argumento del constructor (que rompe binary send en RN).
+      const ws = new WebSocket(DG_WS_URL, ['token', dgKey]);
       wsRef.current = ws;
 
       ws.onopen = () => {
         reconnCount.current = 0;
+        iniciarAudioCapture(ws);
+        optsRef.current.onReady();
+        logCliente('dg_sr_ready', {});
       };
 
       ws.onmessage = (event) => {
         let msg: any;
         try { msg = JSON.parse(event.data); } catch { return; }
 
-        if (msg.type === 'ready') {
-          iniciarAudioCapture(ws);
-          optsRef.current.onReady();
-          logCliente('dg_sr_ready', {});
+        // Deepgram emite varios tipos: Results, Metadata, SpeechStarted, UtteranceEnd, etc.
+        if (msg.type === 'Results') {
+          const alt = msg?.channel?.alternatives?.[0];
+          const text: string = (alt?.transcript ?? '').trim();
+          if (!text) return;
 
-        } else if (msg.type === 'partial') {
-          if (msg.text) optsRef.current.onPartial?.(msg.text);
+          const isFinal: boolean = msg.is_final ?? false;
+          const speechFinal: boolean = msg.speech_final ?? false;
 
-        } else if (msg.type === 'final') {
-          if (!msg.text) return;
-          if (msg.speech_final) {
-            // speech_final=true: Deepgram confirmó el endpoint de utterance.
-            // Reemplazamos el acumulador (en lugar de push) para evitar duplicar
-            // el texto: Deepgram envía el mismo transcript en el evento is_final
-            // previo (speech_final=false) Y en éste → no acumular dos veces.
-            acumuladorRef.current = [msg.text];
+          if (!isFinal) {
+            optsRef.current.onPartial?.(text);
+          } else if (speechFinal) {
+            acumuladorRef.current = [text];
             flushAcumulador();
           } else {
-            // is_final=true, speech_final=false: segmento intermedio confirmado.
-            acumuladorRef.current.push(msg.text);
+            acumuladorRef.current.push(text);
             programarFlushDebounce();
           }
         }
@@ -217,9 +210,10 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         optsRef.current.onError('ws error');
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         detenerAudioCapture();
         descartarAcumulador();
+        logCliente('dg_ws_close', { code: event.code });
         if (!activoRef.current) return;
         scheduleReconnect();
       };
@@ -237,9 +231,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   }, []);
 
   return {
-    iniciarDG:        iniciar,
-    detenerDG:        detener,
-    pausarCapturaDG:  pausarCaptura,
-    reanudarCapturaDG: reanudarCaptura,
+    iniciarDG:          iniciar,
+    detenerDG:          detener,
+    pausarCapturaDG:    pausarCaptura,
+    reanudarCapturaDG:  reanudarCaptura,
   };
 }
