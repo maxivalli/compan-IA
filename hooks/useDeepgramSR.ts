@@ -68,19 +68,12 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return; // ya activa
     try {
-      let primerChunkEnviado = false;
       audioSubRef.current = addAudioDataListener(({ data }) => {
         if (ws.readyState !== WebSocket.OPEN) return;
         try {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-          ws.send(binary);
-          if (!primerChunkEnviado) {
-            primerChunkEnviado = true;
-            logCliente('dg_first_chunk', { bytes: binary.length });
-          }
-        } catch (e: any) {
-          logCliente('dg_send_error', { msg: e?.message ?? 'unknown' });
-        }
+          ws.send(binary.buffer);
+        } catch {}
       });
       startCapture({ sampleRate: 16000, channels: 1, chunkMs: 100 });
       capturaActivaRef.current = true;
@@ -155,94 +148,76 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     async function conectar() {
       if (!activoRef.current) return;
 
-      let dgToken: string | null = null;
+      let ticket: string | null = null;
       try {
         const { obtenerTokenDispositivo } = await import('../lib/ai');
         const deviceToken = await obtenerTokenDispositivo();
-        const res = await fetch(`${BACKEND_URL}/ai/deepgram-token`, {
+        const res = await fetch(`${BACKEND_URL}/ai/stream-ticket`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-device-token': deviceToken },
         });
         if (res.ok) {
           const data = await res.json();
-          dgToken = data.key ?? null;
+          ticket = data.ticket ?? null;
         }
       } catch (e: any) {
-        logCliente('dg_token_error', { reason: e?.message ?? 'unknown' });
+        logCliente('dg_ticket_error', { reason: e?.message ?? 'unknown' });
       }
 
-      if (!dgToken) {
-        optsRef.current.onError('sin token');
+      if (!ticket) {
+        optsRef.current.onError('sin ticket');
         if (activoRef.current) scheduleReconnect();
         return;
       }
 
       if (!activoRef.current) return;
 
-      const params = new URLSearchParams({
-        model: 'nova-3',
-        language: 'es-419',
-        smart_format: 'true',
-        interim_results: 'true',
-        endpointing: '250',
-        utterance_end_ms: '1000',
-        vad_events: 'true',
-        encoding: 'linear16',
-        sample_rate: '16000',
-        channels: '1',
-      });
-      // React Native acepta headers custom como tercer argumento del constructor
-      const ws = new (WebSocket as any)(
-        `wss://api.deepgram.com/v1/listen?${params.toString()}`,
-        undefined,
-        { headers: { Authorization: `Token ${dgToken}` } },
-      ) as WebSocket;
+      const wsUrl = BACKEND_URL
+        .replace(/^https:\/\//, 'wss://')
+        .replace(/^http:\/\//, 'ws://') + `/audio-ws?tk=${ticket}`;
+
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
         reconnCount.current = 0;
-        iniciarAudioCapture(ws);
-        optsRef.current.onReady();
-        logCliente('dg_sr_ready', {});
       };
 
       ws.onmessage = (event) => {
         let msg: any;
         try { msg = JSON.parse(event.data); } catch { return; }
 
-        if (msg.type !== 'Results') return;
+        if (msg.type === 'ready') {
+          iniciarAudioCapture(ws);
+          optsRef.current.onReady();
+          logCliente('dg_sr_ready', {});
 
-        const alt = msg?.channel?.alternatives?.[0];
-        const text: string = (alt?.transcript ?? '').trim();
-        if (!text) return;
+        } else if (msg.type === 'partial') {
+          if (msg.text) optsRef.current.onPartial?.(msg.text);
 
-        const isFinal: boolean = msg.is_final ?? false;
-        const speechFinal: boolean = msg.speech_final ?? false;
-
-        if (!isFinal) {
-          optsRef.current.onPartial?.(text);
-        } else if (speechFinal) {
-          // speech_final=true: Deepgram confirmó el endpoint de utterance.
-          // Reemplazamos el acumulador (en lugar de push) para evitar duplicar
-          // el texto: Deepgram envía el mismo transcript en el evento is_final
-          // previo (speech_final=false) Y en éste → no acumular dos veces.
-          acumuladorRef.current = [text];
-          flushAcumulador();
-        } else {
-          // is_final=true, speech_final=false: segmento intermedio confirmado.
-          acumuladorRef.current.push(text);
-          programarFlushDebounce();
+        } else if (msg.type === 'final') {
+          if (!msg.text) return;
+          if (msg.speech_final) {
+            // speech_final=true: Deepgram confirmó el endpoint de utterance.
+            // Reemplazamos el acumulador (en lugar de push) para evitar duplicar
+            // el texto: Deepgram envía el mismo transcript en el evento is_final
+            // previo (speech_final=false) Y en éste → no acumular dos veces.
+            acumuladorRef.current = [msg.text];
+            flushAcumulador();
+          } else {
+            // is_final=true, speech_final=false: segmento intermedio confirmado.
+            acumuladorRef.current.push(msg.text);
+            programarFlushDebounce();
+          }
         }
       };
 
-      ws.onerror = (event: any) => {
-        const msg = event?.message ?? event?.type ?? 'unknown';
-        logCliente('dg_ws_error', { msg });
+      ws.onerror = () => {
+        logCliente('dg_ws_error', {});
         optsRef.current.onError('ws error');
       };
 
-      ws.onclose = (event: any) => {
-        logCliente('dg_ws_close', { code: event?.code, reason: event?.reason ?? '' });
+      ws.onclose = () => {
         detenerAudioCapture();
         descartarAcumulador();
         if (!activoRef.current) return;
