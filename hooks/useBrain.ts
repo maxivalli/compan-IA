@@ -218,16 +218,16 @@ export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me sien
 export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|embarazada|\bnació\s+(mi|el bebé|la bebé|sano|bien|nuestro|nuestra)\b|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
 export const PATRON_CLIMA        = /\b(clima|llover|llueve|temperatura|pronóstico|pronostico|mucho calor|mucho frío|mucho frio|qué tiempo|que tiempo|el tiempo|va a llover|va a hacer)\b/i;
-export const PATRON_BUSQUEDA     = /\bnoticias?\s+(de|del|sobre|deportivas?|locales?|nacionales?|internacionales?)\b|\b(dame|pasame|contame|qué hay de|hay)\s+(las\s+)?noticias?\b|partido|fútbol|quiniela|qué hora|intendente|municipalidad|qué pasó|qué dice|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
+export const PATRON_BUSQUEDA     = /\bnoticias?\s+(de|del|sobre|deportivas?|locales?|nacionales?|internacionales?)\b|\b(dame|pasame|contame|qué hay de|hay)\s+(las\s+)?noticias?\b|\bpartido\s+de\s+(fútbol|futbol|básquet|basquet|hockey|tenis|voley|rugby|polo)\b|fútbol|quiniela|qué hora|intendente|municipalidad|qué pasó|qué dice|farmacia|hospital|heladeria|restaurant|restaurante|hotel(?:es)?|hostal|hospedaje|alojamiento|banco|supermercado|pami|correo|estacion|nafta|donde queda|donde hay|cerca|polici[aá]|comisari[aá]/i;
 export const PATRON_MUSICA       = /\b(música|canción|canciones|folklore|tango|cumbia|cuarteto|zamba|chacarera|bolero|vals|bailar|cantame|cantá una)\b|la radio\b/i;
 export const PATRON_RECORDATORIO = /\b(acordame|recordame|anotá(me)?|no te olvid|que no se me olvide|recordatorio|agend[aá](me)?|que quede (anotado|guardado)|una alarma|un timer|despertame)\b/i;
-export const PATRON_NOSTALGIA    = /\b(de antes|como antes|tiempos de antes)\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|en la escuela|cuando trabajaba|me recuerdo|me acuerdo|en mis tiempos|cuando era/i;
+export const PATRON_NOSTALGIA    = /\b(de antes|como antes|tiempos de antes)\b|en mi época|de joven|de chic[ao]|mi abuelo|mi abuela|en la escuela|cuando trabajaba|me recuerdo|\bme acuerdo\s+(de|que antes|de aquellos|bien de|del tiempo)\b|en mis tiempos|\bcuando era (chic[ao]|joven|pendej[ao]|solter[ao]|trabaj)\b/i;
 export const PATRON_COMANDO      = /\bpon[eé](me|le|la|lo)?\s+(la\s+|el\s+|un\s+|una\s+)?(música|tele|televisión|radio|aire|ventilador|calefactor|calefacción|algo|eso)\b|apag[aá]|prend[eé]|\bpar[aá]\b|\bparar\b|las luces?|\bla luz\b|sub[ií](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)|baj[aá](le|la| el| la)?\s+(vol|mús|tele|luce|brillo)/i;
 export const PATRON_LISTA        = /\b(lista\s+de|una lista|nueva lista|agrega(me|le)?\s+(a\s+la\s+lista|esto|eso)|pone\s+en\s+la\s+lista|anota\s+(esto|eso)|post.?it|papelito|nota\s+de\s+compra|compras:|la lista\s+de|guard[aá](me)?\s+(esto|eso|una nota)|anot[aá](me)?\s+(en|esto|eso))\b/i;
 export const PATRON_TELEGRAM     = /\b(mand[aá](me)?.*mensaj|mensaj.*famil|avis[aá](me)?.*famil|telegram|decile.*famil|contale.*famil)\b/i;
 export const PATRON_FOTO         = /\b(foto|fotograf|c[aá]mara|sac[aá](me)? una foto|tom[aá](me)? una foto|mir[aá] la foto|le[eé] la foto)\b/i;
 export const PATRON_ADIVINANZA   = /\b(adivinanza|acertijo|charada|adivina[^r]|adivináme)\b/i;
-export const PATRON_JUEGO        = /\b(juego|jugar|trivia|preguntas?|quiz|memori|refranes?|adivina|calcul[aá](me)?|trabale|trabalengua|matematica|rompecabeza)\b/i;
+export const PATRON_JUEGO        = /\b(juego|jugar|trivia|quiz|memori|refranes?|adivina|calcul[aá](me)?|trabale|trabalengua|matematica|rompecabeza)\b/i;
 export const PATRON_CHISTE       = /\b(cont[aá](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|dec[ií](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|and[aá]\s+cont[aá](me)?\s+(un\s+)?chiste|chistecito|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|cuento corto|historia graciosa|reírme|me rei)\b/i;
 export const PATRON_ABURRIMIENTO = /\b(aburrid[ao]|me aburro|no tengo nada (que|para) hacer|sin hacer nada|muriéndome de aburrimiento|muero de aburrimiento|no sé (qué|en qué) (hacer|entretener)|qué aburrido|re aburrido|estoy aburrid)\b/i;
 
@@ -254,6 +254,7 @@ export const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
 
 export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
   if (texto.length < 10) return null;
+  if (texto.split(/\s+/).filter(Boolean).length < 4) return null;
   // Solo skip para mensajes cortos (<= 30 chars) — evita que PATRON_SKIP bloquee
   // frases largas que contienen "todo bien" u otras palabras del patrón como substring.
   if (texto.length <= 30 && PATRON_SKIP.test(texto)) return null;
@@ -624,9 +625,13 @@ export function useBrain(deps: BrainDeps) {
     if (d.estadoRef.current !== 'esperando') return;
     if (especulativoCatRef.current) return; // ya hay una especulativa en curso
 
+    // Requerir mínimo 35 chars Y 5 palabras para evitar especular sobre fragmentos prematuros.
+    if (textoParcial.length < 35) return;
+    if (textoParcial.split(/\s+/).filter(Boolean).length < 5) return;
+
     // No arrancar si el parcial es claramente una respuesta rápida (saludos, gracias…)
     const norm = textoParcial.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (textoParcial.length <= 30 && PATRON_SKIP.test(norm)) return;
+    if (PATRON_SKIP.test(norm)) return;
 
     const cat = categorizarMuletilla(textoParcial);
     // 'default' es poco predecible — no vale arriesgar un mismatch
@@ -1491,7 +1496,7 @@ export function useBrain(deps: BrainDeps) {
         const limpio = (texto ?? '').replace(/\[[^\]]+\]\s*/g, '').trim();
         return limpio.length >= 12;
       };
-      const resolverClaudeConFallback = async (params: { system: string | RositaSystemPayload; messages: Mensaje[]; maxTokens?: number; }) => {
+      const resolverClaudeConFallback = async (params: { system: string | RositaSystemPayload; messages: Mensaje[]; maxTokens?: number; _t0?: number; }) => {
         try {
           const streamText = await llamarClaudeConStreaming({
             system: params.system,
@@ -1499,6 +1504,7 @@ export function useBrain(deps: BrainDeps) {
             maxTokens: params.maxTokens,
             onPrimeraFrase,
             speechFinalTs: d.speechEndTsRef.current || undefined,
+            _t0: params._t0,
           });
           if (esRespuestaUtil(streamText)) {
             resolverPrimeraFrase(null);
@@ -1599,11 +1605,13 @@ export function useBrain(deps: BrainDeps) {
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
-        logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length });
+        const tPreClaude = Date.now();
+        logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length, pre_claude_ms: tPreClaude - d.rcStartTsRef.current });
         claudePromise = resolverClaudeConFallback({
           system: systemPreview,
           messages: msgSliceBase,
           maxTokens: maxTokBase,
+          _t0: tPreClaude,
         });
       } else {
         // ── Slow path: búsqueda + memoria + tecleo corren todos en paralelo ──
@@ -1656,10 +1664,12 @@ REGLAS CRÍTICAS PARA RESPONDER:
           contextoWiki = `\n\n🚨 EXCEPCIÓN DE LONGITUD: Podés usar hasta 60 palabras.\nInformación de Wikipedia para enriquecer tu respuesta:\n${wikiResult}\nUsá esta información de forma natural y cálida, sin citar textualmente Wikipedia.`;
         }
         const systemFull = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
+        const tPreClaudeSlow = Date.now();
         claudePromise = resolverClaudeConFallback({
           system: systemFull,
           messages: msgSliceBase,
           maxTokens: maxTokBase,
+          _t0: tPreClaudeSlow,
         });
       }
 
