@@ -1320,7 +1320,7 @@ export function useBrain(deps: BrainDeps) {
     const pideTateti   = /\b(tateti|ta.?te.?ti|tres en raya|tres en linea|tic.?tac.?toe)\b/.test(textoNorm);
     const pideAhorcado = /\b(ahorcado|juego del ahorcado|adivinar la palabra)\b/.test(textoNorm);
     const pideMemoria  = /\b(memoria|juego de memoria|juego de fichas|encontrar las fichas|encontra las fichas)\b/.test(textoNorm);
-    const pideJuegoBase = pideTateti || pideAhorcado || pideMemoria || /\b(juego|jugar|adivinan|trivia|preguntas?|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
+    const pideJuegoBase = pideTateti || pideAhorcado || pideMemoria || /\b(juego|jugar|adivinan|trivia|quiz|memori|refranes?|adivina|calculo|calcul|trabale|cuenta|cuantos|cuanto es|matematica)\b/.test(textoNorm);
     const pideChisteBase = /\b(cont[aá](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|dec[ií](me)?(\s+un|\s+otro|\s+algún)?\s+chiste|and[aá]\s+cont[aá](me)?\s+(un\s+)?chiste|chistecito|chistoso|gracioso|algo gracioso|me hace rei|haceme rei|contame algo diverti|me rei)\b/.test(textoNorm)
       || (/\b(otro|uno mas|dale|seguí|segui|mas|contame otro|otro mas)\b/.test(textoNorm)
           && nuevoHistorial.slice(-4).some(m => m.role === 'assistant' && /\[CHISTE\]/i.test(m.content)));
