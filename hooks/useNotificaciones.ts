@@ -335,6 +335,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     } catch {
       // Error inesperado — el finally se encarga de liberar el flag
     } finally {
+      ultimaCharlaRef.current = Date.now();
       enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
@@ -380,6 +381,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       resultado = 'respondido';
     } catch {
     } finally {
+      ultimaCharlaRef.current = Date.now();
       enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
@@ -438,6 +440,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       resultado = 'respondido';
     } catch {
     } finally {
+      ultimaCharlaRef.current = Date.now();
       enFlujoVozRef.current = false;
       setEstado('esperando');
       estadoRef.current = 'esperando';
@@ -466,6 +469,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         : `Tenés ${cantidad} mensajes de voz sin escuchar.`;
 
       await hablar(texto);
+      ultimaCharlaRef.current = Date.now();
 
       // Procesar el primero
       const [primero, ...resto] = vigentes;
@@ -634,6 +638,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         const textoRecordatorio = `${p.nombreAbuela}, es hora de tomar el ${nombre}.`;
         await AsyncStorage.setItem('medPendiente', JSON.stringify({ texto: textoRecordatorio, ts: Date.now() }));
         await hablar(textoRecordatorio);
+        ultimaCharlaRef.current = Date.now();
         break;
       }
     }
@@ -735,7 +740,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         } else {
           frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días, mencioná el día y el clima brevemente, con calidez y buen humor. Cerrá con una pregunta corta y cálida que invite a charlar, por ejemplo sobre cómo amaneció o qué tiene pensado hacer hoy.` }] });
         }
-        if (frase && estadoRef.current === 'esperando') await hablar(frase);
+        if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
       } catch (e) { logClaudeError('saludoMatutino', e); }
     }
 
@@ -786,6 +791,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         borrarRecordatorio(r.id).catch(() => {}); // borra inmediatamente para evitar re-disparo si marcarRecordado falla
         const nombre = perfilRef.current?.nombreAbuela ?? '';
         if (r.esTimer) { await hablar(r.texto); } else { await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`); }
+        ultimaCharlaRef.current = Date.now();
         break;
       }
     }
@@ -856,6 +862,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         frase = `${nombre}, mañana se pronostica ${manana!.descripcion}. Por si tenés algo planeado, puede ser buena idea tenerlo en cuenta.`;
       }
       await hablar(frase);
+      ultimaCharlaRef.current = Date.now();
     }
 
     borrarRecordatoriosViejos().catch(() => {});
@@ -1402,7 +1409,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         system: `Sos ${p?.nombreAsistente ?? 'Rosita'}, ${p?.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${nombre}${p?.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p?.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva de cumpleaños, sin mencionar la edad. Sin etiquetas.`,
         messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${nombre} con mucho cariño.` }],
       });
-      if (frase && estadoRef.current === 'esperando') await hablar(frase);
+      if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
     } catch (e) { logClaudeError('triggerCumpleaños', e); }
   }
 
