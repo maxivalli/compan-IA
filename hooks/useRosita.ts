@@ -157,6 +157,7 @@ export function useRosita() {
     estadoRef,
     musicaActivaRef,
     ultimaCharlaRef,
+    ultimaActividadRef,
     modoNocheRef,
     noMolestarRef,
     nombreAsistenteRef,

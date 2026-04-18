@@ -188,6 +188,7 @@ export interface AudioPipelineDeps {
   estadoRef:                React.MutableRefObject<EstadoRosita>;
   musicaActivaRef:          React.MutableRefObject<boolean>;
   ultimaCharlaRef:          React.MutableRefObject<number>;
+  ultimaActividadRef:       React.MutableRefObject<number>;
   modoNocheRef:             React.MutableRefObject<ModoNoche>;
   noMolestarRef:            React.MutableRefObject<boolean>;
   nombreAsistenteRef:       React.MutableRefObject<string>;
@@ -474,10 +475,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     playerMusica.pause();
     depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);
-    // Resetear el cooldown de charla proactiva: el tiempo de música no debe
-    // contar como "2 horas sin charla". Si no, al parar la música después de
-    // 2h+ Rosita arrancaría una charla proactiva inmediatamente.
-    depsRef.current.ultimaCharlaRef.current = Date.now();
+    // Resetear solo el cooldown de inactividad (ultimaActividadRef) para que
+    // el tiempo de música no cuente como "2 horas sin actividad" y no dispare
+    // una charla proactiva inmediata. NO se resetea ultimaCharlaRef: el usuario
+    // debe nombrar a Rosita para que la escuche después de parar la música.
+    depsRef.current.ultimaActividadRef.current = Date.now();
     // Rearrancar SR después de parar la música — la música lo había detenido
     // intencionalmente y nadie más lo reactiva al parar manualmente.
     setTimeout(() => iniciarSpeechRecognition(), 300);
