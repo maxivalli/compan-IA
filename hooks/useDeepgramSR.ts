@@ -49,7 +49,7 @@ const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al
 // Se envía cada 8s durante la pausa anti-eco para que Deepgram no cierre la
 // conexión por inactividad (~10-15s timeout → código 1011).
 const SILENCE_FRAME = new ArrayBuffer(3200);
-const KEEPALIVE_INTERVAL_MS = 8000;
+const KEEPALIVE_INTERVAL_MS = 5000;
 
 export type UseDeepgramSROptions = {
   onPartial?:  (texto: string) => void;
@@ -76,6 +76,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
 
   function iniciarKeepalive(ws: WebSocket) {
     if (keepaliveRef.current) clearInterval(keepaliveRef.current);
+    if (ws.readyState === WebSocket.OPEN) {
+      try { ws.send(SILENCE_FRAME); } catch {}
+    }
     keepaliveRef.current = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
         try { ws.send(SILENCE_FRAME); } catch {}
