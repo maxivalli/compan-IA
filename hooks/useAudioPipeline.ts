@@ -5,7 +5,6 @@
  *   - Speech Recognition continuo vía Deepgram Nova-3 (useDeepgramSR)
  *   - TTS con cache disco + streaming HTTP (expo-audio)
  *   - Cola de oraciones (hablarConCola) con pre-cache solapado
- *   - Muletillas: pre-cache al inicio y reproducción en race con Claude
  *   - Respuestas rápidas: pre-cache de audios sin Claude
  *   - Silbido de inactividad (assets locales)
  *   - Watchdog de SR (zombie / vencido / procesandoRef colgado)
@@ -37,10 +36,9 @@ import {
   VOICE_ID_MASCULINA,
   urlFrasePrecacheada,
 } from '../lib/ai';
-import { MULETILLAS, RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaMuletilla, CategoriaRapida, EstadoRosita } from './useBrain';
+import { RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaRapida, EstadoRosita } from './useBrain';
 
 const TTS_CACHE_VERSION = 'v6';
-const MULETILLA_CACHE_VERSION = 'v21';
 
 
 // ── Silbidos locales (assets pre-generados) ──────────────────────────────────
@@ -181,12 +179,6 @@ export function splitEnOraciones(texto: string): string[] {
 
 // ── Tipos públicos ───────────────────────────────────────────────────────────
 
-export type MuletillaPreloaded = {
-  uri:       string;
-  texto:     string;
-  idx:       number;
-  categoria: CategoriaMuletilla;
-} | null;
 
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
 
@@ -260,10 +252,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const bargeInTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hablandoDesdeRef      = useRef<number>(0);
 
-  // ── Refs de muletillas y cache ────────────────────────────────────────────
-  const ultimaMuletillaRef         = useRef<Partial<Record<CategoriaMuletilla, number[]>>>({});
   const precacheInFlightRef        = useRef<Map<string, Promise<void>>>(new Map());
-  const precacheMuletillasRunningRef = useRef(false);
   const precacheRapidasRunningRef    = useRef(false);
   const precacheSistemaRunningRef    = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
@@ -552,8 +541,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   // ── Tecleo de espera durante búsquedas ────────────────────────────────────
-  // Usa playerMusica (canal separado) para sonar en PARALELO con la muletilla
-  // verbal que corre en player. No toca nada si hay música activa.
+  // Usa playerMusica (canal separado) para no interrumpir player. No toca nada si hay música activa.
   // Loop manual: no depende del flag .loop nativo (poco confiable en expo-audio).
   // Safety timeout de 30s para garantizar que nunca quede corriendo indefinidamente.
   async function reproducirTecleo(abort: { current: boolean }): Promise<void> {
@@ -622,46 +610,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // inFlightPromise permite que hablar() espere el resultado en vez de lanzar un segundo request.
   }
 
-  async function precachearMuletillas(voiceId?: string, nombre?: string) {
-    if (precacheMuletillasRunningRef.current) return;
-    precacheMuletillasRunningRef.current = true;
-    const p = depsRef.current.perfilRef.current;
-    const vozGenero = p?.vozGenero ?? 'femenina';
-    const genero: 'femenina' | 'masculina' = vozGenero === 'masculina' ? 'masculina' : 'femenina';
-    const effectiveVoiceId = voiceId ?? (vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-    const slug = slugNombre(nombre ?? p?.nombreAbuela ?? '');
-    const muletillaEmotion: Record<CategoriaMuletilla, string> = {
-      empatico: 'triste', alegria: 'entusiasmada', salud: 'preocupada', busqueda: 'neutral',
-      clima: 'neutral', musica: 'entusiasmada', recordatorio: 'neutral', nostalgia: 'ternura',
-      comando: 'feliz', telegram: 'neutral', lista: 'neutral', juego: 'entusiasmada',
-      chiste: 'feliz', adivinanza: 'entusiasmada', aburrimiento: 'entusiasmada',
-      ejercicio: 'entusiasmada', foto: 'neutral', default: 'neutral', latencia: 'neutral',
-    };
-    // Recopilar todas las entradas y verificar existencia en paralelo
-    type MuletillaEntry = { uri: string; texto: string; cat: CategoriaMuletilla; idx: number };
-    const entradas: MuletillaEntry[] = [];
-    for (const [cat, variantes] of Object.entries(MULETILLAS) as [CategoriaMuletilla, typeof MULETILLAS[CategoriaMuletilla]][]) {
-      const lista = variantes[genero];
-      for (let i = 0; i < lista.length; i++) {
-        const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${cat}_${i}_${slug}.mp3`;
-        const texto = lista[i].replace(/\{n\}/g, nombre ?? p?.nombreAbuela ?? '');
-        entradas.push({ uri, texto, cat, idx: i });
-      }
-    }
-    const infos = await Promise.all(entradas.map(e => FileSystem.getInfoAsync(e.uri).catch(() => ({ exists: false }))));
-    const faltantes = entradas.filter((_, i) => !infos[i].exists);
-    // Intentar descarga desde backend; si falla, sintetizar localmente
-    for (const { uri, texto, cat, idx } of faltantes) {
-      const remoteUrl = urlFrasePrecacheada(effectiveVoiceId, 'muletilla', cat, idx, genero);
-      const downloaded = await FileSystem.downloadAsync(remoteUrl, uri).catch(() => null);
-      if (downloaded?.status === 200) continue;
-      // Fallback: síntesis local
-      const base64 = await sintetizarVoz(texto, effectiveVoiceId, velocidadSegunEdad(p?.edad), muletillaEmotion[cat]).catch(() => null);
-      if (base64) await FileSystem.writeAsStringAsync(uri, base64, { encoding: 'base64' }).catch(() => {});
-    }
-    precacheMuletillasRunningRef.current = false;
-  }
-
   async function precachearRespuestasRapidas(nombre?: string) {
     if (precacheRapidasRunningRef.current) return;
     precacheRapidasRunningRef.current = true;
@@ -721,80 +669,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     }
     precacheSistemaRunningRef.current = false;
-  }
-
-  // ── Reproducir muletilla ─────────────────────────────────────────────────
-
-  // Descarga/verifica el archivo de muletilla en cache pero NO lo reproduce.
-  // Llamado desde onPartialReconocido para que el audio esté listo antes de speech_final.
-  async function prefetchMuletilla(
-    categoria: CategoriaMuletilla,
-    abort?: { current: boolean },
-  ): Promise<MuletillaPreloaded> {
-    try {
-      const p = depsRef.current.perfilRef.current;
-      const vozGenero = p?.vozGenero ?? 'femenina';
-      const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
-      const lista = MULETILLAS[categoria][genero];
-      const ultimos = ultimaMuletillaRef.current[categoria] ?? [];
-      let idx: number;
-      do { idx = Math.floor(Math.random() * lista.length); } while (ultimos.includes(idx) && lista.length > ultimos.length);
-      ultimaMuletillaRef.current[categoria] = [idx, ...ultimos].slice(0, 2);
-      const textoRaw = lista[idx];
-      const nombre   = p?.nombreAbuela ?? '';
-      const slug     = slugNombre(nombre);
-      const texto    = textoRaw.replace(/\{n\}/g, nombre);
-      const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${categoria}_${idx}_${slug}.mp3`;
-      const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) { logCliente('muletilla_miss', { categoria, idx }); return null; }
-      if (abort?.current) return null;
-      return { uri, texto, idx, categoria };
-    } catch {}
-    return null;
-  }
-
-  // Reproduce un archivo de muletilla ya prefetcheado. Pausa Deepgram durante la reproducción.
-  async function playMuletillaPreloaded(
-    pre: NonNullable<MuletillaPreloaded>,
-    abort?: { current: boolean },
-    onPlay?: () => void,
-  ): Promise<string> {
-    try {
-      if (abort?.current) { logCliente('muletilla_abort', { categoria: pre.categoria }); return pre.texto; }
-      logCliente('muletilla_play', { categoria: pre.categoria, idx: pre.idx, texto: pre.texto.slice(0, 20) });
-      pausarCapturaDG();
-      player.replace({ uri: pre.uri });
-      player.play();
-      onPlay?.();
-      await new Promise<void>(resolve => {
-        const safety = setTimeout(() => { reanudarCapturaDG(); resolve(); }, 6000);
-        const poll = setInterval(() => {
-          if (abort?.current) {
-            clearTimeout(safety);
-            clearInterval(poll);
-            reanudarCapturaDG();
-            resolve();
-            return;
-          }
-          const dur = (player as AudioPlayerExt).duration ?? NaN;
-          const pos = (player as AudioPlayerExt).currentTime ?? NaN;
-          if (dur > 0 && pos >= dur - 0.05) {
-            clearTimeout(safety);
-            clearInterval(poll);
-            reanudarCapturaDG();
-            resolve();
-          }
-        }, 80);
-      });
-      return pre.texto;
-    } catch {}
-    return '';
-  }
-
-  async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void): Promise<string> {
-    const pre = await prefetchMuletilla(categoria, abort);
-    if (!pre) return '';
-    return playMuletillaPreloaded(pre, abort, onPlay);
   }
 
   // ── TTS principal ─────────────────────────────────────────────────────────
@@ -1047,7 +921,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     procesandoDesdeRef,
     srActivoRef,
     ultimaActivacionSrRef,
-    ultimaMuletillaRef,
     ultimaRapidaRef,
 
     // Funciones de audio (usadas por brain y useRosita)
@@ -1056,13 +929,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     splitEnOraciones,
     extraerPrimeraFrase,
     precachearTexto,
-    prefetchMuletilla,
-    playMuletillaPreloaded,
-    reproducirMuletilla,
     reproducirTecleo,
 
     // Funciones de gestión (usadas por useRosita en inicializar/reactivar)
-    precachearMuletillas,
     precachearRespuestasRapidas,
     precachearSistema,
     limpiarCacheViejo,

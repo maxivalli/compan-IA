@@ -24,19 +24,21 @@ La app principal corre en `AbuApp/`. El backend protege credenciales, centraliza
 
 - **Expo SDK 54** + **React 19** + **React Native 0.81**
 - **expo-router** para navegación
-- **expo-speech-recognition** para escucha continua (con opción Deepgram WebSocket)
-- **expo-audio** para reproducción, streaming y grabación
+- **Deepgram Nova-3** para reconocimiento de voz continuo (WebSocket directo con temporary API keys)
+- **audio-capture** (módulo nativo local) para captura de audio PCM16 16kHz
+- **expo-audio** para reproducción y streaming de audio
+- **expo-speech-recognition** (solo para permisos, no se usa para SR)
 - **AsyncStorage** para perfil, historial, recuerdos, listas, recordatorios y estado local
 - **Anthropic Claude Haiku 4.5** vía backend con prompt caching activo (mínimo 4096 tokens)
-- **Deepgram** para transcripción en tiempo real (WebSocket directo desde app)
-- **Fish Audio** (principal TTS con streaming WebSocket) / **Cartesia** / **Google TTS** resueltos en backend
+- **Fish Audio** (TTS principal con streaming HTTP directo) para latencia mínima (~300-400ms first audio)
+- **OpenAI text-embedding-ada-002** para embeddings de búsqueda semántica (backend)
 - **OpenWeather** para clima y pronóstico
 - **Telegram** para alertas, fotos y mensajes familiares
-- **SmartThings OAuth** para dispositivos del hogar (PAT legacy deprecado)
+- **SmartThings OAuth** para dispositivos del hogar
 - **Cloudinary** para almacenamiento de fotos de Telegram
 - **Railway** para deploy del backend con volumen persistente para audio
 - **EAS / Expo Updates** para builds y OTA
-- **pgvector** para búsqueda semántica de memorias (embeddings OpenAI)
+- **pgvector** para búsqueda semántica de memorias (PostgreSQL)
 
 ---
 
@@ -55,11 +57,14 @@ AbuApp/
   hooks/
     useRosita.ts         Orquestación principal
     useBrain.ts          Claude, memoria, búsquedas, parseo y acciones
-    useAudioPipeline.ts  SR, TTS, grabación, colas y cache
+    useAudioPipeline.ts  SR (Deepgram), TTS (Fish), grabación, colas y cache
+    useDeepgramSR.ts     WebSocket directo a Deepgram Nova-3
     useNotificaciones.ts Recordatorios, Telegram, clima, cumpleaños, alarmas
     useSmartThings.ts    Integración de domótica
     useAccionesRosita.ts Acciones UI / interacción
-    useBLEBeacon.ts      Lógica BLE
+    useCamaraPresencia.ts Detección de rostros con expo-face-detector
+    useBLEBeacon.ts      Control por BLE beacon Holy-IOT (nRF52810)
+    useClickSound.ts     Sonidos de UI
   lib/
     ai.ts                Cliente del backend, bootstrap por device token, búsquedas y TTS
     memoria.ts           Persistencia local y memoria episódica
@@ -70,6 +75,9 @@ AbuApp/
     telegram.ts          Cliente HTTP de Telegram
     musica.ts            Radios / reproducción
     juegos.ts            Juegos, cuentos y chistes
+    tateti.ts            Lógica del juego Ta-te-ti
+    ahorcado.ts          Lógica del juego Ahorcado
+    rositaSpeechForGames.ts Puente SR entre pantalla principal y juegos
 
 AbuApp_Backend/
   src/index.ts           Servidor Express y middlewares
@@ -91,9 +99,12 @@ Landing2/
 ### AbuApp
 
 - `useRosita` arma el sistema grande y conecta brain, audio, notificaciones, sensores y UI.
-- `useAudioPipeline` maneja SR continuo, watchdogs, TTS con cache disco, streaming, muletillas y respuestas rápidas.
-- `useBrain` decide si usar respuesta rápida, muletilla, Claude streaming, búsquedas web/Wikipedia/lugares, memoria episódica, listas, alarmas o domótica.
+- `useAudioPipeline` maneja SR continuo con Deepgram Nova-3 (WebSocket directo, temporary API keys), watchdogs, TTS con Fish Audio streaming HTTP (~300-400ms first audio), cache disco y respuestas rápidas.
+- `useDeepgramSR` gestiona la conexión WebSocket a Deepgram: obtiene temporary key del backend, envía audio PCM16 16kHz, maneja transcripciones parciales/finales, anti-eco (pausa AudioCapture durante TTS sin cerrar WS), y reconexión automática con backoff exponencial.
+- `useBrain` decide si usar respuesta rápida, Claude streaming, búsquedas web/Wikipedia/lugares, memoria episódica, listas, alarmas o domótica.
 - `useNotificaciones` procesa recordatorios, cumpleaños, clima adverso, polling de Telegram y respuestas a familiares.
+- `useBLEBeacon` conecta con Holy-IOT beacon (nRF52810) vía GATT para control remoto de acciones (música, SOS, etc.).
+- `useCamaraPresencia` detecta rostros con expo-face-detector para charla proactiva.
 - `app/index.tsx`, `RosaOjos.tsx`, `RositaHorizontalLayout.tsx`, `ExpresionOverlay.tsx` y `FondoAnimado.tsx` concentran la experiencia visual actual, incluyendo layout tablet/horizontal y estados animados.
 
 ### Backend
@@ -101,14 +112,17 @@ Landing2/
 - `POST /auth/bootstrap` emite `deviceToken` por instalación (64 chars hex).
 - Todas las rutas privadas usan `x-device-token`; ya no se usa `x-api-key` desde la app.
 - `/ai/chat` y `/ai/chat-stream` proxyean a Claude con prompt caching automático (≥4096 tokens).
-- `/ai/tts` (Fish Audio REST), `/ai/tts-stream` (ElevenLabs legacy), `/ai/tts-fish-realtime-stream` (Fish WebSocket con latencia ~300-500ms).
+- `/ai/tts` (Fish Audio REST), `/ai/tts-fish-realtime-stream` (Fish WebSocket streaming HTTP con concurrency limiter).
+- `/ai/tts-stream` (ElevenLabs, legacy, no usado actualmente).
 - `/ai/stream-ticket` genera tickets de un solo uso para endpoints de streaming (expo-audio no puede enviar headers).
-- `/ai/deepgram-token` emite API keys temporales de Deepgram (60s TTL) para SR directo desde app.
-- Endpoints de búsqueda: web (Serper), Wikipedia, lugares (OpenStreetMap), noticias, visión (Claude).
-- `/ai/memorias-sync` sincroniza memorias episódicas con embeddings para búsqueda semántica.
+- `/ai/deepgram-token` emite API keys temporales de Deepgram (60s TTL, scope `usage:write`) para SR directo desde app.
+- Endpoints de búsqueda: web (Serper), Wikipedia, lugares (OpenStreetMap Overpass), noticias (Serper News), visión (Claude).
+- `/ai/memorias-sync` sincroniza memorias episódicas con embeddings (OpenAI text-embedding-ada-002) para búsqueda semántica.
 - `/ai/animo` sincroniza estado de ánimo en tiempo real.
+- `/audio-ws` proxy WebSocket a Deepgram (alternativa, no usado actualmente).
 - Los mensajes de Telegram se guardan por `familia_id`, no solo por `chat_id`, para evitar consumo cruzado.
 - Watchdogs: informe diario (22:15 AR), heartbeat (cada 5 min), comandos/mensajes sin procesar (cada 5 min).
+- `static/audio/` sirve audio pre-generado (respuestas rápidas, juegos) vía express.static.
 - SmartThings OAuth con refresh automático de tokens (cifrados con AES-256-GCM).
 - Rate limiting persistido en DB: global (200 req/min por IP), chat (1 req/s burst + 300 req/día por familia).
 - Async jobs para búsquedas largas con deduplicación y límite de concurrencia.
@@ -127,16 +141,20 @@ Landing2/
 - `DATABASE_URL` (PostgreSQL con pgvector)
 - `BACKEND_ENCRYPTION_KEY` (requerido para cifrar tokens SmartThings con AES-256-GCM)
 - `ANTHROPIC_API_KEY` (Claude Haiku 4.5)
-- `FISH_AUDIO_API_KEY` (TTS principal)
+- `FISH_AUDIO_API_KEY` (TTS principal con streaming HTTP)
 - `FISH_AUDIO_MODEL` (s2-pro o s1)
-- `CARTESIA_API_KEY` (TTS fallback)
-- `GOOGLE_TTS_API_KEY` (TTS fallback)
-- `OPENAI_API_KEY` (embeddings para búsqueda semántica)
-- `SERPER_API_KEY` (búsquedas web)
+- `OPENAI_API_KEY` (embeddings text-embedding-ada-002 para búsqueda semántica)
+- `SERPER_API_KEY` (búsquedas web y noticias vía Google Search)
+- `OPENWEATHER_API_KEY` (clima)
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
 - `DEBUG_TELEGRAM_CHAT_ID` (para crash reports)
 - `SMARTTHINGS_CLIENT_ID` y `SMARTTHINGS_CLIENT_SECRET` (OAuth)
+- `SMARTTHINGS_REDIRECT_URI`
+- `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+- `DEEPGRAM_PROJECT_ID` y `DEEPGRAM_KEYGEN_API_KEY` (para emitir tokens temporales)
+- `WEBHOOK_URL` (URL pública del backend)
+- `PORT` y `NODE_ENV`
 - `SMARTTHINGS_REDIRECT_URI`
 - `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
 - `DEEPGRAM_PROJECT_ID` y `DEEPGRAM_KEYGEN_API_KEY` (para emitir tokens temporales)
@@ -151,13 +169,18 @@ Nota: Ya no se usan `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PUBLIC_ELEVENLABS_API_KEY` 
 
 1. La app carga perfil, clima, historial, listas y estado general.
 2. Si no hay perfil suficiente, manda a onboarding.
-3. `expo-speech-recognition` queda escuchando en modo continuo.
+3. **Deepgram Nova-3** queda escuchando en modo continuo vía WebSocket directo:
+   - App solicita temporary API key al backend (`POST /ai/deepgram-token`, TTL 60s)
+   - Conecta a `wss://api.deepgram.com/v1/listen` con subprotocolo `['token', key]`
+   - AudioCapture nativo envía PCM16 16kHz directamente a Deepgram
 4. El texto reconocido pasa por filtros de relevancia.
-5. Si aplica una respuesta rápida, Rosita responde sin llamar a Claude.
-6. Si no, `useBrain` puede lanzar muletilla, búsquedas, contexto extra y Claude streaming.
+5. Si aplica una respuesta rápida (saludo, gracias, despedida), Rosita responde sin llamar a Claude.
+6. Si no, `useBrain` puede lanzar búsquedas, contexto extra y Claude streaming.
 7. La app arma un `system_payload` estructurado y el backend construye el prompt real de Rosita.
-8. `useAudioPipeline` reproduce la primera frase apenas está lista y continúa con el resto.
-9. Al terminar, vuelve a arrancar Speech Recognition.
+8. Backend responde con streaming SSE, detecta la primera frase completa y la envía con `primera_frase`.
+9. `useAudioPipeline` reproduce la primera frase apenas llega (streaming HTTP Fish Audio, ~300-400ms first audio) y continúa con el resto en cola.
+10. Durante TTS: `pausarCapturaDG()` detiene AudioCapture sin cerrar WebSocket (anti-eco), envía frames de silencio cada 5s (keepalive).
+11. Al terminar TTS: delay 400ms → `reanudarCapturaDG()` reactiva AudioCapture.
 
 ---
 
@@ -173,8 +196,7 @@ Nota: Ya no se usan `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PUBLIC_ELEVENLABS_API_KEY` 
   - bloque de perfil/dispositivos cacheado
   - bloque de memoria persistente cacheado
   - bloque temporal dinámico sin cache
-- Hay **respuestas rápidas** para saludos, gracias, despedidas y afirmaciones.
-- Hay **muletillas** para cubrir latencia antes de que llegue Claude.
+- Hay **respuestas rápidas** para saludos, gracias, despedidas y afirmaciones (sin llamar a Claude).
 - Se guarda **memoria episódica** resumida para reutilizar en conversaciones futuras.
 - Se sincroniza el **ánimo** al backend en tiempo real.
 - Soporta lectura de imágenes vía backend.
@@ -253,7 +275,7 @@ Nota: Ya no se usan `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PUBLIC_ELEVENLABS_API_KEY` 
 
 ## Comportamientos importantes
 
-- `useAudioPipeline` limpia cache TTS viejo y pre-cachea frases frecuentes (muletillas, respuestas rápidas, juegos).
+- `useAudioPipeline` limpia cache TTS viejo y pre-cachea frases frecuentes (respuestas rápidas, juegos).
 - Hay watchdogs para reiniciar Speech Recognition si queda colgado.
 - Existe modo `noMolestar` con zipper visual sobre la boca.
 - Hay charla proactiva por momento del día.
@@ -266,7 +288,6 @@ Nota: Ya no se usan `EXPO_PUBLIC_APP_API_KEY`, `EXPO_PUBLIC_ELEVENLABS_API_KEY` 
 - Ánimo se sincroniza en tiempo real al backend.
 - Primera frase de Claude se reproduce apenas está lista (streaming), el resto continúa en background.
 - Respuestas rápidas locales para saludos, gracias, despedidas (sin llamar a IA).
-- Muletillas para cubrir latencia mientras Claude piensa.
 - BLE Beacon para control remoto (acciones táctiles simuladas).
 - Modo noche automático según hora (párpados cerrados, reloj visible).
 - Layout horizontal optimizado para tablets con modo reloj de escritorio.
