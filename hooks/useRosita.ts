@@ -19,6 +19,7 @@ import { obtenerClima, climaATexto } from '../lib/clima';
 
 import { enviarAlertaTelegram, enviarFotoTelegram } from '../lib/telegram';
 import { leerImagen, verVision, sincronizarAnimo, obtenerTokenDispositivo, logCliente, calentarCacheClaudeEnBackground } from '../lib/ai';
+import { initChatWs } from '../lib/chatWs';
 import { buildRositaSystemPayload } from '../lib/systemPayload';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
@@ -534,6 +535,7 @@ export function useRosita() {
     try { await AudioModule.requestRecordingPermissionsAsync(); } catch {}
     try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
     obtenerTokenDispositivo().catch(() => {}); // warmea _cachedToken para urlCartesiaStream
+    initChatWs({ getToken: obtenerTokenDispositivo, log: logCliente });
     pipeline.limpiarCacheViejo().catch(() => {});
 
     const [perfilGuardado, historialGuardado, listasGuardadas, ultimaRadio] = await Promise.all([

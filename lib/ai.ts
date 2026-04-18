@@ -1,5 +1,6 @@
 import { obtenerInstallId, obtenerDeviceToken, guardarDeviceToken, MemoriaEpisodica } from './memoria';
 import { RositaSystemPayload } from './systemPayload';
+import { sendTurn, isChatWsReady } from './chatWs';
 
 const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
 if (!BACKEND_URL && __DEV__) console.error('[AI] EXPO_PUBLIC_BACKEND_URL no configurado — las llamadas al backend fallarán');
@@ -178,8 +179,56 @@ export async function llamarClaudeConStreaming(options: {
   cancelRef?: { current: (() => void) | null };
 }): Promise<string> {
   const t0 = options._t0 ?? Date.now();
+
+  const baseBody = typeof options.system === 'string' || Array.isArray(options.system)
+    ? { max_tokens: options.maxTokens ?? 140, system: options.system, messages: options.messages }
+    : { max_tokens: options.maxTokens ?? 140, system_payload: options.system, messages: options.messages };
+  const body = options.speechFinalTs
+    ? { ...baseBody, speech_final_ts: options.speechFinalTs }
+    : baseBody;
+
+  // ── Intento por WebSocket persistente (sin TCP+TLS handshake) ───────────────
+  if (isChatWsReady()) {
+    const turnId = `t${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    logCliente('pre_ws_send', { pre_send_ms: Date.now() - t0 });
+
+    type WsResult = { ok: true; full: string } | { ok: false; cancelled: boolean; reason?: string };
+
+    const wsResult = await new Promise<WsResult>((resolve) => {
+      const cancel = sendTurn(turnId, body, {
+        onPrimeraFrase: options.onPrimeraFrase,
+        onChunk: () => {},
+        onDone: (full) => resolve({ ok: true, full }),
+        onError: (reason) => resolve({ ok: false, cancelled: false, reason }),
+      });
+
+      if (!cancel) { resolve({ ok: false, cancelled: false, reason: 'ws_not_ready' }); return; }
+
+      if (options.cancelRef) {
+        options.cancelRef.current = () => {
+          cancel();
+          resolve({ ok: false, cancelled: true });
+        };
+      }
+    });
+
+    if (options.cancelRef) options.cancelRef.current = null;
+
+    if (wsResult.ok) {
+      logCliente('chat_ws_done', { chars: wsResult.full.length, total_ms: Date.now() - t0 });
+      return wsResult.full;
+    }
+    if (wsResult.cancelled) throw new Error('spec_cancelled');
+    if (wsResult.reason === 'burst_limit' || wsResult.reason === 'daily_limit') {
+      throw new Error(wsResult.reason);
+    }
+
+    logCliente('chat_ws_fallback_xhr', { reason: wsResult.reason ?? 'unknown' });
+  }
+
+  // ── Fallback: XHR SSE (camino original) ──────────────────────────────────────
   const headers = await jsonHeaders();
-  const headersReadyMs = Date.now() - t0;
+  logCliente('pre_xhr_send', { pre_send_ms: Date.now() - t0 });
 
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -203,18 +252,10 @@ export async function llamarClaudeConStreaming(options: {
       try { xhr.abort(); } catch {}
     };
     const resolveOnce = (text: string) => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        resolve(text);
-      }
+      if (!resolved) { resolved = true; cleanup(); resolve(text); }
     };
-    const rejectOnce  = (e: Error)      => {
-      if (!resolved) {
-        resolved = true;
-        cleanup();
-        reject(e);
-      }
+    const rejectOnce = (e: Error) => {
+      if (!resolved) { resolved = true; cleanup(); reject(e); }
     };
 
     const processLine = (line: string) => {
@@ -242,9 +283,7 @@ export async function llamarClaudeConStreaming(options: {
         if (!primeraFired && tagDetected && STREAMING_SAFE_TAGS.has(tagDetected)) {
           const sinTag = fullText.replace(/^\[[^\]]+\]\s*/, '');
           if (sinTag.length >= 10) {
-            const m = sinTag.match(/^.{8,}?[.!?](?:["'”]*)(?:\s+|$)/);
-            // Antes requería segunda oración (sinTag.length > m[0].length).
-            // Ahora dispara aunque sea la única oración → precachearTexto arranca antes.
+            const m = sinTag.match(/^.{8,}?[.!?](?:[“'”]*)(?:\s+|$)/);
             if (m) {
               primeraFired = true;
               options.onPrimeraFrase?.(m[0].trimEnd(), tagDetected);
@@ -268,23 +307,17 @@ export async function llamarClaudeConStreaming(options: {
       if (xhr.status >= 200 && xhr.status < 300) {
         if (!fullText.trim()) rejectOnce(new Error('Stream empty'));
         else resolveOnce(fullText);
-      }
-      else rejectOnce(new Error(`Stream ${xhr.status}`));
+      } else rejectOnce(new Error(`Stream ${xhr.status}`));
     };
 
     xhr.onerror   = () => rejectOnce(new Error('Stream network error'));
     xhr.ontimeout = () => rejectOnce(new Error('Stream timeout'));
 
-    const baseBody = typeof options.system === 'string' || Array.isArray(options.system)
-      ? { max_tokens: options.maxTokens ?? 140, system: options.system, messages: options.messages }
-      : { max_tokens: options.maxTokens ?? 140, system_payload: options.system, messages: options.messages };
     if (options.cancelRef) {
       options.cancelRef.current = () => rejectOnce(new Error('spec_cancelled'));
     }
-    logCliente('pre_xhr_send', { headers_ready_ms: headersReadyMs, pre_send_ms: Date.now() - t0 });
-    xhr.send(JSON.stringify(
-      options.speechFinalTs ? { ...baseBody, speech_final_ts: options.speechFinalTs } : baseBody
-    ));
+
+    xhr.send(JSON.stringify(body));
   });
 }
 
