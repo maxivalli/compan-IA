@@ -226,6 +226,8 @@ export function useRosita() {
     splitEnOraciones:         pipeline.splitEnOraciones,
     extraerPrimeraFrase:      pipeline.extraerPrimeraFrase,
     precachearTexto:          pipeline.precachearTexto,
+    prefetchMuletilla:        pipeline.prefetchMuletilla,
+    playMuletillaPreloaded:   pipeline.playMuletillaPreloaded,
     reproducirMuletilla:      pipeline.reproducirMuletilla,
     reproducirTecleo:         pipeline.reproducirTecleo,
     detenerSilbido:           pipeline.detenerSilbido,

@@ -45,6 +45,7 @@ import {
 import { Dispositivo } from '../lib/smartthings';
 import { DomoticaAction } from './useSmartThings';
 import { enviarAlertaTelegram } from '../lib/telegram';
+import type { MuletillaPreloaded } from './useAudioPipeline';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -556,8 +557,10 @@ export interface BrainDeps {
   hablarConCola:       (oraciones: string[], emotion?: string) => Promise<void>;
   splitEnOraciones:    (texto: string) => string[];
   extraerPrimeraFrase: (texto: string) => { primera: string; resto: string };
-  precachearTexto:     (texto: string, emotion?: string) => Promise<void>;
-  reproducirMuletilla: (cat: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void) => Promise<string>;
+  precachearTexto:          (texto: string, emotion?: string) => Promise<void>;
+  prefetchMuletilla:        (cat: CategoriaMuletilla, abort?: { current: boolean }) => Promise<MuletillaPreloaded>;
+  playMuletillaPreloaded:   (pre: NonNullable<MuletillaPreloaded>, abort?: { current: boolean }, onPlay?: () => void) => Promise<string>;
+  reproducirMuletilla:      (cat: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void) => Promise<string>;
   reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
   detenerSilbido:      () => void;
   pararMusica:         () => void;
@@ -610,7 +613,7 @@ export function useBrain(deps: BrainDeps) {
   // responderConClaude la reutiliza si la categoría coincide, o la aborta si no.
   const especulativoCatRef     = useRef<CategoriaMuletilla | null>(null);
   const especulativoAbortRef   = useRef<{ current: boolean }>({ current: false });
-  const especulativoPromiseRef = useRef<Promise<string | null> | null>(null);
+  const especulativoPromiseRef = useRef<Promise<MuletillaPreloaded> | null>(null);
 
   function cancelarEspeculativo() {
     if (especulativoCatRef.current) {
@@ -640,7 +643,7 @@ export function useBrain(deps: BrainDeps) {
     const abortFlag = { current: false };
     especulativoAbortRef.current   = abortFlag;
     especulativoCatRef.current     = cat;
-    especulativoPromiseRef.current = d.reproducirMuletilla(cat, abortFlag);
+    especulativoPromiseRef.current = d.prefetchMuletilla(cat, abortFlag);
     logCliente('spec_muletilla_start', { cat, chars: textoParcial.length });
   }
 
@@ -1549,10 +1552,16 @@ export function useBrain(deps: BrainDeps) {
         especulativoCatRef.current === catMuletillaEfectiva &&
         especulativoPromiseRef.current
       ) {
-        // La muletilla especulativa ya está sonando con la categoría correcta → reutilizar
-        muletillaAbort   = especulativoAbortRef.current;
-        muletillaPromise = especulativoPromiseRef.current;
+        // El parcial pre-fetcheó el audio con la categoría correcta → play ahora que llegó speech_final
+        const preloadPromise = especulativoPromiseRef.current;
+        const hitAbort = especulativoAbortRef.current;
         logCliente('spec_muletilla_hit', { cat: catMuletillaEfectiva });
+        muletillaAbort   = hitAbort;
+        muletillaPromise = (async () => {
+          const pre = await preloadPromise;
+          if (!pre || hitAbort.current) return null;
+          return d.playMuletillaPreloaded(pre, hitAbort);
+        })();
       } else {
         // Categoría no coincide o no había especulativa → cancelar y arrancar la correcta
         cancelarEspeculativo();

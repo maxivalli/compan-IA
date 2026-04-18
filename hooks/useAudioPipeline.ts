@@ -179,6 +179,15 @@ export function splitEnOraciones(texto: string): string[] {
 
 
 
+// ── Tipos públicos ───────────────────────────────────────────────────────────
+
+export type MuletillaPreloaded = {
+  uri:       string;
+  texto:     string;
+  idx:       number;
+  categoria: CategoriaMuletilla;
+} | null;
+
 // ── Interfaz de dependencias ──────────────────────────────────────────────────
 
 export interface AudioPipelineDeps {
@@ -715,7 +724,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   // ── Reproducir muletilla ─────────────────────────────────────────────────
-  async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void): Promise<string> {
+
+  // Descarga/verifica el archivo de muletilla en cache pero NO lo reproduce.
+  // Llamado desde onPartialReconocido para que el audio esté listo antes de speech_final.
+  async function prefetchMuletilla(
+    categoria: CategoriaMuletilla,
+    abort?: { current: boolean },
+  ): Promise<MuletillaPreloaded> {
     try {
       const p = depsRef.current.perfilRef.current;
       const vozGenero = p?.vozGenero ?? 'femenina';
@@ -725,17 +740,30 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       let idx: number;
       do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
       ultimaMuletillaRef.current[categoria] = idx;
-      const textoRaw  = lista[idx];
-      const nombre    = p?.nombreAbuela ?? '';
-      const slug      = slugNombre(nombre);
-      const texto     = textoRaw.replace(/\{n\}/g, nombre);
+      const textoRaw = lista[idx];
+      const nombre   = p?.nombreAbuela ?? '';
+      const slug     = slugNombre(nombre);
+      const texto    = textoRaw.replace(/\{n\}/g, nombre);
       const uri = FileSystem.cacheDirectory + `muletilla_${MULETILLA_CACHE_VERSION}_${categoria}_${idx}_${slug}.mp3`;
       const info = await FileSystem.getInfoAsync(uri);
-      if (!info.exists) { logCliente('muletilla_miss', { categoria, idx }); return texto; }
-      if (abort?.current) { logCliente('muletilla_abort', { categoria }); return texto; }
-      logCliente('muletilla_play', { categoria, idx, texto: texto.slice(0, 20) });
+      if (!info.exists) { logCliente('muletilla_miss', { categoria, idx }); return null; }
+      if (abort?.current) return null;
+      return { uri, texto, idx, categoria };
+    } catch {}
+    return null;
+  }
+
+  // Reproduce un archivo de muletilla ya prefetcheado. Pausa Deepgram durante la reproducción.
+  async function playMuletillaPreloaded(
+    pre: NonNullable<MuletillaPreloaded>,
+    abort?: { current: boolean },
+    onPlay?: () => void,
+  ): Promise<string> {
+    try {
+      if (abort?.current) { logCliente('muletilla_abort', { categoria: pre.categoria }); return pre.texto; }
+      logCliente('muletilla_play', { categoria: pre.categoria, idx: pre.idx, texto: pre.texto.slice(0, 20) });
       pausarCapturaDG();
-      player.replace({ uri });
+      player.replace({ uri: pre.uri });
       player.play();
       onPlay?.();
       await new Promise<void>(resolve => {
@@ -758,9 +786,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           }
         }, 80);
       });
-      return texto;
+      return pre.texto;
     } catch {}
     return '';
+  }
+
+  async function reproducirMuletilla(categoria: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void): Promise<string> {
+    const pre = await prefetchMuletilla(categoria, abort);
+    if (!pre) return '';
+    return playMuletillaPreloaded(pre, abort, onPlay);
   }
 
   // ── TTS principal ─────────────────────────────────────────────────────────
@@ -1022,6 +1056,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     splitEnOraciones,
     extraerPrimeraFrase,
     precachearTexto,
+    prefetchMuletilla,
+    playMuletillaPreloaded,
     reproducirMuletilla,
     reproducirTecleo,
 
