@@ -54,6 +54,10 @@ export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'clima' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'telegram' | 'lista' | 'juego' | 'chiste' | 'adivinanza' | 'aburrimiento' | 'ejercicio' | 'foto' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
 
+// TODO: volver a true después de testear — deshabilita muletillas y frases rápidas
+const MULETILLAS_HABILITADAS = false;
+const RAPIDAS_HABILITADAS    = false;
+
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
 
 export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
@@ -636,6 +640,7 @@ export function useBrain(deps: BrainDeps) {
     const norm = textoParcial.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (PATRON_SKIP.test(norm)) return;
 
+    if (!MULETILLAS_HABILITADAS) return;
     const cat = categorizarMuletilla(textoParcial);
     // 'default' es poco predecible — no vale arriesgar un mismatch
     if (!cat || cat === 'default') return;
@@ -1250,7 +1255,7 @@ export function useBrain(deps: BrainDeps) {
     }
 
     // ── Respuestas rápidas: saltear Claude para mensajes cortos y predecibles ──
-    const catRapida = categorizarRapida(textoNorm);
+    const catRapida = RAPIDAS_HABILITADAS ? categorizarRapida(textoNorm) : null;
     if (catRapida) {
       // Afirmaciones solo si Rosita no hizo una pregunta pendiente (podría ser respuesta a ella)
       const hayPreguntaPendiente = catRapida === 'afirmacion' && (() => {
@@ -1430,7 +1435,7 @@ export function useBrain(deps: BrainDeps) {
     // real se va a ejecutar, bajar a null para no añadir el delay de "Un segundito"
     // antes de lo que en realidad va a ser una respuesta rápida de Claude.
     const hayBusquedaReal = pideBusqueda || pideWikipedia || pideNoticias;
-    const catMuletillaEfectiva =
+    const catMuletillaEfectiva = !MULETILLAS_HABILITADAS ? null :
       // Si busqueda matcheó el patrón pero no hay fetch real (ej. clima del sistema), anular
       (catMuletilla === 'busqueda' && !hayBusquedaReal && !esConsultaClima) ? null
       // Si hay fetch real pero el categorizador no lo detectó (ej. "quién es X" → wiki), forzar busqueda
