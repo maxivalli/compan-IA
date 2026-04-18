@@ -648,7 +648,7 @@ export default function Index() {
                             top: listaIdx * PEEK,
                             zIndex: i + 1,
                             backgroundColor: c.bg,
-                            transform: [{ rotate: listaIdx % 2 === 0 ? '-1.5deg' : '1.2deg' }],
+                            transform: [{ rotate: listaIdx === 0 ? '0deg' : listaIdx % 2 === 0 ? '-1.5deg' : '1.2deg' }],
                           }]}
                         >
                           <View style={[styles.postItLinea, { backgroundColor: c.tape }]} />
