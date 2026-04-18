@@ -175,6 +175,7 @@ export async function llamarClaudeConStreaming(options: {
   onPrimeraFrase?: (primera: string, tag: string) => void;
   speechFinalTs?: number;
   _t0?: number;
+  cancelRef?: { current: (() => void) | null };
 }): Promise<string> {
   const t0 = options._t0 ?? Date.now();
   const headers = await jsonHeaders();
@@ -198,6 +199,7 @@ export async function llamarClaudeConStreaming(options: {
       xhr.onload = null;
       xhr.onerror = null;
       xhr.ontimeout = null;
+      if (options.cancelRef) options.cancelRef.current = null;
       try { xhr.abort(); } catch {}
     };
     const resolveOnce = (text: string) => {
@@ -276,6 +278,9 @@ export async function llamarClaudeConStreaming(options: {
     const baseBody = typeof options.system === 'string' || Array.isArray(options.system)
       ? { max_tokens: options.maxTokens ?? 140, system: options.system, messages: options.messages }
       : { max_tokens: options.maxTokens ?? 140, system_payload: options.system, messages: options.messages };
+    if (options.cancelRef) {
+      options.cancelRef.current = () => rejectOnce(new Error('spec_cancelled'));
+    }
     logCliente('pre_xhr_send', { headers_ready_ms: headersReadyMs, pre_send_ms: Date.now() - t0 });
     xhr.send(JSON.stringify(
       options.speechFinalTs ? { ...baseBody, speech_final_ts: options.speechFinalTs } : baseBody

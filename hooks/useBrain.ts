@@ -54,7 +54,7 @@ export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'clima' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'telegram' | 'lista' | 'juego' | 'chiste' | 'adivinanza' | 'aburrimiento' | 'ejercicio' | 'foto' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
 
-const MULETILLAS_HABILITADAS = true;
+const MULETILLAS_HABILITADAS = false;
 const RAPIDAS_HABILITADAS    = true;
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
@@ -580,6 +580,19 @@ export interface BrainDeps {
   isBleConectado?: () => boolean;
 }
 
+// Fracción de palabras del texto A que están presentes en B.
+// Usado para decidir si una respuesta especulativa de Claude sigue siendo válida.
+function similitudTextos(a: string, b: string): number {
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
+  const wa = norm(a);
+  const wb = norm(b);
+  if (!wa.length || !wb.length) return 0;
+  const setB = new Set(wb);
+  return wa.filter(w => setB.has(w)).length / wa.length;
+}
+
 // ── useBrain ───────────────────────────────────────────────────────────────────
 
 export function useBrain(deps: BrainDeps) {
@@ -618,37 +631,70 @@ export function useBrain(deps: BrainDeps) {
   const especulativoAbortRef   = useRef<{ current: boolean }>({ current: false });
   const especulativoPromiseRef = useRef<Promise<MuletillaPreloaded> | null>(null);
 
+  // Ejecución especulativa de Claude: arranca con el partial ≥8 palabras.
+  const lastUsedSystemRef     = useRef<import('../lib/systemPayload').RositaSystemPayload | null>(null);
+  const especulativoClaudeRef = useRef<{
+    texto:   string;
+    promise: Promise<string>;
+    cancel:  () => void;
+  } | null>(null);
+
   function cancelarEspeculativo() {
     if (especulativoCatRef.current) {
       especulativoAbortRef.current.current = true;
       especulativoCatRef.current     = null;
       especulativoPromiseRef.current = null;
     }
+    if (especulativoClaudeRef.current) {
+      especulativoClaudeRef.current.cancel();
+      especulativoClaudeRef.current = null;
+      logCliente('spec_claude_cancel', {});
+    }
   }
 
   function onPartialReconocido(textoParcial: string) {
     const d = depsRef.current;
     if (d.estadoRef.current !== 'esperando') return;
-    if (especulativoCatRef.current) return; // ya hay una especulativa en curso
 
-    // Requerir mínimo 35 chars Y 5 palabras para evitar especular sobre fragmentos prematuros.
-    if (textoParcial.length < 35) return;
-    if (textoParcial.split(/\s+/).filter(Boolean).length < 5) return;
+    const palabras = textoParcial.split(/\s+/).filter(Boolean);
+    if (textoParcial.length < 35 || palabras.length < 5) return;
 
-    // No arrancar si el parcial es claramente una respuesta rápida (saludos, gracias…)
     const norm = textoParcial.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (PATRON_SKIP.test(norm)) return;
 
-    if (!MULETILLAS_HABILITADAS) return;
-    const cat = categorizarMuletilla(textoParcial);
-    // 'default' es poco predecible — no vale arriesgar un mismatch
-    if (!cat || cat === 'default') return;
+    // ── Especulativa muletilla ─────────────────────────────────────────────────
+    if (MULETILLAS_HABILITADAS && !especulativoCatRef.current) {
+      const cat = categorizarMuletilla(textoParcial);
+      if (cat && cat !== 'default') {
+        const abortFlag = { current: false };
+        especulativoAbortRef.current   = abortFlag;
+        especulativoCatRef.current     = cat;
+        especulativoPromiseRef.current = d.prefetchMuletilla(cat, abortFlag);
+        logCliente('spec_muletilla_start', { cat, chars: textoParcial.length });
+      }
+    }
 
-    const abortFlag = { current: false };
-    especulativoAbortRef.current   = abortFlag;
-    especulativoCatRef.current     = cat;
-    especulativoPromiseRef.current = d.prefetchMuletilla(cat, abortFlag);
-    logCliente('spec_muletilla_start', { cat, chars: textoParcial.length });
+    // ── Especulativa Claude ────────────────────────────────────────────────────
+    // Requiere ≥8 palabras y que haya un sistema previo (no arranca en la primera frase de sesión).
+    if (palabras.length >= 8 && lastUsedSystemRef.current && !especulativoClaudeRef.current) {
+      const cancelRef = { current: null as (() => void) | null };
+      const specMessages: Mensaje[] = [
+        ...historialRef.current.slice(-20),
+        { role: 'user', content: textoParcial },
+      ];
+      const specPromise = llamarClaudeConStreaming({
+        system:    lastUsedSystemRef.current,
+        messages:  specMessages,
+        maxTokens: 150,
+        cancelRef,
+      }).catch(() => '');
+      especulativoClaudeRef.current = {
+        texto:   textoParcial,
+        promise: specPromise,
+        cancel:  () => { cancelRef.current?.(); },
+      };
+      logCliente('spec_claude_start', { chars: textoParcial.length, words: palabras.length });
+    }
   }
 
   async function cargarNoticiasDiarias(): Promise<void> {
@@ -1618,14 +1664,39 @@ export function useBrain(deps: BrainDeps) {
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
+        lastUsedSystemRef.current = systemPreview;
         const tPreClaude = Date.now();
         logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length, pre_claude_ms: tPreClaude - d.rcStartTsRef.current });
-        claudePromise = resolverClaudeConFallback({
-          system: systemPreview,
-          messages: msgSliceBase,
-          maxTokens: maxTokBase,
-          _t0: tPreClaude,
-        });
+
+        // ── Especulativa Claude hit/miss ─────────────────────────────────────
+        const specClaude = especulativoClaudeRef.current;
+        especulativoClaudeRef.current = null;
+        const simScore = specClaude ? similitudTextos(specClaude.texto, textoUsuario) : 0;
+        if (specClaude && simScore >= 0.75) {
+          logCliente('spec_claude_hit', { sim: Math.round(simScore * 100) });
+          claudePromise = specClaude.promise.then(text => {
+            if (text) {
+              const tagMatch = text.match(/^\[([A-Z_]+)\]/);
+              const tag = tagMatch?.[1] ?? 'NEUTRAL';
+              const sinTag = text.replace(/^\[[^\]]+\]\s*/, '');
+              const firstSentenceMatch = sinTag.match(/^.{5,}?[.!?](?:["']*)(?:\s|$)/);
+              const primera = (firstSentenceMatch?.[0] ?? sinTag.slice(0, 100)).trimEnd();
+              if (primera) onPrimeraFrase(primera, tag);
+            }
+            return text;
+          });
+        } else {
+          if (specClaude) {
+            specClaude.cancel();
+            logCliente('spec_claude_miss', { sim: Math.round(simScore * 100) });
+          }
+          claudePromise = resolverClaudeConFallback({
+            system: systemPreview,
+            messages: msgSliceBase,
+            maxTokens: maxTokBase,
+            _t0: tPreClaude,
+          });
+        }
       } else {
         // ── Slow path: búsqueda + memoria + tecleo corren todos en paralelo ──
 
