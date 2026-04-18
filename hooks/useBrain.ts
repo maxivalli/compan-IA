@@ -54,7 +54,7 @@ export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'clima' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'telegram' | 'lista' | 'juego' | 'chiste' | 'adivinanza' | 'aburrimiento' | 'ejercicio' | 'foto' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
 
-/const MULETILLAS_HABILITADAS = true;
+const MULETILLAS_HABILITADAS = true;
 const RAPIDAS_HABILITADAS    = true;
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
