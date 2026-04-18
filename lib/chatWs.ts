@@ -4,19 +4,24 @@
  * Mantiene una sola conexión WS al backend (/chat-ws) mientras la app
  * está activa, eliminando el TCP+TLS handshake por turno (~500-700ms).
  *
+ * Auth: al conectar, manda { type: 'auth', token } como primer mensaje.
+ * El backend responde { type: 'auth_ok' }. Solo entonces el WS se
+ * considera "listo" para enviar turnos (isChatWsReady() = true).
+ *
  * Flujo:
  *   1. initChatWs({ getToken, log }) → abre WS y queda conectado
- *   2. sendTurn(turnId, body, callbacks) → envía el turno, recibe chunks vía callbacks
- *   3. El WS se reconecta automáticamente con backoff si cae
- *   4. Si el WS no está listo, sendTurn retorna null → llamador cae a XHR
+ *   2. onopen → envía auth, espera auth_ok
+ *   3. sendTurn(turnId, body, callbacks) → envía el turno, recibe chunks vía callbacks
+ *   4. El WS se reconecta automáticamente con backoff si cae
+ *   5. Si el WS no está listo, sendTurn retorna null → llamador cae a XHR
  */
 
 const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
 const CHAT_WS_URL = BACKEND_URL.replace(/^http/, 'ws') + '/chat-ws';
 
-const PING_INTERVAL_MS   = 25000; // Railway idle timeout = 30s
-const RECONNECT_BASE_MS  = 500;
-const RECONNECT_MAX_MS   = 10000;
+const PING_INTERVAL_MS  = 25000; // Railway idle timeout = 30s
+const RECONNECT_BASE_MS = 500;
+const RECONNECT_MAX_MS  = 10000;
 
 type TurnCallbacks = {
   onPrimeraFrase?: (primera: string, tag: string) => void;
@@ -33,6 +38,7 @@ type ChatWsOptions = {
 };
 
 let ws: WebSocket | null = null;
+let authReady = false;       // true solo después de recibir auth_ok
 let opts: ChatWsOptions | null = null;
 let active = false;
 let reconnCount = 0;
@@ -55,15 +61,16 @@ export function destroyChatWs(): void {
   pendingTurns.clear();
   try { ws?.close(); } catch {}
   ws = null;
+  authReady = false;
 }
 
-// Devuelve una función cancel() si el WS está listo, o null si hay que usar XHR.
+// Devuelve una función cancel() si el WS autenticó, o null si hay que usar XHR.
 export function sendTurn(
   turnId: string,
   body: Record<string, unknown>,
   callbacks: TurnCallbacks,
 ): (() => void) | null {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return null;
+  if (!ws || ws.readyState !== WebSocket.OPEN || !authReady) return null;
 
   const pending: PendingTurn = { ...callbacks, cancelled: false };
   pendingTurns.set(turnId, pending);
@@ -86,7 +93,7 @@ export function sendTurn(
 }
 
 export function isChatWsReady(): boolean {
-  return ws !== null && ws.readyState === WebSocket.OPEN;
+  return ws !== null && ws.readyState === WebSocket.OPEN && authReady;
 }
 
 // ── Internals ─────────────────────────────────────────────────────────────────
@@ -108,26 +115,31 @@ async function connect() {
 
   if (!active) return;
 
-  // RN WebSocket acepta un 3er arg { headers } aunque los tipos no lo declaren
-  const RNWebSocket = WebSocket as any;
-  const socket: WebSocket = new RNWebSocket(CHAT_WS_URL, [], {
-    headers: { 'x-device-token': token },
-  });
+  const socket = new WebSocket(CHAT_WS_URL);
   ws = socket;
+  authReady = false;
 
   socket.onopen = () => {
-    reconnCount = 0;
-    opts?.log('chat_ws_open');
-    pingTimer = setInterval(() => {
-      if (socket.readyState === WebSocket.OPEN) {
-        try { socket.send(JSON.stringify({ type: 'ping' })); } catch {}
-      }
-    }, PING_INTERVAL_MS);
+    // Primer mensaje: auth. Backend responderá con { type: 'auth_ok' }.
+    try { socket.send(JSON.stringify({ type: 'auth', token })); } catch {}
   };
 
   socket.onmessage = (event: MessageEvent) => {
     let msg: any;
     try { msg = JSON.parse(event.data as string); } catch { return; }
+
+    // Handshake de auth
+    if (msg.type === 'auth_ok') {
+      authReady = true;
+      reconnCount = 0;
+      opts?.log('chat_ws_ready');
+      pingTimer = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          try { socket.send(JSON.stringify({ type: 'ping' })); } catch {}
+        }
+      }, PING_INTERVAL_MS);
+      return;
+    }
 
     const { turn_id, type } = msg;
     if (!turn_id) return;
@@ -154,10 +166,10 @@ async function connect() {
 
   socket.onclose = (event: CloseEvent) => {
     clearTimers();
+    authReady = false;
     ws = null;
     opts?.log('chat_ws_close', { code: event.code });
 
-    // Fallar los turnos pendientes para que el llamador pueda manejarlos
     pendingTurns.forEach(t => { if (!t.cancelled) t.onError('ws_closed'); });
     pendingTurns.clear();
 
