@@ -31,8 +31,8 @@ const DG_WS_URL =
   '&language=es-419' +
   '&smart_format=true' +
   '&interim_results=true' +
-  '&endpointing=1000' +
-  '&utterance_end_ms=1500' +
+  '&endpointing=750' +
+  '&utterance_end_ms=1000' +
   '&vad_events=true' +
   '&encoding=linear16' +
   '&sample_rate=16000' +
@@ -42,7 +42,7 @@ const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
 // Si speech_final llega con frase que termina en artículo/preposición (frase abierta),
 // esperamos hasta MERGE_WINDOW_MS por continuación antes de flushear.
-const MERGE_WINDOW_MS = 1500;
+const MERGE_WINDOW_MS = 1000;
 const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que)\s*$/i;
 
 // 100ms de silencio PCM16 a 16kHz mono (16000 × 0.1 × 2 bytes = 3200 bytes).
