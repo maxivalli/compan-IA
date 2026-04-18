@@ -261,7 +261,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const hablandoDesdeRef      = useRef<number>(0);
 
   // ── Refs de muletillas y cache ────────────────────────────────────────────
-  const ultimaMuletillaRef         = useRef<Partial<Record<CategoriaMuletilla, number>>>({});
+  const ultimaMuletillaRef         = useRef<Partial<Record<CategoriaMuletilla, number[]>>>({});
   const precacheInFlightRef        = useRef<Map<string, Promise<void>>>(new Map());
   const precacheMuletillasRunningRef = useRef(false);
   const precacheRapidasRunningRef    = useRef(false);
@@ -736,10 +736,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const vozGenero = p?.vozGenero ?? 'femenina';
       const genero = vozGenero === 'masculina' ? 'masculina' : 'femenina';
       const lista = MULETILLAS[categoria][genero];
-      const ultimo = ultimaMuletillaRef.current[categoria] ?? -1;
+      const ultimos = ultimaMuletillaRef.current[categoria] ?? [];
       let idx: number;
-      do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
-      ultimaMuletillaRef.current[categoria] = idx;
+      do { idx = Math.floor(Math.random() * lista.length); } while (ultimos.includes(idx) && lista.length > ultimos.length);
+      ultimaMuletillaRef.current[categoria] = [idx, ...ultimos].slice(0, 2);
       const textoRaw = lista[idx];
       const nombre   = p?.nombreAbuela ?? '';
       const slug     = slugNombre(nombre);

@@ -54,9 +54,8 @@ export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
 export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'clima' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'telegram' | 'lista' | 'juego' | 'chiste' | 'adivinanza' | 'aburrimiento' | 'ejercicio' | 'foto' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
 
-// TODO: volver a true después de testear — deshabilita muletillas y frases rápidas
-const MULETILLAS_HABILITADAS = false;
-const RAPIDAS_HABILITADAS    = false;
+/const MULETILLAS_HABILITADAS = true;
+const RAPIDAS_HABILITADAS    = true;
 
 // ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
 
@@ -114,8 +113,8 @@ export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; mascul
     masculina: ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntos, dame un momento...'],
   },
   default: {
-    femenina:  ['A ver...', 'Claro.', 'Ya veo...'],
-    masculina: ['A ver...', 'Claro.', 'Ya veo...'],
+    femenina:  ['A ver...', 'Claro.', 'Ya veo...', 'Mmm... dejame pensar.', 'Entiendo...', 'A ver, te escucho...'],
+    masculina: ['A ver...', 'Claro.', 'Ya veo...', 'Mmm... dejame pensar.', 'Entiendo...', 'A ver, te escucho...'],
   },
   latencia: {
     femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
@@ -302,7 +301,7 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
   if (/\b(chau|chao|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
-  if (/\b(perfecto|entendido|re bien|todo bien|genial|de acuerdo|b[aá]rbaro)\b/i.test(texto)) return 'afirmacion';
+  if (/\b(perfecto|entendido|re bien|todo bien|muy bien|genial|de acuerdo|b[aá]rbaro)\b/i.test(texto)) return 'afirmacion';
   return null;
 }
 
