@@ -253,7 +253,6 @@ const s = StyleSheet.create({
     height: 38,
     borderRadius: 2,
     opacity: 0.72,
-    transform: [{ rotate: '-1deg' }],
   },
 
   // ── Trash button ──────────────────────────────────────────────────────────
