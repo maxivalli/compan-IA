@@ -153,70 +153,145 @@ interface MemoriaEpisodica {
 
 ## 🔊 useAudioPipeline: Audio y Reconocimiento de Voz
 
-Gestiona todo el ciclo de audio:
+Gestiona todo el ciclo de audio: Speech Recognition (Deepgram Nova-3), TTS (Fish Audio streaming), muletillas, y protección anti-eco.
 
-### Speech Recognition (SR)
+### Speech Recognition (SR) — Deepgram Nova-3
+
+**Módulo nativo:** `audio-capture` (ubicado en `AbuApp/modules/audio-capture/`)
+- Implementación Kotlin para Android (AudioRecord con MediaRecorder.AudioSource.MIC)
+- Captura PCM16 16kHz mono en chunks configurables
+- Emite eventos `onAudioData` con audio en base64
+- No requiere permisos adicionales (expo-speech-recognition solo para permisos)
+
+**Arquitectura:**
+```
+App (audio-capture nativo) → WebSocket directo → Deepgram Nova-3
+                              ↓
+                           Temporary API key (60s TTL)
+                              ↓
+                           Backend (/ai/deepgram-token)
+```
+
+**Flujo de conexión (`useDeepgramSR`):**
+1. `iniciarDG()` solicita temporary key al backend
+2. Backend genera key con `POST /v1/projects/{id}/keys` (scope: `usage:write`, TTL: 60s)
+3. App abre WebSocket a `wss://api.deepgram.com/v1/listen` con subprotocolo `['token', key]`
+4. Al conectar → arranca AudioCapture nativo (PCM16 16kHz mono)
+5. Cada chunk de audio (100ms) → `ws.send(binaryPCM)`
+
+**Manejo de transcripciones:**
+```typescript
+// Partials (especulativos)
+is_final=false → onPartial(texto)
+  → Activa waveform visual
+  → Actualiza ultimaActivacionSrRef (evita watchdog durante voz)
+
+// Finals (frases completas)
+is_final=true, speech_final=true → onFinal(texto)
+  → Marca speechEndTsRef (para lag_speech_end_ms)
+  → Procesa texto reconocido
+
+// Debounce y merge
+- Debounce 300ms para frases sin speech_final
+- Merge window 1500ms para frases incompletas (terminan en artículo/preposición)
+```
+
+**Anti-eco durante TTS:**
+```typescript
+// Pausa AudioCapture SIN cerrar WebSocket
+pausarCapturaDG()
+  → stopCapture()
+  → Envía frames de silencio cada 5s (keepalive, evita timeout 1011)
+
+// Reanuda AudioCapture al terminar TTS
+reanudarCapturaDG()
+  → startCapture() si WS abierto
+  → O reconecta si WS cayó
+```
+
+**Watchdog y reconexión:**
+- Watchdog cada 3s verifica si SR está activo
+- SR zombie (>8s sin actividad) → reinicio
+- SR vencido (>15s) → reinicio forzado
+- Reconexión automática con backoff exponencial (1.5^n, max 10s)
+- Recupera `procesandoRef` colgado (>20s sin hablar)
+
+### Text-to-Speech (TTS) — Fish Audio Streaming
+
+**Arquitectura:**
+```
+App → Backend (/ai/tts-fish-realtime-stream)
+       ↓
+    Fish Audio WebSocket → HTTP chunks
+       ↓
+    ExoPlayer (expo-audio) → reproducción progresiva
+```
+
+**Pipeline TTS (`hablar()`):**
+```typescript
+1. Limpieza de texto (limpiarTextoParaTTS)
+   - Números: 70000 → "setenta mil"
+   - Monedas: $70.000 → "setenta mil pesos"
+   - Unidades: 25°C → "veinticinco grados"
+   - Markup: **bold**, (pausa) → eliminado
+
+2. Cache lookup
+   tts_v6_{hash}.mp3 en FileSystem.cacheDirectory
+   ↓ Hit → reproducción inmediata
+   ↓ Miss → streaming HTTP
+
+3. Streaming HTTP (path principal)
+   - Backend abre WebSocket a Fish Audio
+   - Recibe chunks y los reenvía vía HTTP chunked
+   - ExoPlayer empieza en ~300-400ms (primeros chunks)
+   - Cache en background (in-flight map evita double call)
+   - Fallback a REST si streaming falla
+
+4. Anti-eco
+   pausarCapturaDG() durante reproducción
+   → Detiene AudioCapture sin cerrar WS
+   → Envía frames de silencio cada 5s
+
+5. Fin de reproducción
+   - Polling cada 150ms de duration y currentTime
+   - Detección: pos >= dur - 0.15 o silence-polls (15 iteraciones)
+   - Delay 400ms antes de reanudar SR (libera hardware)
+```
+
+**Cola de oraciones (`hablarConCola()`):**
+```typescript
+splitEnOraciones(texto) // regex [.!?]+
+  → ["Primera frase.", "Segunda frase.", ...]
+  → Reproduce secuencialmente con pausa 250ms
+  → Permite barge-in: corta si hablarCancelledRef = true
+```
+
+**Pre-cache:**
+- **Respuestas rápidas**: frases sin `{n}` se descargan desde backend
+  - Saludos, gracias, despedidas, afirmaciones
+  - Cache: `tts_v6_{hash}.mp3`
+- **Frases de sistema**: pre-cache al iniciar (juegos, cuentos)
+- Limpieza automática: archivos >7 días se eliminan
+
+**Concurrency limiter (backend):**
+- Fish Audio devuelve 429 con múltiples WebSockets simultáneos
+- Limiter garantiza 1 stream activo a la vez
+- Timeout de 3s → fallback a REST si hay cola
+
+### Respuestas Rápidas
+
+Respuestas locales sin llamar a Claude para interacciones comunes:
 
 ```typescript
-// Iniciar SR continuo
-expo-speech-recognition.start({
-  lang: 'es-ES',
-  continuous: true,
-  interimResults: true,
-})
-
-// Eventos
-onResult → Texto reconocido
-onError → Reiniciar con watchdog
-onEnd → Reiniciar automáticamente
+const RESPUESTAS_RAPIDAS = {
+  saludo: { femenina: ["¡Hola {n}!", "¿Cómo estás {n}?"], emotion: "feliz" },
+  gracias: { femenina: ["De nada {n}", "Para eso estoy"], emotion: "feliz" },
+  despedida: { femenina: ["Chau {n}, hablamos después", "Hasta luego"], emotion: "neutral" },
+  // ...
+}
 ```
 
-**Watchdogs**: Timers que detectan si SR se cuelga y lo reinician automáticamente.
-
-**Filtros de relevancia**:
-- Longitud mínima (3 caracteres)
-- No es eco de TTS reciente
-- No es ruido ambiente
-- Contiene palabras significativas
-
-### Text-to-Speech (TTS)
-
-Flujo de reproducción:
-
-```
-Texto a hablar
-    ↓
-¿Está en cache local?
-    ↓ Sí
-Reproducir desde cache
-    ↓ No
-Solicitar a backend:
-  - /ai/tts-stream (Fish Audio)
-  - /ai/tts-cartesia-stream (Cartesia)
-    ↓
-Streaming de audio
-    ↓
-Guardar en cache
-    ↓
-Reproducir
-```
-
-**Cache TTS**: Audio pre-generado para frases frecuentes (muletillas, respuestas rápidas, juegos).
-
-**Streaming**: La primera frase se reproduce apenas está lista, el resto continúa en background.
-
-### Muletillas
-
-Frases cortas para cubrir latencia mientras Claude piensa:
-
-```typescript
-const MULETILLAS = [
-  "Mmm...",
-  "Déjame pensar...",
-  "A ver...",
-  "Eh...",
-]
-```
+**Nota:** Las muletillas (frases para cubrir latencia) están actualmente desactivadas (`MULETILLAS_HABILITADAS = false` en `useBrain.ts`). El sistema responde directamente con la primera frase de Claude vía streaming SSE.
 
 ## 📬 useNotificaciones: Alertas y Recordatorios
 
@@ -306,6 +381,139 @@ Animaciones de fondo según contexto:
 - **ZZZ**: Cuando duerme
 - **Música**: Notas musicales flotantes
 - **Clima**: Lluvia, nieve, sol
+
+## 🎨 Componentes Visuales
+
+### Componentes Principales
+
+#### RosaOjos
+Cara animada de Rosita con:
+- **Ojos**: Parpadeo, seguimiento, expresiones
+- **Boca**: Sincronización con audio, zipper en modo no molestar
+- **Párpados**: Cerrados en modo noche
+- **Cabeza de gato**: Opcional, con orejas animadas
+
+Estados visuales:
+- `esperando`: Ojos abiertos, boca cerrada
+- `pensando`: Ojos mirando hacia arriba
+- `hablando`: Boca animada sincronizada con audio
+
+#### RositaHorizontalLayout
+Layout optimizado para tablets y modo horizontal:
+- Ojos grandes centrados
+- Controles táctiles en los laterales
+- Modo reloj de escritorio
+- Adaptación automática según orientación
+
+#### ExpresionOverlay
+Efectos visuales sobre la cara:
+- **Cejas**: Expresiones emocionales
+- **Gotas de sudor**: Calor
+- **Copos de nieve**: Frío
+- **Rayos**: Tormenta
+- **Globos**: Cumpleaños
+
+#### FondoAnimado
+Animaciones de fondo según contexto:
+- **Cielo nocturno**: Estrellas parpadeantes
+- **ZZZ**: Cuando duerme
+- **Música**: Notas musicales flotantes
+- **Clima**: Lluvia, nieve, sol
+
+### Componentes de Funcionalidad
+
+#### AmplificadorBoton
+Botón para activar/desactivar amplificador de audio:
+- Pulso animado cuando activo
+- Selector de nivel de ganancia (bajo, medio, alto)
+- Advertencia cuando usa Bluetooth
+- Feature de accesibilidad para mejorar audición
+
+#### CamaraPresenciaOverlay
+Detección de presencia por movimiento (frame diff):
+- Compara fotogramas consecutivos (cada 2.5s)
+- Detecta movimiento sin requerir mirar a cámara
+- Calidad mínima (0.05) para performance
+- Umbrales: 18% tamaño JPEG, 6% diff bytes
+- Dispara charla proactiva cuando detecta presencia
+
+#### ListasModal
+Modal para gestión de listas (compras, tareas):
+- Agregar/eliminar items
+- Marcar como completado
+- Sincronización con backend
+
+#### MenuFlotante
+Menú contextual flotante:
+- Acciones rápidas
+- Configuración
+- Navegación
+
+#### PinOverlay
+Overlay para ingreso de PIN:
+- Protección de configuración sensible
+- Teclado numérico
+
+#### ScreenHeader
+Header reutilizable para pantallas:
+- Título y eyebrow
+- Ícono
+- Botón de retroceso
+- Estilo consistente
+
+### Componentes de Cámara
+
+#### CameraAutoCaptura
+Captura automática de fotos:
+- Temporizador configurable
+- Preview en tiempo real
+- Calidad ajustable
+
+#### CamaraPresenciaVisionOverlay
+Detección de presencia con Claude Vision:
+- Captura periódica
+- Análisis con IA
+- Descripción de escena
+
+### Componentes de Efectos
+
+#### EfectosClima
+Efectos visuales según clima:
+- Lluvia animada
+- Nieve cayendo
+- Sol brillante
+- Nubes moviéndose
+
+#### EfectosExpresion
+Efectos adicionales de expresión:
+- Corazones flotantes
+- Estrellas
+- Signos de interrogación
+- Exclamaciones
+
+### Componentes de Visualización
+
+#### DisplayCuero
+Display de información en estilo "cuero":
+- Textura visual
+- Información destacada
+
+#### PanelCuero
+Panel con estilo "cuero":
+- Contenedor visual
+- Bordes decorativos
+
+#### PostItViewer
+Visor de notas estilo post-it:
+- Notas adhesivas virtuales
+- Colores variados
+- Animaciones de entrada/salida
+
+#### AnimatedSplash
+Splash screen animado:
+- Logo animado
+- Transición suave
+- Carga inicial
 
 ## 🔄 Flujo de Datos
 
@@ -431,6 +639,110 @@ await fetch('/debug/log', {
   })
 })
 ```
+
+## 🎮 Sistema de Juegos
+
+### Gestión de Speech Recognition en Juegos
+
+**Problema:** Las pantallas de juego (tateti, ahorcado, memoria) necesitan su propio SR, pero el SR principal de Rosita sigue escuchando y dispara `useBrain` con cualquier frase.
+
+**Solución:** `rositaSpeechForGames.ts` (puente entre SR principal y juegos)
+
+```typescript
+// Al montar pantalla de juego
+pausarSRPrincipalParaJuego()  // Suspende SR de Rosita
+
+// Al desmontar pantalla de juego
+reanudarSRPrincipalTrasJuego()  // Reactiva SR de Rosita
+```
+
+### Juego de Memoria
+
+**Lógica:** `lib/memoria_juego.ts`
+
+- 4 conjuntos visuales (formas, animales, frutas, objetos)
+- 3 niveles: 4, 6 o 9 fichas
+- Grid 3×3 con posiciones aleatorias
+- Orden de pregunta aleatorio
+
+```typescript
+const state = crearJuego(setIndex, numTiles)
+const target = getCurrentTarget(state)  // Ficha a buscar
+const tile = getTileAtGridPos(state, pos)  // Ficha en posición
+```
+
+## 🔄 Sistema de Eventos Internos
+
+### Sincronización de Perfil
+
+**Módulo:** `lib/perfilSync.ts`
+
+Cuando el usuario guarda cambios en Configuración, otras pantallas necesitan actualizar su estado:
+
+```typescript
+// En configuracion.tsx (al guardar)
+emitPerfilLocalGuardado()
+
+// En useRosita (escucha cambios)
+DeviceEventEmitter.addListener(PERFIL_LOCAL_GUARDADO, () => {
+  // Recargar perfil, actualizar heartbeat, etc.
+})
+```
+
+## 📦 Estructura del System Payload
+
+**Módulo:** `lib/systemPayload.ts`
+
+El `system_payload` es el objeto estructurado que la app envía al backend para construir el prompt de Claude:
+
+```typescript
+type RositaSystemPayload = {
+  version: 'v1'
+  perfil: {
+    nombreAbuela: string
+    nombreAsistente?: string
+    vozGenero: 'femenina' | 'masculina'
+    generoUsuario?: 'femenino' | 'masculino'
+    edad?: number
+    familiares: string[]
+    gustos: string[]
+    medicamentos: string[]
+    fechasImportantes: string[]
+    recuerdos: string[]
+    fechaNacimiento?: string
+    condicionFisica?: string
+  }
+  dispositivos: Array<{
+    id: string
+    nombre: string
+    tipo: string
+    online: boolean
+    estado?: boolean
+  }>
+  climaTexto: string
+  extraTemporal?: string
+  ciudad?: string | null
+  coords?: { lat: number; lon: number } | null
+  memoriaEpisodica?: string
+  seguimientos?: string
+}
+```
+
+**Construcción:**
+```typescript
+const payload = buildRositaSystemPayload({
+  perfil,
+  dispositivos,
+  climaTexto,
+  extraTemporal,
+  ciudad,
+  coords,
+  memoriaEpisodica,
+  seguimientos
+})
+```
+
+El backend recibe este payload y construye el prompt real en `src/lib/rositaPrompt.ts`.
 
 ## 🔮 Futuras Mejoras
 

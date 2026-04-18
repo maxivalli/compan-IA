@@ -2,14 +2,14 @@
 
 Guía de solución de problemas comunes en la aplicación móvil.
 
-## 🎤 Problemas de Speech Recognition
+## 🎤 Problemas de Speech Recognition (Deepgram Nova-3)
 
 ### El micrófono no funciona / No escucha
 
 **Síntomas:**
 - Rosita no responde cuando hablas
 - El badge dice "Escuchando" pero no detecta voz
-- Error: "Speech recognition not available"
+- Error en logs: "dg_sr_error" o "dg_token_error"
 
 **Soluciones:**
 
@@ -19,43 +19,54 @@ Guía de solución de problemas comunes en la aplicación móvil.
    # Android: Settings → Apps → CompañIA → Permissions → Microphone → Allow
    ```
 
-2. **Reiniciar Speech Recognition**
+2. **Verificar configuración de Deepgram en backend**
+   - `DEEPGRAM_PROJECT_ID` debe estar configurado
+   - `DEEPGRAM_KEYGEN_API_KEY` debe tener permisos para crear temporary keys
+   - Verificar en Railway logs: `[DG-TOKEN] emitido`
+
+3. **Reiniciar Speech Recognition**
    - Tocar el botón de pausa/play en la app
    - O reiniciar la app completamente
 
-3. **Verificar que no esté en modo No Molestar**
+4. **Verificar que no esté en modo No Molestar**
    - Si ves el zipper sobre la boca → desactivar No Molestar
 
-4. **Logs de debug**
+5. **Logs de debug**
    ```typescript
    // La app envía logs al backend
-   // Ver en Railway logs: [APP] sr_error
+   // Ver en Railway logs:
+   [APP] dg_sr_ready        // Deepgram conectado
+   [APP] dg_sr_error        // Error de conexión
+   [APP] dg_token_error     // Error al obtener temporary key
+   [APP] dg_capture_start_error  // Error al iniciar AudioCapture
    ```
-
-5. **Fallback a Deepgram**
-   - Si expo-speech-recognition falla, la app puede usar Deepgram WebSocket
-   - Verificar que `DEEPGRAM_PROJECT_ID` esté configurado en backend
 
 ### Speech Recognition se cuelga
 
 **Síntomas:**
 - Badge dice "Escuchando" pero no responde
-- Logs muestran: "SR watchdog timeout"
+- Logs muestran: "SR watchdog timeout" o "SR zombie"
 
 **Soluciones:**
 
 1. **Los watchdogs deberían reiniciarlo automáticamente**
-   - Esperar 10-15 segundos
+   - Watchdog cada 3s detecta SR zombie (>8s sin actividad) o vencido (>15s)
+   - Esperar 10-15 segundos para reinicio automático
    - Si no se reinicia, tocar pausa/play
 
 2. **Verificar en logs**
    ```bash
    # Buscar en Railway logs:
-   [APP] sr_watchdog_restart
-   [APP] sr_timeout
+   [APP] watchdog_reset     // Watchdog reinició SR
+   [APP] dg_reconnect       // Reconexión automática
+   [APP] dg_ws_close        // WebSocket cerrado (código 1011 = timeout)
    ```
 
-3. **Reiniciar app**
+3. **Reconexión automática con backoff**
+   - La app reconecta automáticamente con delay exponencial (1.5^n, max 10s)
+   - Si falla repetidamente, verificar conectividad de red
+
+4. **Reiniciar app**
    - Cerrar completamente y volver a abrir
 
 ### Detecta eco o se responde a sí misma
@@ -63,18 +74,54 @@ Guía de solución de problemas comunes en la aplicación móvil.
 **Síntomas:**
 - Rosita responde a su propia voz
 - Loop infinito de conversación
+- Logs muestran transcripciones durante TTS
 
 **Soluciones:**
 
-1. **Filtros de eco ya implementados**
-   - La app ignora texto reconocido durante TTS
-   - Ver `useAudioPipeline.ts` → filtros de relevancia
+1. **Anti-eco ya implementado**
+   - `pausarCapturaDG()` detiene AudioCapture durante TTS sin cerrar WebSocket
+   - Envía frames de silencio cada 5s (keepalive)
+   - `reanudarCapturaDG()` reactiva AudioCapture al terminar TTS
+   - Delay de 400ms antes de reanudar SR (libera hardware de audio)
 
-2. **Bajar volumen del dispositivo**
-   - El micrófono puede captar el speaker
+2. **Verificar que el anti-eco funcione**
+   ```bash
+   # Logs esperados durante TTS:
+   [TTS] hablar_start
+   [DG] AudioCapture pausado
+   [TTS] hablar_end
+   [DG] AudioCapture reanudado (400ms delay)
+   ```
 
-3. **Usar auriculares**
+3. **Bajar volumen del dispositivo**
+   - El micrófono puede captar el speaker si el volumen es muy alto
+
+4. **Usar auriculares**
    - Evita que el micrófono capte el audio de salida
+
+### WebSocket se cierra con código 1011
+
+**Síntomas:**
+- Logs muestran: `[APP] dg_ws_close | code:1011`
+- SR se desconecta después de ~10-15s de inactividad
+
+**Soluciones:**
+
+1. **Keepalive automático durante pausas**
+   - La app envía frames de silencio cada 5s durante `pausarCapturaDG()`
+   - Evita que Deepgram cierre la conexión por inactividad
+
+2. **Verificar que keepalive funcione**
+   ```bash
+   # Logs esperados:
+   [DG] Keepalive iniciado
+   [DG] Enviando frame de silencio
+   ```
+
+3. **Si el problema persiste**
+   - Verificar conectividad de red
+   - Verificar que la temporary key no haya expirado (TTL 60s)
+   - La app reconecta automáticamente si el WS cae
 
 ## 🔊 Problemas de Audio / TTS
 

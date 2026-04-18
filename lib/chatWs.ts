@@ -49,6 +49,7 @@ const pendingTurns = new Map<string, PendingTurn>();
 
 export function initChatWs(options: ChatWsOptions): void {
   opts = options;
+  if (active && ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   active = true;
   reconnCount = 0;
   connect();
@@ -120,11 +121,12 @@ async function connect() {
   authReady = false;
 
   socket.onopen = () => {
-    // Primer mensaje: auth. Backend responderá con { type: 'auth_ok' }.
+    if (ws !== socket) return;
     try { socket.send(JSON.stringify({ type: 'auth', token })); } catch {}
   };
 
   socket.onmessage = (event: MessageEvent) => {
+    if (ws !== socket) return;
     let msg: any;
     try { msg = JSON.parse(event.data as string); } catch { return; }
 
@@ -161,10 +163,12 @@ async function connect() {
   };
 
   socket.onerror = () => {
+    if (ws !== socket) return;
     opts?.log('chat_ws_error');
   };
 
   socket.onclose = (event: CloseEvent) => {
+    if (ws !== socket) return;
     clearTimers();
     authReady = false;
     ws = null;

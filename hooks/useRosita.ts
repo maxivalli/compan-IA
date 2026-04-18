@@ -26,8 +26,8 @@ import * as Brightness from 'expo-brightness';
 import { useSmartThings } from './useSmartThings';
 import {
   useBrain, BrainDeps,
-  MULETILLAS, RESPUESTAS_RAPIDAS,
-  CategoriaMuletilla, CategoriaRapida, Mensaje, EstadoRosita,
+  RESPUESTAS_RAPIDAS,
+  CategoriaRapida, Mensaje, EstadoRosita,
 } from './useBrain';
 import {
   useAudioPipeline, AudioPipelineDeps,
@@ -42,8 +42,6 @@ const HORA_DESPERTAR     = 7;
 const HORA_CHARLA_INICIO = 9;
 const HORA_FIN           = 23;
 
-// Tipos re-exportados desde useBrain (declarados allá, usados acá)
-// CategoriaMuletilla, CategoriaRapida, Mensaje, EstadoRosita → importados arriba
 
 export function useRosita() {
   const router = useRouter();
@@ -227,9 +225,6 @@ export function useRosita() {
     splitEnOraciones:         pipeline.splitEnOraciones,
     extraerPrimeraFrase:      pipeline.extraerPrimeraFrase,
     precachearTexto:          pipeline.precachearTexto,
-    prefetchMuletilla:        pipeline.prefetchMuletilla,
-    playMuletillaPreloaded:   pipeline.playMuletillaPreloaded,
-    reproducirMuletilla:      pipeline.reproducirMuletilla,
     reproducirTecleo:         pipeline.reproducirTecleo,
     detenerSilbido:           pipeline.detenerSilbido,
     pararMusica:              pipeline.pararMusica,
@@ -495,7 +490,6 @@ export function useRosita() {
     perfilRef.current = perfil;
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
-    pipeline.precachearMuletillas(perfil.vozId, perfil.nombreAbuela).catch(() => {});
     pipeline.precachearRespuestasRapidas(perfil.nombreAbuela).catch(() => {});
     pipeline.precachearSistema().catch(() => {});
     setCargando(false);
@@ -552,7 +546,6 @@ export function useRosita() {
       setCargando(false);
       setMostrarOnboarding(true);
     } else {
-      pipeline.precachearMuletillas(perfilGuardado.vozId, perfilGuardado.nombreAbuela).catch(() => {});
       pipeline.precachearRespuestasRapidas(perfilGuardado.nombreAbuela).catch(() => {});
       pipeline.precachearSistema().catch(() => {});
       setCargando(false);
@@ -822,7 +815,6 @@ export function useRosita() {
       await pipeline.hablar('No pude sacar la foto. ¿Lo intentamos de nuevo?');
       return;
     }
-    // Claude Vision y muletilla en paralelo — la muletilla cubre la latencia
     const [resultado] = await Promise.all([
       verVision(base64),
       pipeline.hablar('Esperáte, que estoy mirando...'),

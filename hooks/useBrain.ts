@@ -45,98 +45,13 @@ import {
 import { Dispositivo } from '../lib/smartthings';
 import { DomoticaAction } from './useSmartThings';
 import { enviarAlertaTelegram } from '../lib/telegram';
-import type { MuletillaPreloaded } from './useAudioPipeline';
-
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaMuletilla = 'empatico' | 'alegria' | 'salud' | 'busqueda' | 'clima' | 'musica' | 'recordatorio' | 'nostalgia' | 'comando' | 'telegram' | 'lista' | 'juego' | 'chiste' | 'adivinanza' | 'aburrimiento' | 'ejercicio' | 'foto' | 'default' | 'latencia';
 export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
 
-const MULETILLAS_HABILITADAS = false;
-const RAPIDAS_HABILITADAS    = true;
-
-// ── Constantes de muletillas (exportadas para que el pipeline de audio las use) ─
-
-export const MULETILLAS: Record<CategoriaMuletilla, { femenina: string[]; masculina: string[] }> = {
-  empatico: {
-    femenina:  ['[con ternura] Te re entiendo, acá estoy con vos...', '[voz suave] Tomémonos un momento, te escucho...', '[voz suave] Te escucho tranquila, contame con calma...'],
-    masculina: ['[con ternura] Te re entiendo, acá estoy con vos...', '[voz suave] Tomémonos un momento, te escucho...', '[voz suave] Te escucho tranquilo, contame con calma...'],
-  },
-  alegria: {
-    femenina:  ['¡Qué lindo, che! [risa suave] Contame un poco más...', '[risa suave] Me alegraste el día, dejame que...', '[risa suave] Me pone re contenta escucharte así, contame un poquito más...'],
-    masculina: ['¡Qué lindo, che! [risa suave] Contame un poco más...', '[risa suave] Me alegraste el día, dejame que...', '[risa suave] Me pone re contento escucharte así, contame un poquito más...'],
-  },
-  salud: {
-    femenina:  ['Vamos a mirar esto con cuidado, dame un segundito...', 'Tranqui, dame un instante que reviso esa información...'],
-    masculina: ['Vamos a mirar esto con cuidado, dame un segundito...', 'Tranqui, dame un instante que reviso esa información...'],
-  },
-  busqueda: {
-    femenina:  ['Bancame un cachito que me fijo...', 'A ver qué dice por acá, dame un instante...'],
-    masculina: ['Bancame un cachito que me fijo...', 'A ver qué dice por acá, dame un instante...'],
-  },
-  musica: {
-    femenina:  ['Dejame que preparo todo para que escuchemos un poco...', 'Vamos a buscar unos buenos acordes, dame un segundo...'],
-    masculina: ['Dejame que preparo todo para que escuchemos un poco...', 'Vamos a buscar unos buenos acordes, dame un segundo...'],
-  },
-  recordatorio: {
-    femenina:  ['Anotado, dame un segundito que lo guardo bien así no se nos pasa...', 'Dejame que lo dejo por escrito acá...'],
-    masculina: ['Anotado, dame un segundito que lo guardo bien así no se nos pasa...', 'Dejame que lo dejo por escrito acá...'],
-  },
-  nostalgia: {
-    femenina:  ['[con ternura] Qué lindo recuerdo, dejame pensar un poquito en eso...', '[con ternura] Hagamos memoria juntos, a ver... dame un segundo.'],
-    masculina: ['[con ternura] Qué lindo recuerdo, dejame pensar un poquito en eso...', '[con ternura] Hagamos memoria juntos, a ver... dame un segundo.'],
-  },
-  comando: {
-    femenina:  ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
-    masculina: ['¡Entendido! Ya mismo me ocupo de eso...', 'Bárbaro, dame un segundito y ya queda...'],
-  },
-  lista: {
-    femenina:  ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...', 'Ya lo anoto, un segundito...'],
-    masculina: ['Anotado, dame un segundo que lo agrego a la lista...', 'Dejame que lo apunto ahora mismo...', 'Ya lo anoto, un segundito...'],
-  },
-  juego: {
-    femenina:  ['¡Me encanta! Dejame que preparo algo divertido...', 'Buenísimo, dame un segundito que armo el juego...'],
-    masculina: ['¡Me encanta! Dejame que preparo algo divertido...', 'Buenísimo, dame un segundito que armo el juego...'],
-  },
-  chiste: {
-    femenina:  ['[risa suave] ¡Jaja, dale! A ver si me sale uno bueno...', '[risa suave] Esperame que busco uno que te haga reír...'],
-    masculina: ['[risa suave] ¡Jaja, dale! A ver si me sale uno bueno...', '[risa suave] Esperame que busco uno que te haga reír...'],
-  },
-  aburrimiento: {
-    femenina:  ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
-    masculina: ['¡Uy, no te puedo dejar así! A ver qué se nos ocurre...', 'Dale, vamos a encontrar algo lindo para hacer juntos...'],
-  },
-  ejercicio: {
-    femenina:  ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntas, dame un momento...'],
-    masculina: ['¡Buenísimo! Dame un segundito que preparo los movimientos...', '¡Me encanta la idea! Vamos juntos, dame un momento...'],
-  },
-  default: {
-    femenina:  ['A ver...', 'Claro.', 'Ya veo...', 'Mmm... dejame pensar.', 'Entiendo...', 'A ver, te escucho...'],
-    masculina: ['A ver...', 'Claro.', 'Ya veo...', 'Mmm... dejame pensar.', 'Entiendo...', 'A ver, te escucho...'],
-  },
-  latencia: {
-    femenina:  ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
-    masculina: ['Sigo acá, eh... estoy terminando de buscar...', 'Viene un poquito lenta la conexión hoy, pero ya casi lo tengo...', 'Ya casi... un segundito más...', 'Estoy en eso, no me olvidé de vos...'],
-  },
-  clima: {
-    femenina:  ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver qué dice el pronóstico...'],
-    masculina: ['Dejame que miro el pronóstico, un segundito...', 'Voy a ver qué dice el tiempo, ya te cuento...', 'A ver qué dice el pronóstico...'],
-  },
-  telegram: {
-    femenina:  ['Mandando el mensaje a tu familia, un segundito...', 'Ya le aviso, dame un momento...', 'Ahí va el mensajito, esperate...', 'Un segundito que lo mando...'],
-    masculina: ['Mandando el mensaje a tu familia, un segundito...', 'Ya le aviso, dame un momento...', 'Ahí va el mensajito, esperate...', 'Un segundito que lo mando...'],
-  },
-  adivinanza: {
-    femenina:  ['¡Dale! Tengo una buenísima. Dame un segundito...', 'A ver si esta te la sabés... esperate...', 'Tengo una para vos. Dame un momento...'],
-    masculina: ['¡Dale! Tengo una buenísima. Dame un segundito...', 'A ver si esta te la sabés... esperate...', 'Tengo una para vos. Dame un momento...'],
-  },
-  foto: {
-    femenina:  ['Dejame que miro bien la foto, dame un segundo...', 'A ver qué tenemos por acá...', 'Esperate que lo miro con atención...', 'Un segundito que le doy una mirada...'],
-    masculina: ['Dejame que miro bien la foto, dame un segundo...', 'A ver qué tenemos por acá...', 'Esperate que lo miro con atención...', 'Un segundito que le doy una mirada...'],
-  },
-};
+const RAPIDAS_HABILITADAS = true;
 
 export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; masculina: string[]; emotion: string }> = {
   saludo: {
@@ -200,8 +115,7 @@ export const FRASES_SISTEMA: Record<CategoriaSistema, { frases: string[]; emotio
 };
 
 const INTERLOCUTOR_TTL_MS   = 2 * 60 * 1000;
-// Si la muletilla terminó y Claude aún no llegó, reproducir aviso de espera tras este delay
-const LATENCIA_THRESHOLD_MS = 7_000;
+
 const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
   'yo', 'aca', 'acá', 'hola', 'buenas', 'buenos', 'soy', 'llamo', 'nombre',
   'novia', 'novio', 'marido', 'esposa', 'mama', 'mamá', 'papa', 'papá',
@@ -210,7 +124,6 @@ const PALABRAS_INVALIDAS_INTERLOCUTOR = new Set([
 
 // ── Patrones de clasificación (exportados para uso en SR y otros hooks) ─────────
 
-// Sin muletilla: saludos, gracias, despedidas, afirmaciones — Claude responde < 2s
 export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|gracias|much[aí]simas?\s+gracias|te agradezco|de nada|chau|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos|por supuesto|perfecto|entendido|re bien|todo bien|b[aá]rbaro)\b/i;
 
 /**
@@ -256,33 +169,6 @@ export const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
 
 // ── Funciones puras de clasificación (exportadas) ─────────────────────────────
 
-export function categorizarMuletilla(texto: string): CategoriaMuletilla | null {
-  if (texto.length < 10) return null;
-  if (texto.split(/\s+/).filter(Boolean).length < 4) return null;
-  // Solo skip para mensajes cortos (<= 30 chars) — evita que PATRON_SKIP bloquee
-  // frases largas que contienen "todo bien" u otras palabras del patrón como substring.
-  if (texto.length <= 30 && PATRON_SKIP.test(texto)) return null;
-  if (/\b(hablemos de otra cosa|otra cosa|cambiemos de tema|dejemos eso|dej[aá] eso|despu[eé]s hablamos|despues hablamos|charlamos despu[eé]s|charlamos despues)\b/i.test(texto)) return null;
-  if (/\b(comer|hambre|comprar|pizza|sanguch|sanguche|sanguchito|cocinar|almorz|cenar)\b/i.test(texto) && texto.length <= 90) return null;
-  if (PATRON_EMPATICO.test(texto))     return 'empatico';
-  if (PATRON_ALEGRIA.test(texto))      return 'alegria';
-  if (PATRON_SALUD.test(texto))        return 'salud';
-  if (PATRON_FOTO.test(texto))         return 'foto';
-  if (PATRON_TELEGRAM.test(texto))     return 'telegram';
-  if (PATRON_CLIMA.test(texto))        return 'clima';
-  if (PATRON_BUSQUEDA.test(texto))     return 'busqueda';
-  if (PATRON_MUSICA.test(texto))       return 'musica';
-  if (PATRON_RECORDATORIO.test(texto)) return 'recordatorio';
-  if (PATRON_NOSTALGIA.test(texto))    return 'nostalgia';
-  if (PATRON_COMANDO.test(texto))      return 'comando';
-  if (PATRON_LISTA.test(texto))        return 'lista';
-  if (PATRON_ADIVINANZA.test(texto))   return 'adivinanza';
-  if (PATRON_JUEGO.test(texto))        return 'juego';
-  if (PATRON_CHISTE.test(texto))       return 'chiste';
-  if (PATRON_ABURRIMIENTO.test(texto)) return 'aburrimiento';
-  if (texto.length <= 15) return null;
-  return 'default';
-}
 
 export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (texto.length > 50) return null;
@@ -561,9 +447,6 @@ export interface BrainDeps {
   splitEnOraciones:    (texto: string) => string[];
   extraerPrimeraFrase: (texto: string) => { primera: string; resto: string };
   precachearTexto:          (texto: string, emotion?: string) => Promise<void>;
-  prefetchMuletilla:        (cat: CategoriaMuletilla, abort?: { current: boolean }) => Promise<MuletillaPreloaded>;
-  playMuletillaPreloaded:   (pre: NonNullable<MuletillaPreloaded>, abort?: { current: boolean }, onPlay?: () => void) => Promise<string>;
-  reproducirMuletilla:      (cat: CategoriaMuletilla, abort?: { current: boolean }, onPlay?: () => void) => Promise<string>;
   reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
   detenerSilbido:      () => void;
   pararMusica:         () => void;
@@ -623,14 +506,7 @@ export function useBrain(deps: BrainDeps) {
   // anterior siga corriendo cuando el usuario pide otra música antes de que pasen los 10s.
   const musicaFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Ejecución especulativa (Deepgram partials) ───────────────────────────────
-  // Cuando llega un partial con suficiente señal de categoría, arrancamos la
-  // muletilla ANTES de que el usuario termine de hablar.
-  // responderConClaude la reutiliza si la categoría coincide, o la aborta si no.
-  const especulativoCatRef     = useRef<CategoriaMuletilla | null>(null);
-  const especulativoAbortRef   = useRef<{ current: boolean }>({ current: false });
-  const especulativoPromiseRef = useRef<Promise<MuletillaPreloaded> | null>(null);
-
+  // ── Ejecución especulativa de Claude (Deepgram partials) ────────────────────
   // Ejecución especulativa de Claude: arranca con el partial ≥8 palabras.
   const lastUsedSystemRef     = useRef<import('../lib/systemPayload').RositaSystemPayload | null>(null);
   const especulativoClaudeRef = useRef<{
@@ -640,11 +516,6 @@ export function useBrain(deps: BrainDeps) {
   } | null>(null);
 
   function cancelarEspeculativo() {
-    if (especulativoCatRef.current) {
-      especulativoAbortRef.current.current = true;
-      especulativoCatRef.current     = null;
-      especulativoPromiseRef.current = null;
-    }
     if (especulativoClaudeRef.current) {
       especulativoClaudeRef.current.cancel();
       especulativoClaudeRef.current = null;
@@ -661,18 +532,6 @@ export function useBrain(deps: BrainDeps) {
 
     const norm = textoParcial.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (PATRON_SKIP.test(norm)) return;
-
-    // ── Especulativa muletilla ─────────────────────────────────────────────────
-    if (MULETILLAS_HABILITADAS && !especulativoCatRef.current) {
-      const cat = categorizarMuletilla(textoParcial);
-      if (cat && cat !== 'default') {
-        const abortFlag = { current: false };
-        especulativoAbortRef.current   = abortFlag;
-        especulativoCatRef.current     = cat;
-        especulativoPromiseRef.current = d.prefetchMuletilla(cat, abortFlag);
-        logCliente('spec_muletilla_start', { cat, chars: textoParcial.length });
-      }
-    }
 
     // ── Especulativa Claude ────────────────────────────────────────────────────
     // Requiere ≥8 palabras y que haya un sistema previo (no arranca en la primera frase de sesión).
@@ -1188,7 +1047,6 @@ export function useBrain(deps: BrainDeps) {
       if (d.estadoRef.current === 'pensando') d.setExpresion('pensativa');
     }, 600);
 
-    // ── Computar flags antes de iniciar muletilla/streaming ──────────────────
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
     const textoNorm = normalizarTextoPlano(textoUsuario);
     const vuelvePrincipal = detectarRetornoAlPrincipal(textoNorm, p);
@@ -1472,30 +1330,11 @@ export function useBrain(deps: BrainDeps) {
     }
     const esLugarLocal = !!tipoLugar && !!d.coordRef.current;
 
-    const catMuletilla = categorizarMuletilla(textoUsuario);
-    // Clima usa el contexto del sistema (no hay fetch externo), pero Claude igual tarda
-    // ~1s+ → conservar la muletilla para no dejar al usuario en silencio.
-    const esConsultaClima = /\b(clima|llover|llueve|lluvia|temperatura|pronóstico|pronostico|calor|frío|frio|nublado|soleado|va a llover|va a hacer)\b/i.test(textoUsuario);
-    // Si el regex de búsqueda disparó la categoría 'busqueda' pero ninguna búsqueda
-    // real se va a ejecutar, bajar a null para no añadir el delay de "Un segundito"
-    // antes de lo que en realidad va a ser una respuesta rápida de Claude.
-    const hayBusquedaReal = pideBusqueda || pideWikipedia || pideNoticias;
-    const catMuletillaEfectiva = !MULETILLAS_HABILITADAS ? null :
-      // Si busqueda matcheó el patrón pero no hay fetch real (ej. clima del sistema), anular
-      (catMuletilla === 'busqueda' && !hayBusquedaReal && !esConsultaClima) ? null
-      // Si hay fetch real pero el categorizador no lo detectó (ej. "quién es X" → wiki), forzar busqueda
-      : (hayBusquedaReal && (catMuletilla === 'default' || catMuletilla === null)) ? 'busqueda'
-      // Forzar categoría entretenimiento si el categorizador no la detectó
-      : (pideJuego && (catMuletilla === 'default' || catMuletilla === null)) ? 'juego'
-      : (pideChiste && (catMuletilla === 'default' || catMuletilla === null)) ? 'chiste'
-      : (ofrecerMenuAburrimiento && (catMuletilla === 'default' || catMuletilla === null)) ? 'aburrimiento'
-      : catMuletilla;
     d.rcStartTsRef.current = Date.now();
     const lagSrMs = d.srResultTsRef.current ? d.rcStartTsRef.current - d.srResultTsRef.current : -1;
     const lagSpeechEndMs = d.speechEndTsRef.current ? d.rcStartTsRef.current - d.speechEndTsRef.current : -1;
     logCliente('rc_start', {
       chars: textoUsuario.length,
-      muletilla: catMuletillaEfectiva ?? 'none',
       busqueda: pideBusqueda ? 'si' : 'no',
       wiki: pideWikipedia ? 'si' : 'no',
       noticias: pideNoticias ? 'si' : 'no',
@@ -1524,7 +1363,6 @@ export function useBrain(deps: BrainDeps) {
       resolverPrimeraFrase(primera);
     };
 
-    // Arrancar memoria en paralelo — no esperar antes de lanzar muletilla/búsqueda
     const memoriaPromise = refrescarYConstruirMemoria(textoUsuario);
 
     const contextoInterlocutor = interlocutorActivo
@@ -1593,42 +1431,9 @@ export function useBrain(deps: BrainDeps) {
 
       const tecleoAbort = { current: false };
 
-      // ── Muletilla: reutilizar especulativa si la categoría coincide ───────────
-      let muletillaAbort: { current: boolean };
-      let muletillaPromise: Promise<string | null>;
+      cancelarEspeculativo();
 
-      if (
-        catMuletillaEfectiva &&
-        especulativoCatRef.current === catMuletillaEfectiva &&
-        especulativoPromiseRef.current
-      ) {
-        // El parcial pre-fetcheó el audio con la categoría correcta → play ahora que llegó speech_final
-        const preloadPromise = especulativoPromiseRef.current;
-        const hitAbort = especulativoAbortRef.current;
-        logCliente('spec_muletilla_hit', { cat: catMuletillaEfectiva });
-        muletillaAbort   = hitAbort;
-        muletillaPromise = (async () => {
-          const pre = await preloadPromise;
-          if (!pre || hitAbort.current) return null;
-          return d.playMuletillaPreloaded(pre, hitAbort);
-        })();
-      } else {
-        // Categoría no coincide o no había especulativa → cancelar y arrancar la correcta
-        cancelarEspeculativo();
-        muletillaAbort   = { current: false };
-        muletillaPromise = catMuletillaEfectiva
-          ? d.reproducirMuletilla(catMuletillaEfectiva, muletillaAbort)
-          : Promise.resolve(null);
-      }
-      // Limpiar refs de estado especulativo — ya tomamos el control
-      especulativoCatRef.current     = null;
-      especulativoPromiseRef.current = null;
-
-      // Tecleo arranca en canal separado (playerMusica) cuando hay búsqueda externa
-      // O cuando la muletilla es de búsqueda (ej. clima desde system prompt)
       const usaTecleo = pideNoticias || pideBusqueda || pideWikipedia;
-      // catMuletillaEfectiva puede ser 'busqueda' para clima (que usa el system prompt,
-      // no una búsqueda real) — no activar tecleo en ese caso.
       const tecleoPromise = usaTecleo ? d.reproducirTecleo(tecleoAbort) : Promise.resolve();
 
       if (!pideNoticias && !pideBusqueda && !pideWikipedia) {
@@ -1761,7 +1566,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         .then(t => ({ ok: true as const, value: t }))
         .catch(error => ({ ok: false as const, error }));
 
-      // Flag para saber si Claude ya resolvió cuando chequemos después de await muletillaPromise
+      // Flag para saber si Claude ya resolvió cuando llegue el winner
       let claudeResuelto = false;
       claudeOutcomePromise.then(() => { claudeResuelto = true; });
 
@@ -1776,36 +1581,13 @@ REGLAS CRÍTICAS PARA RESPONDER:
         d.splitEnOraciones(ppc.respuesta).forEach(s => d.precachearTexto(s, ppc.expresion).catch(() => {}));
       }
 
-      // Esperar que la muletilla termine naturalmente antes de reproducir la respuesta
-      // El tecleo sigue sonando durante la muletilla para minimizar silencios
-      await muletillaPromise;
-      
       // Parar tecleo JUSTO antes de que Rosita empiece a hablar
       tecleoAbort.current = true;
       await tecleoPromise;
 
-      // ── Sprint B: latencia extendida ──────────────────────────────────────────
-      // Si la muletilla terminó pero Claude aún no llegó, reproducir aviso de espera
-      // tras LATENCIA_THRESHOLD_MS. El timer se cancela si Claude llega antes.
-      const latenciaAbort = { current: false };
-      const latenciaPromise: Promise<void> = claudeResuelto
-        ? Promise.resolve()
-        : new Promise<void>(resolve => {
-            const timer = setTimeout(() => {
-              if (latenciaAbort.current) { resolve(); return; }
-              d.reproducirMuletilla('latencia', latenciaAbort).then(() => resolve(), () => resolve());
-            }, LATENCIA_THRESHOLD_MS);
-            claudeOutcomePromise.then(() => {
-              clearTimeout(timer);
-              latenciaAbort.current = true;
-              resolve();
-            });
-          });
-
       const respuestaRaw = winner.kind === 'claude'
         ? (winner.result.ok ? winner.result.value : await claudePromise)
         : await claudePromise;
-      await latenciaPromise;
       if (!esRespuestaUtil(respuestaRaw)) {
         const fallbackHumano = respuestaFallbackIA(
           p.nombreAbuela,

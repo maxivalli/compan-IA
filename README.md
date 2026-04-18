@@ -10,7 +10,8 @@ CompañIA es una aplicación móvil que proporciona una asistente de voz llamada
 
 - **Expo SDK 54** + **React 19** + **React Native 0.81**
 - **expo-router** - Navegación basada en archivos
-- **expo-speech-recognition** - Reconocimiento de voz continuo
+- **Deepgram Nova-3** - Reconocimiento de voz continuo vía WebSocket
+- **audio-capture** - Módulo nativo local para captura de audio (PCM16 16kHz mono)
 - **expo-audio** - Reproducción, streaming y grabación de audio
 - **AsyncStorage** - Persistencia local de datos
 - **TypeScript** - Tipado estático
@@ -81,9 +82,12 @@ AbuApp/
 ├── hooks/                   # Lógica de negocio
 │   ├── useRosita.ts         # Orquestación principal
 │   ├── useBrain.ts          # IA, memoria y acciones
-│   ├── useAudioPipeline.ts  # Audio y reconocimiento de voz
+│   ├── useAudioPipeline.ts  # Audio (Deepgram SR + Fish TTS)
+│   ├── useDeepgramSR.ts     # Speech Recognition con Deepgram
 │   ├── useNotificaciones.ts # Recordatorios y alertas
 │   ├── useSmartThings.ts    # Integración domótica
+│   ├── useCamaraPresencia.ts # Detección de rostros
+│   ├── useBLEBeacon.ts      # Control BLE beacon Holy-IOT
 │   └── ...
 ├── lib/                     # Utilidades y clientes
 │   ├── ai.ts                # Cliente del backend
@@ -97,27 +101,124 @@ AbuApp/
 
 ## 🎨 Características Principales
 
+### 📱 Pantallas de la App
+
+#### Pantalla Principal (index.tsx)
+- Cara animada de Rosita con expresiones
+- Reconocimiento de voz continuo
+- Reproducción de respuestas con TTS
+- Modos: normal, no molestar, noche
+- Layout adaptativo (vertical/horizontal)
+- Controles táctiles: caricia, ojo picado, relámpago
+- Botones: foto, música, SOS, configuración
+
+#### Onboarding (onboarding.tsx)
+- Configuración inicial del perfil
+- Registro de familia con código
+- Selección de voz (muestra de voces)
+- Vinculación de contactos Telegram
+
+#### Configuración (configuracion.tsx)
+- Edición de perfil (nombre, edad, género)
+- Gestión de familiares, gustos, medicamentos
+- Selección de voz
+- Vinculación SmartThings (OAuth o PAT)
+- Gestión de contactos Telegram
+- Ajustes de monitoreo
+
+#### Recordatorios (recordatorios.tsx)
+- Lista de medicamentos con horarios
+- Lista de recordatorios puntuales
+- Borrado de recordatorios
+- Estado vacío con hint
+
+#### Notas (notas.tsx)
+- Últimas 10 notas guardadas (async jobs)
+- Recetas y búsquedas
+- Layout adaptativo (2 columnas en horizontal)
+- Navegación a detalle de nota
+
+#### SmartLink (smartlink.tsx)
+- Lista de dispositivos SmartThings
+- Control on/off por dispositivo
+- Iconos por tipo de dispositivo
+- Estado online/offline
+
+#### Ánimo (animo.tsx)
+- Historial de estado emocional
+- Visualización por fecha
+- Sincronización con backend
+
+#### Juegos
+- **Ta-te-ti** (tateti.tsx): Juego de 3 en raya con voz
+- **Ahorcado** (ahorcado.tsx): Adivinar palabra con voz
+- **Memoria** (memoria.tsx): Juego de memoria visual con voz
+
+#### Otras
+- **Guía** (guia.tsx): Guía de uso de la app
+- **Privacidad** (privacidad.tsx): Política de privacidad
+- **Prueba** (prueba.tsx): Pantalla de pruebas internas
+
 ### 🗣 Reconocimiento de Voz Continuo
-- Escucha permanente con `expo-speech-recognition`
-- Filtros de relevancia para evitar falsos positivos
+- **Deepgram Nova-3** vía WebSocket directo (español latinoamericano)
+- Temporary API keys (60s TTL) generadas por el backend
+- Transcripciones parciales (especulativas) y finales
+- VAD integrado + endpointing inteligente (1000ms)
+- Protección anti-eco: pausa AudioCapture durante TTS sin cerrar WebSocket
+- Reconexión automática con backoff exponencial
 - Watchdogs para reiniciar SR si se cuelga
 
 ### 🧠 Inteligencia Artificial
 - Integración con Claude Haiku 4.5 vía backend
-- Respuestas rápidas locales para interacciones comunes
-- Muletillas para cubrir latencia
+- Respuestas rápidas locales para interacciones comunes (saludos, gracias, despedidas)
 - Memoria episódica con búsqueda semántica
 - Contexto enriquecido con clima, ubicación y perfil
+- Streaming SSE para respuestas progresivas
 
 ### 🔊 Sistema de Audio
-- TTS con múltiples proveedores (Fish Audio, Cartesia, Google)
-- Cache local de audio para respuestas frecuentes
-- Streaming de audio para baja latencia
+- **TTS con Fish Audio**: streaming HTTP directo (~300-400ms first audio)
+- Cache local de audio para respuestas frecuentes (7 días)
+- Pre-cache de respuestas rápidas y frases de sistema
+- Cola de oraciones para respuestas largas
 - Reproducción de música y radios
+- Concurrency limiter en backend (1 stream Fish activo a la vez)
 
 ### 📱 Integraciones
 
 #### Telegram
+- Mensajería bidireccional con familiares
+- Envío de fotos desde la app
+- Recepción de mensajes de voz, texto y fotos
+- Alertas automáticas (emergencias, recordatorios)
+
+#### SmartThings
+- Control de dispositivos del hogar vía OAuth
+- Encender/apagar luces, switches, enchufes
+- Consultar estado de dispositivos
+- Integración con comandos de voz
+
+#### Claude Vision
+- Lectura de texto en imágenes (OCR)
+- Descripción de fotos y entorno
+- Modo visión continuo para asistencia visual
+- Captura con cámara frontal o trasera
+
+#### Juegos Interactivos
+- **Ta-te-ti** (pantalla dedicada con voz)
+- **Ahorcado** (pantalla dedicada con voz)
+- **Memoria** (pantalla dedicada con voz)
+- **Trivias, adivinanzas, refranes** (inline con Claude)
+- **Chistes** curados para adultos mayores
+
+#### Otros
+- **OpenWeather**: clima actual y pronóstico 3 días
+- **Búsquedas web**: Serper API (Google Search)
+- **Wikipedia**: búsquedas en español
+- **Lugares cercanos**: OpenStreetMap Overpass API
+- **Noticias diarias**: Serper News API
+- **Cámara de presencia**: detección de rostros con expo-face-detector
+- **BLE Beacon**: control remoto vía Holy-IOT beacon (nRF52810)
+- **Música y radios**: reproducción de streams de audio
 - Envío de alertas SOS
 - Recepción de mensajes de voz, texto y fotos
 - Comandos desde familiares (/informe, /camara, /recordatorio)

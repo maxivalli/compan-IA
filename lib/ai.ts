@@ -776,12 +776,11 @@ export async function reportarCrash(message: string, stack: string, platform: st
 }
 
 /** URL de un archivo de audio pre-generado en el backend.
- *  grupo: 'muletilla' | 'rapida' | 'tateti' | 'ahorcado' | 'sistema'
- *  genero requerido solo para muletilla y rapida; omitir para el resto.
+ *  genero requerido solo para rapida; omitir para el resto.
  *  El archivo es público (sin auth) — express.static lo sirve directamente. */
 export function urlFrasePrecacheada(
   voiceId: string,
-  grupo: 'muletilla' | 'rapida' | 'tateti' | 'ahorcado' | 'sistema',
+  grupo: 'rapida' | 'tateti' | 'ahorcado' | 'sistema',
   cat: string,
   i: number,
   genero?: 'femenina' | 'masculina',
