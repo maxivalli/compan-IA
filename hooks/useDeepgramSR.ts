@@ -40,6 +40,11 @@ const DG_WS_URL =
 
 const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
+// Si speech_final llega con frase que termina en artículo/preposición (frase abierta),
+// esperamos hasta MERGE_WINDOW_MS por continuación antes de flushear.
+const MERGE_WINDOW_MS = 1500;
+const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que)\s*$/i;
+
 // 100ms de silencio PCM16 a 16kHz mono (16000 × 0.1 × 2 bytes = 3200 bytes).
 // Se envía cada 8s durante la pausa anti-eco para que Deepgram no cierre la
 // conexión por inactividad (~10-15s timeout → código 1011).
@@ -64,6 +69,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
 
   const acumuladorRef    = useRef<string[]>([]);
   const flushTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mergeTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mergePendingRef  = useRef<string[]>([]);
   const capturaActivaRef = useRef(false);
   const keepaliveRef     = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -107,7 +114,22 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     }
   }
 
+  function descartarMerge() {
+    if (mergeTimerRef.current) { clearTimeout(mergeTimerRef.current); mergeTimerRef.current = null; }
+    mergePendingRef.current = [];
+  }
+
+  function flushMerge() {
+    if (mergeTimerRef.current) { clearTimeout(mergeTimerRef.current); mergeTimerRef.current = null; }
+    const pendiente = mergePendingRef.current;
+    mergePendingRef.current = [];
+    if (pendiente.length === 0) return;
+    acumuladorRef.current = [pendiente.join(' ').trim()];
+    flushAcumulador();
+  }
+
   function descartarAcumulador() {
+    descartarMerge();
     if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
     acumuladorRef.current = [];
   }
@@ -221,8 +243,27 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
           if (!isFinal) {
             optsRef.current.onPartial?.(text);
           } else if (speechFinal) {
-            acumuladorRef.current = [text];
-            flushAcumulador();
+            // Si hay merge pendiente, acumular independientemente del contenido nuevo
+            if (mergePendingRef.current.length > 0) {
+              mergePendingRef.current.push(text);
+              if (/[.!?]$/.test(text)) {
+                // Llegó puntuación terminal → flush inmediato con todo lo acumulado
+                flushMerge();
+              } else {
+                // Extender ventana de merge
+                if (mergeTimerRef.current) clearTimeout(mergeTimerRef.current);
+                mergeTimerRef.current = setTimeout(flushMerge, MERGE_WINDOW_MS);
+              }
+            } else if (FRASE_INCOMPLETA.test(text)) {
+              // Frase claramente incompleta (termina en artículo/preposición) → merge window
+              logCliente('dg_merge_window', { chars: text.length, tail: text.slice(-12) });
+              mergePendingRef.current = [text];
+              mergeTimerRef.current = setTimeout(flushMerge, MERGE_WINDOW_MS);
+            } else {
+              // Frase completa o al menos cerrada → flush inmediato
+              acumuladorRef.current = [text];
+              flushAcumulador();
+            }
           } else {
             acumuladorRef.current.push(text);
             programarFlushDebounce();
