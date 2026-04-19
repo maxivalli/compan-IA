@@ -14,11 +14,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
  *  - Si la diferencia supera UMBRAL_MOVIMIENTO → onPresenciaDetectada()
  */
 
-const INTERVALO_MS       = 2500;  // ms entre capturas
-const UMBRAL_TAMANIO     = 0.18;  // si el tamaño del JPEG difiere >18% → movimiento
-const UMBRAL_BYTES       = 0.06;  // si el diff de bytes muestreados supera 6% → movimiento
+const INTERVALO_MS       = 1500;  // ms entre capturas
+const UMBRAL_TAMANIO     = 0.09;  // si el tamaño del JPEG difiere >9% → movimiento
+const UMBRAL_BYTES       = 0.025; // si el diff de bytes muestreados supera 2.5% → movimiento
 const SKIP_HEADER        = 600;   // saltar header JPEG (~450 bytes = 600 chars base64)
-const SAMPLES            = 250;   // cantidad de muestras a comparar
+const SAMPLES            = 400;   // cantidad de muestras a comparar
 
 function hayMovimiento(prev: string, curr: string): boolean {
   // 1. Diferencia de tamaño: cuando alguien entra al encuadre,
@@ -72,7 +72,7 @@ export default function CamaraPresenciaOverlay({ activo, onPresenciaDetectada }:
       if (!corriendo.current) return;
       try {
         const foto = await cameraRef.current?.takePictureAsync({
-          quality:        0.05,   // calidad mínima → frames pequeños y rápidos
+          quality:        0.15,   // calidad baja pero suficiente para detectar movimiento a distancia
           base64:         true,   // no escribir a disco
           skipProcessing: true,
           shutterSound:   false,
