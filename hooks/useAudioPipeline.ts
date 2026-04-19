@@ -34,6 +34,7 @@ import {
   logCliente,
   VOICE_ID_FEMENINA,
   VOICE_ID_MASCULINA,
+  VOICE_ID_GATO,
   urlFrasePrecacheada,
 } from '../lib/ai';
 import { RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaRapida, EstadoRosita } from './useBrain';
@@ -58,18 +59,43 @@ const TECLEO_ASSET = require('../assets/audio/tecleo.mp3');
 // ── Muletillas (frases puente mientras Claude genera) ─────────────────────────
 export type TipoMuletilla = 'mm' | 'ver' | 'aver' | 'bueno' | 'espera';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const MULETILLA_ASSETS_FEMENINA: Record<TipoMuletilla, number> = {
-  mm:     require('../assets/audio/Mmmm.mp3'),
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ver:    require('../assets/audio/Dejame ver.mp3'),
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  aver:   require('../assets/audio/A ver.mp3'),
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  bueno:  require('../assets/audio/Bueno.mp3'),
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  espera: require('../assets/audio/Esperate un momentito.mp3'),
+const MULETILLA_ASSETS_MAP: Record<string, Record<TipoMuletilla, number>> = {
+  [VOICE_ID_FEMENINA]: {
+    mm:     require('../assets/audio/Mmmm.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ver:    require('../assets/audio/Dejame ver.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    aver:   require('../assets/audio/A ver.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    bueno:  require('../assets/audio/Bueno.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    espera: require('../assets/audio/Esperate un momentito.mp3'),
+  },
+  [VOICE_ID_MASCULINA]: {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    mm:     require('../assets/audio/Mmmm masculino.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ver:    require('../assets/audio/Dejame ver masculino.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    aver:   require('../assets/audio/A ver masculino.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    bueno:  require('../assets/audio/Bueno masculino.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    espera: require('../assets/audio/Esperate un momentito masculino.mp3'),
+  },
+  [VOICE_ID_GATO]: {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    mm:     require('../assets/audio/Mmmm gato.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    ver:    require('../assets/audio/Dejame ver gato.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    aver:   require('../assets/audio/A ver gato.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    bueno:  require('../assets/audio/Bueno gato.mp3'),
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    espera: require('../assets/audio/Esperate un momentito gato.mp3'),
+  },
 };
-const MULETILLA_ASSETS = MULETILLA_ASSETS_FEMENINA;
 
 // ── Funciones puras de texto ──────────────────────────────────────────────────
 
@@ -629,7 +655,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     const promise = (async () => {
       if (depsRef.current.musicaActivaRef.current) return;
       try {
-        playerMusica.replace(MULETILLA_ASSETS[tipo]);
+        const p = depsRef.current.perfilRef?.current;
+        const vid = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
+        const assets = MULETILLA_ASSETS_MAP[vid] ?? MULETILLA_ASSETS_MAP[VOICE_ID_FEMENINA];
+        playerMusica.replace(assets[tipo]);
         playerMusica.play();
         await new Promise<void>(resolve => {
           const safety = setTimeout(() => resolve(), 4000);
