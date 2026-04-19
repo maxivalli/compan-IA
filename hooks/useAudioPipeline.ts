@@ -554,17 +554,28 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (wakeSRActiveRef.current) return;
     wakeSRActiveRef.current = true;
 
+    // Esperar que AudioCapture libere el mic antes de pedir el SR nativo.
+    const RESTART_DELAY_MS = 800;
+
     const startListen = () => {
       if (!wakeSRActiveRef.current) return;
       try {
-        ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: false, interimResults: false });
-      } catch {}
+        // 'es' sin región es más ampliamente soportado que 'es-AR' en Android.
+        ExpoSpeechRecognitionModule.start({ lang: 'es', continuous: false, interimResults: true });
+      } catch (e) {
+        logCliente('wake_sr_start_err', { err: String(e) });
+        setTimeout(startListen, RESTART_DELAY_MS);
+      }
     };
 
     const resultSub = ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
       if (!wakeSRActiveRef.current) return;
-      const transcript: string = (event?.results?.[0]?.transcript ?? '').toLowerCase();
-      if (transcript.includes('rosita')) {
+      // Revisar todas las alternativas, no solo la primera.
+      const hayWakeWord = (event?.results ?? []).some(
+        (r: any) => (r?.transcript ?? '').toLowerCase().includes('rosita')
+      );
+      if (hayWakeWord) {
+        const transcript: string = event?.results?.[0]?.transcript ?? '';
         logCliente('wake_word', { transcript });
         detenerWakeSR();
         dgIdleRef.current = false;
@@ -573,14 +584,22 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     });
 
-    // continuous:false en Android/iOS finaliza tras un silencio — reiniciar para seguir escuchando.
+    // continuous:false finaliza tras un silencio — reiniciar para seguir escuchando.
     const endSub = ExpoSpeechRecognitionModule.addListener('end', () => {
       if (!wakeSRActiveRef.current) return;
-      setTimeout(startListen, 500);
+      setTimeout(startListen, RESTART_DELAY_MS);
     });
 
-    wakeSubsRef.current = [resultSub, endSub];
-    startListen();
+    // Si el SR falla (locale no disponible, mic ocupado, etc.), reintentar.
+    const errorSub = ExpoSpeechRecognitionModule.addListener('error', (event: any) => {
+      if (!wakeSRActiveRef.current) return;
+      logCliente('wake_sr_error', { code: event?.error });
+      setTimeout(startListen, RESTART_DELAY_MS * 2);
+    });
+
+    wakeSubsRef.current = [resultSub, endSub, errorSub];
+    // Dar tiempo al AudioCapture de liberar el hardware antes de arrancar.
+    setTimeout(startListen, RESTART_DELAY_MS);
   }
 
   function despertarDG() {
