@@ -53,6 +53,7 @@ export type NotificacionesRefs = {
   reanudarMusica:        () => void;
   iniciarSilbido:        () => void;
   detenerSilbido:        () => void;
+  silbidoHabilitadoRef:  React.RefObject<boolean>;
   pararSRIntencional:    (() => void) | undefined;
   flujoFoto:             (silencioso?: boolean, destChatId?: string) => Promise<void>;
   mostrarFoto:           (urlFoto: string, descripcion: string) => void;
@@ -1373,6 +1374,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         && modoNoche === 'despierta'
         && !musicaActivaRef.current
         && !noMolestarRef.current
+        && refs.silbidoHabilitadoRef.current
         && (Date.now() - ultimaCharlaRef.current) >= DIEZ_MIN;
     }
 

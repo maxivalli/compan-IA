@@ -449,6 +449,7 @@ export interface BrainDeps {
   precachearTexto:          (texto: string, emotion?: string) => Promise<void>;
   reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
   detenerSilbido:      () => void;
+  silbidoHabilitadoRef: React.MutableRefObject<boolean>;
   pararMusica:         () => void;
   cerrarDGParaMusica:  () => void;
   playerMusica:        AudioPlayerLike;
@@ -1083,6 +1084,27 @@ export function useBrain(deps: BrainDeps) {
       cancelarEspeculativo();
       await d.hablar(respuesta);
       return;
+    }
+
+    // ── Toggle silbido por voz ─────────────────────────────────────────────────
+    const mencionaSilbido = /\b(silbido|chiflido|silbato)\b/.test(textoNorm);
+    if (mencionaSilbido) {
+      const activar   = /\b(activ[ao]|enciende?|pon[eé]?|habilit[ao])\b.{0,30}\b(silbido|chiflido|silbato)\b/.test(textoNorm);
+      const desactivar = /\b(desactiv[ao]|apaga|quit[ao]|sacar?|deshabilit[ao])\b.{0,30}\b(silbido|chiflido|silbato)\b/.test(textoNorm);
+      if (activar || desactivar) {
+        d.silbidoHabilitadoRef.current = activar;
+        const conf = activar ? 'Listo, el silbido está activado.' : 'Listo, el silbido está desactivado.';
+        if (pensativaTimer) clearTimeout(pensativaTimer);
+        d.setEstado('esperando');
+        d.estadoRef.current = 'esperando';
+        d.setExpresion('neutral');
+        d.ultimaCharlaRef.current    = Date.now();
+        d.ultimaActividadRef.current = Date.now();
+        cancelarEspeculativo();
+        logCliente('rapida_msg', { cat: 'toggle_silbido', activar, texto: conf });
+        await d.hablar(conf);
+        return;
+      }
     }
 
     // ── No Molestar por voz ─────────────────────────────────────────────────────

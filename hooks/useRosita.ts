@@ -116,6 +116,8 @@ export function useRosita() {
   /** Ref mutable que indica si el beacon BLE está conectado. Se actualiza desde index.tsx. */
   const bleConectadoRef = useRef(false);
 
+  const silbidoHabilitadoRef = useRef(true);
+
   const sinConexionRef           = useRef(false);
   const ultimoSosRef             = useRef<number>(0);
   const alertaInactividadRef     = useRef<number>(0);
@@ -228,6 +230,7 @@ export function useRosita() {
     precachearTexto:          pipeline.precachearTexto,
     reproducirTecleo:         pipeline.reproducirTecleo,
     detenerSilbido:           pipeline.detenerSilbido,
+    silbidoHabilitadoRef,
     pararMusica:              pipeline.pararMusica,
     cerrarDGParaMusica:       pipeline.cerrarDGParaMusica,
     playerMusica:             pipeline.playerMusica,
@@ -1106,6 +1109,7 @@ export function useRosita() {
       reanudarSR:  pipeline.reanudarSR,
       modoNoche, iniciarSilbido: pipeline.iniciarSilbido, detenerSilbido: pipeline.detenerSilbido, flujoFoto,
       reanudarMusica: pipeline.reanudarMusica,
+      silbidoHabilitadoRef,
     },
     player: pipeline.player,
   };

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Perfil } from '../lib/memoria';
 
-const INACTIVIDAD_MS = 30 * 60 * 1000; // 30 minutos sin actividad → modo watching
+const INACTIVIDAD_MS = 5 * 60 * 1000; // TODO: volver a 30 * 60 * 1000 en producción
 const COOLDOWN_MS    =      60 * 1000; // 1 minuto entre detecciones
 const POLL_MS        =      15 * 1000; // revisar estado cada 15 s
 
