@@ -55,6 +55,21 @@ const SILBIDOS_ASSETS = [
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const TECLEO_ASSET = require('../assets/audio/tecleo.mp3');
 
+// ── Muletillas (frases puente mientras Claude genera) ─────────────────────────
+export type TipoMuletilla = 'mm' | 'ver' | 'aver' | 'bueno' | 'espera';
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const MULETILLA_ASSETS: Record<TipoMuletilla, ReturnType<typeof require>> = {
+  mm:     require('../assets/audio/[voz mujer argentina]Mmm........ause].mp3'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  ver:    require('../assets/audio/[voz mujer argentina]Dejám......er....mp3'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  aver:   require('../assets/audio/[voz mujer argentina][long......er....mp3'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  bueno:  require('../assets/audio/[voz mujer argentina]Bueno......orta].mp3'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  espera: require('../assets/audio/[voz mujer argentina]Esper......to....mp3'),
+};
+
 // ── Funciones puras de texto ──────────────────────────────────────────────────
 
 export function slugNombre(nombre: string): string {
@@ -257,6 +272,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const precacheRapidasRunningRef    = useRef(false);
   const precacheSistemaRunningRef    = useRef(false);
   const ultimaRapidaRef            = useRef<Partial<Record<CategoriaRapida, number>>>({});
+
+  // Muletilla activa — hablar() la awaita antes de iniciar TTS para que no se solapen.
+  const muletillaPromiseRef = useRef<Promise<void>>(Promise.resolve());
   const precacheQueueRef           = useRef<Promise<void>>(Promise.resolve());
 
   // ── Refs de silbido ──────────────────────────────────────────────────────
@@ -602,6 +620,36 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
   }
 
+  // ── Muletillas (frases puente mientras Claude genera) ─────────────────────
+  // Usa playerMusica igual que el tecleo. Pausa Deepgram para evitar eco.
+  // Retorna una Promise que resuelve al terminar el clip — hablar() la awaita.
+  function reproducirMuletilla(tipo: TipoMuletilla): Promise<void> {
+    safeStopSpeechRecognition();
+    const promise = (async () => {
+      if (depsRef.current.musicaActivaRef.current) return;
+      try {
+        playerMusica.replace(MULETILLA_ASSETS[tipo]);
+        playerMusica.play();
+        await new Promise<void>(resolve => {
+          const safety = setTimeout(() => resolve(), 4000);
+          const poll = setInterval(() => {
+            const dur = (playerMusica as AudioPlayerExt).duration ?? NaN;
+            const pos = (playerMusica as AudioPlayerExt).currentTime ?? NaN;
+            if (!isNaN(dur) && dur > 0 && isFinite(dur) && pos >= dur - 0.1) {
+              clearTimeout(safety); clearInterval(poll); resolve();
+            }
+          }, 80);
+        });
+      } catch {}
+      finally {
+        try {
+          if (!depsRef.current.musicaActivaRef.current) playerMusica.pause();
+        } catch {}
+      }
+    })();
+    muletillaPromiseRef.current = promise;
+    return promise;
+  }
 
   // ── Pre-cache TTS ─────────────────────────────────────────────────────────
   async function precachearTexto(texto: string, emotion?: string): Promise<void> {
@@ -695,6 +743,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── TTS principal ─────────────────────────────────────────────────────────
   async function hablar(texto: string, emotion?: string) {
+    // Esperar a que la muletilla del turno termine antes de reproducir TTS.
+    // Si no hay muletilla activa, muletillaPromiseRef ya está resuelta — sin costo.
+    await muletillaPromiseRef.current.catch(() => {});
+
     const d = depsRef.current;
     ultimoTextoHabladoRef.current = texto;
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
@@ -960,6 +1012,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     extraerPrimeraFrase,
     precachearTexto,
     reproducirTecleo,
+    reproducirMuletilla,
 
     // Funciones de gestión (usadas por useRosita en inicializar/reactivar)
     precachearRespuestasRapidas,

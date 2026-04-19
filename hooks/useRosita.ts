@@ -229,6 +229,7 @@ export function useRosita() {
     extraerPrimeraFrase:      pipeline.extraerPrimeraFrase,
     precachearTexto:          pipeline.precachearTexto,
     reproducirTecleo:         pipeline.reproducirTecleo,
+    reproducirMuletilla:      pipeline.reproducirMuletilla,
     detenerSilbido:           pipeline.detenerSilbido,
     silbidoHabilitadoRef,
     pararMusica:              pipeline.pararMusica,

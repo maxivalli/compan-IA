@@ -448,6 +448,7 @@ export interface BrainDeps {
   extraerPrimeraFrase: (texto: string) => { primera: string; resto: string };
   precachearTexto:          (texto: string, emotion?: string) => Promise<void>;
   reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
+  reproducirMuletilla: (tipo: import('./useAudioPipeline').TipoMuletilla) => Promise<void>;
   detenerSilbido:      () => void;
   silbidoHabilitadoRef: React.MutableRefObject<boolean>;
   pararMusica:         () => void;
@@ -1034,7 +1035,6 @@ export function useBrain(deps: BrainDeps) {
       return;
     }
 
-    let pensativaTimer: ReturnType<typeof setTimeout> | null = null;
     let neutralTimerProgramado = false;
     d.detenerSilbido();
     // Cancelar cualquier timer de expresión pendiente del turno anterior antes de
@@ -1042,11 +1042,7 @@ export function useBrain(deps: BrainDeps) {
     if (d.expresionTimerRef.current) { clearTimeout(d.expresionTimerRef.current); d.expresionTimerRef.current = null; }
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
-    // Feedback visual inmediato — estilo Alexa/Google
-    d.setExpresion('sorprendida');
-    pensativaTimer = setTimeout(() => {
-      if (d.estadoRef.current === 'pensando') d.setExpresion('pensativa');
-    }, 600);
+    d.setExpresion('pensativa');
 
     const nuevoHistorial: Mensaje[] = [...historialRef.current, { role: 'user', content: textoUsuario }];
     const textoNorm = normalizarTextoPlano(textoUsuario);
@@ -1112,7 +1108,6 @@ export function useBrain(deps: BrainDeps) {
       ];
       const opciones = debeActivarSilbido ? frasesActivar : frasesDesactivar;
       const conf = opciones[Math.floor(Math.random() * opciones.length)];
-      if (pensativaTimer) clearTimeout(pensativaTimer);
       d.setEstado('esperando');
       d.estadoRef.current = 'esperando';
       d.setExpresion('neutral');
@@ -1512,6 +1507,17 @@ export function useBrain(deps: BrainDeps) {
         const tPreClaude = Date.now();
         logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length, pre_claude_ms: tPreClaude - d.rcStartTsRef.current });
 
+        // Muletilla en paralelo con Claude — hablar() la awaita automáticamente.
+        {
+          const tipoMuletilla: import('./useAudioPipeline').TipoMuletilla =
+            pideChiste || pideCuento || pideJuego || pideTateti || pideAhorcado || pideMemoria || ofrecerMenuAburrimiento
+              ? 'bueno'
+              : esConsultaLiviana
+              ? 'mm'
+              : 'ver';
+          d.reproducirMuletilla(tipoMuletilla);
+        }
+
         // ── Especulativa Claude hit/miss ─────────────────────────────────────
         const specClaude = especulativoClaudeRef.current;
         especulativoClaudeRef.current = null;
@@ -1892,9 +1898,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
 
       // ── Respuesta normal ──
-      // Cancelar el timer de 'pensativa' antes de aplicar la expresión real de la respuesta.
-      // Si Claude responde en < 600ms, el setTimeout podría pisar parsed.expresion con 'pensativa'.
-      if (pensativaTimer) { clearTimeout(pensativaTimer); pensativaTimer = null; }
       d.setExpresion(parsed.expresion);
       guardarEntradaAnimo(parsed.animoUsuario);
       sincronizarAnimo(parsed.animoUsuario, Date.now());
@@ -1992,7 +1995,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
       );
       await d.hablar(respLocal ?? 'No pude conectarme ahora. ¿Podés intentar de nuevo en un momento?');
     } finally {
-      if (pensativaTimer) clearTimeout(pensativaTimer);
     }
   }
 
