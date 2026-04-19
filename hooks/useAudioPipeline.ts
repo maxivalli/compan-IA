@@ -264,6 +264,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const silbidoIndexRef   = useRef(0);
   const silbidoTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Idle DG ───────────────────────────────────────────────────────────────
+  // Cierra el WebSocket de Deepgram tras 60s sin actividad post-TTS.
+  const dgIdleRef      = useRef(false);
+  const dgIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
     onReady: () => {
@@ -287,6 +292,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       depsRef.current.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
+      // El usuario habló — cancelar idle timer si está corriendo.
+      if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
+      dgIdleRef.current = false;
       const d = depsRef.current;
       // speech_final de Deepgram es el proxy más cercano a "el usuario dejó de hablar".
       // Registrar acá para poder medir lag_speech_end_ms correctamente.
@@ -447,6 +455,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const srVencido = srActivoRef.current && tiempoDesdeInicio > 15000;
 
       if (srSuspendidoRef.current) return;
+      // DG en idle: solo verificar proactiva (ella llama despertarDG() antes de hablar).
+      if (dgIdleRef.current) {
+        d.verificarCharlaProactiva();
+        return;
+      }
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
           if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (15s)' : 'zombie — reiniciando');
@@ -460,6 +473,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }, 3000);
     return () => {
       clearInterval(watchdog);
+      if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
       detenerDG();
     };
   }, []);
@@ -484,6 +498,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // intencionalmente y nadie más lo reactiva al parar manualmente.
     setTimeout(() => iniciarSpeechRecognition(), 300);
   }
+  function despertarDG() {
+    if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
+    dgIdleRef.current = false;
+    reanudarCapturaDG(); // reconecta WS si está cerrado
+  }
+
   /** Cierra completamente el WebSocket de Deepgram. Usar cuando la pausa va a ser
    *  larga (modo música) para que Deepgram no siga recibiendo audio del altavoz. */
   function cerrarDGParaMusica() {
@@ -862,6 +882,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     cancelarHablaRef.current = null;
     ultimoFinTTSRef.current = Date.now(); // marcar fin de TTS para protección de eco
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
+    // Iniciar (o reiniciar) el timer de idle: si pasan 60s sin actividad, cierra DG.
+    if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
+    dgIdleTimerRef.current = setTimeout(() => {
+      logCliente('dg_idle_close', {});
+      detenerDG();
+      dgIdleRef.current = true;
+      dgIdleTimerRef.current = null;
+    }, 60_000);
     unduckMusica();
     d.setEstado('esperando');
     d.estadoRef.current = 'esperando';
@@ -944,6 +972,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     pararMusica,
     cerrarDGParaMusica,
     reanudarMusica,
+    despertarDG,
 
     // SR y escucha manual
     iniciarSpeechRecognition,

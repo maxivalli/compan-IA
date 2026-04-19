@@ -626,10 +626,8 @@ export function useRosita() {
     const alarmaProxima = proximaAlarmaRef.current;
     if (alarmaProxima && alarmaProxima - Date.now() < 2 * 60 * 60 * 1000) return false;
     if (dentroDeHorario && minutosSinCharla >= MINUTOS_SIN_CHARLA) {
-      // Actualizar ANTES de llamar: actúa como cooldown.
-      // Si arrancarCharlaProactiva falla (red caída), el watchdog del pipeline (cada 3s)
-      // habría vuelto a disparar el proactivo en el próximo tick.
       ultimaCharlaRef.current = Date.now();
+      pipeline.despertarDG(); // reconecta WS si cerró por idle
       brain.arrancarCharlaProactiva();
       return true;
     }
