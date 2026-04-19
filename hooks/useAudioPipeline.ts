@@ -58,17 +58,18 @@ const TECLEO_ASSET = require('../assets/audio/tecleo.mp3');
 // ── Muletillas (frases puente mientras Claude genera) ─────────────────────────
 export type TipoMuletilla = 'mm' | 'ver' | 'aver' | 'bueno' | 'espera';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const MULETILLA_ASSETS: Record<TipoMuletilla, ReturnType<typeof require>> = {
-  mm:     require('../assets/audio/[voz mujer argentina]Mmm........ause].mp3'),
+const MULETILLA_ASSETS_FEMENINA: Record<TipoMuletilla, ReturnType<typeof require>> = {
+  mm:     require('../assets/audio/Mmmm.mp3'),
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  ver:    require('../assets/audio/[voz mujer argentina]Dejám......er....mp3'),
+  ver:    require('../assets/audio/Dejame ver.mp3'),
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  aver:   require('../assets/audio/[voz mujer argentina][long......er....mp3'),
+  aver:   require('../assets/audio/A ver.mp3'),
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  bueno:  require('../assets/audio/[voz mujer argentina]Bueno......orta].mp3'),
+  bueno:  require('../assets/audio/Bueno.mp3'),
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  espera: require('../assets/audio/[voz mujer argentina]Esper......to....mp3'),
+  espera: require('../assets/audio/Esperáte un momentito.mp3'),
 };
+const MULETILLA_ASSETS = MULETILLA_ASSETS_FEMENINA;
 
 // ── Funciones puras de texto ──────────────────────────────────────────────────
 
