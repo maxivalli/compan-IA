@@ -1509,12 +1509,14 @@ export function useBrain(deps: BrainDeps) {
 
         // Muletilla en paralelo con Claude — hablar() la awaita automáticamente.
         {
-          const tipoMuletilla: import('./useAudioPipeline').TipoMuletilla =
+          type TM = import('./useAudioPipeline').TipoMuletilla;
+          const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+          const tipoMuletilla: TM =
             pideChiste || pideCuento || pideJuego || pideTateti || pideAhorcado || pideMemoria || ofrecerMenuAburrimiento
-              ? 'bueno'
+              ? pick<TM>(['bueno', 'mm'])
               : esConsultaLiviana
-              ? 'mm'
-              : 'ver';
+              ? pick<TM>(['mm', 'aver'])
+              : pick<TM>(['ver', 'aver', 'espera']);
           d.reproducirMuletilla(tipoMuletilla);
         }
 
