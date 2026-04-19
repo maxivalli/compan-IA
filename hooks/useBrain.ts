@@ -1087,24 +1087,41 @@ export function useBrain(deps: BrainDeps) {
     }
 
     // ── Toggle silbido por voz ─────────────────────────────────────────────────
-    const mencionaSilbido = /\b(silbido|chiflido|silbato)\b/.test(textoNorm);
-    if (mencionaSilbido) {
-      const activar   = /\b(activ[ao]|enciende?|pon[eé]?|habilit[ao])\b.{0,30}\b(silbido|chiflido|silbato)\b/.test(textoNorm);
-      const desactivar = /\b(desactiv[ao]|apaga|quit[ao]|sacar?|deshabilit[ao])\b.{0,30}\b(silbido|chiflido|silbato)\b/.test(textoNorm);
-      if (activar || desactivar) {
-        d.silbidoHabilitadoRef.current = activar;
-        const conf = activar ? 'Listo, el silbido está activado.' : 'Listo, el silbido está desactivado.';
-        if (pensativaTimer) clearTimeout(pensativaTimer);
-        d.setEstado('esperando');
-        d.estadoRef.current = 'esperando';
-        d.setExpresion('neutral');
-        d.ultimaCharlaRef.current    = Date.now();
-        d.ultimaActividadRef.current = Date.now();
-        cancelarEspeculativo();
-        logCliente('rapida_msg', { cat: 'toggle_silbido', activar, texto: conf });
-        await d.hablar(conf);
-        return;
-      }
+    const PATRON_DESACTIVAR_SILBIDO =
+      /\b(no\s+silb[eé]s?(\s+m[aá]s)?|dej[aá]\s+de\s+silbar|par[aá]\s+de\s+silbar|basta\s+de\s+silbar|ya\s+no\s+silb[eé]s?|no\s+quiero\s+(m[aá]s\s+)?(silbidos?|chiflidos?)|me\s+molesta\s+(el\s+)?(silbido|chiflido)|(desactiv[ao]|apag[ao]|quit[ao]|sacar?|deshabilit[ao]).{0,30}(silbido|chiflido|silbato))\b/i;
+    const PATRON_ACTIVAR_SILBIDO =
+      /\b(volvé?\s+a\s+silbar|pod[eé]s\s+silbar|silb[aá]\s+cuando|me\s+gusta\s+(cuando\s+)?silb|activ[ao].{0,20}silbido|habilit[ao].{0,20}silbido|pon[eé]?.{0,20}silbido|quiero\s+(que\s+silb|el\s+silbido))\b/i;
+
+    const debeDesactivarSilbido = PATRON_DESACTIVAR_SILBIDO.test(textoNorm);
+    const debeActivarSilbido    = !debeDesactivarSilbido && PATRON_ACTIVAR_SILBIDO.test(textoNorm);
+
+    if (debeDesactivarSilbido || debeActivarSilbido) {
+      d.silbidoHabilitadoRef.current = debeActivarSilbido;
+      const p = d.perfilRef.current;
+      const nombre = p?.nombreAbuela ? `, ${p.nombreAbuela.split(' ')[0]}` : '';
+      const frasesDesactivar = [
+        `Dale${nombre}, no silbo más.`,
+        `Bueno${nombre}, me quedo calladita.`,
+        `¡Entendido${nombre}! Silencio de silbidos.`,
+        `Anotado${nombre}, nada de silbidos.`,
+      ];
+      const frasesActivar = [
+        `¡Genial${nombre}, vuelvo a silbarte cuando te extrañe!`,
+        `¡Buenísimo${nombre}! Te aviso con un silbidito.`,
+        `Dale${nombre}, silbo cuando te necesite.`,
+      ];
+      const opciones = debeActivarSilbido ? frasesActivar : frasesDesactivar;
+      const conf = opciones[Math.floor(Math.random() * opciones.length)];
+      if (pensativaTimer) clearTimeout(pensativaTimer);
+      d.setEstado('esperando');
+      d.estadoRef.current = 'esperando';
+      d.setExpresion('neutral');
+      d.ultimaCharlaRef.current    = Date.now();
+      d.ultimaActividadRef.current = Date.now();
+      cancelarEspeculativo();
+      logCliente('rapida_msg', { cat: 'toggle_silbido', activar: debeActivarSilbido, texto: conf });
+      await d.hablar(conf);
+      return;
     }
 
     // ── No Molestar por voz ─────────────────────────────────────────────────────
