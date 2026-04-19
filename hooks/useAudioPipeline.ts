@@ -37,6 +37,7 @@ import {
   VOICE_ID_GATO,
   urlFrasePrecacheada,
 } from '../lib/ai';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 import { RESPUESTAS_RAPIDAS, FRASES_SISTEMA, CategoriaRapida, EstadoRosita } from './useBrain';
 
 const TTS_CACHE_VERSION = 'v6';
@@ -307,7 +308,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Refs de silbido ──────────────────────────────────────────────────────
   const silbidoActivoRef  = useRef(false);
   const silbidoIndexRef   = useRef(0);
-  const silbidoTimerRef        = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const silbidoTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Idle DG + wake-word SR ────────────────────────────────────────────────
+  const dgIdleRef         = useRef(false);
+  const dgIdleTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wakeSRActiveRef   = useRef(false);
+  const wakeSubsRef       = useRef<Array<{ remove: () => void }>>([]);
 
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
@@ -333,6 +340,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       depsRef.current.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
+      // Usuario habló — cancelar idle timer si está corriendo.
+      if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
       const d = depsRef.current;
       // speech_final de Deepgram es el proxy más cercano a "el usuario dejó de hablar".
       // Registrar acá para poder medir lag_speech_end_ms correctamente.
@@ -493,6 +502,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const srVencido = srActivoRef.current && tiempoDesdeInicio > 15000;
 
       if (srSuspendidoRef.current) return;
+      // DG en idle: wake-word SR está activo, verificar solo proactiva.
+      if (dgIdleRef.current) { d.verificarCharlaProactiva(); return; }
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
           if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (15s)' : 'zombie — reiniciando');
@@ -506,6 +517,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }, 3000);
     return () => {
       clearInterval(watchdog);
+      if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
+      detenerWakeSR();
       detenerDG();
     };
   }, []);
@@ -530,8 +543,50 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // intencionalmente y nadie más lo reactiva al parar manualmente.
     setTimeout(() => iniciarSpeechRecognition(), 300);
   }
+  function detenerWakeSR() {
+    wakeSRActiveRef.current = false;
+    wakeSubsRef.current.forEach(s => { try { s.remove(); } catch {} });
+    wakeSubsRef.current = [];
+    try { ExpoSpeechRecognitionModule.abort(); } catch {}
+  }
+
+  function iniciarWakeSR() {
+    if (wakeSRActiveRef.current) return;
+    wakeSRActiveRef.current = true;
+
+    const startListen = () => {
+      if (!wakeSRActiveRef.current) return;
+      try {
+        ExpoSpeechRecognitionModule.start({ lang: 'es-AR', continuous: false, interimResults: false });
+      } catch {}
+    };
+
+    const resultSub = ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+      if (!wakeSRActiveRef.current) return;
+      const transcript: string = (event?.results?.[0]?.transcript ?? '').toLowerCase();
+      if (transcript.includes('rosita')) {
+        logCliente('wake_word', { transcript });
+        detenerWakeSR();
+        dgIdleRef.current = false;
+        reanudarCapturaDG();
+        procesarTextoReconocido(transcript).catch(() => {});
+      }
+    });
+
+    // continuous:false en Android/iOS finaliza tras un silencio — reiniciar para seguir escuchando.
+    const endSub = ExpoSpeechRecognitionModule.addListener('end', () => {
+      if (!wakeSRActiveRef.current) return;
+      setTimeout(startListen, 500);
+    });
+
+    wakeSubsRef.current = [resultSub, endSub];
+    startListen();
+  }
+
   function despertarDG() {
-    reanudarCapturaDG(); // reconecta WS si está cerrado
+    detenerWakeSR();
+    dgIdleRef.current = false;
+    reanudarCapturaDG();
   }
 
   /** Cierra completamente el WebSocket de Deepgram. Usar cuando la pausa va a ser
@@ -949,6 +1004,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     cancelarHablaRef.current = null;
     ultimoFinTTSRef.current = Date.now(); // marcar fin de TTS para protección de eco
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
+    // Iniciar (o reiniciar) timer de idle: 60s sin actividad → cerrar DG, activar wake-word SR.
+    if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
+    dgIdleTimerRef.current = setTimeout(() => {
+      logCliente('dg_idle_close', {});
+      dgIdleTimerRef.current = null;
+      dgIdleRef.current = true;
+      detenerDG();
+      iniciarWakeSR();
+    }, 60_000);
     unduckMusica();
     d.setEstado('esperando');
     d.estadoRef.current = 'esperando';
