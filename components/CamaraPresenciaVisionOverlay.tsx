@@ -1,29 +1,26 @@
 import React, { Component, useEffect, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { useRunOnJS } from 'react-native-worklets-core';
 
 /**
  * Detección de presencia en tiempo real usando ML Kit Image Labeling
- * vía vision-camera-image-labeler (plugin oficial para VisionCamera v4).
+ * vía react-native-vision-camera-image-labeler.
  *
- * labelImage() ya es un worklet nativo — no necesita VisionCameraProxy.
- * useRunOnJS (worklets-core) para cruzar al hilo JS con un boolean plano.
+ * Usa el componente Camera con prop `callback` (sin frame processor / worklets),
+ * compatible con newArchEnabled: false.
  */
 
-let useCameraDevice: any   = () => null;
-let Camera: any            = null;
-let useFrameProcessor: any = () => undefined;
-let labelImage: any        = null;
+let useCameraDevice: any = () => null;
+let NativeCamera: any    = null;
+let LabelCamera: any     = null;
 
 if (Platform.OS !== 'web') {
-  const vc = require('react-native-vision-camera');
-  useCameraDevice   = vc.useCameraDevice;
-  Camera            = vc.Camera;
-  useFrameProcessor = vc.useFrameProcessor;
-  labelImage = require('vision-camera-image-labeler').labelImage;
+  const vc  = require('react-native-vision-camera');
+  useCameraDevice = vc.useCameraDevice;
+  NativeCamera    = vc.Camera;
+  LabelCamera     = require('react-native-vision-camera-image-labeler').Camera;
 }
 
-const ETIQUETAS_HUMANAS = [
+const ETIQUETAS_HUMANAS = new Set([
   'person', 'human', 'people', 'man', 'woman', 'boy', 'girl',
   'adult', 'child', 'elder', 'senior',
   'face', 'head', 'hair', 'arm', 'hand', 'finger', 'leg', 'foot',
@@ -34,7 +31,7 @@ const ETIQUETAS_HUMANAS = [
   'footwear', 'shoe', 'shoes', 'boot', 'sandal', 'sneaker',
   'glasses', 'hat', 'cap', 'bag', 'handbag', 'backpack',
   'sitting', 'standing', 'walking', 'running',
-];
+]);
 
 const CONFIANZA_MINIMA = 0.3;
 const FPS_DETECCION   = 3;
@@ -46,7 +43,10 @@ type Props = {
   onDebugLabels?: (labels: string[]) => void;
 };
 
-class PluginErrorBoundary extends Component<{ children: React.ReactNode; onError: (e: Error) => void }, { crashed: boolean }> {
+class PluginErrorBoundary extends Component<
+  { children: React.ReactNode; onError: (e: Error) => void },
+  { crashed: boolean }
+> {
   state = { crashed: false };
   componentDidCatch(error: Error) {
     this.props.onError(error);
@@ -61,11 +61,11 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
   const [hasPerm, setHasPerm] = useState(false);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !activo || !Camera) return;
+    if (Platform.OS === 'web' || !activo || !NativeCamera) return;
     let cancelled = false;
     (async () => {
       try {
-        const status = await Camera.requestCameraPermission();
+        const status = await NativeCamera.requestCameraPermission();
         if (!cancelled) setHasPerm(status === 'granted');
       } catch {
         if (!cancelled) setHasPerm(false);
@@ -81,44 +81,45 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     onDebugLabels?.(['CAMERA_READY']);
   }, [activo, device, hasPerm]);
 
-  const onResultJS = useRunOnJS((hayPersona: boolean, debugLabel: string) => {
-    onDebugLabels?.([debugLabel]);
+  const handleLabels = (labels: any[]) => {
+    if (!Array.isArray(labels) || labels.length === 0) {
+      onDebugLabels?.(['MLKIT_EMPTY']);
+      return;
+    }
+
+    let hayPersona    = false;
+    let primeraEtiq   = 'UNKNOWN';
+
+    for (let i = 0; i < labels.length; i++) {
+      const l    = labels[i];
+      const conf = typeof l.confidence === 'number' ? l.confidence : (l.score ?? 0);
+      if (conf < CONFIANZA_MINIMA) continue;
+      const lbl = String(l.label ?? l.text ?? '').toLowerCase().trim();
+      if (i === 0) primeraEtiq = lbl || 'NOLABEL';
+      if (ETIQUETAS_HUMANAS.has(lbl)) { hayPersona = true; break; }
+    }
+
+    onDebugLabels?.([hayPersona ? `HIT:${primeraEtiq}` : primeraEtiq]);
+
     if (!hayPersona) return;
     const ahora = Date.now();
     if (ahora - lastHitRef.current < COOLDOWN_MS) return;
     lastHitRef.current = ahora;
     onPresenciaDetectada();
-  }, [activo, onDebugLabels, onPresenciaDetectada]);
+  };
 
-  const frameProcessor = useFrameProcessor((frame: any) => {
-    'worklet';
-    const labels = labelImage(frame);
-    let hayPersona = false;
-    let primeraEtiqueta = 'MLKIT_EMPTY';
-    for (let i = 0; i < labels.length; i++) {
-      const l = labels[i];
-      if (l.confidence < CONFIANZA_MINIMA) continue;
-      const lbl = String(l.label ?? '').toLowerCase().trim();
-      if (i === 0) primeraEtiqueta = lbl;
-      for (let j = 0; j < ETIQUETAS_HUMANAS.length; j++) {
-        if (lbl === ETIQUETAS_HUMANAS[j]) { hayPersona = true; break; }
-      }
-      if (hayPersona) break;
-    }
-    onResultJS(hayPersona, hayPersona ? `HIT:${primeraEtiqueta}` : primeraEtiqueta);
-  }, [onResultJS]);
-
-  if (Platform.OS === 'web' || !activo || !device || !hasPerm) return null;
+  if (Platform.OS === 'web' || !activo || !device || !hasPerm || !LabelCamera) return null;
 
   return (
     <PluginErrorBoundary onError={(e) => onDebugLabels?.([`CRASH: ${e.message}`])}>
       <View style={s.contenedor} pointerEvents="none">
-        <Camera
+        <LabelCamera
           style={s.camara}
           device={device}
           isActive={activo}
           fps={FPS_DETECCION}
-          frameProcessor={frameProcessor}
+          options={{ minConfidence: CONFIANZA_MINIMA }}
+          callback={handleLabels}
           pixelFormat="yuv"
         />
       </View>

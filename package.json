@@ -67,7 +67,7 @@
     "react-native-webview": "13.15.0",
     "react-native-worklets-core": "^1.6.3",
     "react-native-youtube-iframe": "^2.4.1",
-    "vision-camera-image-labeler": "^0.1.6"
+    "react-native-vision-camera-image-labeler": "^2.2.0"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

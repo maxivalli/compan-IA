@@ -1381,6 +1381,7 @@ export function useBrain(deps: BrainDeps) {
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;
+    let hablarPrimeraPromise: Promise<void> = Promise.resolve();
     let tagDetectadoStreaming = 'neutral';
     let primeraFraseResolver: ((txt: string | null) => void) | null = null;
     let primeraFraseSettled = false;
@@ -1634,6 +1635,12 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // Parar tecleo JUSTO antes de que Rosita empiece a hablar
       tecleoAbort.current = true;
       await tecleoPromise;
+
+      // Si ya tenemos la primera frase, reproducirla en paralelo mientras llega el resto de Claude
+      if (winner.kind === 'primera' && winner.t) {
+        hablarPrimeraPromise = d.hablar(winner.t, tagDetectadoStreaming);
+        primeraFraseReproducida = true;
+      }
 
       const respuestaRaw = winner.kind === 'claude'
         ? (winner.result.ok ? winner.result.value : await claudePromise)
@@ -1931,6 +1938,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       }
       if (primeraFraseReproducida) {
         const { resto } = d.extraerPrimeraFrase(parsed.respuesta);
+        await hablarPrimeraPromise;
         if (resto) await d.hablarConCola(d.splitEnOraciones(resto), parsed.expresion);
       } else {
         await d.hablarConCola(oracionesTotal, parsed.expresion);
