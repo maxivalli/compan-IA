@@ -485,7 +485,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (depsRef.current.estadoRef.current === 'esperando') {
       setDetectandoSonido(true);
       if (detectandoTimerRef.current) clearTimeout(detectandoTimerRef.current);
-      detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 4000);
+      detectandoTimerRef.current = setTimeout(() => setDetectandoSonido(false), 800);
     }
   }
   // ── Watchdog de SR ────────────────────────────────────────────────────────

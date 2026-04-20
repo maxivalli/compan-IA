@@ -688,6 +688,8 @@ export default function Index() {
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   {musicaActiva
                     ? <AnimacionMusica />
+                    : detectandoSonido
+                    ? <AnimacionMusica />
                     : modoNoche !== 'despierta'
                     ? <RelojNoche fontSize={displayFontReloj} />
                     : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
