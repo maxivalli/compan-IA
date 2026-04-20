@@ -2,6 +2,8 @@ package expo.modules.personadetector
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.util.Size
 import androidx.camera.core.CameraSelector
@@ -167,8 +169,11 @@ class PersonaDetectorModule : Module() {
 
     private fun stopCamera() {
         isRunning = false
-        cameraProvider?.unbindAll()
+        val providerToStop = cameraProvider
         cameraProvider = null
+        Handler(Looper.getMainLooper()).post {
+            providerToStop?.unbindAll()
+        }
         analysisExecutor?.shutdown()
         analysisExecutor = null
         labeler?.close()
