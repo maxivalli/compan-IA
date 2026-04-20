@@ -177,15 +177,18 @@ export async function llamarClaudeConStreaming(options: {
   speechFinalTs?: number;
   _t0?: number;
   cancelRef?: { current: (() => void) | null };
+  isSpec?: boolean;
 }): Promise<string> {
   const t0 = options._t0 ?? Date.now();
 
   const baseBody = typeof options.system === 'string' || Array.isArray(options.system)
     ? { max_tokens: options.maxTokens ?? 140, system: options.system, messages: options.messages }
     : { max_tokens: options.maxTokens ?? 140, system_payload: options.system, messages: options.messages };
-  const body = options.speechFinalTs
-    ? { ...baseBody, speech_final_ts: options.speechFinalTs }
-    : baseBody;
+  const body = {
+    ...baseBody,
+    ...(options.speechFinalTs ? { speech_final_ts: options.speechFinalTs } : {}),
+    ...(options.isSpec ? { spec: true } : {}),
+  };
 
   // ── Intento por WebSocket persistente (sin TCP+TLS handshake) ───────────────
   if (isChatWsReady()) {

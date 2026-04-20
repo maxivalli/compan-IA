@@ -549,6 +549,7 @@ export function useBrain(deps: BrainDeps) {
         messages:  specMessages,
         maxTokens: 150,
         cancelRef,
+        isSpec:    true,
       }).catch(() => '');
       especulativoClaudeRef.current = {
         texto:   textoParcial,
