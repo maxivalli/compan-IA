@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 /**
@@ -61,6 +61,16 @@ type Props = {
   onDebugLabels?: (labels: string[]) => void;
 };
 
+// Error boundary para atrapar crashes del frame processor plugin (nativo)
+class PluginErrorBoundary extends Component<{ children: React.ReactNode; onError: (e: Error) => void }, { crashed: boolean }> {
+  state = { crashed: false };
+  componentDidCatch(error: Error) {
+    this.props.onError(error);
+    this.setState({ crashed: true });
+  }
+  render() { return this.state.crashed ? null : this.props.children; }
+}
+
 export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada, onDebugLabels }: Props) {
   const device     = useCameraDevice('front');
   const camRef     = useRef<any>(null);
@@ -121,18 +131,20 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
   if (Platform.OS === 'web' || !activo || !device || !hasPerm) return null;
 
   return (
-    <View style={s.contenedor} pointerEvents="none">
-      <LabelCamera
-        ref={camRef}
-        style={s.camara}
-        device={device}
-        isActive={activo}
-        fps={FPS_DETECCION}
-        options={labelOptions}
-        callback={onLabels}
-        pixelFormat="yuv"
-      />
-    </View>
+    <PluginErrorBoundary onError={(e) => onDebugLabels?.([`CRASH: ${e.message}`])}>
+      <View style={s.contenedor} pointerEvents="none">
+        <LabelCamera
+          ref={camRef}
+          style={s.camara}
+          device={device}
+          isActive={activo}
+          fps={FPS_DETECCION}
+          options={labelOptions}
+          callback={onLabels}
+          pixelFormat="yuv"
+        />
+      </View>
+    </PluginErrorBoundary>
   );
 }
 
