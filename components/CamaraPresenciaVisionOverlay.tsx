@@ -75,13 +75,6 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     return () => { cancelled = true; };
   }, [activo]);
 
-  useEffect(() => {
-    if (!activo) return;
-    if (!device)  { onDebugLabels?.(['NO_DEVICE']); return; }
-    if (!hasPerm) { onDebugLabels?.(['NO_PERM']);   return; }
-    onDebugLabels?.(['CAMERA_READY']);
-  }, [activo, device, hasPerm]);
-
   // Plugin nativo de ML Kit — inicializado una vez
   const plugin = useMemo(() => {
     if (Platform.OS === 'web' || !VisionCameraProxy) return null;
@@ -91,6 +84,14 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    if (!activo) return;
+    if (!device)  { onDebugLabels?.(['NO_DEVICE']); return; }
+    if (!hasPerm) { onDebugLabels?.(['NO_PERM']);   return; }
+    if (!plugin)  { onDebugLabels?.(['PLUGIN_NULL']); return; }
+    onDebugLabels?.(['CAMERA_READY']);
+  }, [activo, device, hasPerm, plugin]);
 
   const onLabelsJS = (labelsPayload: unknown) => {
     if (!activo) return;
