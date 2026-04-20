@@ -1,27 +1,26 @@
-import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import { runOnJS } from 'react-native-reanimated';
 
 /**
  * Detección de presencia en tiempo real usando ML Kit Image Labeling
  * vía react-native-vision-camera frame processor (corre en hilo nativo/JSI).
  *
- * Frame processor usa runOnJS de Reanimated (no worklets-core) para cruzar
- * al hilo JS — compatible con VisionCamera v4 que corre en el runtime de Reanimated.
+ * runOnJS importado estáticamente para que el Babel plugin de Reanimated
+ * lo reconozca y lo pueda cruzar correctamente al hilo JS desde el worklet.
  */
 
-let useCameraDevice: any  = () => null;
-let Camera: any           = null;
+let useCameraDevice: any   = () => null;
+let Camera: any            = null;
 let useFrameProcessor: any = () => undefined;
 let VisionCameraProxy: any = null;
-let runOnJS: any          = (fn: any) => fn;
 
 if (Platform.OS !== 'web') {
   const vc = require('react-native-vision-camera');
-  useCameraDevice    = vc.useCameraDevice;
-  Camera             = vc.Camera;
-  useFrameProcessor  = vc.useFrameProcessor;
-  VisionCameraProxy  = vc.VisionCameraProxy;
-  runOnJS = require('react-native-reanimated').runOnJS;
+  useCameraDevice   = vc.useCameraDevice;
+  Camera            = vc.Camera;
+  useFrameProcessor = vc.useFrameProcessor;
+  VisionCameraProxy = vc.VisionCameraProxy;
 }
 
 const ETIQUETAS_HUMANAS = new Set([
@@ -75,7 +74,6 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     return () => { cancelled = true; };
   }, [activo]);
 
-  // Plugin nativo de ML Kit — inicializado una vez
   const plugin = useMemo(() => {
     if (Platform.OS === 'web' || !VisionCameraProxy) return null;
     try {
@@ -87,13 +85,13 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
 
   useEffect(() => {
     if (!activo) return;
-    if (!device)  { onDebugLabels?.(['NO_DEVICE']); return; }
-    if (!hasPerm) { onDebugLabels?.(['NO_PERM']);   return; }
+    if (!device)  { onDebugLabels?.(['NO_DEVICE']);   return; }
+    if (!hasPerm) { onDebugLabels?.(['NO_PERM']);     return; }
     if (!plugin)  { onDebugLabels?.(['PLUGIN_NULL']); return; }
     onDebugLabels?.(['CAMERA_READY']);
   }, [activo, device, hasPerm, plugin]);
 
-  const onLabelsJS = (labelsPayload: unknown) => {
+  const handleLabels = useCallback((labelsPayload: unknown) => {
     if (!activo) return;
     let etiquetas: string[] = [];
     try {
@@ -111,15 +109,20 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     if (ahora - lastHitRef.current < COOLDOWN_MS) return;
     lastHitRef.current = ahora;
     onPresenciaDetectada();
-  };
+  }, [activo, onDebugLabels, onPresenciaDetectada]);
+
+  const handleTick = useCallback(() => {
+    onDebugLabels?.(['FP_TICK']);
+  }, [onDebugLabels]);
 
   const frameProcessor = useFrameProcessor((frame: any) => {
     'worklet';
+    // FP_TICK confirma que el frame processor ejecuta y runOnJS funciona
+    runOnJS(handleTick)();
     if (!plugin) return;
     const data = plugin.call(frame);
-    // runOnJS cruza del runtime de Reanimated al hilo JS
-    runOnJS(onLabelsJS)(data);
-  }, [plugin, activo]);
+    runOnJS(handleLabels)(data);
+  }, [plugin, handleLabels, handleTick]);
 
   if (Platform.OS === 'web' || !activo || !device || !hasPerm) return null;
 
