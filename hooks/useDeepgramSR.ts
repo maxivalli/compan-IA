@@ -43,7 +43,8 @@ const SPEECH_FINAL_DEBOUNCE_MS = 300;
 // Si speech_final llega con frase que termina en artículo/preposición (frase abierta),
 // esperamos hasta MERGE_WINDOW_MS por continuación antes de flushear.
 const MERGE_WINDOW_MS = 2000;
-const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que)\s*$/i;
+// Incluye pronombres átonos (se, me, te, nos, lo) que casi nunca cierran una oración.
+const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que|se|me|te|nos|lo)\s*$/i;
 // Pregunta que abre con ¿ pero no cierra con ? → siempre incompleta
 const PREGUNTA_ABIERTA = /^¿[^?!]*$/;
 
@@ -70,7 +71,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const activoRef      = useRef(false);
   const audioSubRef    = useRef<EventSubscription | null>(null);
   const reconnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reconnCount    = useRef(0);
+  const reconnCount       = useRef(0);
+  const consecutive1011Ref = useRef(0);
   const connOpenRef    = useRef(0); // timestamp en que el WS se abrió (para medir estabilidad)
   const optsRef        = useRef(opts);
   optsRef.current      = opts;
@@ -223,6 +225,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     try { wsRef.current?.close(); } catch {}
     wsRef.current = null;
     reconnCount.current = 0;
+    consecutive1011Ref.current = 0;
   }, []);
 
   const iniciar = useCallback(async () => {
@@ -336,10 +339,17 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         descartarAcumulador();
         const connDuration = connOpenRef.current ? Date.now() - connOpenRef.current : 0;
         connOpenRef.current = 0;
-        // Solo resetear el contador de reconexión si la conexión fue estable >10s.
-        // Si cayó antes (ej: 1011 inmediato), mantenemos el backoff acumulado.
-        if (connDuration > 10000) reconnCount.current = 0;
-        logCliente('dg_ws_close', { code: event.code, conn_ms: connDuration });
+        const is1011 = event.code === 1011;
+        if (is1011) {
+          // 1011 = error del servidor Deepgram. Mantener backoff creciente aunque
+          // la conexión duró >10s (tormenta de 1011 consecutivos → delay acumulativo).
+          consecutive1011Ref.current += 1;
+          reconnCount.current = Math.max(reconnCount.current, consecutive1011Ref.current);
+        } else {
+          consecutive1011Ref.current = 0;
+          if (connDuration > 10000) reconnCount.current = 0;
+        }
+        logCliente('dg_ws_close', { code: event.code, conn_ms: connDuration, consec_1011: consecutive1011Ref.current });
         if (!activoRef.current) return;
         scheduleReconnect();
       };
