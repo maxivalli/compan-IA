@@ -1378,7 +1378,6 @@ export function useBrain(deps: BrainDeps) {
       lag_speech_end_ms: lagSpeechEndMs,
     });
     logCliente('turn_start', { turn_id: turnId, user_chars: textoUsuario.length });
-    logCliente('user_msg', { texto: textoUsuario.slice(0, 200) });
 
     // ── Estado de streaming ───────────────────────────────────────────────────
     let primeraFraseReproducida = false;

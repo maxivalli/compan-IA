@@ -444,7 +444,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       d.srResultTsRef.current = Date.now();
       const lagSpeechEndMs = d.speechEndTsRef.current ? d.srResultTsRef.current - d.speechEndTsRef.current : -1;
       const newTurnId = beginTurnTelemetry();
-      logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs });
+      logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs, texto_debug: texto });
       if (esRepeticion) {
         await hablar(ultimoTextoHabladoRef.current!);
       } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {

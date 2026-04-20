@@ -206,7 +206,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     const texto = acumuladorRef.current.join(' ').trim();
     acumuladorRef.current = [];
     if (texto) {
-      logCliente('dg_final', { chars: texto.length });
+      logCliente('dg_final', { chars: texto.length, texto_debug: texto });
       optsRef.current.onFinal(texto);
     }
   }
@@ -275,6 +275,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         connOpenRef.current = Date.now();
         // No reseteamos reconnCount acá: solo se resetea si la conexión duró >10s.
         // Esto evita que 1011 en cascada (open→close inmediato) anulen el backoff.
+        iniciarKeepalive(ws);
         iniciarAudioCapture(ws);
         optsRef.current.onReady();
       };
