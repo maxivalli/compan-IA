@@ -5,55 +5,41 @@ import { Platform, StyleSheet, View } from 'react-native';
  * Detección de presencia en tiempo real usando ML Kit Image Labeling
  * vía react-native-vision-camera frame processor (corre en hilo nativo/JSI).
  *
- * No requiere que el usuario mire a la cámara:
- *  - Detecta cuerpo completo, de espaldas, de costado
- *  - Detecta partes del cuerpo visibles (brazo, mano, pierna)
- *  - Detecta ropa (camisa, pantalón, zapatos)
- *  - Detecta actividades humanas (sentado, parado, caminando)
- *
- * Funciona a 3 fps para minimizar consumo de batería.
+ * Frame processor usa runOnJS de Reanimated (no worklets-core) para cruzar
+ * al hilo JS — compatible con VisionCamera v4 que corre en el runtime de Reanimated.
  */
 
-// Importación condicional — react-native-vision-camera no soporta web
-let VisionCamera: any      = null;
-let useCameraDevice: any   = () => null;
-let LabelCamera: any       = null;
+let useCameraDevice: any  = () => null;
+let Camera: any           = null;
+let useFrameProcessor: any = () => undefined;
+let VisionCameraProxy: any = null;
+let runOnJS: any          = (fn: any) => fn;
 
 if (Platform.OS !== 'web') {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const vc  = require('react-native-vision-camera');
-  VisionCamera    = vc.Camera;
-  useCameraDevice = vc.useCameraDevice;
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const vcl = require('react-native-vision-camera-image-labeler');
-  LabelCamera = vcl.Camera;
+  const vc = require('react-native-vision-camera');
+  useCameraDevice    = vc.useCameraDevice;
+  Camera             = vc.Camera;
+  useFrameProcessor  = vc.useFrameProcessor;
+  VisionCameraProxy  = vc.VisionCameraProxy;
+  runOnJS = require('react-native-reanimated').runOnJS;
 }
 
-// ── Etiquetas de ML Kit que indican presencia humana ─────────────────────────
-// Incluye: cuerpo completo, partes del cuerpo, ropa, calzado, actividades.
-// Sin necesidad de ver la cara.
 const ETIQUETAS_HUMANAS = new Set([
-  // Persona directa
   'person', 'human', 'people', 'man', 'woman', 'boy', 'girl',
   'adult', 'child', 'elder', 'senior',
-  // Partes del cuerpo (visibles desde cualquier ángulo)
   'face', 'head', 'hair', 'arm', 'hand', 'finger', 'leg', 'foot',
   'shoulder', 'neck', 'back', 'chest', 'body', 'skin',
-  // Ropa (muy confiable — casi siempre hay ropa si hay persona)
   'clothing', 'clothes', 'shirt', 't-shirt', 'blouse', 'top',
   'dress', 'skirt', 'pants', 'trousers', 'jeans', 'shorts',
   'jacket', 'coat', 'sweater', 'hoodie', 'suit',
-  // Calzado
   'footwear', 'shoe', 'shoes', 'boot', 'sandal', 'sneaker',
-  // Accesorios
   'glasses', 'hat', 'cap', 'bag', 'handbag', 'backpack',
-  // Actividades humanas
   'sitting', 'standing', 'walking', 'running',
 ]);
 
-const CONFIANZA_MINIMA = 0.3;    // umbral bajo para no perder detecciones
-const FPS_DETECCION   = 3;       // 3 fps: suficiente para presencia, ahorra batería
-const COOLDOWN_MS     = 1200;    // evita spam al callback (además del cooldown global)
+const CONFIANZA_MINIMA = 0.3;
+const FPS_DETECCION   = 3;
+const COOLDOWN_MS     = 1200;
 
 type Props = {
   activo: boolean;
@@ -61,7 +47,6 @@ type Props = {
   onDebugLabels?: (labels: string[]) => void;
 };
 
-// Error boundary para atrapar crashes del frame processor plugin (nativo)
 class PluginErrorBoundary extends Component<{ children: React.ReactNode; onError: (e: Error) => void }, { crashed: boolean }> {
   state = { crashed: false };
   componentDidCatch(error: Error) {
@@ -73,16 +58,15 @@ class PluginErrorBoundary extends Component<{ children: React.ReactNode; onError
 
 export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada, onDebugLabels }: Props) {
   const device     = useCameraDevice('front');
-  const camRef     = useRef<any>(null);
   const lastHitRef = useRef(0);
   const [hasPerm, setHasPerm] = useState(false);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !activo || !VisionCamera) return;
+    if (Platform.OS === 'web' || !activo || !Camera) return;
     let cancelled = false;
     (async () => {
       try {
-        const status = await VisionCamera.requestCameraPermission();
+        const status = await Camera.requestCameraPermission();
         if (!cancelled) setHasPerm(status === 'granted');
       } catch {
         if (!cancelled) setHasPerm(false);
@@ -91,27 +75,34 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     return () => { cancelled = true; };
   }, [activo]);
 
-  // Opciones del labeler — minConfidence 0.3 para detectar incluso presencias parciales
-  const labelOptions = useMemo(() => ({ minConfidence: CONFIANZA_MINIMA as 0.3 }), []);
-
-  /**
-   * Extrae strings de etiquetas del payload que devuelve ML Kit.
-   * El tipo Label es { [index: number]: { label: string, confidence: number } }
-   * La librería puede devolver un array o un objeto indexado — se maneja los dos casos.
-   */
-  function extraerEtiquetas(payload: unknown): string[] {
-    if (!payload) return [];
-    const items = Array.isArray(payload)
-      ? payload
-      : Object.values(payload as Record<string, unknown>);
-    return items
-      .map((it: any) => String(it?.label ?? '').toLowerCase().trim())
-      .filter(Boolean);
-  }
-
-  function onLabels(labelsPayload: unknown) {
+  useEffect(() => {
     if (!activo) return;
-    const etiquetas = extraerEtiquetas(labelsPayload);
+    if (!device)  { onDebugLabels?.(['NO_DEVICE']); return; }
+    if (!hasPerm) { onDebugLabels?.(['NO_PERM']);   return; }
+    onDebugLabels?.(['CAMERA_READY']);
+  }, [activo, device, hasPerm]);
+
+  // Plugin nativo de ML Kit — inicializado una vez
+  const plugin = useMemo(() => {
+    if (Platform.OS === 'web' || !VisionCameraProxy) return null;
+    try {
+      return VisionCameraProxy.initFrameProcessorPlugin('labelerImage', { minConfidence: CONFIANZA_MINIMA });
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const onLabelsJS = (labelsPayload: unknown) => {
+    if (!activo) return;
+    let etiquetas: string[] = [];
+    try {
+      const items = Array.isArray(labelsPayload)
+        ? labelsPayload
+        : Object.values(labelsPayload as Record<string, unknown>);
+      etiquetas = items
+        .map((it: any) => String(it?.label ?? '').toLowerCase().trim())
+        .filter(Boolean);
+    } catch {}
     onDebugLabels?.(etiquetas.length > 0 ? etiquetas : ['MLKIT_EMPTY']);
     const hayPersona = etiquetas.some(e => ETIQUETAS_HUMANAS.has(e));
     if (!hayPersona) return;
@@ -119,28 +110,27 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     if (ahora - lastHitRef.current < COOLDOWN_MS) return;
     lastHitRef.current = ahora;
     onPresenciaDetectada();
-  }
+  };
 
-  useEffect(() => {
-    if (!activo) return;
-    if (!device) { onDebugLabels?.(['NO_DEVICE']); return; }
-    if (!hasPerm) { onDebugLabels?.(['NO_PERM']); return; }
-    onDebugLabels?.(['CAMERA_READY']);
-  }, [activo, device, hasPerm]);
+  const frameProcessor = useFrameProcessor((frame: any) => {
+    'worklet';
+    if (!plugin) return;
+    const data = plugin.call(frame);
+    // runOnJS cruza del runtime de Reanimated al hilo JS
+    runOnJS(onLabelsJS)(data);
+  }, [plugin, activo]);
 
   if (Platform.OS === 'web' || !activo || !device || !hasPerm) return null;
 
   return (
     <PluginErrorBoundary onError={(e) => onDebugLabels?.([`CRASH: ${e.message}`])}>
       <View style={s.contenedor} pointerEvents="none">
-        <LabelCamera
-          ref={camRef}
+        <Camera
           style={s.camara}
           device={device}
           isActive={activo}
           fps={FPS_DETECCION}
-          options={labelOptions}
-          callback={onLabels}
+          frameProcessor={frameProcessor}
           pixelFormat="yuv"
         />
       </View>
