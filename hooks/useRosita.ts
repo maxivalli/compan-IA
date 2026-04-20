@@ -603,6 +603,18 @@ export function useRosita() {
           if (clima.latitud && clima.longitud) coordRef.current = { lat: clima.latitud, lon: clima.longitud };
           setClimaObj({ temperatura: clima.temperatura, descripcion: clima.descripcion, codigoActual: clima.codigoActual });
           climaTimerRef.current = setTimeout(intentarClima, 60 * 60 * 1000); // refrescar en 1h
+          // Re-warm: el warmup inicial no tenía ciudad/coords/dispositivos → cache miss.
+          // Esperamos 3s para que SmartThings también termine de cargar sus dispositivos.
+          setTimeout(() => {
+            if (!perfilRef.current?.nombreAbuela) return;
+            calentarCacheClaudeEnBackground(buildRositaSystemPayload({
+              perfil: perfilRef.current,
+              dispositivos: smartthings.dispositivosTuyaRef.current,
+              climaTexto: climaRef.current,
+              ciudad: ciudadRef.current,
+              coords: coordRef.current,
+            }));
+          }, 3000);
         } else {
           climaTimerRef.current = setTimeout(intentarClima, 30 * 1000);
         }
