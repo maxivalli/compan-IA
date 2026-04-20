@@ -22,6 +22,7 @@
     "@react-navigation/native": "^7.1.8",
     "amplificador-audio": "file:./modules/amplificador-audio",
     "audio-capture": "file:./modules/audio-capture",
+    "persona-detector": "file:./modules/persona-detector",
     "dseg": "^0.46.0",
     "expo": "~54.0.33",
     "expo-audio": "~1.1.1",

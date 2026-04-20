@@ -1,0 +1,9 @@
+{
+  "name": "persona-detector",
+  "version": "1.0.0",
+  "description": "ML Kit person detection via CameraX, without VisionCamera or worklets",
+  "main": "src/PersonaDetectorModule",
+  "dependencies": {
+    "expo-modules-core": "*"
+  }
+}
