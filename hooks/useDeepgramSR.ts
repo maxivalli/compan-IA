@@ -42,14 +42,21 @@ const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
 // Si speech_final llega con frase que termina en artículo/preposición (frase abierta),
 // esperamos hasta MERGE_WINDOW_MS por continuación antes de flushear.
-const MERGE_WINDOW_MS = 1000;
+const MERGE_WINDOW_MS = 2000;
 const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que)\s*$/i;
+// Pregunta que abre con ¿ pero no cierra con ? → siempre incompleta
+const PREGUNTA_ABIERTA = /^¿[^?!]*$/;
 
-// 100ms de silencio PCM16 a 16kHz mono (16000 × 0.1 × 2 bytes = 3200 bytes).
-// Se envía cada 8s durante la pausa anti-eco para que Deepgram no cierre la
-// conexión por inactividad (~10-15s timeout → código 1011).
-const SILENCE_FRAME = new ArrayBuffer(3200);
+// JSON KeepAlive — mantiene el WS vivo sin enviar audio (no se factura).
+// Deepgram cierra el WS tras ~10-15s de inactividad → enviamos cada 5s.
+const KEEPALIVE_MSG = JSON.stringify({ type: 'KeepAlive' });
 const KEEPALIVE_INTERVAL_MS = 5000;
+
+// VAD (Voice Activity Detection) — filtra chunks de silencio antes de enviar a Deepgram.
+// Solo se envía audio cuando el RMS supera el threshold o mientras corra el hold-off.
+// Reducción esperada: ~80-90% de chunks filtrados durante silencios largos.
+const VAD_RMS_THRESHOLD = 300; // ~1% de amplitud máxima PCM16 (32767)
+const VAD_HOLD_OFF_MS   = 1200; // ms de silencio a enviar tras detectar fin de voz (450ms de margen sobre endpointing 750ms)
 
 export type UseDeepgramSROptions = {
   onPartial?:  (texto: string) => void;
@@ -73,15 +80,29 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const mergePendingRef  = useRef<string[]>([]);
   const capturaActivaRef = useRef(false);
   const keepaliveRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const vadHoldOffRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const vozActivaRef     = useRef(false);
+
+  function calcularRMS(pcm16: Uint8Array): number {
+    const samples = pcm16.length >> 1; // 2 bytes por muestra
+    if (samples === 0) return 0;
+    const view = new DataView(pcm16.buffer, pcm16.byteOffset, pcm16.byteLength);
+    let sum = 0;
+    for (let i = 0; i < samples; i++) {
+      const s = view.getInt16(i * 2, true); // little-endian
+      sum += s * s;
+    }
+    return Math.sqrt(sum / samples);
+  }
 
   function iniciarKeepalive(ws: WebSocket) {
     if (keepaliveRef.current) clearInterval(keepaliveRef.current);
     if (ws.readyState === WebSocket.OPEN) {
-      try { ws.send(SILENCE_FRAME); } catch {}
+      try { ws.send(KEEPALIVE_MSG); } catch {}
     }
     keepaliveRef.current = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        try { ws.send(SILENCE_FRAME); } catch {}
+        try { ws.send(KEEPALIVE_MSG); } catch {}
       } else {
         detenerKeepalive();
       }
@@ -97,17 +118,39 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     audioSubRef.current = null;
     try { stopCapture(); } catch {}
     capturaActivaRef.current = false;
+    if (vadHoldOffRef.current) { clearTimeout(vadHoldOffRef.current); vadHoldOffRef.current = null; }
+    vozActivaRef.current = false;
   }
 
   function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return;
-    detenerKeepalive();
+    // No detenemos keepalive — sigue corriendo junto con AudioCapture para que
+    // Deepgram no cierre el WS durante silencios largos gateados por VAD.
+    vozActivaRef.current = false;
     try {
       audioSubRef.current = addAudioDataListener(({ data }) => {
         if (ws.readyState !== WebSocket.OPEN) return;
         try {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
-          ws.send(binary.buffer);
+          const rms = calcularRMS(binary);
+
+          if (rms > VAD_RMS_THRESHOLD) {
+            // Hay voz → enviar y cancelar hold-off si estaba corriendo
+            vozActivaRef.current = true;
+            if (vadHoldOffRef.current) { clearTimeout(vadHoldOffRef.current); vadHoldOffRef.current = null; }
+            ws.send(binary.buffer);
+          } else if (vozActivaRef.current) {
+            // Voz terminó → seguir enviando silencio durante hold-off para que
+            // el endpointing de Deepgram (750ms) dispare speech_final
+            ws.send(binary.buffer);
+            if (!vadHoldOffRef.current) {
+              vadHoldOffRef.current = setTimeout(() => {
+                vozActivaRef.current = false;
+                vadHoldOffRef.current = null;
+              }, VAD_HOLD_OFF_MS);
+            }
+          }
+          // Silencio largo sin voz activa → no enviar (el keepalive JSON mantiene el WS)
         } catch {}
       });
       startCapture({ sampleRate: 16000, channels: 1, chunkMs: 100 });
@@ -257,8 +300,13 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
                 if (mergeTimerRef.current) clearTimeout(mergeTimerRef.current);
                 mergeTimerRef.current = setTimeout(flushMerge, MERGE_WINDOW_MS);
               }
-            } else if (FRASE_INCOMPLETA.test(text)) {
-              // Frase claramente incompleta (termina en artículo/preposición) → merge window
+            } else if (
+              FRASE_INCOMPLETA.test(text) ||
+              FRASE_INCOMPLETA.test(text.replace(/[?!.¿¡]+$/, '').trim()) ||
+              PREGUNTA_ABIERTA.test(text)
+            ) {
+              // Frase incompleta: termina en artículo/preposición (con o sin puntuación),
+              // o es una pregunta abierta que empieza con ¿ pero no cerró con ?
               logCliente('dg_merge_window', { chars: text.length, tail: text.slice(-12) });
               mergePendingRef.current = [text];
               mergeTimerRef.current = setTimeout(flushMerge, MERGE_WINDOW_MS);

@@ -24,7 +24,6 @@ import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
 import { Globos } from '../components/EfectosExpresion';
 import CameraAutoCaptura from '../components/CameraAutoCaptura';
-import CamaraPresenciaOverlay from '../components/CamaraPresenciaOverlay';
 import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOverlay';
 
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
@@ -159,8 +158,6 @@ export default function Index() {
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
-  // Presencia: expo-camera frame diff (VisionCamera ML Kit requiere rebuild nativo)
-  const [useVisionPresencia, setUseVisionPresencia] = useState(false);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup de ambos timers al desmontar
@@ -508,9 +505,7 @@ export default function Index() {
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
-      {/* Presencia: VisionCamera (ML Kit) con fallback automático a expo-camera */}
-      <CamaraPresenciaVisionOverlay activo={useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onFalló={() => setUseVisionPresencia(false)} />
-      <CamaraPresenciaOverlay activo={!useVisionPresencia && modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
+      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>

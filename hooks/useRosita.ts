@@ -232,6 +232,7 @@ export function useRosita() {
     reproducirMuletilla:      pipeline.reproducirMuletilla,
     detenerSilbido:           pipeline.detenerSilbido,
     silbidoHabilitadoRef,
+    arranqueFrioRef:          pipeline.arranqueFrioRef,
     pararMusica:              pipeline.pararMusica,
     cerrarDGParaMusica:       pipeline.cerrarDGParaMusica,
     playerMusica:             pipeline.playerMusica,

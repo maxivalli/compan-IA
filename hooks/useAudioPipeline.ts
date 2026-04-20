@@ -314,8 +314,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const dgIdleRef         = useRef(false);
   const dgIdleTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wakeSRActiveRef   = useRef(false);
+  const wakeSRStartingRef = useRef(false); // guard contra double-start
   const wakeSubsRef       = useRef<Array<{ remove: () => void }>>([]);
-
+  // true solo en el primer turno tras reconexión desde idle (wake word).
+  // useBrain lo consume una sola vez para decidir si reproduce muletilla.
+  const arranqueFrioRef   = useRef(false);
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
@@ -340,8 +343,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       depsRef.current.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
-      // Usuario habló — cancelar idle timer si está corriendo.
       if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
+      dgIdleRef.current = false;
       const d = depsRef.current;
       // speech_final de Deepgram es el proxy más cercano a "el usuario dejó de hablar".
       // Registrar acá para poder medir lag_speech_end_ms correctamente.
@@ -352,6 +355,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // Bloquear transcripciones mientras Rosita habla (eco de TTS) o SR suspendido (juego activo)
       if (d.estadoRef.current === 'hablando') return;
       if (srSuspendidoRef.current) return;
+      // Filtro de activación: solo responder si estamos en conversación activa (< 60s
+      // desde la última respuesta de Rosita) o si el usuario la nombra explícitamente.
+      // Evita que Rosita se meta en conversaciones de la sala que no van dirigidas a ella.
+      const enConversacion = !d.musicaActivaRef.current && Date.now() - d.ultimaCharlaRef.current < 60_000;
+      const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const mencionaAsistente = textoNorm.includes(d.nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
+      if (!enConversacion && !mencionaAsistente) return;
       if (d.musicaActivaRef.current) duckMusica();
       procesarTextoReconocido(texto).catch(() => {});
     },
@@ -498,11 +508,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
       const ahora = Date.now();
       const tiempoDesdeInicio = ahora - ultimaActivacionSrRef.current;
-      const srZombie  = srActivoRef.current && tiempoDesdeInicio > 8000;
-      const srVencido = srActivoRef.current && tiempoDesdeInicio > 15000;
+      const srZombie  = srActivoRef.current && tiempoDesdeInicio > 25000;
+      const srVencido = srActivoRef.current && tiempoDesdeInicio > 45000;
 
       if (srSuspendidoRef.current) return;
-      // DG en idle: wake-word SR está activo, verificar solo proactiva.
       if (dgIdleRef.current) { d.verificarCharlaProactiva(); return; }
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
@@ -544,7 +553,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     setTimeout(() => iniciarSpeechRecognition(), 300);
   }
   function detenerWakeSR() {
-    wakeSRActiveRef.current = false;
+    wakeSRActiveRef.current  = false;
+    wakeSRStartingRef.current = false;
     wakeSubsRef.current.forEach(s => { try { s.remove(); } catch {} });
     wakeSubsRef.current = [];
     try { ExpoSpeechRecognitionModule.abort(); } catch {}
@@ -553,56 +563,62 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   function iniciarWakeSR() {
     if (wakeSRActiveRef.current) return;
     wakeSRActiveRef.current = true;
+    wakeSRStartingRef.current = false;
 
-    // Esperar que AudioCapture libere el mic antes de pedir el SR nativo.
     const RESTART_DELAY_MS = 800;
 
-    const startListen = () => {
+    function startListen() {
       if (!wakeSRActiveRef.current) return;
+      if (wakeSRStartingRef.current) return; // guard: ya hay un start en vuelo
+      wakeSRStartingRef.current = true;
       try {
-        // 'es' sin región es más ampliamente soportado que 'es-AR' en Android.
         ExpoSpeechRecognitionModule.start({ lang: 'es', continuous: false, interimResults: true });
       } catch (e) {
         logCliente('wake_sr_start_err', { err: String(e) });
+        wakeSRStartingRef.current = false;
         setTimeout(startListen, RESTART_DELAY_MS);
       }
-    };
+    }
 
     const resultSub = ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
       if (!wakeSRActiveRef.current) return;
-      // Revisar todas las alternativas, no solo la primera.
-      const hayWakeWord = (event?.results ?? []).some(
-        (r: any) => (r?.transcript ?? '').toLowerCase().includes('rosita')
-      );
+      const nombreNorm = depsRef.current.nombreAsistenteRef.current
+        .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const hayWakeWord = (event?.results ?? []).some((r: any) => {
+        const t = (r?.transcript ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return t.split(/\s+/).some((p: string) => p.includes(nombreNorm));
+      });
       if (hayWakeWord) {
         const transcript: string = event?.results?.[0]?.transcript ?? '';
         logCliente('wake_word', { transcript });
         detenerWakeSR();
         dgIdleRef.current = false;
+        arranqueFrioRef.current = true; // primer turno de la reconexión → muletilla
         reanudarCapturaDG();
         procesarTextoReconocido(transcript).catch(() => {});
       }
     });
 
-    // continuous:false finaliza tras un silencio — reiniciar para seguir escuchando.
+    // continuous:false termina tras un silencio — reiniciar inmediatamente.
     const endSub = ExpoSpeechRecognitionModule.addListener('end', () => {
+      wakeSRStartingRef.current = false;
       if (!wakeSRActiveRef.current) return;
       setTimeout(startListen, RESTART_DELAY_MS);
     });
 
-    // Si el SR falla (locale no disponible, mic ocupado, etc.), reintentar.
     const errorSub = ExpoSpeechRecognitionModule.addListener('error', (event: any) => {
+      wakeSRStartingRef.current = false;
       if (!wakeSRActiveRef.current) return;
       logCliente('wake_sr_error', { code: event?.error });
       setTimeout(startListen, RESTART_DELAY_MS * 2);
     });
 
     wakeSubsRef.current = [resultSub, endSub, errorSub];
-    // Dar tiempo al AudioCapture de liberar el hardware antes de arrancar.
     setTimeout(startListen, RESTART_DELAY_MS);
   }
 
   function despertarDG() {
+    // Llamado desde charla proactiva — reconectar sin marcar arranque frío.
     detenerWakeSR();
     dgIdleRef.current = false;
     reanudarCapturaDG();
@@ -1021,9 +1037,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     hablandoDesdeRef.current = 0;
     cancelarHablaRef.current = null;
-    ultimoFinTTSRef.current = Date.now(); // marcar fin de TTS para protección de eco
+    ultimoFinTTSRef.current = Date.now();
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
-    // Iniciar (o reiniciar) timer de idle: 60s sin actividad → cerrar DG, activar wake-word SR.
+    // Idle timer: 60s sin actividad → cerrar DG, activar wake-word SR.
     if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
     dgIdleTimerRef.current = setTimeout(() => {
       logCliente('dg_idle_close', {});
@@ -1116,6 +1132,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     cerrarDGParaMusica,
     reanudarMusica,
     despertarDG,
+    arranqueFrioRef,
 
     // SR y escucha manual
     iniciarSpeechRecognition,

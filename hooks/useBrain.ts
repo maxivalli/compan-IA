@@ -449,6 +449,7 @@ export interface BrainDeps {
   precachearTexto:          (texto: string, emotion?: string) => Promise<void>;
   reproducirTecleo:    (abort: { current: boolean }) => Promise<void>;
   reproducirMuletilla: (tipo: import('./useAudioPipeline').TipoMuletilla) => Promise<void>;
+  arranqueFrioRef:     React.MutableRefObject<boolean>;
   detenerSilbido:      () => void;
   silbidoHabilitadoRef: React.MutableRefObject<boolean>;
   pararMusica:         () => void;
@@ -1507,8 +1508,10 @@ export function useBrain(deps: BrainDeps) {
         const tPreClaude = Date.now();
         logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length, pre_claude_ms: tPreClaude - d.rcStartTsRef.current });
 
-        // Muletilla en paralelo con Claude — hablar() la awaita automáticamente.
-        {
+        // Muletilla solo en arranque frío (primera respuesta tras reconexión desde idle).
+        // En conversación fluida no se usa para no interrumpir el ritmo natural.
+        if (d.arranqueFrioRef.current) {
+          d.arranqueFrioRef.current = false; // consume: solo el primer turno
           type TM = import('./useAudioPipeline').TipoMuletilla;
           const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
           const tipoMuletilla: TM =
