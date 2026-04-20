@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "compania",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.maxivalli.compania",
       "supportsTablet": true,
