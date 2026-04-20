@@ -322,6 +322,7 @@ export default function Index() {
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
   const [mostrarListas,  setMostrarListas]  = useState(false);
+  const [debugPresenciaLabels, setDebugPresenciaLabels] = useState<string[]>([]);
   const sosBrillo = useRef(new Animated.Value(0)).current;
 
   function sosPresionado() {
@@ -505,7 +506,15 @@ export default function Index() {
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
-      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
+      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onDebugLabels={setDebugPresenciaLabels} />
+      <View style={{ position: 'absolute', top: safeBottom + 8, left: 8, backgroundColor: 'rgba(0,0,0,0.72)', borderRadius: 6, padding: 6, maxWidth: 240, zIndex: 9999 }} pointerEvents="none">
+        <Text style={{ color: modoWatchingPresencia ? '#4ade80' : '#f87171', fontSize: 11, fontWeight: 'bold' }}>
+          CAM: {modoWatchingPresencia ? 'WATCHING' : 'OFF'}
+        </Text>
+        <Text style={{ color: '#fbbf24', fontSize: 10, marginTop: 2 }} numberOfLines={3}>
+          {debugPresenciaLabels.length > 0 ? debugPresenciaLabels.join(', ') : '—'}
+        </Text>
+      </View>
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
