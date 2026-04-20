@@ -102,7 +102,7 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
   function onLabels(labelsPayload: unknown) {
     if (!activo) return;
     const etiquetas = extraerEtiquetas(labelsPayload);
-    onDebugLabels?.(etiquetas);
+    onDebugLabels?.(etiquetas.length > 0 ? etiquetas : ['MLKIT_EMPTY']);
     const hayPersona = etiquetas.some(e => ETIQUETAS_HUMANAS.has(e));
     if (!hayPersona) return;
     const ahora = Date.now();
@@ -110,6 +110,13 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     lastHitRef.current = ahora;
     onPresenciaDetectada();
   }
+
+  useEffect(() => {
+    if (!activo) return;
+    if (!device) { onDebugLabels?.(['NO_DEVICE']); return; }
+    if (!hasPerm) { onDebugLabels?.(['NO_PERM']); return; }
+    onDebugLabels?.(['CAMERA_READY']);
+  }, [activo, device, hasPerm]);
 
   if (Platform.OS === 'web' || !activo || !device || !hasPerm) return null;
 
