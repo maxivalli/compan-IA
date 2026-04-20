@@ -1,13 +1,13 @@
-import React, { Component, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { runOnJS } from 'react-native-reanimated';
+import { useRunOnJS } from 'react-native-worklets-core';
 
 /**
- * Detección de presencia en tiempo real usando ML Kit Image Labeling
- * vía react-native-vision-camera frame processor (corre en hilo nativo/JSI).
+ * Detección de presencia en tiempo real usando ML Kit Image Labeling.
  *
- * runOnJS importado estáticamente para que el Babel plugin de Reanimated
- * lo reconozca y lo pueda cruzar correctamente al hilo JS desde el worklet.
+ * Usa Worklets.createRunInJsFn (worklets-core, runtime nativo de VisionCamera v4)
+ * y solo pasa un boolean al hilo JS para evitar el bloqueo de serialización JSI
+ * que ocurre al pasar objetos complejos de ML Kit.
  */
 
 let useCameraDevice: any   = () => null;
@@ -23,7 +23,8 @@ if (Platform.OS !== 'web') {
   VisionCameraProxy = vc.VisionCameraProxy;
 }
 
-const ETIQUETAS_HUMANAS = new Set([
+// Etiquetas humanas como array plano para acceso dentro del worklet
+const ETIQUETAS_HUMANAS_ARR = [
   'person', 'human', 'people', 'man', 'woman', 'boy', 'girl',
   'adult', 'child', 'elder', 'senior',
   'face', 'head', 'hair', 'arm', 'hand', 'finger', 'leg', 'foot',
@@ -34,7 +35,7 @@ const ETIQUETAS_HUMANAS = new Set([
   'footwear', 'shoe', 'shoes', 'boot', 'sandal', 'sneaker',
   'glasses', 'hat', 'cap', 'bag', 'handbag', 'backpack',
   'sitting', 'standing', 'walking', 'running',
-]);
+];
 
 const CONFIANZA_MINIMA = 0.3;
 const FPS_DETECCION   = 3;
@@ -91,19 +92,9 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     onDebugLabels?.(['CAMERA_READY']);
   }, [activo, device, hasPerm, plugin]);
 
-  const handleLabels = useCallback((labelsPayload: unknown) => {
-    if (!activo) return;
-    let etiquetas: string[] = [];
-    try {
-      const items = Array.isArray(labelsPayload)
-        ? labelsPayload
-        : Object.values(labelsPayload as Record<string, unknown>);
-      etiquetas = items
-        .map((it: any) => String(it?.label ?? '').toLowerCase().trim())
-        .filter(Boolean);
-    } catch {}
-    onDebugLabels?.(etiquetas.length > 0 ? etiquetas : ['MLKIT_EMPTY']);
-    const hayPersona = etiquetas.some(e => ETIQUETAS_HUMANAS.has(e));
+  // Puente JS seguro — solo recibe primitivos (boolean + string)
+  const onResultJS = useRunOnJS((hayPersona: boolean, debugLabel: string) => {
+    onDebugLabels?.([debugLabel]);
     if (!hayPersona) return;
     const ahora = Date.now();
     if (ahora - lastHitRef.current < COOLDOWN_MS) return;
@@ -111,18 +102,28 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
     onPresenciaDetectada();
   }, [activo, onDebugLabels, onPresenciaDetectada]);
 
-  const handleTick = useCallback(() => {
-    onDebugLabels?.(['FP_TICK']);
-  }, [onDebugLabels]);
-
   const frameProcessor = useFrameProcessor((frame: any) => {
     'worklet';
-    // FP_TICK confirma que el frame processor ejecuta y runOnJS funciona
-    runOnJS(handleTick)();
     if (!plugin) return;
     const data = plugin.call(frame);
-    runOnJS(handleLabels)(data);
-  }, [plugin, handleLabels, handleTick]);
+
+    // Toda la lógica ocurre en el worklet — solo un boolean cruza el puente JSI
+    let hayPersona = false;
+    let primeraEtiqueta = 'MLKIT_EMPTY';
+    try {
+      const items = Array.isArray(data) ? data : Object.values(data as any);
+      for (let i = 0; i < items.length; i++) {
+        const label = String((items[i] as any)?.label ?? '').toLowerCase().trim();
+        if (i === 0) primeraEtiqueta = label;
+        for (let j = 0; j < ETIQUETAS_HUMANAS_ARR.length; j++) {
+          if (label === ETIQUETAS_HUMANAS_ARR[j]) { hayPersona = true; break; }
+        }
+        if (hayPersona) break;
+      }
+    } catch {}
+
+    onResultJS(hayPersona, hayPersona ? `HIT:${primeraEtiqueta}` : primeraEtiqueta);
+  }, [plugin, onResultJS]);
 
   if (Platform.OS === 'web' || !activo || !device || !hasPerm) return null;
 
