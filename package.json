@@ -63,11 +63,11 @@
     "react-native-svg": "15.12.1",
     "react-native-vision-camera": "^4.7.3",
     "react-native-vision-camera-face-detector": "^1.10.2",
-    "react-native-vision-camera-image-labeler": "^2.2.0",
     "react-native-web": "~0.21.0",
     "react-native-webview": "13.15.0",
     "react-native-worklets-core": "^1.6.3",
-    "react-native-youtube-iframe": "^2.4.1"
+    "react-native-youtube-iframe": "^2.4.1",
+    "vision-camera-image-labeler": "^0.1.6"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
