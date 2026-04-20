@@ -1004,12 +1004,17 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
                   if (__DEV__) console.log('[TTS] audio stalled en pos:', pos?.toFixed(2), '/ dur:', dur?.toFixed(2), '— resumiendo');
                   player.play();
                   silenceCount = 0;
+                } else if (pos === lastPos && !durKnown && pos > 0) {
+                  // Streaming (dur desconocida): ExoPlayer pausó por buffering → forzar play.
+                  if (__DEV__) console.log('[TTS] stream buffering stall en pos:', pos?.toFixed(2), '— forzando play');
+                  player.play();
+                  silenceCount = 0;
                 } else if (pos !== lastPos) {
                   silenceCount = 0;
                   if (posStableTimer !== undefined) { clearTimeout(posStableTimer); posStableTimer = undefined; }
                 } else {
-                  if (!durKnown && pos > 0.1 && posStableTimer === undefined) {
-                    posStableTimer = setTimeout(() => done('pos-stable'), 600);
+                  if (!durKnown && pos > 0.3 && posStableTimer === undefined) {
+                    posStableTimer = setTimeout(() => done('pos-stable'), 3000);
                   }
                   silenceCount++;
                   const thresh = durKnown ? 15 : (pos > 0.3 ? 5 : 15);
@@ -1020,8 +1025,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
                 if (pos !== lastPos) {
                   silenceCount = 0;
                   if (posStableTimer !== undefined) { clearTimeout(posStableTimer); posStableTimer = undefined; }
-                } else if (!durKnown && pos > 0.1 && posStableTimer === undefined) {
-                  posStableTimer = setTimeout(() => done('pos-stable'), 600);
+                } else if (!durKnown && pos > 0.3 && posStableTimer === undefined) {
+                  posStableTimer = setTimeout(() => done('pos-stable'), 3000);
                 }
               }
               lastPos = pos;

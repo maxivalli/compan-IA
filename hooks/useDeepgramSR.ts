@@ -71,6 +71,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const audioSubRef    = useRef<EventSubscription | null>(null);
   const reconnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnCount    = useRef(0);
+  const connOpenRef    = useRef(0); // timestamp en que el WS se abrió (para medir estabilidad)
   const optsRef        = useRef(opts);
   optsRef.current      = opts;
 
@@ -268,7 +269,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        reconnCount.current = 0;
+        connOpenRef.current = Date.now();
+        // No reseteamos reconnCount acá: solo se resetea si la conexión duró >10s.
+        // Esto evita que 1011 en cascada (open→close inmediato) anulen el backoff.
         iniciarAudioCapture(ws);
         optsRef.current.onReady();
       };
@@ -331,7 +334,12 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         detenerKeepalive();
         detenerAudioCapture();
         descartarAcumulador();
-        logCliente('dg_ws_close', { code: event.code });
+        const connDuration = connOpenRef.current ? Date.now() - connOpenRef.current : 0;
+        connOpenRef.current = 0;
+        // Solo resetear el contador de reconexión si la conexión fue estable >10s.
+        // Si cayó antes (ej: 1011 inmediato), mantenemos el backoff acumulado.
+        if (connDuration > 10000) reconnCount.current = 0;
+        logCliente('dg_ws_close', { code: event.code, conn_ms: connDuration });
         if (!activoRef.current) return;
         scheduleReconnect();
       };
@@ -340,7 +348,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     function scheduleReconnect() {
       if (!activoRef.current) return;
       reconnCount.current += 1;
-      const delay = Math.min(1000 * Math.pow(1.5, reconnCount.current - 1), 10000);
+      const delay = Math.min(1000 * Math.pow(1.5, reconnCount.current - 1), 30000);
       logCliente('dg_reconnect', { attempt: reconnCount.current, delay_ms: delay });
       reconnTimerRef.current = setTimeout(conectar, delay);
     }
