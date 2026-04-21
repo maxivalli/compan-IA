@@ -757,17 +757,13 @@ export default function Index() {
               return (
                 <View style={{
                   width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
-                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
-                  shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.30, shadowRadius: 12, elevation: 8,
-                  backgroundColor: 'rgba(255,255,255,0.08)',
+                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
+                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
                 }}>
-                  <LinearGradient
-                    colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0)']}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 20 }}
-                  />
+                  <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { opacity: 0.50 }]} />
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
                     {deteccionPresenciaActiva && (
                       <Animated.View style={{ position: 'absolute', top: 6, left: 8, opacity: ojoPulso, zIndex: 10 }}>
