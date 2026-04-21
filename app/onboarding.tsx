@@ -61,6 +61,7 @@ export default function Onboarding() {
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
   const [vozId,           setVozId]           = useState(VOCES[0].id);
   const [cabezaGato,      setCabezaGato]      = useState(false);
+  const [conyuge,         setConyuge]         = useState('');
   const [hijos,           setHijos]           = useState('');
   const [nietos,          setNietos]          = useState('');
   const [hermanos,        setHermanos]        = useState('');
@@ -114,6 +115,7 @@ export default function Onboarding() {
       vozId,
       cabezaGato,
       familiares: [
+        conyuge.trim()  && `cónyuge: ${conyuge.trim()}`,
         hijos.trim()    && `hijos: ${hijos.trim()}`,
         nietos.trim()   && `nietos: ${nietos.trim()}`,
         hermanos.trim() && `hermanos: ${hermanos.trim()}`,
@@ -199,6 +201,7 @@ export default function Onboarding() {
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
               vozId={vozId}                     setVozId={setVozId}
               cabezaGato={cabezaGato}           setCabezaGato={setCabezaGato}
+              conyuge={conyuge}                 setConyuge={setConyuge}
               hijos={hijos}                     setHijos={setHijos}
               nietos={nietos}                   setNietos={setNietos}
               hermanos={hermanos}               setHermanos={setHermanos}
@@ -510,7 +513,7 @@ const sv = StyleSheet.create({
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, cabezaGato, setCabezaGato, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, cabezaGato, setCabezaGato, conyuge, setConyuge, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
@@ -630,10 +633,11 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
         <Text style={ct.titulo}>{titulo}</Text>
         <Text style={ct.sub}>{sub}</Text>
         <View style={{ gap: 12, marginTop: 4 }}>
-          <FamiliarInput label="Hijos"    icon="people"     value={hijos}    onChangeText={setHijos}    placeholder="Juan, María" />
-          <FamiliarInput label="Nietos"   icon="happy"      value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
-          <FamiliarInput label="Hermanos" icon="person-add" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
-          <FamiliarInput label="Mascotas" icon="paw"        value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
+          <FamiliarInput label="Cónyuge / Pareja" icon="heart"      value={conyuge}  onChangeText={setConyuge}  placeholder="Carlos" />
+          <FamiliarInput label="Hijos"           icon="people"     value={hijos}    onChangeText={setHijos}    placeholder="Juan, María" />
+          <FamiliarInput label="Nietos"          icon="happy"      value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
+          <FamiliarInput label="Hermanos"        icon="person-add" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
+          <FamiliarInput label="Mascotas"        icon="paw"        value={mascotas} onChangeText={setMascotas} placeholder="Firulais" />
         </View>
       </ScrollView>
     );
@@ -686,6 +690,7 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
               { i: 'person',     t: nombreAbuela ? `${nombreAbuela} (${generoUsuario === 'femenino' ? 'Mujer' : 'Hombre'})` : '—' },
               ...(edad      ? [{ i: 'calendar',   t: `${edad} años` }] : []),
               { i: 'chatbubble', t: `Asistente: ${nombreAsistente || 'Rosita'}` },
+              ...(conyuge  ? [{ i: 'heart',      t: `Cónyuge: ${conyuge}` }]  : []),
               ...(hijos    ? [{ i: 'people',    t: `Hijos: ${hijos}` }]    : []),
               ...(nietos   ? [{ i: 'happy',     t: `Nietos: ${nietos}` }]  : []),
               ...(hermanos ? [{ i: 'person-add',t: `Hermanos: ${hermanos}` }] : []),

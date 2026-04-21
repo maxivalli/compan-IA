@@ -233,6 +233,7 @@ export default function Configuracion() {
   const [nombre, setNombre]               = useState('');
   const [edad, setEdad]                   = useState('');
   const [generoUsuario, setGeneroUsuario] = useState<'femenino' | 'masculino'>('femenino');
+  const [conyuge,    setConyuge]          = useState('');
   const [hijos,      setHijos]            = useState('');
   const [nietos,     setNietos]           = useState('');
   const [hermanos,   setHermanos]         = useState('');
@@ -339,6 +340,7 @@ export default function Configuracion() {
         const e = p.familiares.find(f => f.toLowerCase().startsWith(cat + ':'));
         return e ? e.slice(cat.length + 1).trim() : '';
       };
+      setConyuge(findCat('cónyuge'));
       setHijos(findCat('hijos'));
       setNietos(findCat('nietos'));
       setHermanos(findCat('hermanos'));
@@ -497,6 +499,7 @@ export default function Configuracion() {
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       generoUsuario,
       familiares: [
+        conyuge.trim()  && `cónyuge: ${conyuge.trim()}`,
         hijos.trim()    && `hijos: ${hijos.trim()}`,
         nietos.trim()   && `nietos: ${nietos.trim()}`,
         hermanos.trim() && `hermanos: ${hermanos.trim()}`,
@@ -659,6 +662,7 @@ export default function Configuracion() {
 
         {/* ── Entorno ── */}
         <SectionLabel icon="people-outline" label="Entorno" />
+        <M3Input label="Cónyuge / Pareja" hint="Nombre" value={conyuge} onChangeText={setConyuge} placeholder="Carlos" />
         <M3Input label="Hijos"    hint="Separados por coma" value={hijos}    onChangeText={setHijos}    placeholder="Juan, María" />
         <M3Input label="Nietos"   hint="Separados por coma" value={nietos}   onChangeText={setNietos}   placeholder="Sofía, Pedro" />
         <M3Input label="Hermanos" hint="Separados por coma" value={hermanos} onChangeText={setHermanos} placeholder="Carlos, Ana" />
