@@ -328,11 +328,13 @@ export default function Index() {
   const sosBrillo = useRef(new Animated.Value(0)).current;
 
   // ── LED de presencia (ojo en LCD) ───────────────────────────────────────────
+  const deteccionPresenciaActiva = refs.perfilRef.current?.deteccionPresenciaActiva ?? false;
   const [presenciaVista, setPresenciaVista] = useState(false);
   const presenciaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ojoPulso    = useRef(new Animated.Value(1)).current;
   const ojoPulsoRef = useRef<Animated.CompositeAnimation | null>(null);
-  const ojoEsperando = modoWatchingPresencia && !presenciaVista;
+  // Pulsa solo cuando la cámara está activamente escaneando (watching)
+  const ojoDebePulsar = modoWatchingPresencia && !presenciaVista;
 
   function onPresenciaDetectadaConLed() {
     setPresenciaVista(true);
@@ -342,7 +344,7 @@ export default function Index() {
   }
 
   useEffect(() => {
-    if (ojoEsperando) {
+    if (ojoDebePulsar) {
       ojoPulsoRef.current = Animated.loop(
         Animated.sequence([
           Animated.timing(ojoPulso, { toValue: 0.2, duration: 700, useNativeDriver: true }),
@@ -355,7 +357,7 @@ export default function Index() {
       ojoPulso.setValue(1);
     }
     return () => { ojoPulsoRef.current?.stop(); };
-  }, [ojoEsperando]);
+  }, [ojoDebePulsar]);
 
   function sosPresionado() {
     setSosPresionando(true);
@@ -719,7 +721,7 @@ export default function Index() {
                 />
                 {/* Contenido */}
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  {modoWatchingPresencia && (
+                  {deteccionPresenciaActiva && (
                     <Animated.View style={{ position: 'absolute', top: 4, left: 6, opacity: ojoPulso, zIndex: 10 }}>
                       <Ionicons name="eye" size={12} color={presenciaVista ? '#3b82f6' : '#ff4444'} />
                     </Animated.View>
@@ -860,15 +862,18 @@ export default function Index() {
         </View>
 
         {/* Botón SOS */}
-        <View style={{ alignItems: 'center' }}>
+        {(() => {
+          const hayFamiliaTelegram = (refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0;
+          return (
+        <View style={{ alignItems: 'center', opacity: hayFamiliaTelegram ? 1 : 0.35 }}>
             <TouchableOpacity
               style={[styles.botonSOSWrap, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
-              onPress={mostrarHintSOS}
-              onPressIn={sosPresionado}
-              onPressOut={sosSoltado}
-              onLongPress={async () => { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); dispararSOS(); }}
+              onPress={hayFamiliaTelegram ? mostrarHintSOS : undefined}
+              onPressIn={hayFamiliaTelegram ? sosPresionado : undefined}
+              onPressOut={hayFamiliaTelegram ? sosSoltado : undefined}
+              onLongPress={hayFamiliaTelegram ? async () => { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); dispararSOS(); } : undefined}
               delayLongPress={2000}
-              activeOpacity={1}
+              activeOpacity={hayFamiliaTelegram ? 1 : 1}
             >
               {/* Bisel cromado — estático, no se mueve */}
               <LinearGradient
@@ -905,6 +910,7 @@ export default function Index() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
+          ); })()}
 
       </View>
 

@@ -858,7 +858,7 @@ export default function Configuracion() {
             />
           </View>
           <View style={s.divisorThin} />
-          <View style={s.switchRow}>
+          <View style={[s.switchRow, contactos.length === 0 && { opacity: 0.35 }]}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={s.switchLabel}>Monitoreo de app</Text>
               <Text style={s.switchHint}>
@@ -874,6 +874,7 @@ export default function Configuracion() {
               }}
               trackColor={{ false: M.outlineVariant, true: M.primary }}
               thumbColor={monitoreoActivo ? '#ffffff' : '#f4f4f4'}
+              disabled={contactos.length === 0}
             />
           </View>
           {monitoreoHeartbeatFeedback != null && (
