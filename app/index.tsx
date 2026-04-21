@@ -756,13 +756,11 @@ export default function Index() {
               const subFont = Math.max(12, Math.round(displayFontInfo * 0.38));
               return (
                 <View style={{
-                  width: '61%', height: '100%', borderRadius: 18,
+                  width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
                   borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
-                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
                   backgroundColor: 'rgba(255,255,255,0.12)',
                 }}>
-                  <View style={{ flex: 1, borderRadius: 17, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
                     {musicaEfectiva
                       ? (
                         /* ── Pantalla música ── */
