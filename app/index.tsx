@@ -29,6 +29,7 @@ import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOve
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
 import PanelCuero, { MarcoCuero } from '../components/PanelCuero';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
+import { cargarRecordatorios } from '../lib/memoria';
 
 
 function RelojNoche({ fontSize }: { fontSize: number }) {
@@ -152,12 +153,14 @@ export default function Index() {
     resetExpresion();
     if (cargando) reactivar();
     else recargarPerfil();
+    cargarRecordatorios().then(r => setHayRecordatorios(r.length > 0)).catch(() => {});
     return () => { refs.suspenderSR?.(); };
   }, [cargando]));
 
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
+  const [hayRecordatorios, setHayRecordatorios] = useState(false);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Cleanup de ambos timers al desmontar
@@ -325,9 +328,18 @@ export default function Index() {
   const sosBrillo = useRef(new Animated.Value(0)).current;
 
   // ── LED de presencia (ojo en LCD) ───────────────────────────────────────────
+  const [presenciaVista, setPresenciaVista] = useState(false);
+  const presenciaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const ojoPulso    = useRef(new Animated.Value(1)).current;
   const ojoPulsoRef = useRef<Animated.CompositeAnimation | null>(null);
-  const ojoEsperando = modoWatchingPresencia && estado === 'esperando';
+  const ojoEsperando = modoWatchingPresencia && !presenciaVista;
+
+  function onPresenciaDetectadaConLed() {
+    setPresenciaVista(true);
+    if (presenciaTimerRef.current) clearTimeout(presenciaTimerRef.current);
+    presenciaTimerRef.current = setTimeout(() => setPresenciaVista(false), 3000);
+    onPresenciaDetectada();
+  }
 
   useEffect(() => {
     if (ojoEsperando) {
@@ -526,7 +538,7 @@ export default function Index() {
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
-      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
+      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectadaConLed} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
@@ -709,12 +721,13 @@ export default function Index() {
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   {modoWatchingPresencia && (
                     <Animated.View style={{ position: 'absolute', top: 4, left: 6, opacity: ojoPulso, zIndex: 10 }}>
-                      <Ionicons
-                        name="eye"
-                        size={12}
-                        color={estado === 'esperando' ? '#ff4444' : '#3b82f6'}
-                      />
+                      <Ionicons name="eye" size={12} color={presenciaVista ? '#3b82f6' : '#ff4444'} />
                     </Animated.View>
+                  )}
+                  {hayRecordatorios && (
+                    <View style={{ position: 'absolute', bottom: 4, left: 6, zIndex: 10 }}>
+                      <Ionicons name="alarm" size={12} color="#33FF66" />
+                    </View>
                   )}
                   {musicaActiva
                     ? <AnimacionMusica />
