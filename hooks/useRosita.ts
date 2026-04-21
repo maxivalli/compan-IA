@@ -633,6 +633,7 @@ export function useRosita() {
 
   function verificarCharlaProactiva(): boolean {
     if (noMolestarRef.current) return false;
+    if (perfilRef.current?.deteccionPresenciaActiva) return false;
     const hora = new Date().getHours();
     const dentroDeHorario = hora >= (perfilRef.current?.horaFinNoche ?? HORA_CHARLA_INICIO) && hora < (perfilRef.current?.horaInicioNoche ?? HORA_FIN);
     const minutosSinCharla = (Date.now() - ultimaCharlaRef.current) / 1000 / 60;
