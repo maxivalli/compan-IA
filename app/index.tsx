@@ -756,23 +756,13 @@ export default function Index() {
               const subFont = Math.max(12, Math.round(displayFontInfo * 0.38));
               return (
                 <View style={{
-                  width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
+                  width: '61%', height: '100%', borderRadius: 18,
                   borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
                   shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
                   backgroundColor: 'rgba(255,255,255,0.12)',
                 }}>
-                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
-                    {deteccionPresenciaActiva && (
-                      <Animated.View style={{ position: 'absolute', top: 6, left: 8, opacity: ojoPulso, zIndex: 10 }}>
-                        <Ionicons name="eye" size={12} color={presenciaVista ? '#3b82f6' : '#ff4444'} />
-                      </Animated.View>
-                    )}
-                    {hayRecordatorios && (
-                      <View style={{ position: 'absolute', top: 6, right: 8, zIndex: 10 }}>
-                        <Ionicons name="alarm" size={12} color="rgba(255,255,255,0.55)" />
-                      </View>
-                    )}
+                  <View style={{ flex: 1, borderRadius: 17, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
                     {musicaEfectiva
                       ? (
                         /* ── Pantalla música ── */
