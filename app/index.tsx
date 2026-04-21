@@ -27,8 +27,9 @@ import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOverlay';
 
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
-import PanelCuero, { MarcoCuero } from '../components/PanelCuero';
+import { OvaloRosita } from '../components/PanelCuero';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
+import { nombreRadioOGenero } from '../lib/musica';
 import { cargarRecordatorios } from '../lib/memoria';
 
 
@@ -113,6 +114,7 @@ function MarqueeText({ text, style }: { text: string; style?: object }) {
 // Bisel cromado retro — alto contraste, diagonal para simular curvatura del metal
 const CHROME_BEZEL = ['#e8e8e8', '#ffffff', '#cccccc', '#707070', '#b4b4b4', '#383838'] as const;
 
+
 export default function Index() {
   const router = useRouter();
   const navigationState = useRootNavigationState();
@@ -131,6 +133,7 @@ export default function Index() {
     listas, borrarListaVoz,
     detectandoSonido,
     monitoreoActivo,
+    ultimaRadioRef,
   } = useRosita();
 
   const menuTriggerRef = useRef<(() => void) | null>(null);
@@ -237,7 +240,8 @@ export default function Index() {
   }, []);
 
   const hintOpacity    = useRef(new Animated.Value(0)).current;
-  const hintTranslate  = useRef(new Animated.Value(30)).current;
+  const hintTranslate  = useRef(new Animated.Value(20)).current;
+  const hintScale      = useRef(new Animated.Value(0.95)).current;
   const hintActiveRef  = useRef(false);
   const hintAnimRef    = useRef<Animated.CompositeAnimation | null>(null);
   const hintAnimSeqRef = useRef(0);
@@ -252,11 +256,13 @@ export default function Index() {
       return;
     }
     hintActiveRef.current = true;
-    hintTranslate.setValue(30);
+    hintTranslate.setValue(20);
+    hintScale.setValue(0.95);
     const seq = hintAnimSeqRef.current;
     hintAnimRef.current = Animated.parallel([
       Animated.timing(hintOpacity,   { toValue: 1, duration: 700, useNativeDriver: true }),
       Animated.timing(hintTranslate, { toValue: 0, duration: 700, useNativeDriver: true }),
+      Animated.timing(hintScale,     { toValue: 1, duration: 700, useNativeDriver: true }),
     ]);
     hintAnimRef.current.start();
     const id = setInterval(() => {
@@ -264,7 +270,8 @@ export default function Index() {
       hintAnimRef.current?.stop();
       hintAnimRef.current = Animated.parallel([
         Animated.timing(hintOpacity,   { toValue: 0, duration: 400, useNativeDriver: true }),
-        Animated.timing(hintTranslate, { toValue: -30, duration: 400, useNativeDriver: true }),
+        Animated.timing(hintTranslate, { toValue: -20, duration: 400, useNativeDriver: true }),
+        Animated.timing(hintScale,     { toValue: 0.95, duration: 400, useNativeDriver: true }),
       ]);
       hintAnimRef.current.start(({ finished }) => {
         if (!finished || !hintActiveRef.current || hintAnimSeqRef.current !== seq) return;
@@ -273,13 +280,15 @@ export default function Index() {
            const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
            const max = hasAlert ? 2 : 1;
            const next = prev >= max ? 0 : prev + 1;
-           hintTranslate.setValue(30);
+           hintTranslate.setValue(20);
+           hintScale.setValue(0.95);
            return next;
         });
         hintAnimRef.current?.stop();
         hintAnimRef.current = Animated.parallel([
           Animated.timing(hintOpacity,   { toValue: 1, duration: 500, useNativeDriver: true }),
           Animated.timing(hintTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
+          Animated.timing(hintScale,     { toValue: 1, duration: 500, useNativeDriver: true }),
         ]);
         hintAnimRef.current.start();
       });
@@ -398,10 +407,9 @@ export default function Index() {
   const btnH      = isTablet ? Math.round(64 * textScale) : Math.min(64, Math.floor((screenW - 100) / 5.125));
   const btnW      = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : Math.round(btnH * 3.125);
   // Display: escala proporcional a btnH; fonts derivados del alto del contenedor
-  const displayH  = isTablet ? Math.round(72 * textScale) : Math.min(72, Math.round(btnH * 1.125));
-  const displayFontInfo  = Math.round(displayH * 0.44);   // hora / temperatura
-  const displayFontAlert = Math.round(displayH * 0.34);   // alerta (DSEG14, texto más largo)
-  const displayFontReloj = Math.round(displayH * 0.70);   // reloj noche (pantalla completa)
+  const displayH  = isTablet ? Math.round(120 * textScale) : Math.min(140, Math.round(btnH * 2.2));
+  const displayFontInfo  = Math.round(displayH * 0.34);   // hora / temperatura
+  const displayFontReloj = Math.round(displayH * 0.62);   // reloj noche (pantalla completa)
   const icoBtn    = Math.round(btnH * 0.46);
   const icoSOS    = Math.round(btnH * 0.50);
   const btnFont   = isTablet ? fs(26) : fs(18);
@@ -537,6 +545,40 @@ export default function Index() {
     >
       <MenuFlotante oscuro hideBtn triggerRef={menuTriggerRef} />
 
+      {/* Botón No Molestar — arriba izquierda */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute', top: safeTop + 12, left: 16,
+          width: btnH, height: btnH, borderRadius: btnH / 2, zIndex: 20,
+          backgroundColor: noMolestar ? 'rgba(239,68,68,0.30)' : 'rgba(255,255,255,0.18)',
+          borderWidth: 1, borderColor: noMolestar ? 'rgba(239,68,68,0.60)' : 'rgba(255,255,255,0.40)',
+          alignItems: 'center', justifyContent: 'center',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+        }}
+        onPress={() => { playClick(); acciones.toggleDoNotDisturb(); }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={Math.round(btnH * 0.42)} color="rgba(255,255,255,0.92)" />
+      </TouchableOpacity>
+
+      {/* Botón Menú — arriba derecha */}
+      <TouchableOpacity
+        style={{
+          position: 'absolute', top: safeTop + 12, right: 16,
+          width: btnH, height: btnH, borderRadius: btnH / 2, zIndex: 20,
+          backgroundColor: 'rgba(255,255,255,0.18)',
+          borderWidth: 1, borderColor: 'rgba(255,255,255,0.40)',
+          alignItems: 'center', justifyContent: 'center',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+        }}
+        onPress={() => { menuTriggerRef.current?.(); }}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="menu" size={Math.round(btnH * 0.42)} color="rgba(255,255,255,0.92)" />
+      </TouchableOpacity>
+
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
@@ -575,6 +617,11 @@ export default function Index() {
         </Modal>
       )}
 
+      <OvaloRosita
+        faceScale={!isTablet && layoutMode === 'vertical' ? faceScale * 0.85 : faceScale}
+        screenW={screenW}
+        faceBottom={faceBottom}
+      />
       <View
   style={[
     styles.ojoContenedor,
@@ -655,8 +702,6 @@ export default function Index() {
       </View>
       {modoNoche === 'durmiendo' && <ZZZ />}
 
-      <PanelCuero top={faceBottom + Math.round(screenH * 0.05)} />
-      <MarcoCuero />
 
       <View style={[styles.ecualizadorWrap, { height: displayH, marginTop: Math.round(screenH * 0.05) }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
         {listas.length > 0
@@ -696,79 +741,110 @@ export default function Index() {
             })()
 
           : (
-            /* ── Display cromado retro ── */
-            <LinearGradient
-              colors={CHROME_BEZEL}
-              start={{ x: 0.15, y: 0 }}
-              end={{ x: 0.85, y: 1 }}
-              style={{ width: '61%', height: '100%', borderRadius: 10, padding: 3 }}
-            >
-              {/* Panel LCD recesado */}
-              <View style={{ flex: 1, borderRadius: 4, borderWidth: 2, borderColor: 'rgba(0,0,0,0.30)', overflow: 'hidden' }}>
-                {/* Fondo verde retroiluminado */}
-                <LinearGradient
-                  colors={['#010D01', '#021202', '#010E01']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                {/* Brillo fosfórico superior */}
-                <LinearGradient
-                  colors={['rgba(51,255,102,0.12)', 'rgba(51,255,102,0)']}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 30 }}
-                />
-                {/* Contenido */}
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  {deteccionPresenciaActiva && (
-                    <Animated.View style={{ position: 'absolute', top: 4, left: 6, opacity: ojoPulso, zIndex: 10 }}>
-                      <Ionicons name="eye" size={12} color={presenciaVista ? '#3b82f6' : '#ff4444'} />
-                    </Animated.View>
-                  )}
-                  {hayRecordatorios && (
-                    <View style={{ position: 'absolute', bottom: 4, left: 6, zIndex: 10 }}>
-                      <Ionicons name="alarm" size={12} color="#33FF66" />
-                    </View>
-                  )}
-                  {musicaActiva
-                    ? <AnimacionMusica />
-                    : detectandoSonido
-                    ? <AnimacionMusica />
-                    : modoNoche !== 'despierta'
-                    ? <RelojNoche fontSize={displayFontReloj} />
-                    : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateX: hintTranslate }], width: '100%' }}>
-                        {infoIdx === 2
-                          ? <MarqueeText
-                              text={
-                                climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO'
-                                : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRIO EXTREMO'
-                                : (climaObj?.descripcion?.toUpperCase() || 'ALERTA')
-                              }
-                              style={[styles.infoText, { fontFamily: dsegLoaded ? 'DSEG14Classic' : undefined, fontSize: displayFontAlert }]}
-                            />
-                          : <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                              <Text
-                                style={[styles.infoText, { fontFamily: dsegLoaded ? 'DSEG7Classic' : undefined, fontSize: displayFontInfo }]}
-                                numberOfLines={1}
-                              >
-                                {infoIdx === 1 && climaObj?.temperatura != null
-                                  ? `${Math.round(climaObj.temperatura)}°`
-                                  : horaMinuto}
-                              </Text>
-                              {infoIdx === 1 && (!!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3))) && (
-                                <Ionicons name="warning" size={displayFontInfo} color="#33FF66" style={{ transform: [{ translateY: 2 }] }} />
-                              )}
-                            </View>
-                        }
+            /* ── Display glass ── */
+            (() => {
+              const climaEfectivo = climaObj;
+              const musicaEfectiva = musicaActiva;
+              const dotHasAlert = !!(climaEfectivo?.codigoActual && CODIGOS_ADVERSOS.has(climaEfectivo.codigoActual)) || (climaEfectivo?.temperatura !== undefined && (climaEfectivo.temperatura >= 35 || climaEfectivo.temperatura <= 3));
+              const dotCount = climaEfectivo?.temperatura != null ? (dotHasAlert ? 3 : 2) : 1;
+              const alertaTexto = climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura >= 35
+                ? 'Calor extremo'
+                : climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura <= 3
+                ? 'Frío extremo'
+                : (climaEfectivo?.descripcion || 'Alerta meteorológica');
+              const fechaDisplay = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+              const subFont = Math.max(12, Math.round(displayFontInfo * 0.38));
+              return (
+                <View style={{
+                  width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
+                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.20)',
+                  shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.30, shadowRadius: 12, elevation: 8,
+                  backgroundColor: 'rgba(255,255,255,0.08)',
+                }}>
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.12)', 'rgba(255,255,255,0)']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 20 }}
+                  />
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
+                    {deteccionPresenciaActiva && (
+                      <Animated.View style={{ position: 'absolute', top: 6, left: 8, opacity: ojoPulso, zIndex: 10 }}>
+                        <Ionicons name="eye" size={12} color={presenciaVista ? '#3b82f6' : '#ff4444'} />
                       </Animated.View>
-                  }
+                    )}
+                    {hayRecordatorios && (
+                      <View style={{ position: 'absolute', top: 6, right: 8, zIndex: 10 }}>
+                        <Ionicons name="alarm" size={12} color="rgba(255,255,255,0.55)" />
+                      </View>
+                    )}
+                    {musicaEfectiva
+                      ? (
+                        /* ── Pantalla música ── */
+                        <View style={{ alignItems: 'center', width: '100%' }}>
+                          <AnimacionMusica />
+                          <Text style={{ fontSize: subFont, color: '#ffffff', fontWeight: 'bold', marginTop: 6, textAlign: 'center', paddingHorizontal: 8 }} numberOfLines={1}>
+                            {nombreRadioOGenero(ultimaRadioRef.current ?? 'FM Cristal 98.9')}
+                          </Text>
+                        </View>
+                      )
+                      : detectandoSonido
+                      ? <AnimacionMusica />
+                      : modoNoche !== 'despierta'
+                      ? <RelojNoche fontSize={displayFontReloj} />
+                      : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateY: hintTranslate }, { scale: hintScale }], width: '100%', alignItems: 'center' }}>
+                          {/* Pantalla 0: Hora */}
+                          {(infoIdx === 0 || (infoIdx === 1 && climaEfectivo?.temperatura == null)) && (
+                            <View style={{ alignItems: 'center' }}>
+                              <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{horaMinuto}</Text>
+                              <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
+                                {fechaDisplay}
+                              </Text>
+                            </View>
+                          )}
+                          {/* Pantalla 1: Temperatura */}
+                          {infoIdx === 1 && climaEfectivo?.temperatura != null && (
+                            <View style={{ alignItems: 'center' }}>
+                              <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{`${Math.round(climaEfectivo.temperatura)}°`}</Text>
+                              <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
+                                {climaEfectivo.descripcion}
+                              </Text>
+                            </View>
+                          )}
+                          {/* Pantalla 2: Alerta */}
+                          {infoIdx === 2 && (
+                            <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
+                              <Text style={{ fontSize: Math.round(displayFontInfo * 0.32), fontWeight: '700', color: '#fbbf24', marginBottom: 3, letterSpacing: 0.5 }}>
+                                ALERTA
+                              </Text>
+                              <Text style={{ fontSize: subFont, color: '#ffffff', textAlign: 'center' }} numberOfLines={2}>
+                                {alertaTexto}
+                              </Text>
+                            </View>
+                          )}
+                        </Animated.View>
+                    }
+                    {/* Pagination dots — un único dot cuando hay música, dots normales en modo info */}
+                    {!detectandoSonido && modoNoche === 'despierta' && (
+                      <View style={{ flexDirection: 'row', gap: 4, position: 'absolute', bottom: 8 }}>
+                        {musicaEfectiva
+                          ? <View style={{ height: 4, width: 14, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.85)' }} />
+                          : dotCount > 1 && Array.from({ length: dotCount }).map((_, i) => (
+                            <View key={i} style={{
+                              height: 4,
+                              width: infoIdx === i ? 14 : 4,
+                              borderRadius: 2,
+                              backgroundColor: infoIdx === i ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)',
+                            }} />
+                          ))
+                        }
+                      </View>
+                    )}
+                  </View>
                 </View>
-                {/* Biseles interiores */}
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: 'rgba(0,0,0,0.50)' }} />
-                <View style={{ position: 'absolute', top: 0, left: 0, width: 2, bottom: 0, backgroundColor: 'rgba(0,0,0,0.30)' }} />
-              </View>
-            </LinearGradient>
+              );
+            })()
           )
         }
       </View>
@@ -781,82 +857,35 @@ export default function Index() {
       {/* ── Zona de botones ── */}
       <View style={[styles.botonesZona, isTablet && styles.botonesZonaTablet]}>
 
-        {/* Fila principal — Menú | Badge estado | No molestar */}
+        {/* Fila principal — Badge estado */}
         <View style={[styles.botonesFilaPrincipal, isTablet && { gap: 20 }]}>
-
-          {/* Botón Menú */}
-          <TouchableOpacity
-            style={{ width: btnH, height: btnH, borderRadius: btnH / 2 }}
-            onPress={() => { menuTriggerRef.current?.(); }}
-            activeOpacity={0.85}
-          >
-            <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
-              style={{ flex: 1, borderRadius: btnH / 2, padding: 4 }}>
-              <View style={{ flex: 1, borderRadius: btnH / 2 - 4, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-                <LinearGradient colors={['#1e3a5f', '#0f2040']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
-                <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
-                <Ionicons name="menu" size={Math.round(btnH * 0.38)} color="#ffffff" />
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
 
           {/* Badge de estado */}
           <TouchableOpacity
             onPress={acciones.toggleTalkOrStopMusic}
             activeOpacity={musicaActiva ? 0.75 : 0.9}
-            style={[styles.estadoBadgeWrap, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+            style={[styles.estadoBadgeWrap, {
+              width: btnW, height: btnH, borderRadius: btnH / 2,
+              borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+              overflow: 'hidden',
+            }]}
           >
-            {/* Bisel cromado */}
-            <LinearGradient
-              colors={CHROME_BEZEL}
-              start={{ x: 0.15, y: 0 }}
-              end={{ x: 0.85, y: 1 }}
-              style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}
-            >
-              {/* Panel LED recesado */}
-              <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2.5, borderColor: 'rgba(0,0,0,0.32)', overflow: 'hidden' }}>
-                <View style={styles.estadoBadgeGradient}>
-                  {/* Capa base */}
-                  <LinearGradient
-                    colors={badgeGradient}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  {/* Pulso ámbar — solo activo en estado esperando */}
-                  {isEsperando && (
-                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>
-                      <LinearGradient
-                        colors={['#fde68a', '#f59e0b']}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={{ flex: 1 }}
-                      />
-                    </Animated.View>
-                  )}
-                  <View style={styles.estadoBadgeShine} />
-                  <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
-                    {badgeLabel}
-                  </Text>
-                </View>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-
-          {/* Botón No Molestar */}
-          <TouchableOpacity
-            style={{ width: btnH, height: btnH, borderRadius: btnH / 2 }}
-            onPress={() => { playClick(); acciones.toggleDoNotDisturb(); }}
-            activeOpacity={0.85}
-          >
-            <LinearGradient colors={CHROME_BEZEL} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }}
-              style={{ flex: 1, borderRadius: btnH / 2, padding: 4 }}>
-              <View style={{ flex: 1, borderRadius: btnH / 2 - 4, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-                <LinearGradient colors={noMolestar ? ['#c2410c', '#7c2d12'] : ['#1e3a5f', '#0f2040']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />
-                <View style={{ position: 'absolute', top: 3, left: '18%', width: '64%', height: '38%', borderRadius: 100, backgroundColor: 'rgba(255,255,255,0.20)' }} />
-                <Ionicons name={noMolestar ? 'mic-off' : 'mic-outline'} size={Math.round(btnH * 0.38)} color="#ffffff" />
-              </View>
-            </LinearGradient>
+            <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+              style={[StyleSheet.absoluteFill, { opacity: 0.50 }]} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
+            {isEsperando && (
+              <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>
+                <LinearGradient colors={['#fde68a', '#f59e0b']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFill} />
+              </Animated.View>
+            )}
+            <View style={styles.estadoBadgeGradient}>
+              <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
+                {badgeLabel}
+              </Text>
+            </View>
           </TouchableOpacity>
 
         </View>
@@ -867,7 +896,13 @@ export default function Index() {
           return (
         <View style={{ alignItems: 'center', opacity: hayFamiliaTelegram ? 1 : 0.35 }}>
             <TouchableOpacity
-              style={[styles.botonSOSWrap, { width: btnW, height: btnH, borderRadius: btnH / 2 }]}
+              style={[styles.botonSOSWrap, {
+                width: btnW, height: btnH, borderRadius: btnH / 2,
+                borderWidth: 1, borderColor: sosPresionando ? 'rgba(255,100,100,0.60)' : 'rgba(255,255,255,0.38)',
+                shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+                overflow: 'hidden',
+              }]}
               onPress={hayFamiliaTelegram ? mostrarHintSOS : undefined}
               onPressIn={hayFamiliaTelegram ? sosPresionado : undefined}
               onPressOut={hayFamiliaTelegram ? sosSoltado : undefined}
@@ -875,39 +910,18 @@ export default function Index() {
               delayLongPress={2000}
               activeOpacity={hayFamiliaTelegram ? 1 : 1}
             >
-              {/* Bisel cromado — estático, no se mueve */}
-              <LinearGradient
-                colors={CHROME_BEZEL}
-                start={{ x: 0.15, y: 0 }}
-                end={{ x: 0.85, y: 1 }}
-                style={{ flex: 1, borderRadius: btnH / 2, padding: 6 }}
-              >
-                {/* Hueco recesado — estático, mismo color que el LED apagado para no mostrar franjas */}
-                <View style={{ flex: 1, borderRadius: btnH / 2 - 6, borderWidth: 2.5, borderColor: sosInnerBorder, overflow: 'hidden', backgroundColor: esBotonesNoche ? '#450a0a' : '#7f1d1d' }}>
-                  <View style={styles.estadoBadgeGradient}>
-                    {/* Capa base: rojo oscuro (apagado) */}
-                    <LinearGradient
-                      colors={sosGradientOff}
-                      start={{ x: 0.5, y: 0 }}
-                      end={{ x: 0.5, y: 1 }}
-                      style={StyleSheet.absoluteFill}
-                    />
-                    {/* Capa encendida: rojo brillante, se enciende al presionar */}
-                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
-                      <LinearGradient
-                        colors={sosGradientOn}
-                        start={{ x: 0.5, y: 0 }}
-                        end={{ x: 0.5, y: 1 }}
-                        style={{ flex: 1 }}
-                      />
-                    </Animated.View>
-                    <View style={styles.estadoBadgeShine} />
-                    <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.2), fontWeight: sosPresionando ? '400' : '700', marginBottom: sosPresionando ? 3 : 0 }]}>
-                      {sosPresionando ? 'Espera...' : 'SOS'}
-                    </Text>
-                  </View>
-                </View>
-              </LinearGradient>
+              <LinearGradient colors={sosGradientOff} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                style={[StyleSheet.absoluteFill, { opacity: 0.50 }]} />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+              <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
+                <LinearGradient colors={sosGradientOn} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFill} />
+              </Animated.View>
+              <View style={styles.estadoBadgeGradient}>
+                <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.2), fontWeight: sosPresionando ? '400' : '700', marginBottom: sosPresionando ? 3 : 0 }]}>
+                  {sosPresionando ? 'Espera...' : 'SOS'}
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
           ); })()}
@@ -1013,20 +1027,16 @@ const styles = StyleSheet.create({
   ecualizadorWrap:    { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   infoText: {
     fontSize: fs(26),
-    color: '#33FF66',
+    color: '#ffffff',
+    fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 2,
-    textShadowColor: 'rgba(51,255,102,0.60)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
   },
   relojNoche: {
     fontSize: fs(51),
-    color: '#33FF66',
+    color: '#ffffff',
+    fontWeight: 'bold',
     letterSpacing: 2,
-    textShadowColor: 'rgba(51,255,102,0.50)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 14,
   },
   botonesZona:        { alignItems: 'center', gap: 12 },
   botonesZonaTablet:  { alignItems: 'center', gap: 16 },

@@ -1125,5 +1125,6 @@ export function useRosita() {
       silbidoHabilitadoRef,
     },
     player: pipeline.player,
+    ultimaRadioRef,
   };
 }

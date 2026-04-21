@@ -86,8 +86,7 @@ export interface RositaHorizontalProps {
 
 function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
   const [fontsLoaded] = useFonts({
-    'DSEG7Classic':  require('../assets/fonts/DSEG7Classic-Regular.ttf'),
-    'DSEG14Classic': require('../assets/fonts/DSEG14Classic-Regular.ttf'),
+    'DSEG7Classic': require('../assets/fonts/DSEG7Classic-Regular.ttf'),
   });
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
@@ -96,8 +95,10 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
       mm: String(now.getMinutes()).padStart(2, '0'),
     };
   });
-  const latido  = useRef(new Animated.Value(1)).current;
+  const latido   = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const [infoIdx, setInfoIdx] = useState<0|1|2>(0);
   const climaObjRef = useRef(climaObj);
   useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
@@ -124,19 +125,28 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
     return () => anim.stop();
   }, []);
 
-  // Alternar hora ↔ temperatura ↔ alerta cada 5s
+  // Alternar hora ↔ temperatura ↔ alerta cada 5s con fade + slide + scale
   useEffect(() => {
     if (climaObj?.temperatura == null) return;
     const id = setInterval(() => {
-      Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(({ finished }) => {
+      Animated.parallel([
+        Animated.timing(fadeAnim,  { toValue: 0,    duration: 400, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: -20,  duration: 400, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.95, duration: 400, useNativeDriver: true }),
+      ]).start(({ finished }) => {
         if (!finished) return;
         setInfoIdx(prev => {
-           const co = climaObjRef.current;
-           const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
-           const max = hasAlert ? 2 : 1;
-           return prev >= max ? 0 : (prev + 1) as 0|1|2;
+          const co = climaObjRef.current;
+          const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
+          const max = hasAlert ? 2 : 1;
+          slideAnim.setValue(20);
+          return prev >= max ? 0 : (prev + 1) as 0|1|2;
         });
-        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+        Animated.parallel([
+          Animated.timing(fadeAnim,  { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+          Animated.timing(scaleAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        ]).start();
       });
     }, 5000);
     return () => clearInterval(id);
@@ -144,29 +154,59 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
 
   const fontFamily = fontsLoaded ? 'DSEG7Classic' : undefined;
 
+  const dotHasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
+  const dotCount = climaObj?.temperatura != null ? (dotHasAlert ? 3 : 2) : 1;
+  const alertaTexto = climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'Calor extremo'
+    : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'Frío extremo'
+    : (climaObj?.descripcion || 'Alerta meteorológica');
+  const fechaDisplay = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+
   // Nunca desmontar la vista de hora: el native driver pierde el nodo y el latido muere.
-  // Controlamos visibilidad con opacity + position absolute en la vista oculta.
+  // Controlamos visibilidad con opacity + position absolute en las vistas ocultas.
   return (
-    <Animated.View style={[styles.relojWrap, { opacity: fadeAnim }]}>
-      <View style={[infoIdx !== 0 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
-        <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
-        <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
-        <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
-      </View>
-      {climaObj?.temperatura != null && (
-        <View style={[infoIdx !== 1 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
-          <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
-          {(!!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3))) ? (
-            <Ionicons name="warning" size={96} color="#FFD700" style={{ transform: [{ translateY: 6 }], marginLeft: 24 }} />
-          ) : null}
+    <>
+      <Animated.View style={{ alignItems: 'center', justifyContent: 'center', opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] }}>
+        {/* Pantalla 0: Hora */}
+        <View style={[infoIdx !== 0 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
+            <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
+            <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
+          </View>
+          <Text style={styles.relojSubtext} numberOfLines={1}>{fechaDisplay}</Text>
+        </View>
+
+        {/* Pantalla 1: Temperatura */}
+        {climaObj?.temperatura != null && (
+          <View style={[infoIdx !== 1 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+            <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
+            <Text style={styles.relojSubtext} numberOfLines={1}>{climaObj.descripcion}</Text>
+          </View>
+        )}
+
+        {/* Pantalla 2: Alerta */}
+        <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+          <Text style={{ fontSize: 42, fontWeight: '700', color: '#fbbf24', letterSpacing: 2, marginBottom: 10 }}>ALERTA</Text>
+          <Text style={[styles.relojSubtext, { fontSize: 22, maxWidth: 500, color: '#ffffff' }]} numberOfLines={2}>
+            {alertaTexto}
+          </Text>
+        </View>
+      </Animated.View>
+
+      {/* Pagination dots */}
+      {dotCount > 1 && (
+        <View style={{ position: 'absolute', bottom: 32, flexDirection: 'row', gap: 8 }}>
+          {Array.from({ length: dotCount }).map((_, i) => (
+            <View key={i} style={{
+              height: 6,
+              width: infoIdx === i ? 20 : 6,
+              borderRadius: 3,
+              backgroundColor: infoIdx === i ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)',
+            }} />
+          ))}
         </View>
       )}
-      <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { flexDirection: 'row', alignItems: 'center' }]}>
-        <Text style={[styles.relojHora, { fontFamily: fontsLoaded ? 'DSEG14Classic' : undefined, fontSize: 72, textAlign: 'center' }]} adjustsFontSizeToFit numberOfLines={1}>
-          {climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'CALOR EXTREMO' : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'FRÍO EXTREMO' : (climaObj?.descripcion?.toUpperCase() || 'ALERTA METEOROLÓGICA')}
-        </Text>
-      </View>
-    </Animated.View>
+    </>
   );
 }
 
@@ -431,15 +471,19 @@ const styles = StyleSheet.create({
   faceTouchArea: {
     ...StyleSheet.absoluteFillObject,
   },
-  relojWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   relojHora: {
-    color: '#ffffffbf',
+    color: '#ffffff',
+    fontWeight: 'bold',
     fontSize: 172,
     letterSpacing: 2,
+  },
+  relojSubtext: {
+    fontSize: 24,
+    color: '#ffffff',
+    textTransform: 'capitalize',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    marginTop: 8,
   },
   estadoRing: {
     position:    'absolute',
