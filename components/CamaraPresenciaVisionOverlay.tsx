@@ -8,6 +8,8 @@ type Props = {
   onDebugLabels?: (labels: string[]) => void;
 };
 
+const CONFIANZA_MINIMA = 0.5;
+
 export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetectada, onDebugLabels }: Props) {
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -17,7 +19,10 @@ export default function CamaraPresenciaVisionOverlay({ activo, onPresenciaDetect
       return;
     }
 
-    PersonaDetector.startDetection();
+    PersonaDetector.startDetection({
+      confianzaMinima: CONFIANZA_MINIMA,
+      etiquetas: PersonaDetector.ETIQUETAS_DEFAULT,
+    });
 
     const personSub = PersonaDetector.addPersonDetectedListener(() => {
       onPresenciaDetectada();

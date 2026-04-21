@@ -22,7 +22,6 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 private const val TAG = "PersonaDetector"
-private const val CONFIANZA_MINIMA = 0.5f
 private const val COOLDOWN_MS = 1200L
 
 class PersonaDetectorModule : Module() {
@@ -32,8 +31,8 @@ class PersonaDetectorModule : Module() {
     private var labeler: ImageLabeler? = null
     private var isRunning = false
     private var lastHitTime = 0L
-
-    private val etiquetasHumanas = setOf(
+    private var confianzaMinima = 0.5f
+    private var etiquetasHumanas = setOf(
         "person", "human", "people", "man", "woman", "boy", "girl",
         "adult", "child", "elder", "senior",
         "face", "head", "body", "skin", "hair"
@@ -44,7 +43,12 @@ class PersonaDetectorModule : Module() {
 
         Events("onPersonDetected", "onDebugLabel")
 
-        Function("startDetection") {
+        Function("startDetection") { options: Map<String, Any>? ->
+            options?.let { opts ->
+                (opts["confianzaMinima"] as? Double)?.let { confianzaMinima = it.toFloat() }
+                @Suppress("UNCHECKED_CAST")
+                (opts["etiquetas"] as? List<String>)?.let { etiquetasHumanas = it.toSet() }
+            }
             startCamera()
         }
 
@@ -71,7 +75,7 @@ class PersonaDetectorModule : Module() {
         }
 
         val labelerOptions = ImageLabelerOptions.Builder()
-            .setConfidenceThreshold(CONFIANZA_MINIMA)
+            .setConfidenceThreshold(confianzaMinima)
             .build()
         labeler = ImageLabeling.getClient(labelerOptions)
         analysisExecutor = Executors.newSingleThreadExecutor()
