@@ -322,8 +322,28 @@ export default function Index() {
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
   const [mostrarListas,  setMostrarListas]  = useState(false);
-  const [debugPresenciaLabels, setDebugPresenciaLabels] = useState<string[]>([]);
   const sosBrillo = useRef(new Animated.Value(0)).current;
+
+  // ── LED de presencia (ojo en LCD) ───────────────────────────────────────────
+  const ojoPulso    = useRef(new Animated.Value(1)).current;
+  const ojoPulsoRef = useRef<Animated.CompositeAnimation | null>(null);
+  const ojoEsperando = modoWatchingPresencia && estado === 'esperando';
+
+  useEffect(() => {
+    if (ojoEsperando) {
+      ojoPulsoRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(ojoPulso, { toValue: 0.2, duration: 700, useNativeDriver: true }),
+          Animated.timing(ojoPulso, { toValue: 1,   duration: 700, useNativeDriver: true }),
+        ])
+      );
+      ojoPulsoRef.current.start();
+    } else {
+      ojoPulsoRef.current?.stop();
+      ojoPulso.setValue(1);
+    }
+    return () => { ojoPulsoRef.current?.stop(); };
+  }, [ojoEsperando]);
 
   function sosPresionado() {
     setSosPresionando(true);
@@ -506,15 +526,7 @@ export default function Index() {
       {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
       {esCumpleaños && <Globos />}
       <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
-      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} onDebugLabels={setDebugPresenciaLabels} />
-      <View style={{ position: 'absolute', top: safeBottom + 8, left: 8, backgroundColor: 'rgba(0,0,0,0.72)', borderRadius: 6, padding: 6, maxWidth: 240, zIndex: 9999 }} pointerEvents="none">
-        <Text style={{ color: modoWatchingPresencia ? '#4ade80' : '#f87171', fontSize: 11, fontWeight: 'bold' }}>
-          CAM: {modoWatchingPresencia ? 'WATCHING' : 'OFF'}
-        </Text>
-        <Text style={{ color: '#fbbf24', fontSize: 10, marginTop: 2 }} numberOfLines={3}>
-          {debugPresenciaLabels.length > 0 ? debugPresenciaLabels.join(', ') : '—'}
-        </Text>
-      </View>
+      <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectada} />
 
       {fotoTelegram && (
         <Modal transparent animationType="fade" statusBarTranslucent>
@@ -695,6 +707,15 @@ export default function Index() {
                 />
                 {/* Contenido */}
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  {modoWatchingPresencia && (
+                    <Animated.View style={{ position: 'absolute', top: 4, left: 6, opacity: ojoPulso, zIndex: 10 }}>
+                      <Ionicons
+                        name="eye"
+                        size={12}
+                        color={estado === 'esperando' ? '#ff4444' : '#3b82f6'}
+                      />
+                    </Animated.View>
+                  )}
                   {musicaActiva
                     ? <AnimacionMusica />
                     : detectandoSonido
