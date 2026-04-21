@@ -515,6 +515,10 @@ export function useRosita() {
     perfilRef.current = perfil;
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
+    // Si la bienvenida no fue dada aún (primer arranque post-onboarding),
+    // activar completo: precacheo, SR y mensaje de bienvenida.
+    const yaDada = await bienvenidaYaDada();
+    if (!yaDada) await reactivar();
   }
   recargarPerfilRef.current = recargarPerfil;
 
@@ -541,7 +545,12 @@ export function useRosita() {
     }
 
     try { await AudioModule.requestRecordingPermissionsAsync(); } catch {}
-    try { await ExpoSpeechRecognitionModule.requestPermissionsAsync(); } catch {}
+    try {
+      await Promise.race([
+        ExpoSpeechRecognitionModule.requestPermissionsAsync(),
+        new Promise<void>(resolve => setTimeout(resolve, 3000)),
+      ]);
+    } catch {}
     obtenerTokenDispositivo().catch(() => {}); // warmea _cachedToken para urlCartesiaStream
     initChatWs({ getToken: obtenerTokenDispositivo, log: logCliente });
     pipeline.limpiarCacheViejo().catch(() => {});

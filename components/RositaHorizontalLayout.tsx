@@ -17,12 +17,13 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFonts } from 'expo-font';
+import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche, CAT_FACE_TOP_EXTRA, CAT_SVG_H } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
 import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
 import CameraAutoCaptura from './CameraAutoCaptura';
+import { OvaloRosita } from './PanelCuero';
 import { EstadoRosita } from '../hooks/useBrain';
 import { AccionesRosita } from '../hooks/useAccionesRosita';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
@@ -85,9 +86,7 @@ export interface RositaHorizontalProps {
 }
 
 function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
-  const [fontsLoaded] = useFonts({
-    'DSEG7Classic': require('../assets/fonts/DSEG7Classic-Regular.ttf'),
-  });
+  const [fontsLoaded] = useFonts({ Poppins_700Bold });
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
     return {
@@ -152,14 +151,11 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
     return () => clearInterval(id);
   }, [climaObj?.temperatura]);
 
-  const fontFamily = fontsLoaded ? 'DSEG7Classic' : undefined;
+  const fontFamily  = fontsLoaded ? 'Poppins_700Bold' : undefined;
 
-  const dotHasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
-  const dotCount = climaObj?.temperatura != null ? (dotHasAlert ? 3 : 2) : 1;
   const alertaTexto = climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'Calor extremo'
     : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'Frío extremo'
     : (climaObj?.descripcion || 'Alerta meteorológica');
-  const fechaDisplay = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   // Nunca desmontar la vista de hora: el native driver pierde el nodo y el latido muere.
   // Controlamos visibilidad con opacity + position absolute en las vistas ocultas.
@@ -173,39 +169,24 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
             <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
             <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
           </View>
-          <Text style={styles.relojSubtext} numberOfLines={1}>{fechaDisplay}</Text>
         </View>
 
         {/* Pantalla 1: Temperatura */}
         {climaObj?.temperatura != null && (
           <View style={[infoIdx !== 1 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
             <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
-            <Text style={styles.relojSubtext} numberOfLines={1}>{climaObj.descripcion}</Text>
           </View>
         )}
 
         {/* Pantalla 2: Alerta */}
         <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
-          <Text style={{ fontSize: 42, fontWeight: '700', color: '#fbbf24', letterSpacing: 2, marginBottom: 10 }}>ALERTA</Text>
+          <Text style={{ fontSize: 42, fontFamily, color: '#fbbf24', marginBottom: 10 }}>ALERTA</Text>
           <Text style={[styles.relojSubtext, { fontSize: 22, maxWidth: 500, color: '#ffffff' }]} numberOfLines={2}>
             {alertaTexto}
           </Text>
         </View>
       </Animated.View>
 
-      {/* Pagination dots */}
-      {dotCount > 1 && (
-        <View style={{ position: 'absolute', bottom: 32, flexDirection: 'row', gap: 8 }}>
-          {Array.from({ length: dotCount }).map((_, i) => (
-            <View key={i} style={{
-              height: 6,
-              width: infoIdx === i ? 20 : 6,
-              borderRadius: 3,
-              backgroundColor: infoIdx === i ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)',
-            }} />
-          ))}
-        </View>
-      )}
     </>
   );
 }
@@ -215,6 +196,7 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
 export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom, top: safeTop, left: safeLeft, right: safeRight } = useSafeAreaInsets();
+  const [faceBottomH, setFaceBottomH] = useState(0);
 
   const FACE_W = EYE_W * 2 + 32;
   const FACE_H = EYE_H + 120;
@@ -253,6 +235,21 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
     : 'transparent';
 
   const esBotonesNoche = props.modoNoche !== 'despierta';
+
+  // Gradiente del badge de estado — igual al badge vertical
+  const estadoGradient: [string, string] = props.noMolestar          ? ['#4b5563', '#1f2937']
+    : props.musicaActiva                                              ? ['#fdba74', '#ea580c']
+    : props.estado === 'pensando'                                     ? ['#93c5fd', '#1d4ed8']
+    : props.estado === 'hablando'                                     ? ['#86efac', '#15803d']
+    : props.estado === 'escuchando'                                   ? ['#fca5a5', '#dc2626']
+    : esBotonesNoche                                                  ? ['#2d3748', '#0f1117']
+    : ['#4b5563', '#1f2937'];
+  const estadoBadgeLabel = props.noMolestar  ? 'Silencio'
+    : props.musicaActiva                     ? 'Parar'
+    : props.estado === 'pensando'            ? 'Pensando...'
+    : props.estado === 'hablando'            ? 'Hablando'
+    : props.estado === 'escuchando'          ? 'Escuchando'
+    : 'Esperando';
 
   return (
     <>
@@ -334,7 +331,20 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       esFondoNoche={props.esFondoNoche}
                       modoHorizontal
                     />
-                    <View style={{ transform: [{ translateY: faceTranslateY }, { scale: 1.04 }], zIndex: 5 }}>
+                    {faceBottomH > 0 && (
+                      <OvaloRosita
+                        faceScale={faceScale * 0.88}
+                        screenW={screenW}
+                        faceBottom={faceBottomH}
+                      />
+                    )}
+                    <View
+                      style={{ transform: [{ translateY: faceTranslateY }, { scale: 1.04 }], zIndex: 5 }}
+                      onLayout={(e) => {
+                        const { height } = e.nativeEvent.layout;
+                        setFaceBottomH(paddingTopCara + faceTranslateY + height);
+                      }}
+                    >
                       <RosaOjos
                         estado={props.estado}
                         expresion={props.expresion}
@@ -390,10 +400,15 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             style={[styles.iconBtn, { top: safeTop + 16, left: safeLeft + 16 }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
+            <LinearGradient
+              colors={props.noMolestar ? ['#ea580c', '#9a3412'] : ['#1e293b', '#0f172a']}
+              style={[StyleSheet.absoluteFill, { borderRadius: 27, opacity: 0.7 }]}
+            />
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
             <Ionicons
               name={props.noMolestar ? 'mic-off' : 'mic-outline'}
-              size={24}
-              color={props.noMolestar ? '#E85D24' : '#ffffffcc'}
+              size={22}
+              color={props.noMolestar ? '#fff' : '#ffffffcc'}
             />
           </TouchableOpacity>
 
@@ -403,7 +418,12 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
               style={[styles.iconBtn, { top: safeTop + 16, right: safeRight + 16 }]}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="document-text-outline" size={24} color="#ffffffcc" />
+              <LinearGradient
+                colors={['#1e293b', '#0f172a']}
+                style={[StyleSheet.absoluteFill, { borderRadius: 27, opacity: 0.7 }]}
+              />
+              <View style={[StyleSheet.absoluteFill, { borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+              <Ionicons name="document-text-outline" size={22} color="#ffffffcc" />
               <View style={styles.listasBadge}>
                 <Text style={styles.listasBadgeText}>{props.listasCount > 9 ? '9+' : props.listasCount}</Text>
               </View>
@@ -415,9 +435,14 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             style={[styles.iconBtn, { left: safeLeft + 16, bottom: safeBottom + 16 }]}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
+            <LinearGradient
+              colors={props.modoReloj ? ['#3b82f6', '#1d4ed8'] : ['#1e293b', '#0f172a']}
+              style={[StyleSheet.absoluteFill, { borderRadius: 27, opacity: 0.7 }]}
+            />
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
             <Ionicons
               name={props.modoReloj ? 'happy-outline' : 'time-outline'}
-              size={24}
+              size={22}
               color="#ffffffcc"
             />
           </TouchableOpacity>
@@ -429,23 +454,34 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           />
 
 
-          {/* Indicator de estado — esquina inferior derecha */}
-          {(props.estado !== 'esperando' || (props.detectandoSonido && !props.noMolestar)) && (
-            <View style={[styles.estadoBadge, { bottom: safeBottom + 14, right: safeRight + 16 }]}>
-              {props.detectandoSonido && props.estado === 'esperando'
-                ? <WaveformDetectando />
-                : <>
-                    <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
-                    <Text style={styles.estadoTexto}>
-                      {props.estado === 'escuchando' ? 'Escuchando'
-                        : props.estado === 'pensando' ? 'Pensando...'
-                        : props.estado === 'hablando' ? 'Hablando'
-                        : ''}
-                    </Text>
-                  </>
-              }
-            </View>
-          )}
+          {/* Badge de estado — esquina inferior derecha, mismo estilo que vertical */}
+          <TouchableOpacity
+            onPress={props.acciones.toggleTalkOrStopMusic}
+            activeOpacity={0.85}
+            style={[styles.estadoBadge, {
+              bottom: safeBottom + 14,
+              right: safeRight + 16,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.32)',
+              overflow: 'hidden',
+              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.18, shadowRadius: 6, elevation: 3,
+            }]}
+          >
+            <LinearGradient
+              colors={estadoGradient}
+              start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+              style={[StyleSheet.absoluteFill, { opacity: 0.55 }]}
+            />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+            {props.detectandoSonido && props.estado === 'esperando'
+              ? <WaveformDetectando />
+              : <>
+                  <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
+                  <Text style={styles.estadoTexto}>{estadoBadgeLabel}</Text>
+                </>
+            }
+          </TouchableOpacity>
 
           {/* Flash overlay (relámpago / linterna) */}
           <Animated.View
@@ -496,9 +532,14 @@ const styles = StyleSheet.create({
     borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#00000033',
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#ffffff22',
+    borderColor: 'rgba(255,255,255,0.28)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 3,
   },
   listasBadge: {
     position: 'absolute',
@@ -524,14 +565,13 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   estadoBadge: {
-    position:       'absolute',
-    flexDirection:  'row',
-    alignItems:     'center',
-    gap:            6,
-    paddingHorizontal: 10,
-    paddingVertical:    5,
-    borderRadius:   20,
-    backgroundColor: '#00000033',
+    position:          'absolute',
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               6,
+    paddingHorizontal: 12,
+    paddingVertical:   7,
+    borderRadius:      20,
   },
   estadoDot: {
     width:        8,

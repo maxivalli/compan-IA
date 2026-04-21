@@ -82,7 +82,7 @@ export default function Onboarding() {
     return () => { show.remove(); hide.remove(); };
   }, []);
 
-  if (!fontsLoaded) return null;
+  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: STEP_COLORS[0] }} />;
 
   function irAPaso(n: number) {
     Animated.parallel([
