@@ -760,10 +760,8 @@ export default function Index() {
                   borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
                   shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
                   shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+                  backgroundColor: 'rgba(255,255,255,0.12)',
                 }}>
-                  <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                    style={[StyleSheet.absoluteFill, { opacity: 0.50 }]} />
-                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
                     {deteccionPresenciaActiva && (
                       <Animated.View style={{ position: 'absolute', top: 6, left: 8, opacity: ojoPulso, zIndex: 10 }}>
