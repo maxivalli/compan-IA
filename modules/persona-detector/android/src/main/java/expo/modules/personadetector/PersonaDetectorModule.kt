@@ -22,7 +22,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 private const val TAG = "PersonaDetector"
-private const val CONFIANZA_MINIMA = 0.35f
+private const val CONFIANZA_MINIMA = 0.5f
 private const val COOLDOWN_MS = 1200L
 
 class PersonaDetectorModule : Module() {
@@ -35,13 +35,8 @@ class PersonaDetectorModule : Module() {
 
     private val etiquetasHumanas = setOf(
         "person", "human", "people", "man", "woman", "boy", "girl",
-        "adult", "child", "face", "head", "hair", "body", "skin",
-        "clothing", "clothes", "shirt", "t-shirt", "blouse", "top",
-        "dress", "skirt", "pants", "trousers", "jeans", "shorts",
-        "jacket", "coat", "sweater", "hoodie", "suit",
-        "footwear", "shoe", "shoes", "boot", "sandal", "sneaker",
-        "glasses", "hat", "cap", "bag", "handbag", "backpack",
-        "sitting", "standing", "walking", "running"
+        "adult", "child", "elder", "senior",
+        "face", "head", "body", "skin", "hair"
     )
 
     override fun definition() = ModuleDefinition {
@@ -142,15 +137,17 @@ class PersonaDetectorModule : Module() {
             ?.addOnSuccessListener { labels ->
                 var hayPersona = false
                 var primeraEtiqueta = "MLKIT_EMPTY"
+                var hitLabel = ""
                 for ((i, label) in labels.withIndex()) {
                     val lbl = label.text.lowercase().trim()
                     if (i == 0) primeraEtiqueta = lbl
                     if (etiquetasHumanas.contains(lbl)) {
                         hayPersona = true
+                        hitLabel = lbl
                         break
                     }
                 }
-                sendDebug(if (hayPersona) "HIT:$primeraEtiqueta" else primeraEtiqueta)
+                sendDebug(if (hayPersona) "HIT:$hitLabel" else primeraEtiqueta)
                 if (hayPersona) {
                     val now = System.currentTimeMillis()
                     if (now - lastHitTime >= COOLDOWN_MS) {
