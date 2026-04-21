@@ -76,7 +76,7 @@ export function useRosita() {
   const musicaActivaRef     = useRef(musicaActiva);
   const noMolestarRef       = useRef(false);
   const modoNocheRef        = useRef<ModoNoche>('despierta');
-  const ultimaCharlaRef     = useRef<number>(Date.now());
+  const ultimaCharlaRef     = useRef<number>(0);
   const ultimaActividadRef  = useRef<number>(Date.now());
   const perfilRef           = useRef<Perfil | null>(null);
   // procesandoRef, srActivoRef, procesandoDesdeRef → pipeline.*
