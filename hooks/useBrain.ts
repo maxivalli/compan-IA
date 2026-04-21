@@ -130,7 +130,7 @@ export const PATRON_SKIP = /\b(buen[ao]s?\s*(d[ií]as?|tardes?|noches?)|hola\b|q
  * Tiempo máximo desde la última respuesta de Rosita para considerar que la
  * conversación sigue activa (ventana deslizante — se extiende con cada respuesta).
  */
-const VENTANA_CONVERSACION_MS = 60_000;
+const VENTANA_CONVERSACION_MS = 180_000;
 export const PATRON_EMPATICO     = /triste|me duele|dolor|me caí|caída|me siento mal|estoy mal|\b(me siento|estoy|me quedé|vivo)\s+sol[ao]\b|angustia|llor|ambulancia|me asusta|tengo miedo|escalera|moverme|me cuesta|no veo|visión|la vista|\bno puedo (moverme|caminar|levantarme|respirar|dormir)\b|malas? noticias?|baj[oó]n|sin ganas|desanimad|deca[ií]d|desganad|medio ca[ií]d|\b(estoy|me siento|ando)\s+más?\s*o\s*menos\b/i;
 export const PATRON_ALEGRIA      = /cumpleaños|cumple\b|embarazada|\bnació\s+(mi|el bebé|la bebé|sano|bien|nuestro|nuestra)\b|me (casé|jubilé|recibí|aprobé|gradué)|lo (logré|conseguí|terminé)|viene(n)? a verme|qué (buena noticia|alegría|lindo que)|me (salió|resultó|funcionó)|estoy (contento|contenta|feliz|emocionado|emocionada)/i;
 export const PATRON_SALUD        = /\b(turno (con|para|al|de)|pastilla|medicamento|remedio|receta\b|obra social|vacuna|análisis\b|glucosa|diabetes|colesterol|tensión arterial|cardiólogo|traumatólogo|oftalmólogo|kinesió|nebulizar|fiebre|gripe\b|catarro|resfriado|mareo|náuseas?|médico)\b/i;
@@ -839,6 +839,10 @@ export function useBrain(deps: BrainDeps) {
       if (frase) {
         await d.hablar(frase);
         d.ultimaCharlaRef.current = Date.now();
+        historialRef.current = [
+          { role: 'user', content: 'iniciá una charla' },
+          { role: 'assistant', content: frase },
+        ];
         // Limpiar seguimientos que ya fueron presentados a Claude en este turno proactivo
         if (seguimientosRef.current.length > 0) {
           borrarTodosSeguimientos().catch(() => {});
