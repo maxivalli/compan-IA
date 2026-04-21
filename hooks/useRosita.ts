@@ -525,6 +525,14 @@ export function useRosita() {
     return () => sub.remove();
   }, []);
 
+  const ultimoWarmupRef = useRef(0);
+  function calentarConDebounce(payload: object) {
+    const now = Date.now();
+    if (now - ultimoWarmupRef.current < 15_000) return;
+    ultimoWarmupRef.current = now;
+    calentarCacheClaudeEnBackground(payload);
+  }
+
   // ── Inicializar ─────────────────────────────────────────────────────────────
   async function inicializar() {
     if (new Date().getFullYear() < 2024) {
@@ -556,9 +564,6 @@ export function useRosita() {
       pipeline.precachearSistema().catch(() => {});
       setCargando(false);
       pipeline.iniciarSpeechRecognition();
-      // Warmup: escribe el cache de Claude para que el primer turno real sea rápido
-      const warmupPayload = buildRositaSystemPayload({ perfil: perfilGuardado, climaTexto: '' });
-      calentarCacheClaudeEnBackground(warmupPayload);
     }
 
     // Retry loop: intenta obtener clima/ubicación hasta lograrlo.
@@ -607,7 +612,7 @@ export function useRosita() {
           // Esperamos 3s para que SmartThings también termine de cargar sus dispositivos.
           setTimeout(() => {
             if (!perfilRef.current?.nombreAbuela) return;
-            calentarCacheClaudeEnBackground(buildRositaSystemPayload({
+            calentarConDebounce(buildRositaSystemPayload({
               perfil: perfilRef.current,
               dispositivos: smartthings.dispositivosTuyaRef.current,
               climaTexto: climaRef.current,

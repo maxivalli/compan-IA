@@ -259,23 +259,9 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         borderBottomWidth: 3,
         borderLeftWidth: 1.5,
         borderRightWidth: 1.5,
-        borderColor: '#8B5E3C',
+        borderColor: '#3D2A1E',
       }
-    ]}>
-      {!esCurvaNeutral && (
-        // overflow: 'hidden' aquí para que el gradiente respete el border radius,
-        // sin interferir con el elevation del Animated.View padre.
-        <View style={[StyleSheet.absoluteFill, { overflow: 'hidden' }, forma]}>
-          <ExpoGradient
-            colors={['#C87848', '#8B5E3C', '#3D1E08']}
-            locations={[0, 0.45, 1]}
-            start={{ x: 0.5, y: 0 }}
-            end={{ x: 0.5, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
-      )}
-    </Animated.View>
+    ]} />
   );
 }
 
@@ -283,28 +269,8 @@ const sb = StyleSheet.create({
   boca: {
     width:           BOCA_W,
     height:          BOCA_H,
-    backgroundColor: '#8B5E3C',
+    backgroundColor: '#3D2A1E',
     marginTop:       55,
-    // Drop shadow solo en iOS/web.
-    // En Android, elevation genera un "ambient shadow" que rodea todo el view
-    // incluyendo arriba — y como el transform de la animación corre en GPU
-    // (useNativeDriver: true) mientras el shadow se calcula en layout thread,
-    // el shadow queda fijo en los bounds originales y aparece encima de la boca.
-    ...Platform.select({
-      ios: {
-        shadowColor:   '#2A0E00',
-        shadowOffset:  { width: 0, height: 3 },
-        shadowOpacity: 0.45,
-        shadowRadius:  4,
-      },
-      web: {
-        shadowColor:   '#2A0E00',
-        shadowOffset:  { width: 0, height: 3 },
-        shadowOpacity: 0.45,
-        shadowRadius:  4,
-      },
-      // android: sin elevation — el gradiente ya da profundidad suficiente
-    }),
   },
 });
 
@@ -576,13 +542,8 @@ const Ojo = memo(function Ojo({
   // podría coincidir con el commit de React y dejar el bounding box en 0 → crash RadialGradient.
   return (
     <Animated.View style={{ transform: [{ translateX: offsetX }], overflow: 'visible' }}>
-    <Animated.View style={[s.eyeContainer, { 
+    <Animated.View style={[s.eyeContainer, {
       transform: [{ scaleY }],
-      shadowColor: '#060108',
-      shadowOffset: { width: 0, height: 7 },
-      shadowOpacity: 0.52,
-      shadowRadius: 7,
-      elevation: 10,
     }]}>
       <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`} overflow="visible">
         <Defs>

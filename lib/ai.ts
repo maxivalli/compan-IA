@@ -190,6 +190,17 @@ export async function llamarClaudeConStreaming(options: {
     ...(options.isSpec ? { spec: true } : {}),
   };
 
+  // Guard de un solo disparo: evita que onPrimeraFrase se llame dos veces si el WS
+  // cae después de haberla enviado y el fallback XHR la detecta de nuevo.
+  let primeraFraseFired = false;
+  const onPrimeraFraseGuard = options.onPrimeraFrase
+    ? (primera: string, tag: string) => {
+        if (primeraFraseFired) return;
+        primeraFraseFired = true;
+        options.onPrimeraFrase!(primera, tag);
+      }
+    : undefined;
+
   // ── Intento por WebSocket persistente (sin TCP+TLS handshake) ───────────────
   if (isChatWsReady()) {
     const turnId = `t${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -199,7 +210,7 @@ export async function llamarClaudeConStreaming(options: {
 
     const wsResult = await new Promise<WsResult>((resolve) => {
       const cancel = sendTurn(turnId, body, {
-        onPrimeraFrase: options.onPrimeraFrase,
+        onPrimeraFrase: onPrimeraFraseGuard,
         onChunk: () => {},
         onDone: (full) => resolve({ ok: true, full }),
         onError: (reason) => resolve({ ok: false, cancelled: false, reason }),
@@ -272,7 +283,7 @@ export async function llamarClaudeConStreaming(options: {
           const safeTag = typeof chunk.tag === 'string' ? chunk.tag : 'NEUTRAL';
           primeraFired = true;
           tagDetected = safeTag;
-          options.onPrimeraFrase?.(String(chunk.primera_frase).trim(), safeTag);
+          onPrimeraFraseGuard?.(String(chunk.primera_frase).trim(), safeTag);
         }
         if (!chunk.text) return;
 
@@ -289,7 +300,7 @@ export async function llamarClaudeConStreaming(options: {
             const m = sinTag.match(/^.{8,}?[.!?](?:[“'”]*)(?:\s+|$)/);
             if (m) {
               primeraFired = true;
-              options.onPrimeraFrase?.(m[0].trimEnd(), tagDetected);
+              onPrimeraFraseGuard?.(m[0].trimEnd(), tagDetected);
             }
           }
         }
@@ -487,7 +498,7 @@ export async function buscarLugares(lat: number, lon: number, tipo: string, radi
     const res = await fetchConTimeout(
       `${BACKEND_URL}/ai/places?${params}`,
       { headers: await jsonHeaders() },
-      15000,
+      10000,
       'Places',
     );
     if (!res.ok) return null;
@@ -506,7 +517,7 @@ export async function buscarWeb(query: string): Promise<string | null> {
     const res = await fetchConTimeout(
       `${BACKEND_URL}/ai/search?q=${encodeURIComponent(query)}`,
       { headers: await jsonHeaders() },
-      15000,
+      10000,
       'Web search',
     );
     if (!res.ok) return null;

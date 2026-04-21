@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useRootNavigationState } from 'expo-router';
 import { Animated, Easing, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -239,6 +239,13 @@ export default function Index() {
     return () => clearInterval(id);
   }, []);
 
+  const fechaDisplay = useMemo(() => {
+    const d = new Date();
+    const dias = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    return `${dias[d.getDay()]} ${d.getDate()} de ${meses[d.getMonth()]}`;
+  }, [horaMinuto]);
+
   const hintOpacity    = useRef(new Animated.Value(0)).current;
   const hintTranslate  = useRef(new Animated.Value(20)).current;
   const hintScale      = useRef(new Animated.Value(0.95)).current;
@@ -421,24 +428,28 @@ export default function Index() {
     : musicaActiva                    ? '#f97316'
     : estado === 'pensando'           ? '#3b82f6'
     : estado === 'hablando'           ? '#22c55e'
+    : estado === 'escuchando'         ? '#ef4444'
     : esBotonesNoche                  ? '#1a1f2e'
     : '#ffffff';
   const badgeColor = noMolestar       ? '#ffffff'
     : musicaActiva                    ? '#ffffff'
     : estado === 'pensando'           ? '#ffffff'
     : estado === 'hablando'           ? '#ffffff'
+    : estado === 'escuchando'         ? '#ffffff'
     : esBotonesNoche                  ? '#e2e8f0'
-    : '#fff8e7';   // crema claro sobre el ámbar oscuro
+    : '#fff8e7';
   const badgeLabel = noMolestar       ? 'Silencio'
     : musicaActiva                    ? 'Parar'
     : estado === 'pensando'           ? 'Pensando'
     : estado === 'hablando'           ? 'Hablando'
-    : 'Escuchando';
+    : estado === 'escuchando'         ? 'Escuchando'
+    : 'Esperando';
 
   const badgeGradient: [string, string] = noMolestar   ? ['#4b5563', '#1f2937']
     : musicaActiva                                      ? ['#fdba74', '#ea580c']
     : estado === 'pensando'                             ? ['#93c5fd', '#1d4ed8']
     : estado === 'hablando'                             ? ['#86efac', '#15803d']
+    : estado === 'escuchando'                           ? ['#fca5a5', '#dc2626']
     : esBotonesNoche                                    ? ['#2d3748', '#0f1117']
     : ['#92400e', '#451a03'];
 
@@ -446,6 +457,7 @@ export default function Index() {
     : musicaActiva              ? '#f97316'
     : estado === 'pensando'     ? '#3b82f6'
     : estado === 'hablando'     ? '#22c55e'
+    : estado === 'escuchando'   ? '#ef4444'
     : esBotonesNoche            ? '#6366f1'
     : '#f59e0b';
 
@@ -752,7 +764,6 @@ export default function Index() {
                 : climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura <= 3
                 ? 'Frío extremo'
                 : (climaEfectivo?.descripcion || 'Alerta meteorológica');
-              const fechaDisplay = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
               const subFont = Math.max(12, Math.round(displayFontInfo * 0.38));
               return (
                 <View style={{
@@ -771,8 +782,6 @@ export default function Index() {
                           </Text>
                         </View>
                       )
-                      : detectandoSonido
-                      ? <AnimacionMusica />
                       : modoNoche !== 'despierta'
                       ? <RelojNoche fontSize={displayFontReloj} />
                       : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateY: hintTranslate }, { scale: hintScale }], width: '100%', alignItems: 'center' }}>
@@ -808,7 +817,7 @@ export default function Index() {
                         </Animated.View>
                     }
                     {/* Pagination dots — un único dot cuando hay música, dots normales en modo info */}
-                    {!detectandoSonido && modoNoche === 'despierta' && (
+                    {modoNoche === 'despierta' && (
                       <View style={{ flexDirection: 'row', gap: 4, position: 'absolute', bottom: 8 }}>
                         {musicaEfectiva
                           ? <View style={{ height: 4, width: 14, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.85)' }} />
