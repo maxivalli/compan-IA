@@ -303,26 +303,36 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const wakeSRActiveRef   = useRef(false);
   const wakeSRStartingRef = useRef(false); // guard contra double-start
   const wakeSubsRef       = useRef<Array<{ remove: () => void }>>([]);
-  // true solo en el primer turno tras reconexión desde idle (wake word).
+  // true solo en el primer turno tras reconexion desde idle (wake word).
   // useBrain lo consume una sola vez para decidir si reproduce muletilla.
   const arranqueFrioRef   = useRef(false);
+  // Ref que registra si el visual fue puesto en 'escuchando' por onPartial.
+  // Se usa para garantizar el reset aunque estadoRef siga en 'esperando'.
+  const visualEscuchandoRef = useRef(false);
+  // Timer de seguridad: si en 4s nadie resetó el visual, lo hacemos nosotros.
+  const escuchandoSafeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function resetVisualEscuchando(d: typeof depsRef.current) {
+    if (escuchandoSafeTimerRef.current) { clearTimeout(escuchandoSafeTimerRef.current); escuchandoSafeTimerRef.current = null; }
+    if (visualEscuchandoRef.current) {
+      visualEscuchandoRef.current = false;
+      d.setEstado('esperando');
+    }
+  }
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
     onVadSilencio: () => {
       // El hold-off VAD venció sin que Deepgram disparara speech_final.
-      // Resetear visual 'escuchando' → 'esperando' para no dejar el badge pegado.
+      // Resetear visual 'escuchando' → 'esperando' si nadie lo processó.
       const d = depsRef.current;
-      if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
+      if (d.estadoRef.current === 'esperando') resetVisualEscuchando(d);
     },
     onReady: () => {
       srActivoRef.current = true;
-      ultimaActivacionSrRef.current = Date.now(); // reset zombie timer tras reconexión
+      ultimaActivacionSrRef.current = Date.now();
       logCliente('dg_sr_ready', { estado: depsRef.current.estadoRef.current });
-      // Si DG reconectó (ej. tras 1011) y el visual quedó en 'escuchando', sincronizar.
-      if (depsRef.current.estadoRef.current === 'esperando') depsRef.current.setEstado('esperando');
-      // Si DG reconectó mientras el SR está suspendido (juego activo, Rosita hablando,
-      // o flujo de voz en curso), pausar AudioCapture inmediatamente para evitar eco.
+      if (depsRef.current.estadoRef.current === 'esperando') resetVisualEscuchando(depsRef.current);
       if (
         srSuspendidoRef.current
         || depsRef.current.estadoRef.current === 'hablando'
@@ -333,11 +343,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     },
     onPartial: (texto) => {
-      // Partials de Deepgram = hay voz activa → mostrar waveform + badge rojo
       activarFeedbackSonido();
       const d = depsRef.current;
-      // Solo actualiza visual (no estadoRef) para no romper los guards lógicos de SR.
-      if (d.estadoRef.current === 'esperando') d.setEstado('escuchando');
+      if (d.estadoRef.current === 'esperando') {
+        visualEscuchandoRef.current = true;
+        d.setEstado('escuchando');
+        // Timer de seguridad: si en 4s nadie resetó el badge, lo forzamos.
+        if (escuchandoSafeTimerRef.current) clearTimeout(escuchandoSafeTimerRef.current);
+        escuchandoSafeTimerRef.current = setTimeout(() => {
+          escuchandoSafeTimerRef.current = null;
+          if (depsRef.current.estadoRef.current === 'esperando') resetVisualEscuchando(depsRef.current);
+        }, 4000);
+      }
       d.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
@@ -348,20 +365,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // Registrar acá para poder medir lag_speech_end_ms correctamente.
       d.speechEndTsRef.current = Date.now();
       if (procesandoRef.current || enFlujoVozRef.current) return;
-      if (d.noMolestarRef.current) { if (d.estadoRef.current === 'esperando') d.setEstado('esperando'); return; }
+      if (d.noMolestarRef.current) { resetVisualEscuchando(d); return; }
       if (d.estadoRef.current === 'pensando') return;
-      // Bloquear transcripciones mientras Rosita habla (eco de TTS) o SR suspendido (juego activo)
       if (d.estadoRef.current === 'hablando') return;
-      if (srSuspendidoRef.current) { if (d.estadoRef.current === 'esperando') d.setEstado('esperando'); return; }
-      // Filtro de activación: solo responder si estamos en conversación activa (< 60s
-      // desde la última respuesta de Rosita) o si el usuario la nombra explícitamente.
-      // Evita que Rosita se meta en conversaciones de la sala que no van dirigidas a ella.
+      if (srSuspendidoRef.current) { resetVisualEscuchando(d); return; }
       const enConversacion = !d.musicaActivaRef.current && Date.now() - d.ultimaCharlaRef.current < 60_000;
       const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const mencionaAsistente = textoNorm.includes(d.nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
       if (!enConversacion && !mencionaAsistente) {
-        // Texto descartado por filtros → resetear visual 'escuchando' → 'esperando'
-        if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
+        resetVisualEscuchando(d);
         return;
       }
       if (d.musicaActivaRef.current) duckMusica();
