@@ -712,7 +712,6 @@ export default function Index() {
       <View style={[
         styles.ecualizadorWrap,
         { height: displayH, marginTop: Math.round(screenH * 0.05) },
-        listas.length > 0 && !mostrarListas && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' },
       ]}>
         {listas.length > 0 && mostrarListas && layoutMode === 'vertical'
           ? (
@@ -728,29 +727,30 @@ export default function Index() {
           )
           : listas.length > 0
           ? (() => {
-              const PEEK = 20;
-              const POST_H = 80;
-              const stackH = POST_H + (listas.length - 1) * PEEK;
+              const PEEK = 10;
               return (
-                <TouchableOpacity onPress={() => setMostrarListas(true)} activeOpacity={0.85}>
-                  <View style={{ width: 280, height: stackH }}>
+                <TouchableOpacity onPress={() => setMostrarListas(true)} activeOpacity={0.85} style={styles.displayInlineWrap}>
+                  <View style={styles.previewDisplayFrame}>
                     {[...listas].reverse().map((lista, i) => {
                       const listaIdx = listas.length - 1 - i;
                       const c = POSTIT_COLORES[listaIdx % POSTIT_COLORES.length];
                       return (
                         <View
                           key={lista.id}
-                          style={[styles.postIt, {
+                          style={[styles.postItPreviewCard, {
                             position: 'absolute',
                             top: listaIdx * PEEK,
                             zIndex: i + 1,
                             backgroundColor: c.bg,
-                            transform: [{ rotate: listaIdx === 0 ? '0deg' : listaIdx % 2 === 0 ? '-1.5deg' : '1.2deg' }],
+                            transform: [
+                              { rotate: listaIdx === 0 ? '0deg' : listaIdx % 2 === 0 ? '-1deg' : '1deg' },
+                              { scale: 1 - Math.min(listaIdx, 3) * 0.03 },
+                            ],
                           }]}
                         >
                           <View style={[styles.postItLinea, { backgroundColor: c.tape }]} />
-                          <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 18 }}>
-                            <Text style={[styles.postItTitulo, { color: c.text }]} numberOfLines={1}>
+                          <View style={styles.postItPreviewBody}>
+                            <Text style={[styles.postItTituloPreview, { color: c.text }]} numberOfLines={2}>
                               {lista.nombre}
                             </Text>
                           </View>
@@ -1053,6 +1053,16 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
   },
+  previewDisplayFrame: {
+    flex: 1,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.38)',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
   infoText: {
     fontSize: fs(26),
     color: '#ffffff',
@@ -1072,8 +1082,22 @@ const styles = StyleSheet.create({
   botonesWrap:        { alignItems: 'center', justifyContent: 'center', height: 90 },
   botonContenedor:    { alignItems: 'center', justifyContent: 'center' },
   postIt:             { borderRadius: 6, width: 280, height: 80, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 2, height: 4 }, shadowOpacity: 0.22, shadowRadius: 6, elevation: 5 },
+  postItPreviewCard:  {
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 5,
+  },
   postItLinea:        { height: 5, width: '100%' },
   postItTitulo:       { fontSize: fs(28), fontWeight: '800', textTransform: 'capitalize' },
+  postItPreviewBody:  { flex: 1, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10 },
+  postItTituloPreview:{ fontSize: fs(15), fontWeight: '800', textTransform: 'capitalize', lineHeight: fs(18) },
   btnGlow:            { position: 'absolute' },
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
