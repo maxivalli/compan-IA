@@ -22,7 +22,7 @@ import ExpresionOverlay from './ExpresionOverlay';
 import { AnimacionMusica, CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
 import CameraAutoCaptura from './CameraAutoCaptura';
-import { OvaloRosita } from './PanelCuero';
+import { OvaloRosita } from './FaceGlow';
 import { EstadoRosita } from '../hooks/useBrain';
 import { AccionesRosita } from '../hooks/useAccionesRosita';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
@@ -480,6 +480,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       browScale={esTabletHorizontal ? 1.0 : 1.04}
                       browGap={esTabletHorizontal ? 3 : 3}
                       faceScale={faceScale}
+                      noMolestar={props.noMolestar}
                     />
                   </View>
                 </View>

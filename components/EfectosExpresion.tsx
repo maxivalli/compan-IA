@@ -366,6 +366,7 @@ export function Cejas({
   scale = 1,
   gap = 0,
   modoNoche = 'despierta',
+  noMolestar = false,
 }: {
   expresion?: string;
   offsetY?: number;
@@ -373,6 +374,7 @@ export function Cejas({
   scale?: number;
   gap?: number;
   modoNoche?: string;
+  noMolestar?: boolean;
 }) {
   const angleAnim = useRef(new Animated.Value(0)).current;
   const liftAnim  = useRef(new Animated.Value(0)).current;
@@ -391,12 +393,13 @@ export function Cejas({
     let extraLift = 0;
     if (modoNoche === 'soñolienta') extraLift = 18;
     if (modoNoche === 'durmiendo') extraLift = 25;
-    
+    if (noMolestar) extraLift = Math.max(extraLift, 10);
+
     Animated.parallel([
-      Animated.spring(angleAnim, { toValue: angle, useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
-      Animated.spring(liftAnim,  { toValue: baseLift + extraLift,  useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
+      Animated.spring(angleAnim, { toValue: noMolestar ? 6 : angle, useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
+      Animated.spring(liftAnim,  { toValue: baseLift + extraLift,   useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
     ]).start();
-  }, [expresion, modoNoche]);
+  }, [expresion, modoNoche, noMolestar]);
 
   const halfW    = (BROW_W * scale) / 2;
   const angleRad = (angleRef.current * Math.PI) / 180;

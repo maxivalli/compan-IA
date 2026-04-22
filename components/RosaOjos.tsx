@@ -718,6 +718,9 @@ export default function RosaOjos({
   const nightSleepUpperLidRef = useRef<Animated.CompositeAnimation | null>(null);
   const nightTintAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const noMolestarLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+  const noMolestarAnimRef  = useRef<Animated.CompositeAnimation | null>(null);
+  const noMolestarRef      = useRef(noMolestar);
+  noMolestarRef.current    = noMolestar;
   const expresionAnimRef = useRef<Animated.CompositeAnimation | null>(null);
 
   function stopEstadoTimers() {
@@ -821,14 +824,16 @@ export default function RosaOjos({
   useEffect(() => {
     noMolestarLoopRef.current?.stop();
     if (noMolestar) {
-      expresionAnimRef.current?.stop();
-      expresionAnimRef.current = Animated.parallel([
+      noMolestarAnimRef.current?.stop();
+      // Párpados y ceño: JS thread (useNativeDriver: false)
+      Animated.parallel([
         Animated.timing(upperLid, { toValue: EYE_H * 0.30, duration: 500, useNativeDriver: false }),
         Animated.timing(lowerLid, { toValue: EYE_H * 0.08, duration: 500, useNativeDriver: false }),
         Animated.timing(cenoLid,  { toValue: EYE_H * 0.22, duration: 500, useNativeDriver: false }),
-        Animated.timing(py,       { toValue: 6,             duration: 500, useNativeDriver: true  }),
-      ]);
-      expresionAnimRef.current.start();
+      ]).start();
+      // Posición iris: native thread (useNativeDriver: true)
+      noMolestarAnimRef.current = Animated.timing(py, { toValue: 6, duration: 500, useNativeDriver: true });
+      noMolestarAnimRef.current.start();
       noMolestarLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.parallel([
@@ -851,25 +856,24 @@ export default function RosaOjos({
       noMolestarLoopRef.current.start();
       return () => {
         noMolestarLoopRef.current?.stop();
+        noMolestarAnimRef.current?.stop();
         // Usar expresionRef.current (actualizado por el effect [expresion]) para restaurar
         // los párpados al valor correcto de la expresión activa mientras estaba en no-molestar.
         const c = EXPR[expresionRef.current];
         expresionAnimRef.current?.stop();
-        expresionAnimRef.current = Animated.parallel([
+        // JS thread: párpados y ceño
+        Animated.parallel([
           Animated.timing(upperLid, { toValue: c.upper, duration: 400, useNativeDriver: false }),
           Animated.timing(lowerLid, { toValue: c.lower, duration: 400, useNativeDriver: false }),
           Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 400, useNativeDriver: false }),
           Animated.timing(cenoLid,  { toValue: 0,       duration: 400, useNativeDriver: false }),
-          Animated.timing(py,       { toValue: c.py,    duration: 400, useNativeDriver: true  }),
-        ]);
-        expresionAnimRef.current.start();
-        nightAnimRef.current?.stop();
-        nightAnimRef.current = Animated.parallel([
+        ]).start();
+        // Native thread: iris
+        Animated.parallel([
           Animated.timing(pxL, { toValue: c.pxL, duration: 400, useNativeDriver: true }),
           Animated.timing(pxR, { toValue: c.pxR, duration: 400, useNativeDriver: true }),
           Animated.timing(py,  { toValue: c.py,  duration: 400, useNativeDriver: true }),
-        ]);
-        nightAnimRef.current.start();
+        ]).start();
       };
     }
   }, [noMolestar]);
@@ -880,11 +884,17 @@ export default function RosaOjos({
     if (modoNoche !== 'despierta') return;
     const c = EXPR[expresion];
     expresionAnimRef.current?.stop();
-    expresionAnimRef.current = Animated.parallel([
-      Animated.timing(upperLid, { toValue: c.upper, duration: 420, useNativeDriver: false }),
-      Animated.timing(lowerLid, { toValue: c.lower, duration: 420, useNativeDriver: false }),
-      Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 420, useNativeDriver: false }),
-    ]);
+    if (noMolestarRef.current) {
+      // En modo no molestar solo actualizamos cenoExpr y gapOffset.
+      // Los párpados y cenoLid los gestiona exclusivamente noMolestarAnimRef.
+      expresionAnimRef.current = Animated.timing(cenoExpr, { toValue: c.ceno, duration: 420, useNativeDriver: false });
+    } else {
+      expresionAnimRef.current = Animated.parallel([
+        Animated.timing(upperLid, { toValue: c.upper, duration: 420, useNativeDriver: false }),
+        Animated.timing(lowerLid, { toValue: c.lower, duration: 420, useNativeDriver: false }),
+        Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 420, useNativeDriver: false }),
+      ]);
+    }
     expresionAnimRef.current.start();
     noMolestarLoopRef.current?.stop();
     noMolestarLoopRef.current = Animated.parallel([

@@ -40,7 +40,8 @@ export default function ExpresionOverlay({
   modoNoche, capa = 'frente', silbando = false, onRelampago, modoHorizontal = false,
   esFondoNoche = false,
   esCumpleaños = false, browOffsetY = 0, browOffsetX = 0, browScale = 1, browGap = 0, faceScale: propFaceScale,
-}: Props & { esCumpleaños?: boolean; browOffsetY?: number; browOffsetX?: number; browScale?: number; browGap?: number; faceScale?: number }) {
+  noMolestar = false,
+}: Props & { esCumpleaños?: boolean; browOffsetY?: number; browOffsetX?: number; browScale?: number; browGap?: number; faceScale?: number; noMolestar?: boolean }) {
   const fade = useRef(new Animated.Value(0)).current;
   const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
@@ -101,7 +102,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
 
           {(musicaActiva || silbando) && <NotasMusica horizontal={esHorizontalPantalla} />}
 
-          <Cejas expresion={expresion} offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} gap={browGap} modoNoche={modoNoche} />
+          <Cejas expresion={expresion} offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} gap={browGap} modoNoche={modoNoche} noMolestar={noMolestar} />
 
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
             {expresion === 'triste'        && <Lagrimas />}

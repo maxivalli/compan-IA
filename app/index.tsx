@@ -26,7 +26,7 @@ import CameraAutoCaptura from '../components/CameraAutoCaptura';
 import CamaraPresenciaVisionOverlay from '../components/CamaraPresenciaVisionOverlay';
 
 import PostItViewer, { POSTIT_COLORES } from '../components/PostItViewer';
-import { OvaloRosita } from '../components/PanelCuero';
+import { OvaloRosita } from '../components/FaceGlow';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
 import { nombreRadioOGenero } from '../lib/musica';
 import { cargarRecordatorios } from '../lib/memoria';
@@ -702,6 +702,7 @@ export default function Index() {
               browScale={isTablet && layoutMode === 'vertical' ? 1.0 : 0.85}
               browGap={isTablet && layoutMode === 'vertical' ? 0 : -12}
               faceScale={faceScale}
+              noMolestar={noMolestar}
             />
           </View>
           {modoNoche === 'durmiendo' && <ZZZ />}
