@@ -714,33 +714,38 @@ export default function Index() {
           ]}>
             {listas.length > 0
               ? (() => {
-                const PEEK = 10;
+                const PEEK = 9; // px que asoma cada carta de atrás
                 return (
                   <TouchableOpacity onPress={() => setMostrarListas(true)} activeOpacity={0.85} style={styles.displayInlineWrap}>
                     <View style={styles.previewDisplayFrame}>
-                      {[...listas].reverse().map((lista, i) => {
-                        const listaIdx = listas.length - 1 - i;
-                        const c = POSTIT_COLORES[listaIdx % POSTIT_COLORES.length];
+                      {listas.map((lista, i) => {
+                        const c = POSTIT_COLORES[i % POSTIT_COLORES.length];
+                        // i=0 es la carta frontal (mayor zIndex, sin offset)
+                        // i=1,2... son las cartas de fondo (menor zIndex, offset hacia abajo)
                         return (
                           <View
                             key={lista.id}
                             style={[styles.postItPreviewCard, {
                               position: 'absolute',
-                              top: listaIdx * PEEK,
-                              zIndex: i + 1,
+                              top: i * PEEK,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              zIndex: listas.length - i,
                               backgroundColor: c.bg,
                               transform: [
-                                { rotate: listaIdx === 0 ? '0deg' : listaIdx % 2 === 0 ? '-1deg' : '1deg' },
-                                { scale: 1 - Math.min(listaIdx, 3) * 0.03 },
+                                { rotate: i === 0 ? '0deg' : i % 2 === 0 ? '-2deg' : '2deg' },
                               ],
                             }]}
                           >
                             <View style={[styles.postItLinea, { backgroundColor: c.tape }]} />
-                            <View style={styles.postItPreviewBody}>
-                              <Text style={[styles.postItTituloPreview, { color: c.text }]} numberOfLines={2}>
-                                {lista.nombre}
-                              </Text>
-                            </View>
+                            {i === 0 && (
+                              <View style={styles.postItPreviewBody}>
+                                <Text style={[styles.postItTituloPreview, { color: c.text }]} numberOfLines={2}>
+                                  {lista.nombre}
+                                </Text>
+                              </View>
+                            )}
                           </View>
                         );
                       })}
@@ -1039,12 +1044,12 @@ const styles = StyleSheet.create({
     width: '61%',
     height: '100%',
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   previewDisplayFrame: {
     flex: 1,
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: 'visible',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.38)',
     backgroundColor: 'rgba(255,255,255,0.12)',
