@@ -1086,10 +1086,9 @@ const styles = StyleSheet.create({
   postItPreviewBody:  { flex: 1, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10 },
   postItTituloPreview:{ fontSize: fs(21), fontWeight: '800', textTransform: 'capitalize', lineHeight: fs(24), textAlign: 'center' },
   postItCardExpanded: {
-    width: '92%',
+    width: '94%',
     aspectRatio: 0.72,
     height: undefined,
-    maxWidth: 520,
     maxHeight: '82%',
   },
   btnGlow:            { position: 'absolute' },

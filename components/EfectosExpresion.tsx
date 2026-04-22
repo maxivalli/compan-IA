@@ -332,7 +332,8 @@ const BROW_ARC_H  = 16;
 const BROW_THICK  = 12;
 const ARCH_INSET  = 10; // arch peak shifted toward inner (nose side)
 const BROW_COLOR  = '#1A3A5C';
-const BROW_SVG_H  = 60;
+// browOffsetY puede ser hasta 40 (móvil vertical) → baseY máx = 35+40+5 = 80 → necesitamos > 80
+const BROW_SVG_H  = 110;
 
 type BrowExpr = { angle: number; lift: number };
 const BROW_MAP: Record<string, BrowExpr> = {
