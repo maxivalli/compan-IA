@@ -545,23 +545,8 @@ export function useRosita() {
       return;
     }
 
-    try { await AudioModule.requestRecordingPermissionsAsync(); } catch {}
-    try {
-      await Promise.race([
-        ExpoSpeechRecognitionModule.requestPermissionsAsync(),
-        new Promise<void>(resolve => setTimeout(resolve, 3000)),
-      ]);
-    } catch {}
-    try { await Location.requestForegroundPermissionsAsync(); } catch {}
-    try { await requestCameraPermission(); } catch {}
-    if (Platform.OS === 'android' && Platform.Version >= 31) {
-      try {
-        await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        ]);
-      } catch {}
-    }
+    // Los permisos (micrófono, ubicación, cámara, Bluetooth) se solicitan
+    // durante el onboarding (PantallaPermisos). Aquí solo se inicializa el pipeline.
     obtenerTokenDispositivo().catch(() => {}); // warmea _cachedToken para urlCartesiaStream
     initChatWs({ getToken: obtenerTokenDispositivo, log: logCliente });
     pipeline.limpiarCacheViejo().catch(() => {});

@@ -412,7 +412,11 @@ function PantallaPermisos({ onTodosOk }: { onTodosOk: (ok: boolean) => void }) {
   }
 
   return (
-    <View style={{ flex: 1, paddingTop: 20, paddingHorizontal: 24 }}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingTop: 20, paddingHorizontal: 24, paddingBottom: 16 }}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={ct.titulo}>Permisos necesarios</Text>
       <Text style={[ct.sub, { marginBottom: 12 }]}>Tocá cada permiso para habilitarlo. Son necesarios para que todo funcione correctamente.</Text>
       <View style={{ gap: 10 }}>
@@ -441,7 +445,7 @@ function PantallaPermisos({ onTodosOk }: { onTodosOk: (ok: boolean) => void }) {
           );
         })}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
