@@ -39,12 +39,12 @@ export default function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
   modoNoche, capa = 'frente', silbando = false, onRelampago, modoHorizontal = false,
   esFondoNoche = false,
-  esCumpleaños = false, browOffsetY = 0, browOffsetX = 0, browScale = 1, browGap = 0,
-}: Props & { esCumpleaños?: boolean; browOffsetY?: number; browOffsetX?: number; browScale?: number; browGap?: number }) {
+  esCumpleaños = false, browOffsetY = 0, browOffsetX = 0, browScale = 1, browGap = 0, faceScale: propFaceScale,
+}: Props & { esCumpleaños?: boolean; browOffsetY?: number; browOffsetX?: number; browScale?: number; browGap?: number; faceScale?: number }) {
   const fade = useRef(new Animated.Value(0)).current;
   const fadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const { width: screenW, height: screenH } = useWindowDimensions();
-  const faceScale = screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1;
+  const faceScale = propFaceScale ?? (screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1);
   const esHorizontalPantalla = modoHorizontal || screenW > screenH;
 
   const esLluvia  = !!condicion?.toLowerCase().match(/lluvia|lloviendo|llovizna|chaparrón|tormenta/);
@@ -101,7 +101,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
 
           {(musicaActiva || silbando) && <NotasMusica horizontal={esHorizontalPantalla} />}
 
-          <Cejas expresion={expresion} offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} />
+          <Cejas expresion={expresion} offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} gap={browGap} modoNoche={modoNoche} />
 
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
             {expresion === 'triste'        && <Lagrimas />}

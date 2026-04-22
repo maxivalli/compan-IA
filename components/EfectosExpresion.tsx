@@ -324,14 +324,14 @@ export function NotasMusica({ horizontal }: { horizontal?: boolean }) {
 
 // ── Cejas curvas elegantes ────────────────────────────────────────────────────
 
-const BROW_W     = 108;
+const BROW_W     = 96;  // Achicadas 10% según pedido
 const LEFT_CX    = 82;
 const RIGHT_CX   = 238;
 const BROW_BASE_Y = 35;
-const BROW_ARC_H  = 16;
-const BROW_THICK  = 12;
-const ARCH_INSET  = 10; // arch peak shifted toward inner (nose side)
-const BROW_COLOR  = '#1A3A5C';
+const BROW_ARC_H  = 34; // Curvatura profunda (medialuna)
+const BROW_THICK  = 12; // Grosor base
+const ARCH_INSET  = 0;  // 0 para curva simétrica (evita el efecto de estar "descentradas" al subir el arco)
+const BROW_COLOR  = '#3D2A1E'; // Color boca
 // browOffsetY puede ser hasta 40 (móvil vertical) → baseY máx = 35+40+5 = 80 → necesitamos > 80
 const BROW_SVG_H  = 110;
 
@@ -348,6 +348,9 @@ const BROW_MAP: Record<string, BrowExpr> = {
   avergonzada:  { angle: 0,   lift: 3  },
   chiste:       { angle: -4,  lift: -2  },
   ternura:      { angle: -2,  lift: -2  },
+  bostezando:   { angle: 0,   lift: 12  },
+  cansada:      { angle: 2,   lift: 18  },
+  preocupada:   { angle: -6,  lift: 2   },
 };
 
 function browPath(lx: number, ly: number, rx: number, ry: number, cpx: number): string {
@@ -361,11 +364,15 @@ export function Cejas({
   offsetY = 0,
   offsetX = 0,
   scale = 1,
+  gap = 0,
+  modoNoche = 'despierta',
 }: {
   expresion?: string;
   offsetY?: number;
   offsetX?: number;
   scale?: number;
+  gap?: number;
+  modoNoche?: string;
 }) {
   const angleAnim = useRef(new Animated.Value(0)).current;
   const liftAnim  = useRef(new Animated.Value(0)).current;
@@ -380,37 +387,50 @@ export function Cejas({
   }, []);
 
   useEffect(() => {
-    const { angle, lift } = BROW_MAP[expresion] ?? BROW_MAP.neutral;
+    const { angle, lift: baseLift } = BROW_MAP[expresion] ?? BROW_MAP.neutral;
+    let extraLift = 0;
+    if (modoNoche === 'soñolienta') extraLift = 18;
+    if (modoNoche === 'durmiendo') extraLift = 25;
+    
     Animated.parallel([
       Animated.spring(angleAnim, { toValue: angle, useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
-      Animated.spring(liftAnim,  { toValue: lift,  useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
+      Animated.spring(liftAnim,  { toValue: baseLift + extraLift,  useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
     ]).start();
-  }, [expresion]);
+  }, [expresion, modoNoche]);
 
-  const halfW    = BROW_W / 2;
+  const halfW    = (BROW_W * scale) / 2;
   const angleRad = (angleRef.current * Math.PI) / 180;
   const yOff     = Math.tan(angleRad) * halfW;
   const lift     = liftRef.current;
   const baseY    = BROW_BASE_Y + offsetY + lift;
 
-  // Left brow: outer tip = left (goes UP with +angle), inner tip = right (goes DOWN)
-  const lLeft  = browPath(
-    LEFT_CX - halfW + offsetX, baseY - yOff,
-    LEFT_CX + halfW + offsetX, baseY + yOff,
-    LEFT_CX + ARCH_INSET + offsetX,
+  const arcH = BROW_ARC_H * scale;
+  const thick = BROW_THICK * scale;
+
+  function browPathScale(lx: number, ly: number, rx: number, ry: number, cpx: number): string {
+    const topCpY = Math.min(ly, ry) - arcH;
+    const botCpY = topCpY + thick;
+    return `M ${lx} ${ly} Q ${cpx} ${topCpY} ${rx} ${ry} Q ${cpx} ${botCpY} ${lx} ${ly} Z`;
+  }
+
+  // Left brow:
+  const lLeft  = browPathScale(
+    (LEFT_CX - gap) - halfW + offsetX, baseY - yOff,
+    (LEFT_CX - gap) + halfW + offsetX, baseY + yOff,
+    (LEFT_CX - gap) + ARCH_INSET + offsetX,
   );
-  // Right brow: inner tip = left (goes DOWN), outer tip = right (goes UP)
-  const lRight = browPath(
-    RIGHT_CX - halfW + offsetX, baseY + yOff,
-    RIGHT_CX + halfW + offsetX, baseY - yOff,
-    RIGHT_CX - ARCH_INSET + offsetX,
+  // Right brow:
+  const lRight = browPathScale(
+    (RIGHT_CX + gap) - halfW + offsetX, baseY + yOff,
+    (RIGHT_CX + gap) + halfW + offsetX, baseY - yOff,
+    (RIGHT_CX + gap) - ARCH_INSET + offsetX,
   );
 
   return (
     <View style={{ position: 'absolute', left: 0, top: 0, width: OW, height: BROW_SVG_H }}>
       <Svg width={OW} height={BROW_SVG_H} style={{ overflow: 'visible' }}>
-        <Path d={lLeft}  fill={BROW_COLOR} />
-        <Path d={lRight} fill={BROW_COLOR} />
+        <Path d={lLeft}  fill={BROW_COLOR} stroke={BROW_COLOR} strokeWidth={6 * scale} strokeLinecap="round" strokeLinejoin="round" />
+        <Path d={lRight} fill={BROW_COLOR} stroke={BROW_COLOR} strokeWidth={6 * scale} strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     </View>
   );

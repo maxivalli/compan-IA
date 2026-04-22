@@ -37,33 +37,33 @@ export interface RositaHorizontalProps {
   listasCount: number;
   onOpenListas: () => void;
   // Estado de Rosita
-  estado:           EstadoRosita;
-  expresion:        Expresion;
-  modoNoche:        ModoNoche;
-  musicaActiva:     boolean;
-  silbando:         boolean;
-  noMolestar:       boolean;
-  linternaActiva:   boolean;
+  estado: EstadoRosita;
+  expresion: Expresion;
+  modoNoche: ModoNoche;
+  musicaActiva: boolean;
+  silbando: boolean;
+  noMolestar: boolean;
+  linternaActiva: boolean;
   detectandoSonido: boolean;
 
   // Fondo / clima (ciudad y temperatura no se muestran en horizontal)
-  bgActual:       string;
+  bgActual: string;
   degradadoCielo: readonly [string, string, string] | readonly [string, string, string, string];
-  esFondoNoche:   boolean;
-  cieloTapado:    boolean;
-  amaneciendo:    boolean;
-  climaObj:       { temperatura: number; descripcion: string; codigoActual: number } | null;
-  ultimaRadio?:   string | null;
+  esFondoNoche: boolean;
+  cieloTapado: boolean;
+  amaneciendo: boolean;
+  climaObj: { temperatura: number; descripcion: string; codigoActual: number } | null;
+  ultimaRadio?: string | null;
 
   // Cámara
-  mostrarCamara:    boolean;
-  camaraFacing:     'front' | 'back';
+  mostrarCamara: boolean;
+  camaraFacing: 'front' | 'back';
   camaraSilenciosa: boolean;
-  onFotoCapturada:  (base64: string) => void;
-  onFotoCancelada:  () => void;
+  onFotoCapturada: (base64: string) => void;
+  onFotoCancelada: () => void;
 
   // Foto Telegram
-  fotoTelegram:        { url: string; descripcion: string } | null;
+  fotoTelegram: { url: string; descripcion: string } | null;
   onClearFotoTelegram: () => void;
 
   // Animaciones compartidas
@@ -78,7 +78,7 @@ export interface RositaHorizontalProps {
 
   // Callbacks de expresión
   onOjoPicado: () => void;
-  onCaricia:   () => void;
+  onCaricia: () => void;
   onRelampago: () => void;
 
   // Linterna
@@ -86,8 +86,8 @@ export interface RositaHorizontalProps {
 
   // Detección de presencia
   deteccionPresenciaActiva: boolean;
-  modoWatchingPresencia:    boolean;
-  presenciaVista:           boolean;
+  modoWatchingPresencia: boolean;
+  presenciaVista: boolean;
 }
 
 function RelojHorizontalFullscreen({
@@ -106,12 +106,12 @@ function RelojHorizontalFullscreen({
       mm: String(now.getMinutes()).padStart(2, '0'),
     };
   });
-  const latido    = useRef(new Animated.Value(1)).current;
-  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const latido = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  const animRef    = useRef<Animated.CompositeAnimation | null>(null);
-  const activeRef  = useRef(false);
+  const animRef = useRef<Animated.CompositeAnimation | null>(null);
+  const activeRef = useRef(false);
   const animSeqRef = useRef(0);
   const [infoIdx, setInfoIdx] = useState(0);
   const climaObjRef = useRef(climaObj);
@@ -134,7 +134,7 @@ function RelojHorizontalFullscreen({
     const anim = Animated.loop(
       Animated.sequence([
         Animated.timing(latido, { toValue: 0.15, duration: 500, useNativeDriver: true }),
-        Animated.timing(latido, { toValue: 1,    duration: 500, useNativeDriver: true }),
+        Animated.timing(latido, { toValue: 1, duration: 500, useNativeDriver: true }),
       ])
     );
     anim.start();
@@ -160,7 +160,7 @@ function RelojHorizontalFullscreen({
     scaleAnim.setValue(0.95);
     const seq = animSeqRef.current;
     animRef.current = Animated.parallel([
-      Animated.timing(fadeAnim,  { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
       Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
       Animated.timing(scaleAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
     ]);
@@ -169,8 +169,8 @@ function RelojHorizontalFullscreen({
       if (!activeRef.current || animSeqRef.current !== seq) return;
       animRef.current?.stop();
       animRef.current = Animated.parallel([
-        Animated.timing(fadeAnim,  { toValue: 0,    duration: 400, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: -20,  duration: 400, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: -20, duration: 400, useNativeDriver: true }),
         Animated.timing(scaleAnim, { toValue: 0.95, duration: 400, useNativeDriver: true }),
       ]);
       animRef.current.start(({ finished }) => {
@@ -187,7 +187,7 @@ function RelojHorizontalFullscreen({
         });
         animRef.current?.stop();
         animRef.current = Animated.parallel([
-          Animated.timing(fadeAnim,  { toValue: 1, duration: 500, useNativeDriver: true }),
+          Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
           Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
           Animated.timing(scaleAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
         ]);
@@ -207,7 +207,7 @@ function RelojHorizontalFullscreen({
   const dotCount = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (dotHasAlert ? 1 : 0);
   const alertaTexto = climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'Calor extremo'
     : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'Frío extremo'
-    : (climaObj?.descripcion || 'Alerta meteorológica');
+      : (climaObj?.descripcion || 'Alerta meteorológica');
   const radioScreenIdx = musicaActiva ? 1 : -1;
   const tempScreenIdx = 1 + (musicaActiva ? 1 : 0);
   const alertScreenIdx = tempScreenIdx + (climaObj?.temperatura != null ? 1 : 0);
@@ -283,9 +283,14 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const eyeDominantScale = (screenH * 0.96) / EYE_H;
   const faceFitScale = (screenH * 1.16) / FACE_H;
   const widthFitScale = (screenW * 0.88) / FACE_W;
-  const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8;
+  let faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8;
+  if (esTabletHorizontal) {
+    faceScale *= 1.2;
+  } else {
+    faceScale *= 0.85;
+  }
   const paddingTopCara = Math.max(0, Math.round(screenH * 0.005));
-  const faceTranslateY = Math.max(0, Math.round(screenH * 0.20));
+  const faceTranslateY = Math.max(0, Math.round(screenH * 0.20)) + (esTabletHorizontal ? 120 : 20);
   const mouthOffsetY = 0;
   const eyeGapExtra = Math.round((32 + 10 * faceScale) * 0.85 - 32);
   const zipperOffsetY = esTabletHorizontal
@@ -300,11 +305,11 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   })).current;
 
   // Color del indicator de estado (ring alrededor de la cara)
-  const estadoColor = props.musicaActiva       ? '#E8392A'
-    : props.estado === 'escuchando'            ? '#E85D24'
-    : props.estado === 'pensando'              ? '#3b82f6'
-    : props.estado === 'hablando'              ? '#22c55e'
-    : 'transparent';
+  const estadoColor = props.musicaActiva ? '#E8392A'
+    : props.estado === 'escuchando' ? '#E85D24'
+      : props.estado === 'pensando' ? '#3b82f6'
+        : props.estado === 'hablando' ? '#22c55e'
+          : 'transparent';
 
   const esBotonesNoche = props.modoNoche !== 'despierta';
   const esperandoActivo = !props.noMolestar && !props.musicaActiva && props.estado === 'esperando';
@@ -328,19 +333,19 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   }, [esperandoActivo, esperaPulso]);
 
   // Gradiente del badge de estado — igual al badge vertical
-  const estadoGradient: [string, string] = props.noMolestar          ? ['#4b5563', '#1f2937']
-    : props.musicaActiva                                              ? ['#fdba74', '#ea580c']
-    : props.estado === 'pensando'                                     ? ['#93c5fd', '#1d4ed8']
-    : props.estado === 'hablando'                                     ? ['#86efac', '#15803d']
-    : props.estado === 'escuchando'                                   ? ['#fca5a5', '#dc2626']
-    : esBotonesNoche                                                  ? ['#2d3748', '#0f1117']
-    : ['#4b5563', '#1f2937'];
-  const estadoBadgeLabel = props.noMolestar  ? 'Silencio'
-    : props.musicaActiva                     ? 'Parar'
-    : props.estado === 'pensando'            ? 'Pensando...'
-    : props.estado === 'hablando'            ? 'Hablando'
-    : props.estado === 'escuchando'          ? 'Escuchando'
-    : 'Esperando';
+  const estadoGradient: [string, string] = props.noMolestar ? ['#4b5563', '#1f2937']
+    : props.musicaActiva ? ['#fdba74', '#ea580c']
+      : props.estado === 'pensando' ? ['#93c5fd', '#1d4ed8']
+        : props.estado === 'hablando' ? ['#86efac', '#15803d']
+          : props.estado === 'escuchando' ? ['#fca5a5', '#dc2626']
+            : esBotonesNoche ? ['#2d3748', '#0f1117']
+              : ['#4b5563', '#1f2937'];
+  const estadoBadgeLabel = props.noMolestar ? 'Silencio'
+    : props.musicaActiva ? 'Parar'
+      : props.estado === 'pensando' ? 'Pensando...'
+        : props.estado === 'hablando' ? 'Hablando'
+          : props.estado === 'escuchando' ? 'Escuchando'
+            : 'Esperando';
 
   return (
     <>
@@ -425,6 +430,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       modoNoche={props.modoNoche}
                       esFondoNoche={props.esFondoNoche}
                       modoHorizontal
+                      faceScale={faceScale}
                     />
                     {faceBottomH > 0 && (
                       <OvaloRosita
@@ -446,16 +452,16 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                         modoNoche={props.modoNoche}
                         bgColor={props.bgActual}
                         silbando={props.silbando}
-                      noMolestar={props.noMolestar}
-                      onOjoPicado={props.onOjoPicado}
-                      scale={faceScale}
-                      amaneciendo={props.amaneciendo}
-                      mouthOffsetY={mouthOffsetY}
-                      eyeGapExtra={eyeGapExtra}
-                      zipperOffsetY={zipperOffsetY}
-                      zipperScale={zipperScale}
-                      eyeOffsetY={esTabletHorizontal ? 70 : 0}
-                    />
+                        noMolestar={props.noMolestar}
+                        onOjoPicado={props.onOjoPicado}
+                        scale={faceScale}
+                        amaneciendo={props.amaneciendo}
+                        mouthOffsetY={mouthOffsetY}
+                        eyeGapExtra={eyeGapExtra}
+                        zipperOffsetY={zipperOffsetY}
+                        zipperScale={zipperScale}
+                        eyeOffsetY={esTabletHorizontal ? 70 : 0}
+                      />
                     </View>
                     <ExpresionOverlay
                       capa="frente"
@@ -469,10 +475,11 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       onRelampago={props.onRelampago}
                       esCumpleaños={props.esCumpleaños}
                       modoHorizontal
-                      browOffsetY={esTabletHorizontal ? 10 : 70}
-                      browOffsetX={esTabletHorizontal ? -17 : 19}
-                      browScale={esTabletHorizontal ? 1.32 : 0.65}
-                      browGap={esTabletHorizontal ? 25 : -15}
+                      browOffsetY={esTabletHorizontal ? -55 : 50}
+                      browOffsetX={0}
+                      browScale={esTabletHorizontal ? 1.0 : 1.04}
+                      browGap={esTabletHorizontal ? 3 : 3}
+                      faceScale={faceScale}
                     />
                   </View>
                 </View>
@@ -587,21 +594,21 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                 </View>
               )
               : <>
-                  {esperandoActivo ? (
-                    <Animated.View
-                      style={[
-                        styles.estadoDotEsperando,
-                        {
-                          opacity: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
-                          transform: [{ scale: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
-                        },
-                      ]}
-                    />
-                  ) : (
-                    <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
-                  )}
-                  <Text style={styles.estadoTexto}>{estadoBadgeLabel}</Text>
-                </>
+                {esperandoActivo ? (
+                  <Animated.View
+                    style={[
+                      styles.estadoDotEsperando,
+                      {
+                        opacity: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
+                        transform: [{ scale: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
+                      },
+                    ]}
+                  />
+                ) : (
+                  <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
+                )}
+                <Text style={styles.estadoTexto}>{estadoBadgeLabel}</Text>
+              </>
             }
           </TouchableOpacity>
 
@@ -682,7 +689,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   estadoRing: {
-    position:    'absolute',
+    position: 'absolute',
     borderWidth: 3,
   },
   iconBtn: {
@@ -730,7 +737,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   waveformWrap: {
-    position:  'absolute',
+    position: 'absolute',
     alignSelf: 'center',
   },
   waveformCompactWrap: {
@@ -740,20 +747,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   estadoBadge: {
-    position:          'absolute',
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'center',
-    gap:               6,
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
     paddingHorizontal: 12,
-    paddingVertical:   7,
-    minWidth:          108,
-    height:            40,
-    borderRadius:      20,
+    paddingVertical: 7,
+    minWidth: 108,
+    height: 40,
+    borderRadius: 20,
   },
   estadoDot: {
-    width:        8,
-    height:       8,
+    width: 8,
+    height: 8,
     borderRadius: 4,
   },
   estadoDotEsperando: {
@@ -767,8 +774,8 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   estadoTexto: {
-    color:      '#ffffffcc',
-    fontSize:   12,
+    color: '#ffffffcc',
+    fontSize: 12,
     fontWeight: '500',
   },
 });
