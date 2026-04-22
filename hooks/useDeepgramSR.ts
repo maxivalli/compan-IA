@@ -54,13 +54,9 @@ const KEEPALIVE_MSG = JSON.stringify({ type: 'KeepAlive' });
 const KEEPALIVE_INTERVAL_MS = 5000;
 
 // VAD (Voice Activity Detection) — filtra chunks de silencio antes de enviar a Deepgram.
-// Solo se envía audio cuando el RMS supera el threshold o mientras corra el hold-off.
-// Reducción esperada: ~60-70% de chunks filtrados durante silencios largos.
-// NOTA: threshold conservador intencional — un valor alto (ej: 300) filtra voz normal a distancia
-// moderada y solo deja pasar gritos, causando que Deepgram nunca dispare speech_final.
-const VAD_RMS_THRESHOLD = 80;  // ~0.24% de amplitud máxima PCM16 (32767)
-const VAD_HOLD_OFF_MS   = 1200; // ms de silencio a enviar tras detectar fin de voz (450ms de margen sobre endpointing 750ms)
-// Umbral de tiempo sin enviar audio para loguear un evento de diagnóstico
+const VAD_RMS_THRESHOLD_CONVERSACION = 80;   // Umbral normal: dentro de ventana de 60s
+const VAD_RMS_THRESHOLD_IDLE         = 220;  // Umbral idle: filtra TV/lluvia/ruido ambiente
+const VAD_HOLD_OFF_MS   = 1200;
 const VAD_GATED_LOG_MS  = 3000;
 
 export type UseDeepgramSROptions = {
@@ -68,9 +64,9 @@ export type UseDeepgramSROptions = {
   onFinal:        (texto: string) => void;
   onReady:        () => void;
   onError:        (reason: string) => void;
-  /** Llamado cuando el hold-off VAD vence sin que Deepgram disparara speech_final.
-   *  Permite al pipeline resetear el visual 'escuchando' → 'esperando'. */
   onVadSilencio?: () => void;
+  /** Devuelve el threshold RMS a usar en este momento. Permite threshold dinámico. */
+  getVadThreshold?: () => number;
 };
 
 export function useDeepgramSR(opts: UseDeepgramSROptions) {
@@ -147,8 +143,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         try {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
           const rms = calcularRMS(binary);
+          const threshold = optsRef.current.getVadThreshold?.() ?? VAD_RMS_THRESHOLD_CONVERSACION;
 
-          if (rms > VAD_RMS_THRESHOLD) {
+          if (rms > threshold) {
             // Hay voz → enviar y cancelar hold-off + timer de gating si estaban corriendo
             vozActivaRef.current = true;
             vadGatedSinceRef.current = 0;

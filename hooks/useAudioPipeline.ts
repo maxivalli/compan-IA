@@ -322,6 +322,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
+    getVadThreshold: () => {
+      const d = depsRef.current;
+      // En conversación activa (< 60s desde última charla) usar umbral bajo para capturar voz suave.
+      // En idle usar umbral alto para ignorar TV, lluvia y conversaciones de fondo.
+      const enConversacion = !d.musicaActivaRef.current && Date.now() - d.ultimaCharlaRef.current < 60_000;
+      return enConversacion ? 80 : 220;
+    },
     onVadSilencio: () => {
       // El hold-off VAD venció sin que Deepgram disparara speech_final.
       // Resetear visual 'escuchando' → 'esperando' si nadie lo processó.
@@ -348,12 +355,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       if (d.estadoRef.current === 'esperando') {
         visualEscuchandoRef.current = true;
         d.setEstado('escuchando');
-        // Timer de seguridad: si en 4s nadie resetó el badge, lo forzamos.
-        if (escuchandoSafeTimerRef.current) clearTimeout(escuchandoSafeTimerRef.current);
-        escuchandoSafeTimerRef.current = setTimeout(() => {
-          escuchandoSafeTimerRef.current = null;
-          if (depsRef.current.estadoRef.current === 'esperando') resetVisualEscuchando(depsRef.current);
-        }, 4000);
+        // Timer de seguridad: solo iniciar si no estaba corriendo (no resetear en partials consecutivos).
+        if (!escuchandoSafeTimerRef.current) {
+          escuchandoSafeTimerRef.current = setTimeout(() => {
+            escuchandoSafeTimerRef.current = null;
+            if (depsRef.current.estadoRef.current === 'esperando') resetVisualEscuchando(depsRef.current);
+          }, 4000);
+        }
       }
       d.onPartialReconocido?.(texto);
     },
