@@ -313,7 +313,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // El hold-off VAD venció sin que Deepgram disparara speech_final.
       // Resetear visual 'escuchando' → 'esperando' para no dejar el badge pegado.
       const d = depsRef.current;
-      if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
+      if (d.estadoRef.current === 'escuchando') d.setEstado('esperando');
     },
     onReady: () => {
       srActivoRef.current = true;
