@@ -9,6 +9,12 @@ import {
   Poppins_600SemiBold,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
+// Importar la fuente de Ionicons directamente para pre-registrarla
+// @expo/vector-icons usa el nombre 'ionicons' (minúsculas) — si no está
+// pre-registrada, la carga async en componentDidMount sin try/catch y
+// si falla, los iconos quedan en blanco para siempre.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const IoniconsTTF = require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf') as number;
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
 
@@ -71,7 +77,12 @@ async function chequearActualizacion() {
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
+  const [fontsLoaded] = useFonts({
+    ionicons: IoniconsTTF,   // nombre exacto que usa @expo/vector-icons
+    Poppins_400Regular,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+  });
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
 
   useEffect(() => { chequearActualizacion(); }, []);
@@ -98,6 +109,11 @@ export default function Layout() {
       </ErrorBoundary>
     );
   }
+
+  // Las fuentes locales cargan en milisegundos; el splash dura segundos,
+  // así que esto casi nunca bloquea. Si llegara a tardar, mejor null que
+  // mostrar iconos en blanco.
+  if (!fontsLoaded) return null;
 
   return (
     <ErrorBoundary>
