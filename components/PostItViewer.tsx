@@ -135,58 +135,60 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose, inlin
   }
 
   const cardNode = (
-    <GestureDetector gesture={swipeGesture}>
-      <Animated.View style={{ transform: [{ scale: scaleAnim }, { translateX: slideX }] }}>
-        <View style={[s.card, inline && s.cardInline, cardStyle, { backgroundColor: c.bg }]}>
-          <View style={s.tapeWrap} pointerEvents="none">
-            <View style={[s.tape, { backgroundColor: c.tape }]} />
-          </View>
+    <View style={{ width: '100%', alignItems: 'center' }}>
+      <GestureDetector gesture={swipeGesture}>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }, { translateX: slideX }] }}>
+          <View style={[s.card, !inline && !cardStyle && s.cardDefault, inline && s.cardInline, cardStyle, { backgroundColor: c.bg }]}>
+            <View style={s.tapeWrap} pointerEvents="none">
+              <View style={[s.tape, { backgroundColor: c.tape }]} />
+            </View>
 
-          {inline && (
+            {inline && (
+              <TouchableOpacity
+                style={[s.closeBtn, { borderColor: c.text + '55' }]}
+                onPress={onClose}
+                hitSlop={8}
+              >
+                <Ionicons name="close" size={18} color={c.text} />
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={[s.closeBtn, { borderColor: c.text + '55' }]}
-              onPress={onClose}
+              style={[s.trashBtn, inline ? s.trashBtnInline : null, { borderColor: c.text + '55' }]}
+              onPress={handleBorrar}
               hitSlop={8}
             >
-              <Ionicons name="close" size={18} color={c.text} />
+              <Ionicons name="trash-outline" size={18} color={c.text} />
             </TouchableOpacity>
-          )}
 
-          <TouchableOpacity
-            style={[s.trashBtn, inline ? s.trashBtnInline : null, { borderColor: c.text + '55' }]}
-            onPress={handleBorrar}
-            hitSlop={8}
-          >
-            <Ionicons name="trash-outline" size={18} color={c.text} />
-          </TouchableOpacity>
+            <View style={[s.headerArea, inline && s.headerAreaInline]}>
+              <Text style={[s.titulo, inline && s.tituloInline, { color: c.text }]} numberOfLines={2}>
+                {lista.nombre.toUpperCase()}:
+              </Text>
+            </View>
 
-          <View style={[s.headerArea, inline && s.headerAreaInline]}>
-            <Text style={[s.titulo, inline && s.tituloInline, { color: c.text }]} numberOfLines={2}>
-              {lista.nombre.toUpperCase()}:
-            </Text>
+            <ScrollView
+              style={s.scroll}
+              contentContainerStyle={s.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {lista.items.length === 0 ? (
+                <Text style={[s.vacio, { color: c.text + '77' }]}>Lista vacía</Text>
+              ) : (
+                lista.items.map((item, i) => (
+                  <View key={i} style={s.itemRow}>
+                    <Text style={[s.bullet, inline && s.bulletInline, { color: c.text }]}>•</Text>
+                    <Text style={[s.itemTexto, inline && s.itemTextoInline, { color: c.text }]}>{item}</Text>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <View style={{ height: inline ? 10 : 20 }} />
           </View>
-
-          <ScrollView
-            style={s.scroll}
-            contentContainerStyle={s.scrollContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {lista.items.length === 0 ? (
-              <Text style={[s.vacio, { color: c.text + '77' }]}>Lista vacía</Text>
-            ) : (
-              lista.items.map((item, i) => (
-                <View key={i} style={s.itemRow}>
-                  <Text style={[s.bullet, inline && s.bulletInline, { color: c.text }]}>•</Text>
-                  <Text style={[s.itemTexto, inline && s.itemTextoInline, { color: c.text }]}>{item}</Text>
-                </View>
-              ))
-            )}
-          </ScrollView>
-
-          <View style={{ height: inline ? 10 : 20 }} />
-        </View>
-      </Animated.View>
-    </GestureDetector>
+        </Animated.View>
+      </GestureDetector>
+    </View>
   );
 
   const dotsNode = listas.length > 1 && (
@@ -241,6 +243,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   sheet: {
+    width: '100%',
     alignItems: 'center',
     gap: 18,
   },
@@ -257,8 +260,6 @@ const s = StyleSheet.create({
 
   // ── Card ──────────────────────────────────────────────────────────────────
   card: {
-    width: 300,
-    height: 300,
     borderRadius: 0,
     borderBottomRightRadius: 40,
     shadowColor: '#000',
@@ -267,6 +268,10 @@ const s = StyleSheet.create({
     shadowRadius: 22,
     elevation: 20,
     overflow: 'hidden',
+  },
+  cardDefault: {
+    width: 300,
+    height: 300,
   },
   cardInline: {
     width: '100%',
