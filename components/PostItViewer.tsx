@@ -142,17 +142,30 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose, inlin
       <Animated.View style={{ 
         transform: expandedWidth ? [{ translateX: slideX }] : [{ scale: scaleAnim }, { translateX: slideX }] 
       }}>
+        {inline && listas.length > 2 && (
+          <View style={[
+            s.card, s.cardInline, 
+            { position: 'absolute', width: '100%', height: '100%', backgroundColor: POSTIT_COLORES[(idx + 2) % POSTIT_COLORES.length].bg, transform: [{ rotate: '-3deg' }, { translateY: 2 }], zIndex: -2 }
+          ]} />
+        )}
+        {inline && listas.length > 1 && (
+          <View style={[
+            s.card, s.cardInline, 
+            { position: 'absolute', width: '100%', height: '100%', backgroundColor: POSTIT_COLORES[(idx + 1) % POSTIT_COLORES.length].bg, transform: [{ rotate: '4deg' }, { translateY: 1 }], zIndex: -1 }
+          ]} />
+        )}
+        
         <View style={[
           s.card,
           inline && s.cardInline,
           !inline && !expandedWidth && s.cardDefault,
-          !expandedWidth && cardStyle,
-          expandedWidth && { 
+          !expandedWidth ? cardStyle : undefined,
+          expandedWidth ? { 
             width: expandedWidth, 
             height: expandedWidth / 0.72,
             maxHeight: '82%',
             alignSelf: 'center' 
-          },
+          } : undefined,
           { backgroundColor: c.bg }
         ]}>
           <View style={s.tapeWrap} pointerEvents="none">
