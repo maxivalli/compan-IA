@@ -3,7 +3,6 @@ import { useFocusEffect, useRootNavigationState } from 'expo-router';
 import { Animated, Easing, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { useFonts } from 'expo-font';
 
 // Escala fuentes respetando la accesibilidad del sistema (hasta 1.3x)
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
@@ -34,7 +33,6 @@ import { cargarRecordatorios } from '../lib/memoria';
 
 
 function RelojNoche({ fontSize }: { fontSize: number }) {
-  const [fontsLoaded] = useFonts({ 'DSEG7Classic': require('../assets/fonts/DSEG7Classic-Regular.ttf') });
   const [tiempo, setTiempo] = React.useState(() => {
     const now = new Date();
     return {
@@ -66,13 +64,11 @@ function RelojNoche({ fontSize }: { fontSize: number }) {
     return () => anim.stop();
   }, []);
 
-  const fontFamily = fontsLoaded ? 'DSEG7Classic' : undefined;
-
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={[styles.relojNoche, { fontFamily, fontSize }]}>{tiempo.hh}</Text>
-      <Animated.Text style={[styles.relojNoche, { fontFamily, fontSize, opacity: latido, marginHorizontal: 2 }]}>:</Animated.Text>
-      <Text style={[styles.relojNoche, { fontFamily, fontSize }]}>{tiempo.mm}</Text>
+      <Text style={[styles.relojNoche, { fontSize }]}>{tiempo.hh}</Text>
+      <Animated.Text style={[styles.relojNoche, { fontSize, opacity: latido, marginHorizontal: 2 }]}>:</Animated.Text>
+      <Text style={[styles.relojNoche, { fontSize }]}>{tiempo.mm}</Text>
     </View>
   );
 }
@@ -138,11 +134,6 @@ export default function Index() {
 
   const menuTriggerRef = useRef<(() => void) | null>(null);
 
-  const [dsegLoaded] = useFonts({
-    'DSEG7Classic':  require('../assets/fonts/DSEG7Classic-Regular.ttf'),
-    'DSEG14Classic': require('../assets/fonts/DSEG14Classic-Regular.ttf'),
-  });
-
   const panCaricia = useRef(PanResponder.create({
     onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 12 && Math.abs(g.dy) < 40,
     onPanResponderRelease: (_, g) => { if (Math.abs(g.dx) > 40) onCaricia(); },
@@ -152,13 +143,16 @@ export default function Index() {
   // Al salir (onboarding, configuración, etc.) detener SR para que no escuche
   // en segundo plano mientras el tab sigue montado.
   useFocusEffect(useCallback(() => {
+    // Si está mostrando onboarding, no hacer nada (evitar interferir con la navegación)
+    if (mostrarOnboarding) return;
+    
     refs.reanudarSR?.();
     resetExpresion();
     if (cargando) reactivar();
     else recargarPerfil();
     cargarRecordatorios().then(r => setHayRecordatorios(r.length > 0)).catch(() => {});
     return () => { refs.suspenderSR?.(); };
-  }, [cargando]));
+  }, [cargando, mostrarOnboarding]));
 
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
@@ -395,10 +389,19 @@ export default function Index() {
   // Espera a que navigationState.key esté definido (router listo) antes de navegar.
   // Sin esta guarda, router.replace falla silenciosamente en el primer arranque post-install.
   useEffect(() => {
+    console.log('[ONBOARDING DEBUG] useEffect navegación:', {
+      navigationKey: navigationState?.key,
+      mostrarOnboarding,
+      nombreAbuela: refs.perfilRef.current?.nombreAbuela,
+    });
     if (!navigationState?.key) return; // router todavía no está listo
-    if (mostrarOnboarding && !refs.perfilRef.current?.nombreAbuela) {
-      setMostrarOnboarding(false);
-      router.replace('/onboarding' as any);
+    if (mostrarOnboarding) {
+      console.log('[ONBOARDING DEBUG] Navegando a onboarding...');
+      // Usar setTimeout para asegurar que la navegación ocurra después del render
+      setTimeout(() => {
+        router.replace('/onboarding' as any);
+        setMostrarOnboarding(false);
+      }, 0);
     }
   }, [navigationState?.key, mostrarOnboarding]);
 
@@ -487,6 +490,17 @@ export default function Index() {
 
 
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+
+  // Si debe mostrar onboarding, no renderizar la pantalla principal
+  // (evita que se vea la cara de gato antes de navegar)
+  if (mostrarOnboarding) {
+    return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+  }
+  
+  // Si no hay perfil cargado aún, esperar (evita renderizar sin datos)
+  if (!refs.perfilRef.current?.nombreAbuela) {
+    return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
+  }
 
   // ── Modo horizontal: layout dedicado sin botones visibles ────────────────────
   if (layoutMode === 'horizontal') {

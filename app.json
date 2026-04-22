@@ -62,7 +62,17 @@
         }
       ],
       "expo-audio",
-      "expo-font",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Ionicons.ttf",
+            "./assets/fonts/Poppins_400Regular.ttf",
+            "./assets/fonts/Poppins_600SemiBold.ttf",
+            "./assets/fonts/Poppins_700Bold.ttf"
+          ]
+        }
+      ],
       [
         "expo-camera",
         {
