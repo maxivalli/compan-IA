@@ -180,54 +180,44 @@ function RelojHorizontalFullscreen({
   const tempScreenIdx = 1 + (musicaActiva ? 1 : 0);
   const alertScreenIdx = tempScreenIdx + (climaObj?.temperatura != null ? 1 : 0);
 
-  // Implementación definitiva del carrusel:
-  // • Contenedor con height FIJA (no collapsa nunca)
-  // • Animated.View ocupa todo el contenedor (absoluteFill)
-  // • TODAS las slides son absoluteFill — sin cambios de layout al cambiar slides
-  // • Solo cambia opacity (0/1) en cada slide para mostrar/ocultar
-  // • El Animated.View maneja el fade global entre transiciones
-  // La hora nunca se desmonta (Animated.Text del latido usa useNativeDriver)
   return (
     <>
       <View style={styles.relojCarruselWrapper}>
         <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] },
-          ]}
+          style={{
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+            width: '100%',
+            alignItems: 'center',
+          }}
         >
-          {/* Slide 0: Hora — siempre montada, opacity 0/1 según infoIdx */}
-          <View style={[StyleSheet.absoluteFill, styles.relojSlideContainer, { opacity: infoIdx === 0 ? 1 : 0 }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
-              <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
-              <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
+          {infoIdx === 0 && (
+            <View style={{ alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
+                <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
+                <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
+              </View>
             </View>
-          </View>
-
-          {/* Slide 1: Radio */}
-          {musicaActiva && (
-            <View style={[StyleSheet.absoluteFill, styles.relojSlideContainer, { opacity: infoIdx === radioScreenIdx ? 1 : 0 }]}>
+          )}
+          {musicaActiva && infoIdx === radioScreenIdx && (
+            <View style={{ alignItems: 'center', width: '100%' }}>
               <AnimacionMusica />
               <Text style={[styles.relojSubtext, { fontSize: 28, marginTop: 14, maxWidth: 540 }]} numberOfLines={1}>
                 {nombreRadioOGenero(ultimaRadio ?? 'FM Cristal 98.9')}
               </Text>
             </View>
           )}
-
-          {/* Slide 2: Temperatura */}
-          {climaObj?.temperatura != null && (
-            <View style={[StyleSheet.absoluteFill, styles.relojSlideContainer, { opacity: infoIdx === tempScreenIdx ? 1 : 0 }]}>
+          {infoIdx === tempScreenIdx && climaObj?.temperatura != null && (
+            <View style={{ alignItems: 'center' }}>
               <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
               <Text style={[styles.relojSubtext, { fontSize: 28, marginTop: 10, maxWidth: 520 }]} numberOfLines={1}>
                 {climaObj.descripcion}
               </Text>
             </View>
           )}
-
-          {/* Slide 3: Alerta */}
-          {dotHasAlert && (
-            <View style={[StyleSheet.absoluteFill, styles.relojSlideContainer, { opacity: infoIdx === alertScreenIdx ? 1 : 0 }]}>
+          {dotHasAlert && infoIdx === alertScreenIdx && (
+            <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
               <Text style={{ fontSize: 42, fontFamily, color: '#fbbf24', marginBottom: 10 }}>ALERTA</Text>
               <Text style={[styles.relojSubtext, { fontSize: 22, maxWidth: 500, color: '#ffffff' }]} numberOfLines={2}>
                 {alertaTexto}
@@ -239,10 +229,7 @@ function RelojHorizontalFullscreen({
         {dotCount > 1 && (
           <View style={styles.relojDots}>
             {Array.from({ length: dotCount }).map((_, i) => (
-              <View
-                key={i}
-                style={[styles.relojDot, i === infoIdx ? styles.relojDotActive : null]}
-              />
+              <View key={i} style={[styles.relojDot, i === infoIdx ? styles.relojDotActive : null]} />
             ))}
           </View>
         )}
