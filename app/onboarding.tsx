@@ -4,7 +4,9 @@ import {
   Animated,
   Dimensions,
   Keyboard,
+  Linking,
   Modal,
+  PermissionsAndroid,
   ScrollView,
   StyleSheet,
   Text,
@@ -37,6 +39,7 @@ const SIDE_PAD = PEEK + CARD_GAP;
 const STEP_COLORS = [
   '#0097b2', // bienvenida
   '#0097b2', // términos
+  '#57CC99', // permisos
   '#7C9EFF', // nombre
   '#FF8FAB', // edad
   '#57CC99', // asistente
@@ -44,7 +47,7 @@ const STEP_COLORS = [
   '#0097b2', // listo
 ];
 
-const TOTAL = 7;
+const TOTAL = 8;
 
 export default function Onboarding() {
   const router  = useRouter();
@@ -64,6 +67,7 @@ export default function Onboarding() {
   const [mascotas,        setMascotas]        = useState('');
 
   const [aceptaTerminos,  setAceptaTerminos]  = useState(false);
+  const [permisosOk,      setPermisosOk]      = useState(false);
   const [modalTerminos,   setModalTerminos]   = useState(false);
   const fadeAnim      = useRef(new Animated.Value(1)).current;
   const slideAnim     = useRef(new Animated.Value(0)).current;
@@ -167,7 +171,7 @@ export default function Onboarding() {
               <View style={s.iconoCirculo}>
                 <View style={s.iconoInner}>
                   <Ionicons
-                    name={(['document-text','person','calendar','chatbubble','people','checkmark-circle'] as const)[paso - 1]}
+                    name={(['document-text','shield-checkmark','person','calendar','chatbubble','people','checkmark-circle'] as const)[paso - 1]}
                     size={78}
                     color="#fff"
                   />
@@ -183,6 +187,7 @@ export default function Onboarding() {
             <StepContent
               paso={paso}
               aceptaTerminos={aceptaTerminos}   setAceptaTerminos={setAceptaTerminos}
+              setPermisosOk={setPermisosOk}
               onVerTerminos={() => setModalTerminos(true)}
               nombreAbuela={nombreAbuela}       setNombreAbuela={setNombreAbuela}
               generoUsuario={generoUsuario}     setGeneroUsuario={setGeneroUsuario}
@@ -210,7 +215,8 @@ export default function Onboarding() {
               onPress={() => {
                 if (esUltimo) { finalizar(); return; }
                 if (paso === 1 && !aceptaTerminos) return;
-                if (paso === 2 && !nombreAbuela.trim()) return;
+                if (paso === 2 && !permisosOk) return;
+                if (paso === 3 && !nombreAbuela.trim()) return;
                 irAPaso(paso + 1);
               }}
               activeOpacity={0.85}
@@ -369,6 +375,86 @@ const fc = StyleSheet.create({
   dotActive:{ width: 20, height: 6, borderRadius: 3, backgroundColor: '#0097b2' },
 });
 
+// ── Permisos ───────────────────────────────────────────────────────────────────────────────
+const PERMISOS_INFO = [
+  { id: 'microfono', icono: 'mic'       as const, color: '#0097b2', titulo: 'Micrófono',           descripcion: 'Para que puedas hablarle y que te escuche.',                                    perms: ['android.permission.RECORD_AUDIO'] },
+  { id: 'ubicacion', icono: 'location'  as const, color: '#57CC99', titulo: 'Ubicación',            descripcion: 'Para el clima de tu ciudad y encontrar lugares cercanos.',                   perms: ['android.permission.ACCESS_FINE_LOCATION'] },
+  { id: 'camara',    icono: 'camera'    as const, color: '#FF8FAB', titulo: 'Cámara',              descripcion: 'Para detectar si estás cerca y activarse automáticamente.',                  perms: ['android.permission.CAMERA'] },
+  { id: 'bluetooth', icono: 'bluetooth' as const, color: '#7C9EFF', titulo: 'Dispositivos cercanos', descripcion: 'Para conectarse con tu pulsera o botón de emergencia por Bluetooth.',    perms: ['android.permission.BLUETOOTH_SCAN', 'android.permission.BLUETOOTH_CONNECT'] },
+];
+
+function PantallaPermisos({ onTodosOk }: { onTodosOk: (ok: boolean) => void }) {
+  type Estado = 'pendiente' | 'concedido' | 'denegado';
+  const [estados, setEstados] = useState<Record<string, Estado>>({
+    microfono: 'pendiente', ubicacion: 'pendiente', camara: 'pendiente', bluetooth: 'pendiente',
+  });
+
+  const todosOk = Object.values(estados).every(e => e === 'concedido');
+  useEffect(() => { onTodosOk(todosOk); }, [todosOk]);
+
+  async function pedirPermiso(p: typeof PERMISOS_INFO[number]) {
+    const actual = estados[p.id];
+    if (actual === 'concedido') return;
+    if (actual === 'denegado')  { Linking.openSettings(); return; }
+    try {
+      let granted: boolean;
+      if (p.perms.length === 1) {
+        const r = await PermissionsAndroid.request(p.perms[0] as any);
+        granted = r === PermissionsAndroid.RESULTS.GRANTED;
+      } else {
+        const r = await PermissionsAndroid.requestMultiple(p.perms as any[]);
+        granted = Object.values(r).every(v => v === PermissionsAndroid.RESULTS.GRANTED);
+      }
+      setEstados(prev => ({ ...prev, [p.id]: granted ? 'concedido' : 'denegado' }));
+    } catch {
+      setEstados(prev => ({ ...prev, [p.id]: 'denegado' }));
+    }
+  }
+
+  return (
+    <View style={{ flex: 1, paddingTop: 20, paddingHorizontal: 24 }}>
+      <Text style={ct.titulo}>Permisos necesarios</Text>
+      <Text style={[ct.sub, { marginBottom: 12 }]}>Tocá cada permiso para habilitarlo. Son necesarios para que todo funcione correctamente.</Text>
+      <View style={{ gap: 10 }}>
+        {PERMISOS_INFO.map(p => {
+          const est = estados[p.id];
+          const ok  = est === 'concedido';
+          const err = est === 'denegado';
+          return (
+            <TouchableOpacity
+              key={p.id}
+              onPress={() => pedirPermiso(p)}
+              activeOpacity={ok ? 1 : 0.8}
+              style={[pp.card, ok && pp.cardOk, err && pp.cardErr]}
+            >
+              <View style={[pp.iconCircle, { backgroundColor: p.color + '22' }]}>
+                <Ionicons name={p.icono} size={24} color={ok ? '#22c55e' : err ? '#ef4444' : p.color} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={pp.titulo}>{p.titulo}</Text>
+                <Text style={pp.desc}>{p.descripcion}</Text>
+              </View>
+              {ok  && <Ionicons name="checkmark-circle" size={26} color="#22c55e" />}
+              {err && <Text style={pp.btnAjustes}>Ajustes</Text>}
+              {est === 'pendiente' && <Ionicons name="chevron-forward" size={20} color="#b0b8ba" />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const pp = StyleSheet.create({
+  card:      { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#f4f6f7', borderRadius: 18, paddingVertical: 14, paddingHorizontal: 16, borderWidth: 1.5, borderColor: '#e0e6e8' },
+  cardOk:    { backgroundColor: '#f0fdf4', borderColor: '#86efac' },
+  cardErr:   { backgroundColor: '#fff5f5', borderColor: '#fca5a5' },
+  iconCircle:{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  titulo:    { fontFamily: 'Poppins_600SemiBold', fontSize: 14, color: '#171d1e' },
+  desc:      { fontFamily: 'Poppins_400Regular',  fontSize: 12, color: '#5a6468', lineHeight: 17, marginTop: 2 },
+  btnAjustes:{ fontFamily: 'Poppins_600SemiBold', fontSize: 12, color: '#ef4444' },
+});
+
 // ── Input con etiqueta para familiares ───────────────────────────────────────
 function FamiliarInput({ label, icon, value, onChangeText, placeholder }: {
   label: string; icon: string; value: string;
@@ -499,11 +585,12 @@ const sv = StyleSheet.create({
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, conyuge, setConyuge, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, aceptaTerminos, setAceptaTerminos, setPermisosOk, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, conyuge, setConyuge, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
     { titulo: 'Antes de continuar',           sub: 'Leé y aceptá nuestros términos para seguir.' },
+    { titulo: 'Permisos necesarios',          sub: 'Habilitá los accesos que la app necesita para funcionar.' },
     { titulo: '¿Cómo te llamas?',            sub: 'Decime tu nombre y cómo preferís que te trate.' },
     { titulo: '¿Cuántos años tenés?',        sub: 'La asistente adapta su forma de hablar según la edad. Podés saltear este paso.' },
     { titulo: '¿Cómo la vas a llamar?',      sub: 'El nombre con el que llamarás a la asistente.' },
@@ -552,7 +639,11 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
     );
   }
 
-  if (paso === 4) {
+  if (paso === 2) {
+    return <PantallaPermisos onTodosOk={setPermisosOk} />;
+  }
+
+  if (paso === 5) {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrapScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <Text style={ct.titulo}>{titulo}</Text>
@@ -565,7 +656,7 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
     );
   }
 
-  if (paso === 5) {
+  if (paso === 6) {
     return (
       <ScrollView style={{ flex: 1 }} contentContainerStyle={ct.wrapScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <Text style={ct.titulo}>{titulo}</Text>
@@ -586,7 +677,7 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
       <Text style={ct.titulo}>{titulo}</Text>
       <Text style={ct.sub}>{sub}</Text>
 
-      {paso === 2 && (
+      {paso === 3 && (
         <View style={{ gap: 20 }}>
           <TextInput style={[ct.input, { marginTop: 0 }]} value={nombreAbuela} onChangeText={setNombreAbuela}
             placeholder="Ej: Negrita, María, Abuela" placeholderTextColor="#b0b8ba" />
@@ -616,12 +707,12 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
         </View>
       )}
 
-      {paso === 3 && (
+      {paso === 4 && (
         <TextInput style={ct.input} value={edad} onChangeText={t => setEdad(t.replace(/[^0-9]/g, ''))}
           placeholder="Ej: 75" placeholderTextColor="#b0b8ba" keyboardType="numeric" maxLength={3} />
       )}
 
-      {paso === 6 && (
+      {paso === 7 && (
         <>
           <View style={ct.resumen}>
             {[

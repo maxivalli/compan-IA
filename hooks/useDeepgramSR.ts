@@ -58,7 +58,7 @@ const KEEPALIVE_INTERVAL_MS = 5000;
 // Reducción esperada: ~60-70% de chunks filtrados durante silencios largos.
 // NOTA: threshold conservador intencional — un valor alto (ej: 300) filtra voz normal a distancia
 // moderada y solo deja pasar gritos, causando que Deepgram nunca dispare speech_final.
-const VAD_RMS_THRESHOLD = 45;  // ~0.14% de amplitud máxima PCM16 (32767) — equilibrio voz suave vs silencio
+const VAD_RMS_THRESHOLD = 80;  // ~0.24% de amplitud máxima PCM16 (32767)
 const VAD_HOLD_OFF_MS   = 1200; // ms de silencio a enviar tras detectar fin de voz (450ms de margen sobre endpointing 750ms)
 // Umbral de tiempo sin enviar audio para loguear un evento de diagnóstico
 const VAD_GATED_LOG_MS  = 3000;

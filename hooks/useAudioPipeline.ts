@@ -361,7 +361,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const mencionaAsistente = textoNorm.includes(d.nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
       if (!enConversacion && !mencionaAsistente) {
         // Texto descartado por filtros → resetear visual 'escuchando' → 'esperando'
-        if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
+        if (d.estadoRef.current === 'escuchando') d.setEstado('esperando');
         return;
       }
       if (d.musicaActivaRef.current) duckMusica();
