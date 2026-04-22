@@ -714,26 +714,33 @@ export default function Index() {
           ]}>
             {listas.length > 0
               ? (() => {
-                const PEEK   = 8;
+                const PEEK   = 10;
                 const nExtra = Math.min(listas.length - 1, 2);
+                // Las cartas de atrás asoman por ARRIBA: están en top=0
+                // La carta frontal empieza nExtra*PEEK px más abajo y llega hasta el fondo.
+                // Así overflow:hidden del contenedor no corta nada.
                 return (
                   <TouchableOpacity onPress={() => setMostrarListas(true)} activeOpacity={0.85} style={styles.displayInlineWrap}>
                     <View style={styles.previewDisplayFrame}>
                       {listas.slice(0, 3).map((lista, i) => {
                         const c = POSTIT_COLORES[i % POSTIT_COLORES.length];
+                        // i=0: carta frontal → top = nExtra*PEEK, bottom = 0, zIndex más alto
+                        // i=1: carta trasera → top = (nExtra-1)*PEEK, bottom = 0, zIndex menor
+                        // i=2: carta más atrás → top = 0, bottom = 0, zIndex el más bajo
+                        const topOffset = (nExtra - i) * PEEK;
                         return (
                           <View
                             key={lista.id}
                             style={[styles.postItPreviewCard, {
                               position: 'absolute',
-                              top:    i * PEEK,
-                              left:   i === 0 ? 0 : 2,
-                              right:  i === 0 ? 0 : 2,
-                              bottom: (nExtra - i) * PEEK,
+                              top:    topOffset,
+                              left:   i === 0 ? 0 : (i === 1 ? 2 : 4),
+                              right:  i === 0 ? 0 : (i === 1 ? 2 : 4),
+                              bottom: 0,
                               zIndex: listas.length - i,
                               backgroundColor: c.bg,
                               transform: i === 0 ? [] : [
-                                { rotate: i % 2 === 0 ? '-2deg' : '2deg' },
+                                { rotate: i % 2 === 0 ? '-2.5deg' : '2.5deg' },
                               ],
                             }]}
                           >
@@ -1043,7 +1050,7 @@ const styles = StyleSheet.create({
   contenedor: { flex: 1, alignItems: 'center', justifyContent: 'space-evenly' },
   updateId: { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
   ojoContenedor: { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
-  ecualizadorWrap: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  ecualizadorWrap: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   displayInlineWrap: {
     width: '61%',
     height: '100%',
@@ -1052,8 +1059,6 @@ const styles = StyleSheet.create({
   },
   previewDisplayFrame: {
     flex: 1,
-    borderRadius: 18,
-    overflow: 'hidden',
   },
   infoText: {
     fontSize: fs(26),
