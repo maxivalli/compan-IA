@@ -55,9 +55,13 @@ const KEEPALIVE_INTERVAL_MS = 5000;
 
 // VAD (Voice Activity Detection) — filtra chunks de silencio antes de enviar a Deepgram.
 // Solo se envía audio cuando el RMS supera el threshold o mientras corra el hold-off.
-// Reducción esperada: ~80-90% de chunks filtrados durante silencios largos.
-const VAD_RMS_THRESHOLD = 300; // ~1% de amplitud máxima PCM16 (32767)
+// Reducción esperada: ~60-70% de chunks filtrados durante silencios largos.
+// NOTA: threshold bajo intencional — un valor alto (ej: 300) filtra voz normal a distancia
+// moderada y solo deja pasar gritos, causando que Deepgram nunca dispare speech_final.
+const VAD_RMS_THRESHOLD = 80;  // ~0.24% de amplitud máxima PCM16 (32767)
 const VAD_HOLD_OFF_MS   = 1200; // ms de silencio a enviar tras detectar fin de voz (450ms de margen sobre endpointing 750ms)
+// Umbral de tiempo sin enviar audio para loguear un evento de diagnóstico
+const VAD_GATED_LOG_MS  = 3000;
 
 export type UseDeepgramSROptions = {
   onPartial?:  (texto: string) => void;
@@ -85,6 +89,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const keepaliveRef     = useRef<ReturnType<typeof setInterval> | null>(null);
   const vadHoldOffRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vozActivaRef     = useRef(false);
+  const vadGatedSinceRef = useRef<number>(0);   // timestamp desde que el VAD empieza a gatear
+  const vadGatedLogRef   = useRef<ReturnType<typeof setTimeout> | null>(null); // timer de log diagnóstico
 
   function calcularRMS(pcm16: Uint8Array): number {
     const samples = pcm16.length >> 1; // 2 bytes por muestra
@@ -122,7 +128,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     try { stopCapture(); } catch {}
     capturaActivaRef.current = false;
     if (vadHoldOffRef.current) { clearTimeout(vadHoldOffRef.current); vadHoldOffRef.current = null; }
+    if (vadGatedLogRef.current) { clearTimeout(vadGatedLogRef.current); vadGatedLogRef.current = null; }
     vozActivaRef.current = false;
+    vadGatedSinceRef.current = 0;
   }
 
   function iniciarAudioCapture(ws: WebSocket) {
@@ -138,8 +146,10 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
           const rms = calcularRMS(binary);
 
           if (rms > VAD_RMS_THRESHOLD) {
-            // Hay voz → enviar y cancelar hold-off si estaba corriendo
+            // Hay voz → enviar y cancelar hold-off + timer de gating si estaban corriendo
             vozActivaRef.current = true;
+            vadGatedSinceRef.current = 0;
+            if (vadGatedLogRef.current) { clearTimeout(vadGatedLogRef.current); vadGatedLogRef.current = null; }
             if (vadHoldOffRef.current) { clearTimeout(vadHoldOffRef.current); vadHoldOffRef.current = null; }
             ws.send(binary.buffer);
           } else if (vozActivaRef.current) {
@@ -152,8 +162,18 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
                 vadHoldOffRef.current = null;
               }, VAD_HOLD_OFF_MS);
             }
+          } else {
+            // Silencio largo sin voz activa → no enviar (el keepalive JSON mantiene el WS)
+            // Diagnóstico: si llevamos mucho tiempo gateando, loguear RMS promedio para
+            // detectar si el threshold está descartando voz real en producción.
+            if (!vadGatedSinceRef.current) vadGatedSinceRef.current = Date.now();
+            if (!vadGatedLogRef.current) {
+              vadGatedLogRef.current = setTimeout(() => {
+                vadGatedLogRef.current = null;
+                logCliente('dg_vad_gated', { rms: Math.round(rms), threshold: VAD_RMS_THRESHOLD });
+              }, VAD_GATED_LOG_MS);
+            }
           }
-          // Silencio largo sin voz activa → no enviar (el keepalive JSON mantiene el WS)
         } catch {}
       });
       startCapture({ sampleRate: 16000, channels: 1, chunkMs: 100 });
