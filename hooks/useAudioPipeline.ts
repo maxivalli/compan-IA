@@ -313,6 +313,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       srActivoRef.current = true;
       ultimaActivacionSrRef.current = Date.now(); // reset zombie timer tras reconexión
       logCliente('dg_sr_ready', { estado: depsRef.current.estadoRef.current });
+      // Si DG reconectó (ej. tras 1011) y el visual quedó en 'escuchando', sincronizar.
+      if (depsRef.current.estadoRef.current === 'esperando') depsRef.current.setEstado('esperando');
       // Si DG reconectó mientras el SR está suspendido (juego activo, Rosita hablando,
       // o flujo de voz en curso), pausar AudioCapture inmediatamente para evitar eco.
       if (
