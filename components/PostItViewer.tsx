@@ -22,9 +22,11 @@ type Props = {
   listas: Lista[];
   onBorrar: (nombre: string) => void;
   onClose: () => void;
+  inline?: boolean;
+  cardStyle?: object;
 };
 
-export default function PostItViewer({ visible, listas, onBorrar, onClose }: Props) {
+export default function PostItViewer({ visible, listas, onBorrar, onClose, inline = false, cardStyle }: Props) {
   const [showing, setShowing] = useState(false);
   const [idx, setIdx]         = useState(0);
   const idxRef                = useRef(0);
@@ -132,6 +134,87 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
     }
   }
 
+  const cardNode = (
+    <GestureDetector gesture={swipeGesture}>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }, { translateX: slideX }] }}>
+        <View style={[s.card, inline && s.cardInline, cardStyle, { backgroundColor: c.bg }]}>
+          <View style={s.tapeWrap} pointerEvents="none">
+            <View style={[s.tape, { backgroundColor: c.tape }]} />
+          </View>
+
+          {inline && (
+            <TouchableOpacity
+              style={[s.closeBtn, { borderColor: c.text + '55' }]}
+              onPress={onClose}
+              hitSlop={8}
+            >
+              <Ionicons name="close" size={18} color={c.text} />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[s.trashBtn, inline ? s.trashBtnInline : null, { borderColor: c.text + '55' }]}
+            onPress={handleBorrar}
+            hitSlop={8}
+          >
+            <Ionicons name="trash-outline" size={18} color={c.text} />
+          </TouchableOpacity>
+
+          <View style={[s.headerArea, inline && s.headerAreaInline]}>
+            <Text style={[s.titulo, inline && s.tituloInline, { color: c.text }]} numberOfLines={2}>
+              {lista.nombre.toUpperCase()}:
+            </Text>
+          </View>
+
+          <ScrollView
+            style={s.scroll}
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {lista.items.length === 0 ? (
+              <Text style={[s.vacio, { color: c.text + '77' }]}>Lista vacía</Text>
+            ) : (
+              lista.items.map((item, i) => (
+                <View key={i} style={s.itemRow}>
+                  <Text style={[s.bullet, inline && s.bulletInline, { color: c.text }]}>•</Text>
+                  <Text style={[s.itemTexto, inline && s.itemTextoInline, { color: c.text }]}>{item}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+
+          <View style={{ height: inline ? 10 : 20 }} />
+        </View>
+      </Animated.View>
+    </GestureDetector>
+  );
+
+  const dotsNode = listas.length > 1 && (
+    <View style={[s.dotsOutside, inline && s.dotsInline]}>
+      {listas.map((_, i) => (
+        <View
+          key={i}
+          style={[s.dot, {
+            backgroundColor: inline ? 'rgba(255,255,255,0.92)' : '#ffffff',
+            opacity: i === idx ? 0.88 : 0.28,
+            width: i === idx ? 22 : 8,
+          }]}
+        />
+      ))}
+    </View>
+  );
+
+  if (inline) {
+    return (
+      <GestureHandlerRootView style={s.inlineRoot}>
+        <View style={s.inlineSheet}>
+          {cardNode}
+          {dotsNode}
+        </View>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <Modal visible={showing} transparent animationType="none" onRequestClose={cerrar} statusBarTranslucent>
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -140,71 +223,8 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose }: Pro
           <Pressable style={StyleSheet.absoluteFill} onPress={cerrar} />
 
           <View style={s.sheet}>
-            <GestureDetector gesture={swipeGesture}>
-              <Animated.View style={{ transform: [{ scale: scaleAnim }, { translateX: slideX }] }}>
-
-                <View style={[s.card, { backgroundColor: c.bg }]}>
-
-                  {/* Cinta adhesiva centrada arriba */}
-                  <View style={s.tapeWrap} pointerEvents="none">
-                    <View style={[s.tape, { backgroundColor: c.tape }]} />
-                  </View>
-
-                  {/* Ícono tacho en círculo — arriba a la derecha */}
-                  <TouchableOpacity
-                    style={[s.trashBtn, { borderColor: c.text + '55' }]}
-                    onPress={handleBorrar}
-                    hitSlop={8}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={c.text} />
-                  </TouchableOpacity>
-
-                  {/* Título en mayúsculas bold */}
-                  <View style={s.headerArea}>
-                    <Text style={[s.titulo, { color: c.text }]} numberOfLines={2}>
-                      {lista.nombre.toUpperCase()}:
-                    </Text>
-                  </View>
-
-                  {/* Ítems con bullet e itálica */}
-                  <ScrollView
-                    style={s.scroll}
-                    contentContainerStyle={s.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                  >
-                    {lista.items.length === 0 ? (
-                      <Text style={[s.vacio, { color: c.text + '77' }]}>Lista vacía</Text>
-                    ) : (
-                      lista.items.map((item, i) => (
-                        <View key={i} style={s.itemRow}>
-                          <Text style={[s.bullet, { color: c.text }]}>•</Text>
-                          <Text style={[s.itemTexto, { color: c.text }]}>{item}</Text>
-                        </View>
-                      ))
-                    )}
-                  </ScrollView>
-
-                  <View style={{ height: 20 }} />
-
-                </View>
-
-              </Animated.View>
-            </GestureDetector>
-
-            {listas.length > 1 && (
-              <View style={s.dotsOutside}>
-                {listas.map((_, i) => (
-                  <View
-                    key={i}
-                    style={[s.dot, {
-                      backgroundColor: '#ffffff',
-                      opacity: i === idx ? 0.88 : 0.28,
-                      width: i === idx ? 22 : 8,
-                    }]}
-                  />
-                ))}
-              </View>
-            )}
+            {cardNode}
+            {dotsNode}
           </View>
 
         </Animated.View>
@@ -224,6 +244,16 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 18,
   },
+  inlineRoot: {
+    width: '100%',
+    height: '100%',
+  },
+  inlineSheet: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
 
   // ── Card ──────────────────────────────────────────────────────────────────
   card: {
@@ -237,6 +267,16 @@ const s = StyleSheet.create({
     shadowRadius: 22,
     elevation: 20,
     overflow: 'hidden',
+  },
+  cardInline: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+    borderBottomRightRadius: 18,
+    shadowOffset: { width: 2, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
 
   // ── Cinta adhesiva ────────────────────────────────────────────────────────
@@ -269,6 +309,26 @@ const s = StyleSheet.create({
     zIndex: 5,
     backgroundColor: 'rgba(255,255,255,0.35)',
   },
+  trashBtnInline: {
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+  },
+  closeBtn: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+  },
 
   // ── Contenido ─────────────────────────────────────────────────────────────
   headerArea: {
@@ -277,11 +337,22 @@ const s = StyleSheet.create({
     paddingBottom: 10,
     paddingRight: 60,
   },
+  headerAreaInline: {
+    paddingTop: 28,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
+    paddingRight: 44,
+    paddingLeft: 44,
+  },
   titulo: {
     fontSize: fs(30),
     fontWeight: '800',
     letterSpacing: 0.6,
     lineHeight: fs(38),
+  },
+  tituloInline: {
+    fontSize: fs(18),
+    lineHeight: fs(24),
   },
 
   scroll: {
@@ -302,11 +373,19 @@ const s = StyleSheet.create({
     lineHeight: fs(40),
     fontWeight: '700',
   },
+  bulletInline: {
+    fontSize: fs(16),
+    lineHeight: fs(22),
+  },
   itemTexto: {
     fontSize: fs(28),
     fontStyle: 'italic',
     flex: 1,
     lineHeight: fs(40),
+  },
+  itemTextoInline: {
+    fontSize: fs(16),
+    lineHeight: fs(22),
   },
   vacio: {
     fontSize: fs(15),
@@ -322,6 +401,10 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 12,
+  },
+  dotsInline: {
+    position: 'absolute',
+    bottom: 8,
   },
   dot: {
     height: 8,

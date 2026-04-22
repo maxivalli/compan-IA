@@ -4,7 +4,17 @@ import Svg, { Path, Circle } from 'react-native-svg';
 
 // ── Waveform SR — aparece en el botón cuando el micrófono detecta sonido ──────
 
-export function WaveformDetectando() {
+export function WaveformDetectando({
+  barWidth = 5,
+  barHeight = 26,
+  gap = 4,
+  color = '#ef4444',
+}: {
+  barWidth?: number;
+  barHeight?: number;
+  gap?: number;
+  color?: string;
+} = {}) {
   const alturas = useRef([0.3, 0.7, 0.5, 1.0, 0.4, 0.8, 0.6, 0.9, 0.35].map(v => new Animated.Value(v))).current;
 
   useEffect(() => {
@@ -22,9 +32,21 @@ export function WaveformDetectando() {
   }, []);
 
   return (
-    <View style={s.waveform}>
+    <View style={[s.waveform, { gap, height: barHeight }]}>
       {alturas.map((bar, i) => (
-        <Animated.View key={i} style={[s.waveBar, { transform: [{ scaleY: bar }] }]} />
+        <Animated.View
+          key={i}
+          style={[
+            s.waveBar,
+            {
+              width: barWidth,
+              height: barHeight,
+              borderRadius: Math.max(2, Math.round(barWidth / 2)),
+              backgroundColor: color,
+              transform: [{ scaleY: bar }],
+            },
+          ]}
+        />
       ))}
     </View>
   );

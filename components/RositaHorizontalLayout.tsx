@@ -19,13 +19,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
-import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
+import { AnimacionMusica, CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
 import CameraAutoCaptura from './CameraAutoCaptura';
 import { OvaloRosita } from './PanelCuero';
 import { EstadoRosita } from '../hooks/useBrain';
 import { AccionesRosita } from '../hooks/useAccionesRosita';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
+import { nombreRadioOGenero } from '../lib/musica';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,7 @@ export interface RositaHorizontalProps {
   cieloTapado:    boolean;
   amaneciendo:    boolean;
   climaObj:       { temperatura: number; descripcion: string; codigoActual: number } | null;
+  ultimaRadio?:   string | null;
 
   // Cámara
   mostrarCamara:    boolean;
@@ -88,7 +90,15 @@ export interface RositaHorizontalProps {
   presenciaVista:           boolean;
 }
 
-function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
+function RelojHorizontalFullscreen({
+  climaObj,
+  musicaActiva = false,
+  ultimaRadio = null,
+}: {
+  climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null;
+  musicaActiva?: boolean;
+  ultimaRadio?: string | null;
+}) {
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
     return {
@@ -100,7 +110,7 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const [infoIdx, setInfoIdx] = useState<0|1|2>(0);
+  const [infoIdx, setInfoIdx] = useState(0);
   const climaObjRef = useRef(climaObj);
   useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
 
@@ -126,9 +136,14 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
     return () => anim.stop();
   }, []);
 
-  // Alternar hora ↔ temperatura ↔ alerta cada 5s con fade + slide + scale
   useEffect(() => {
-    if (climaObj?.temperatura == null) return;
+    const hasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
+    const screens = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+    setInfoIdx(prev => Math.min(prev, Math.max(0, screens - 1)));
+  }, [climaObj, musicaActiva]);
+
+  // Alternar hora ↔ radio ↔ temperatura ↔ alerta cada 5s con fade + slide + scale
+  useEffect(() => {
     const id = setInterval(() => {
       Animated.parallel([
         Animated.timing(fadeAnim,  { toValue: 0,    duration: 400, useNativeDriver: true }),
@@ -139,9 +154,10 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
         setInfoIdx(prev => {
           const co = climaObjRef.current;
           const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
-          const max = hasAlert ? 2 : 1;
+          const screens = 1 + (musicaActiva ? 1 : 0) + (co?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+          const max = Math.max(0, screens - 1);
           slideAnim.setValue(20);
-          return prev >= max ? 0 : (prev + 1) as 0|1|2;
+          return prev >= max ? 0 : prev + 1;
         });
         Animated.parallel([
           Animated.timing(fadeAnim,  { toValue: 1, duration: 400, useNativeDriver: true }),
@@ -151,44 +167,79 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
       });
     }, 5000);
     return () => clearInterval(id);
-  }, [climaObj?.temperatura]);
+  }, [musicaActiva]);
 
   const fontFamily = 'Poppins_700Bold';
 
+  const dotHasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
+  const dotCount = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (dotHasAlert ? 1 : 0);
   const alertaTexto = climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'Calor extremo'
     : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'Frío extremo'
     : (climaObj?.descripcion || 'Alerta meteorológica');
+  const radioScreenIdx = musicaActiva ? 1 : -1;
+  const tempScreenIdx = 1 + (musicaActiva ? 1 : 0);
+  const alertScreenIdx = tempScreenIdx + (climaObj?.temperatura != null ? 1 : 0);
 
   // Nunca desmontar la vista de hora: el native driver pierde el nodo y el latido muere.
   // Controlamos visibilidad con opacity + position absolute en las vistas ocultas.
   return (
     <>
-      <Animated.View style={{ alignItems: 'center', justifyContent: 'center', opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] }}>
-        {/* Pantalla 0: Hora */}
-        <View style={[infoIdx !== 0 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
-            <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
-            <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View style={{ alignItems: 'center', justifyContent: 'center', opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] }}>
+          {/* Pantalla 0: Hora */}
+          <View style={[infoIdx !== 0 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
+              <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
+              <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.mm}</Text>
+            </View>
           </View>
-        </View>
 
-        {/* Pantalla 1: Temperatura */}
-        {climaObj?.temperatura != null && (
-          <View style={[infoIdx !== 1 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
-            <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
+          {/* Pantalla 1: Radio */}
+          {musicaActiva && (
+            <View style={[infoIdx !== radioScreenIdx && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+              <AnimacionMusica />
+              <Text style={[styles.relojSubtext, { fontSize: 28, marginTop: 14, maxWidth: 540 }]} numberOfLines={1}>
+                {nombreRadioOGenero(ultimaRadio ?? 'FM Cristal 98.9')}
+              </Text>
+            </View>
+          )}
+
+          {/* Pantalla 2: Temperatura */}
+          {climaObj?.temperatura != null && (
+            <View style={[infoIdx !== tempScreenIdx && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+              <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
+              <Text style={[styles.relojSubtext, { fontSize: 28, marginTop: 10, maxWidth: 520 }]} numberOfLines={1}>
+                {climaObj.descripcion}
+              </Text>
+            </View>
+          )}
+
+          {/* Pantalla 3: Alerta */}
+          {dotHasAlert && (
+            <View style={[infoIdx !== alertScreenIdx && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
+              <Text style={{ fontSize: 42, fontFamily, color: '#fbbf24', marginBottom: 10 }}>ALERTA</Text>
+              <Text style={[styles.relojSubtext, { fontSize: 22, maxWidth: 500, color: '#ffffff' }]} numberOfLines={2}>
+                {alertaTexto}
+              </Text>
+            </View>
+          )}
+        </Animated.View>
+
+        {dotCount > 1 && (
+          <View style={styles.relojDots}>
+            {Array.from({ length: dotCount }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.relojDot,
+                  i === infoIdx ? styles.relojDotActive : null,
+                ]}
+              />
+            ))}
           </View>
         )}
-
-        {/* Pantalla 2: Alerta */}
-        <View style={[infoIdx !== 2 && { opacity: 0, position: 'absolute' }, { alignItems: 'center' }]}>
-          <Text style={{ fontSize: 42, fontFamily, color: '#fbbf24', marginBottom: 10 }}>ALERTA</Text>
-          <Text style={[styles.relojSubtext, { fontSize: 22, maxWidth: 500, color: '#ffffff' }]} numberOfLines={2}>
-            {alertaTexto}
-          </Text>
-        </View>
-      </Animated.View>
-
+      </View>
     </>
   );
 }
@@ -294,7 +345,11 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
             {props.modoReloj ? (
               <View style={styles.relojFullscreen}>
-                <RelojHorizontalFullscreen climaObj={props.climaObj} />
+                <RelojHorizontalFullscreen
+                  climaObj={props.climaObj}
+                  musicaActiva={props.musicaActiva}
+                  ultimaRadio={props.ultimaRadio}
+                />
               </View>
             ) : (
               <View style={{ flex: 1 }}>
@@ -499,7 +554,11 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             />
             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
             {props.detectandoSonido && props.estado === 'esperando'
-              ? <WaveformDetectando />
+              ? (
+                <View style={styles.waveformCompactWrap}>
+                  <WaveformDetectando barWidth={3} barHeight={14} gap={2} />
+                </View>
+              )
               : <>
                   <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
                   <Text style={styles.estadoTexto}>{estadoBadgeLabel}</Text>
@@ -545,6 +604,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
+  relojDots: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 24,
+  },
+  relojDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.28)',
+  },
+  relojDotActive: {
+    width: 18,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+  },
   estadoRing: {
     position:    'absolute',
     borderWidth: 3,
@@ -587,13 +662,22 @@ const styles = StyleSheet.create({
     position:  'absolute',
     alignSelf: 'center',
   },
+  waveformCompactWrap: {
+    width: 52,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   estadoBadge: {
     position:          'absolute',
     flexDirection:     'row',
     alignItems:        'center',
+    justifyContent:    'center',
     gap:               6,
     paddingHorizontal: 12,
     paddingVertical:   7,
+    minWidth:          108,
+    height:            40,
     borderRadius:      20,
   },
   estadoDot: {

@@ -223,7 +223,7 @@ export default function Index() {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
   const [horaMinuto, setHoraMinuto] = useState(fmtHoraMinuto);
-  const [infoIdx, setInfoIdx]       = useState(0); // 0 = hora, 1 = temperatura, 2 = alerta clima
+  const [infoIdx, setInfoIdx]       = useState(0); // 0 = hora, 1 = radio, 2 = temperatura, 3 = alerta clima
   const [faceBottom, setFaceBottom] = useState(0); // Y bottom del ojoContenedor → posición del panel cuero
   const climaObjRef = useRef(climaObj);
   useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
@@ -232,6 +232,12 @@ export default function Index() {
     const id = setInterval(() => setHoraMinuto(fmtHoraMinuto()), 30_000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const hasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
+    const screens = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+    setInfoIdx(prev => Math.min(prev, Math.max(0, screens - 1)));
+  }, [climaObj, musicaActiva]);
 
   const fechaDisplay = useMemo(() => {
     const d = new Date();
@@ -250,7 +256,7 @@ export default function Index() {
   useEffect(() => {
     hintAnimSeqRef.current += 1;
     hintAnimRef.current?.stop();
-    if (estado !== 'esperando' || musicaActiva) {
+    if (estado !== 'esperando') {
       hintActiveRef.current = false;
       hintAnimRef.current = Animated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true });
       hintAnimRef.current.start();
@@ -279,7 +285,8 @@ export default function Index() {
         setInfoIdx(prev => {
            const co = climaObjRef.current;
            const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
-           const max = hasAlert ? 2 : 1;
+           const screens = 1 + (musicaActiva ? 1 : 0) + (co?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+           const max = Math.max(0, screens - 1);
            const next = prev >= max ? 0 : prev + 1;
            hintTranslate.setValue(20);
            hintScale.setValue(0.95);
@@ -520,6 +527,7 @@ export default function Index() {
           cieloTapado={cieloTapado}
           amaneciendo={amaneciendo}
           climaObj={climaObj}
+          ultimaRadio={ultimaRadioRef.current}
           mostrarCamara={mostrarCamara}
           camaraFacing={camaraFacing}
           camaraSilenciosa={camaraSilenciosa}
@@ -701,8 +709,24 @@ export default function Index() {
       {modoNoche === 'durmiendo' && <ZZZ />}
 
 
-      <View style={[styles.ecualizadorWrap, { height: displayH, marginTop: Math.round(screenH * 0.05) }, listas.length > 0 && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' }]}>
-        {listas.length > 0
+      <View style={[
+        styles.ecualizadorWrap,
+        { height: displayH, marginTop: Math.round(screenH * 0.05) },
+        listas.length > 0 && !mostrarListas && { height: 80 + (listas.length - 1) * 20 + 10, overflow: 'visible' },
+      ]}>
+        {listas.length > 0 && mostrarListas && layoutMode === 'vertical'
+          ? (
+            <View style={styles.displayInlineWrap}>
+              <PostItViewer
+                visible={mostrarListas}
+                listas={listas}
+                onBorrar={(nombre) => { borrarListaVoz(nombre); }}
+                onClose={() => setMostrarListas(false)}
+                inline
+              />
+            </View>
+          )
+          : listas.length > 0
           ? (() => {
               const PEEK = 20;
               const POST_H = 80;
@@ -744,13 +768,20 @@ export default function Index() {
               const climaEfectivo = climaObj;
               const musicaEfectiva = musicaActiva;
               const dotHasAlert = !!(climaEfectivo?.codigoActual && CODIGOS_ADVERSOS.has(climaEfectivo.codigoActual)) || (climaEfectivo?.temperatura !== undefined && (climaEfectivo.temperatura >= 35 || climaEfectivo.temperatura <= 3));
-              const dotCount = climaEfectivo?.temperatura != null ? (dotHasAlert ? 3 : 2) : 1;
+              const dotCount =
+                1 +
+                (musicaEfectiva ? 1 : 0) +
+                (climaEfectivo?.temperatura != null ? 1 : 0) +
+                (dotHasAlert ? 1 : 0);
               const alertaTexto = climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura >= 35
                 ? 'Calor extremo'
                 : climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura <= 3
                 ? 'Frío extremo'
                 : (climaEfectivo?.descripcion || 'Alerta meteorológica');
               const subFont = Math.max(12, Math.round(displayFontInfo * 0.38));
+              const radioScreenIdx = musicaEfectiva ? 1 : -1;
+              const tempScreenIdx = 1 + (musicaEfectiva ? 1 : 0);
+              const alertScreenIdx = tempScreenIdx + (climaEfectivo?.temperatura != null ? 1 : 0);
               return (
                 <View style={{
                   width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
@@ -758,21 +789,11 @@ export default function Index() {
                   backgroundColor: 'rgba(255,255,255,0.12)',
                 }}>
                   <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
-                    {musicaEfectiva
-                      ? (
-                        /* ── Pantalla música ── */
-                        <View style={{ alignItems: 'center', width: '100%' }}>
-                          <AnimacionMusica />
-                          <Text style={{ fontSize: subFont, color: '#ffffff', fontWeight: 'bold', marginTop: 6, textAlign: 'center', paddingHorizontal: 8 }} numberOfLines={1}>
-                            {nombreRadioOGenero(ultimaRadioRef.current ?? 'FM Cristal 98.9')}
-                          </Text>
-                        </View>
-                      )
-                      : modoNoche !== 'despierta'
+                    {modoNoche !== 'despierta'
                       ? <RelojNoche fontSize={displayFontReloj} />
                       : <Animated.View style={{ opacity: hintOpacity, transform: [{ translateY: hintTranslate }, { scale: hintScale }], width: '100%', alignItems: 'center' }}>
                           {/* Pantalla 0: Hora */}
-                          {(infoIdx === 0 || (infoIdx === 1 && climaEfectivo?.temperatura == null)) && (
+                          {infoIdx === 0 && (
                             <View style={{ alignItems: 'center' }}>
                               <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{horaMinuto}</Text>
                               <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
@@ -780,8 +801,17 @@ export default function Index() {
                               </Text>
                             </View>
                           )}
+                          {/* Pantalla 1: Radio */}
+                          {musicaEfectiva && infoIdx === radioScreenIdx && (
+                            <View style={{ alignItems: 'center', width: '100%' }}>
+                              <AnimacionMusica />
+                              <Text style={{ fontSize: subFont, color: '#ffffff', fontWeight: 'bold', marginTop: 6, textAlign: 'center', paddingHorizontal: 8 }} numberOfLines={1}>
+                                {nombreRadioOGenero(ultimaRadioRef.current ?? 'FM Cristal 98.9')}
+                              </Text>
+                            </View>
+                          )}
                           {/* Pantalla 1: Temperatura */}
-                          {infoIdx === 1 && climaEfectivo?.temperatura != null && (
+                          {infoIdx === tempScreenIdx && climaEfectivo?.temperatura != null && (
                             <View style={{ alignItems: 'center' }}>
                               <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{`${Math.round(climaEfectivo.temperatura)}°`}</Text>
                               <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
@@ -790,7 +820,7 @@ export default function Index() {
                             </View>
                           )}
                           {/* Pantalla 2: Alerta */}
-                          {infoIdx === 2 && (
+                          {dotHasAlert && infoIdx === alertScreenIdx && (
                             <View style={{ alignItems: 'center', paddingHorizontal: 10 }}>
                               <Text style={{ fontSize: Math.round(displayFontInfo * 0.32), fontWeight: '700', color: '#fbbf24', marginBottom: 3, letterSpacing: 0.5 }}>
                                 ALERTA
@@ -818,20 +848,17 @@ export default function Index() {
                       </View>
                     )}
 
-                    {/* Pagination dots — un único dot cuando hay música, dots normales en modo info */}
+                    {/* Pagination dots del carrusel */}
                     {modoNoche === 'despierta' && (
                       <View style={{ flexDirection: 'row', gap: 4, position: 'absolute', bottom: 8 }}>
-                        {musicaEfectiva
-                          ? <View style={{ height: 4, width: 14, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.85)' }} />
-                          : dotCount > 1 && Array.from({ length: dotCount }).map((_, i) => (
-                            <View key={i} style={{
-                              height: 4,
-                              width: infoIdx === i ? 14 : 4,
-                              borderRadius: 2,
-                              backgroundColor: infoIdx === i ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)',
-                            }} />
-                          ))
-                        }
+                        {dotCount > 1 && Array.from({ length: dotCount }).map((_, i) => (
+                          <View key={i} style={{
+                            height: 4,
+                            width: infoIdx === i ? 14 : 4,
+                            borderRadius: 2,
+                            backgroundColor: infoIdx === i ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.28)',
+                          }} />
+                        ))}
                       </View>
                     )}
                   </View>
@@ -1003,12 +1030,14 @@ export default function Index() {
     </LinearGradient>
     </Pressable>
 
-    <PostItViewer
-      visible={mostrarListas}
-      listas={listas}
-      onBorrar={(nombre) => { borrarListaVoz(nombre); }}
-      onClose={() => setMostrarListas(false)}
-    />
+    {layoutMode !== 'vertical' && (
+      <PostItViewer
+        visible={mostrarListas}
+        listas={listas}
+        onBorrar={(nombre) => { borrarListaVoz(nombre); }}
+        onClose={() => setMostrarListas(false)}
+      />
+    )}
     </>
   );
 }
@@ -1018,6 +1047,12 @@ const styles = StyleSheet.create({
   updateId:           { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
   ojoContenedor:      { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
   ecualizadorWrap:    { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  displayInlineWrap:  {
+    width: '61%',
+    height: '100%',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
   infoText: {
     fontSize: fs(26),
     color: '#ffffff',
