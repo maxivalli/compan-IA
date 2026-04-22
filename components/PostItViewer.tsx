@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Modal, PixelRatio, Pressable, ScrollView,
+  Animated, Dimensions, Modal, PixelRatio, Pressable, ScrollView,
   StyleSheet, Text, TouchableOpacity, View,
 } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import type { Lista } from '../lib/memoria';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 function fs(size: number) { return size * Math.min(PixelRatio.getFontScale(), 1.3); }
 
@@ -24,9 +26,10 @@ type Props = {
   onClose: () => void;
   inline?: boolean;
   cardStyle?: object;
+  expandedWidth?: number;
 };
 
-export default function PostItViewer({ visible, listas, onBorrar, onClose, inline = false, cardStyle }: Props) {
+export default function PostItViewer({ visible, listas, onBorrar, onClose, inline = false, cardStyle, expandedWidth }: Props) {
   const [showing, setShowing] = useState(false);
   const [idx, setIdx]         = useState(0);
   const idxRef                = useRef(0);
@@ -138,7 +141,14 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose, inlin
     <View style={{ width: '100%', alignItems: 'center' }}>
       <GestureDetector gesture={swipeGesture}>
         <Animated.View style={{ transform: [{ scale: scaleAnim }, { translateX: slideX }] }}>
-          <View style={[s.card, !inline && !cardStyle && s.cardDefault, inline && s.cardInline, cardStyle, { backgroundColor: c.bg }]}>
+          <View style={[
+            s.card, 
+            !inline && !cardStyle && !expandedWidth && s.cardDefault, 
+            inline && s.cardInline, 
+            cardStyle,
+            expandedWidth && { width: expandedWidth },
+            { backgroundColor: c.bg }
+          ]}>
             <View style={s.tapeWrap} pointerEvents="none">
               <View style={[s.tape, { backgroundColor: c.tape }]} />
             </View>
