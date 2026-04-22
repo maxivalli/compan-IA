@@ -535,6 +535,9 @@ export default function Index() {
           onCaricia={onCaricia}
           onRelampago={onRelampago}
           apagarLinterna={apagarLinterna}
+          deteccionPresenciaActiva={deteccionPresenciaActiva}
+          modoWatchingPresencia={modoWatchingPresencia}
+          presenciaVista={presenciaVista}
         />
         <PostItViewer
           visible={mostrarListas}
@@ -573,7 +576,7 @@ export default function Index() {
           borderWidth: 1, borderColor: noMolestar ? 'rgba(239,68,68,0.60)' : 'rgba(255,255,255,0.40)',
           alignItems: 'center', justifyContent: 'center',
           shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+          shadowOpacity: 0.18, shadowRadius: 8,
         }}
         onPress={() => { playClick(); acciones.toggleDoNotDisturb(); }}
         activeOpacity={0.7}
@@ -590,7 +593,7 @@ export default function Index() {
           borderWidth: 1, borderColor: 'rgba(255,255,255,0.40)',
           alignItems: 'center', justifyContent: 'center',
           shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+          shadowOpacity: 0.18, shadowRadius: 8,
         }}
         onPress={() => { menuTriggerRef.current?.(); }}
         activeOpacity={0.7}
@@ -799,6 +802,22 @@ export default function Index() {
                           )}
                         </Animated.View>
                     }
+                    {/* Indicador de presencia — esquina superior derecha del display */}
+                    {deteccionPresenciaActiva && (
+                      <View style={{
+                        position: 'absolute', top: 7, right: 8,
+                        width: 20, height: 20, borderRadius: 10,
+                        backgroundColor: 'rgba(0,0,0,0.22)',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Ionicons
+                          name={presenciaVista ? 'person' : modoWatchingPresencia ? 'eye' : 'eye-outline'}
+                          size={11}
+                          color={presenciaVista ? '#22c55e' : modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
+                        />
+                      </View>
+                    )}
+
                     {/* Pagination dots — un único dot cuando hay música, dots normales en modo info */}
                     {modoNoche === 'despierta' && (
                       <View style={{ flexDirection: 'row', gap: 4, position: 'absolute', bottom: 8 }}>

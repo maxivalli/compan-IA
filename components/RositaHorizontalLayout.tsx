@@ -81,6 +81,11 @@ export interface RositaHorizontalProps {
 
   // Linterna
   apagarLinterna: () => void;
+
+  // Detección de presencia
+  deteccionPresenciaActiva: boolean;
+  modoWatchingPresencia:    boolean;
+  presenciaVista:           boolean;
 }
 
 function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
@@ -401,6 +406,36 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             />
           </TouchableOpacity>
 
+          {/* Indicador detección de presencia — esquina superior derecha */}
+          {props.deteccionPresenciaActiva && !props.hasListas && (
+            <View style={{
+              position: 'absolute', top: safeTop + 16, right: safeRight + 16, zIndex: 20,
+              width: 28, height: 28, borderRadius: 14,
+              backgroundColor: 'rgba(0,0,0,0.28)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Ionicons
+                name={props.presenciaVista ? 'person' : props.modoWatchingPresencia ? 'eye' : 'eye-outline'}
+                size={15}
+                color={props.presenciaVista ? '#22c55e' : props.modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
+              />
+            </View>
+          )}
+          {props.deteccionPresenciaActiva && props.hasListas && (
+            <View style={{
+              position: 'absolute', top: safeTop + 16 + 54 + 8, right: safeRight + 16, zIndex: 20,
+              width: 28, height: 28, borderRadius: 14,
+              backgroundColor: 'rgba(0,0,0,0.28)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Ionicons
+                name={props.presenciaVista ? 'person' : props.modoWatchingPresencia ? 'eye' : 'eye-outline'}
+                size={15}
+                color={props.presenciaVista ? '#22c55e' : props.modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
+              />
+            </View>
+          )}
+
           {props.hasListas && (
             <TouchableOpacity
               onPress={props.onOpenListas}
@@ -454,7 +489,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
               borderColor: 'rgba(255,255,255,0.32)',
               overflow: 'hidden',
               shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.18, shadowRadius: 6, elevation: 3,
+              shadowOpacity: 0.18, shadowRadius: 6,
             }]}
           >
             <LinearGradient
@@ -528,7 +563,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 6,
-    elevation: 3,
   },
   listasBadge: {
     position: 'absolute',
