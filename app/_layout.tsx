@@ -5,6 +5,8 @@ import * as Updates from 'expo-updates';
 import { Platform, View, Text } from 'react-native';
 import { useFonts } from 'expo-font';
 import Ionicons from '@expo/vector-icons/Ionicons';
+// Asegura que el key JS coincida con el nombre del archivo embebido ('ionicons', minúscula)
+const _IONICONS_FONT = { ionicons: require('../assets/fonts/ionicons.ttf') };
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
 
@@ -69,7 +71,7 @@ async function chequearActualizacion() {
 export default function Layout() {
   // Carga Ionicons a nivel de layout, antes de que cualquier ícono renderice.
   // No bloqueamos render: el último render antes del primer frame ya tendrá la fuente.
-  useFonts(Ionicons.font);
+  useFonts(_IONICONS_FONT);
 
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
 

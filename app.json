@@ -7,7 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "compania",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.maxivalli.compania",
       "supportsTablet": true,
@@ -66,7 +66,7 @@
         "expo-font",
         {
           "fonts": [
-            "./node_modules/@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
+            "./assets/fonts/ionicons.ttf"
           ]
         }
       ],
