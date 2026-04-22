@@ -881,7 +881,7 @@ export default function Index() {
             }]}
           >
             <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-              style={[StyleSheet.absoluteFill, { opacity: 0.50 }]} />
+              style={[StyleSheet.absoluteFill, { opacity: isEsperando ? 0.50 : 0.88 }]} />
             <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
             {isEsperando && (
               <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>

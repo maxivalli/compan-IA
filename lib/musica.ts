@@ -11,8 +11,8 @@ const HEADERS = { 'Accept': 'application/json', 'User-Agent': 'CompanIA/1.0' };
 
 // ── Caché AsyncStorage ────────────────────────────────────────────────────────
 const CACHE_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 días
-/** v2: prioridad géneros = stream curado antes que API por tag (evita cachés v1 con radios random). */
-const CACHE_PREFIX  = 'radio_cache_v2_';
+/** v3: HLS habilitado en API + priorizado sobre raw MP3 para mejor buffering en mobile. */
+const CACHE_PREFIX  = 'radio_cache_v3_';
 
 async function leerCache(clave: string): Promise<string | null> {
   try {
@@ -121,9 +121,9 @@ function esStreamValido(url: string): boolean {
   return true;
 }
 
-/** Igual que esStreamValido pero rechaza también HLS — para filtrar resultados de la API. */
+/** Igual que esStreamValido. HLS (.m3u8) permitido — ExoPlayer lo maneja mejor que raw MP3 en mobile. */
 function esStreamDirecto(url: string): boolean {
-  return esStreamValido(url) && !url.endsWith('.m3u8');
+  return esStreamValido(url);
 }
 
 // Tags incompatibles por género: si una estación los tiene, se descarta.
@@ -145,7 +145,13 @@ function mejorStream(stations: any[], genero?: string): string | null {
       const stationTags = (s.tags ?? '').toLowerCase().split(',').map((t: string) => t.trim());
       return !tagsExcluidos.some(excluido => stationTags.includes(excluido));
     })
-    .sort((a: any, b: any) => (b.votes ?? 0) - (a.votes ?? 0));
+    .sort((a: any, b: any) => {
+      // HLS primero: más resiliente en mobile (segmentos vs. conexión TCP larga)
+      const aHls = (a.url_resolved ?? '').endsWith('.m3u8') ? 1 : 0;
+      const bHls = (b.url_resolved ?? '').endsWith('.m3u8') ? 1 : 0;
+      if (bHls !== aHls) return bHls - aHls;
+      return (b.votes ?? 0) - (a.votes ?? 0);
+    });
   return candidatos[0]?.url_resolved ?? null;
 }
 
