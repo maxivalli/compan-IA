@@ -3,7 +3,8 @@ import { Tabs } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { Platform, View, Text } from 'react-native';
-// Ionicons se embebe nativamente vía el plugin expo-font en app.json.
+import { useFonts } from 'expo-font';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
 
@@ -66,6 +67,10 @@ async function chequearActualizacion() {
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
+  // Carga Ionicons a nivel de layout, antes de que cualquier ícono renderice.
+  // No bloqueamos render: el último render antes del primer frame ya tendrá la fuente.
+  useFonts(Ionicons.font);
+
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
 
   useEffect(() => { chequearActualizacion(); }, []);
