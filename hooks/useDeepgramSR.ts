@@ -173,7 +173,7 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
             if (!vadGatedLogRef.current) {
               vadGatedLogRef.current = setTimeout(() => {
                 vadGatedLogRef.current = null;
-                logCliente('dg_vad_gated', { rms: Math.round(rms), threshold: VAD_RMS_THRESHOLD });
+                logCliente('dg_vad_gated', { rms: Math.round(rms), threshold });
               }, VAD_GATED_LOG_MS);
             }
           }
