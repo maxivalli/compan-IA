@@ -934,15 +934,31 @@ export function useBrain(deps: BrainDeps) {
             // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
+            let wdLastCt = -1; let wdStuck = 0;
             musicaWatchdogRef.current = setInterval(() => {
               if (!d.musicaActivaRef.current) {
                 clearInterval(musicaWatchdogRef.current!);
                 musicaWatchdogRef.current = null;
                 return;
               }
+              const ct = d.playerMusica.currentTime;
               if (!d.playerMusica.playing) {
+                wdStuck = 0; wdLastCt = ct;
                 try { d.playerMusica.play(); } catch {}
+                return;
               }
+              // HLS stall: currentTime dejó de avanzar 2 ticks seguidos (~16s) → reconectar
+              if (ct > 0) {
+                if (ct === wdLastCt) {
+                  wdStuck++;
+                  if (wdStuck >= 2) {
+                    wdStuck = 0; wdLastCt = -1;
+                    try { d.playerMusica.replace({ uri: urlStream }); d.playerMusica.play(); } catch {}
+                  }
+                } else { wdStuck = 0; }
+                wdLastCt = ct;
+              }
+              // currentTime === 0: stream Icecast (normal) — playing=false lo maneja arriba
             }, 8000);
             return;
           }
@@ -967,14 +983,28 @@ export function useBrain(deps: BrainDeps) {
                 if (d.playerMusica.playing) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
                   if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
+                  let wdLastCt2 = -1; let wdStuck2 = 0;
                   musicaWatchdogRef.current = setInterval(() => {
                     if (!d.musicaActivaRef.current) {
                       clearInterval(musicaWatchdogRef.current!);
                       musicaWatchdogRef.current = null;
                       return;
                     }
+                    const ct = d.playerMusica.currentTime;
                     if (!d.playerMusica.playing) {
+                      wdStuck2 = 0; wdLastCt2 = ct;
                       try { d.playerMusica.play(); } catch {}
+                      return;
+                    }
+                    if (ct > 0) {
+                      if (ct === wdLastCt2) {
+                        wdStuck2++;
+                        if (wdStuck2 >= 2) {
+                          wdStuck2 = 0; wdLastCt2 = -1;
+                          try { d.playerMusica.replace({ uri: altUrl }); d.playerMusica.play(); } catch {}
+                        }
+                      } else { wdStuck2 = 0; }
+                      wdLastCt2 = ct;
                     }
                   }, 8000);
                   return;
