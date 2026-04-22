@@ -3,6 +3,12 @@ import { Tabs } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { Platform, View, Text } from 'react-native';
+import { useFonts } from 'expo-font';
+import {
+  Poppins_400Regular,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from '@expo-google-fonts/poppins';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
 
@@ -65,6 +71,7 @@ async function chequearActualizacion() {
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
+  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
 
   useEffect(() => { chequearActualizacion(); }, []);
