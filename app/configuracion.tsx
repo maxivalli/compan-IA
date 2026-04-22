@@ -15,8 +15,6 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Updates from 'expo-updates';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
@@ -932,67 +930,6 @@ export default function Configuracion() {
               </TouchableOpacity>
             </>
           )}
-          <View style={s.divisorThin} />
-          <TouchableOpacity
-            style={s.buscarBtn}
-            activeOpacity={0.7}
-            onPress={() =>
-              Alert.alert(
-                'Borrar todos los datos',
-                '¿Estás seguro? Esto eliminará TODOS los datos de la app y volverás al onboarding inicial. Esta acción no se puede deshacer.',
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Borrar todo',
-                    style: 'destructive',
-                    onPress: async () => {
-                      try {
-                        await AsyncStorage.clear();
-                        // Recargar la app completamente
-                        if (!__DEV__) {
-                          await Updates.reloadAsync();
-                        } else {
-                          Alert.alert('Listo', 'Datos borrados. Cerrá y volvé a abrir la app manualmente.', [
-                            { text: 'OK', onPress: () => BackHandler.exitApp() },
-                          ]);
-                        }
-                      } catch (e) {
-                        Alert.alert('Error', 'No se pudieron borrar los datos');
-                      }
-                    },
-                  },
-                ],
-              )
-            }
-          >
-            <Ionicons name="nuclear-outline" size={18} color={M.error} />
-            <Text style={[s.buscarText, { color: M.error }]}>Borrar todos los datos</Text>
-          </TouchableOpacity>
-          <View style={s.divisorThin} />
-          <TouchableOpacity
-            style={s.buscarBtn}
-            activeOpacity={0.7}
-            onPress={() =>
-              Alert.alert(
-                'Limpiar historial',
-                '¿Querés borrar el historial de conversación? Rosita no recordará lo hablado en sesiones anteriores.',
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Limpiar',
-                    style: 'destructive',
-                    onPress: async () => {
-                      await AsyncStorage.removeItem('rosa_historial').catch(() => {});
-                      Alert.alert('Listo', 'El historial fue limpiado.');
-                    },
-                  },
-                ],
-              )
-            }
-          >
-            <Ionicons name="trash-outline" size={18} color={M.error} />
-            <Text style={[s.buscarText, { color: M.error }]}>Limpiar historial de conversación</Text>
-          </TouchableOpacity>
           <View style={s.divisorThin} />
           <TouchableOpacity style={s.buscarBtn} activeOpacity={0.7} onPress={() => router.push('/privacidad' as any)}>
             <Ionicons name="shield-outline" size={18} color={M.onSurfaceVariant} />
