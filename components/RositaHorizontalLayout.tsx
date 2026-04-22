@@ -180,16 +180,16 @@ function RelojHorizontalFullscreen({
   const tempScreenIdx = 1 + (musicaActiva ? 1 : 0);
   const alertScreenIdx = tempScreenIdx + (climaObj?.temperatura != null ? 1 : 0);
 
-  // Nunca desmontar la vista de hora: el native driver pierde el nodo y el latido muere.
-  // Controlamos visibilidad con opacity + position absolute en las vistas ocultas.
-  // El wrapper tiene minHeight fija (altura de relojHora ≈ 220px) para que los dots
-  // no se desplacen cuando cambia entre slides de distinta altura (hora vs radio vs temp).
+  // Patrón igual al display vertical: montar/desmontar cada slide con {infoIdx === N && ...}
+  // Esto evita que el Animated.View colapse a 0 al cambiar entre slides de distinta altura.
+  // Excepción: la slide de hora usa opacity:0 (sin desmontarla) para preservar el nodo nativo
+  // del Animated.Text del latido (useNativeDriver pierde el nodo si el componente se desmonta).
   return (
     <>
       <View style={styles.relojCarruselWrapper}>
         <Animated.View style={[styles.relojCarruselInner, { opacity: fadeAnim, transform: [{ translateY: slideAnim }, { scale: scaleAnim }] }]}>
-          {/* Pantalla 0: Hora — siempre montada (native driver necesita el nodo) */}
-          <View style={[{ alignItems: 'center' }, infoIdx !== 0 && styles.relojSlideOculto]}>
+          {/* Pantalla 0: Hora — siempre montada, oculta con opacity sin cambiar position */}
+          <View style={{ alignItems: 'center', opacity: infoIdx === 0 ? 1 : 0 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={[styles.relojHora, { fontFamily }]}>{tiempo.hh}</Text>
               <Animated.Text style={[styles.relojHora, { fontFamily, opacity: latido, marginHorizontal: 10 }]}>:</Animated.Text>
@@ -197,9 +197,9 @@ function RelojHorizontalFullscreen({
             </View>
           </View>
 
-          {/* Pantalla 1: Radio */}
-          {musicaActiva && (
-            <View style={[{ alignItems: 'center' }, infoIdx !== radioScreenIdx && styles.relojSlideOculto]}>
+          {/* Pantalla 1: Radio — montar/desmontar */}
+          {musicaActiva && infoIdx === radioScreenIdx && (
+            <View style={{ alignItems: 'center', ...StyleSheet.absoluteFillObject, justifyContent: 'center' }}>
               <AnimacionMusica />
               <Text style={[styles.relojSubtext, { fontSize: 28, marginTop: 14, maxWidth: 540 }]} numberOfLines={1}>
                 {nombreRadioOGenero(ultimaRadio ?? 'FM Cristal 98.9')}
@@ -207,9 +207,9 @@ function RelojHorizontalFullscreen({
             </View>
           )}
 
-          {/* Pantalla 2: Temperatura */}
-          {climaObj?.temperatura != null && (
-            <View style={[{ alignItems: 'center' }, infoIdx !== tempScreenIdx && styles.relojSlideOculto]}>
+          {/* Pantalla 2: Temperatura — montar/desmontar */}
+          {climaObj?.temperatura != null && infoIdx === tempScreenIdx && (
+            <View style={{ alignItems: 'center', ...StyleSheet.absoluteFillObject, justifyContent: 'center' }}>
               <Text style={[styles.relojHora, { fontFamily }]}>{`${Math.round(climaObj.temperatura)}°`}</Text>
               <Text style={[styles.relojSubtext, { fontSize: 28, marginTop: 10, maxWidth: 520 }]} numberOfLines={1}>
                 {climaObj.descripcion}
@@ -217,9 +217,9 @@ function RelojHorizontalFullscreen({
             </View>
           )}
 
-          {/* Pantalla 3: Alerta */}
-          {dotHasAlert && (
-            <View style={[{ alignItems: 'center' }, infoIdx !== alertScreenIdx && styles.relojSlideOculto]}>
+          {/* Pantalla 3: Alerta — montar/desmontar */}
+          {dotHasAlert && infoIdx === alertScreenIdx && (
+            <View style={{ alignItems: 'center', ...StyleSheet.absoluteFillObject, justifyContent: 'center' }}>
               <Text style={{ fontSize: 42, fontFamily, color: '#fbbf24', marginBottom: 10 }}>ALERTA</Text>
               <Text style={[styles.relojSubtext, { fontSize: 22, maxWidth: 500, color: '#ffffff' }]} numberOfLines={2}>
                 {alertaTexto}
@@ -228,8 +228,6 @@ function RelojHorizontalFullscreen({
           )}
         </Animated.View>
 
-        {/* Dots fuera del Animated.View — posición absoluta en la parte inferior del
-            wrapper para que no se desplacen cuando el contenido del slide cambia de altura */}
         {dotCount > 1 && (
           <View style={styles.relojDots}>
             {Array.from({ length: dotCount }).map((_, i) => (
@@ -247,6 +245,7 @@ function RelojHorizontalFullscreen({
     </>
   );
 }
+
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
