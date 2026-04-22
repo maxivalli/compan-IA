@@ -67,7 +67,6 @@ export function useRosita() {
   const [horaActual,        setHoraActual]        = useState(new Date().getHours());
   const [climaObj,          setClimaObj]          = useState<{ temperatura: number; descripcion: string; codigoActual: number } | null>(null);
   const [ciudadDetectada,   setCiudadDetectada]   = useState('');
-  const [debugGPS,          setDebugGPS]          = useState('');
   const [listas,            setListas]            = useState<Lista[]>([]);
   const [monitoreoActivo,   setMonitoreoActivo]   = useState(false);
 
@@ -566,11 +565,9 @@ export function useRosita() {
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
 
     if (!perfilGuardado.nombreAbuela) {
-      console.log('[ONBOARDING DEBUG] No hay nombreAbuela, activando onboarding');
       setCargando(false);
       setMostrarOnboarding(true);
     } else {
-      console.log('[ONBOARDING DEBUG] Perfil encontrado:', perfilGuardado.nombreAbuela);
       pipeline.precachearRespuestasRapidas(perfilGuardado.nombreAbuela).catch(() => {});
       pipeline.precachearSistema().catch(() => {});
       setCargando(false);

@@ -389,14 +389,8 @@ export default function Index() {
   // Espera a que navigationState.key esté definido (router listo) antes de navegar.
   // Sin esta guarda, router.replace falla silenciosamente en el primer arranque post-install.
   useEffect(() => {
-    console.log('[ONBOARDING DEBUG] useEffect navegación:', {
-      navigationKey: navigationState?.key,
-      mostrarOnboarding,
-      nombreAbuela: refs.perfilRef.current?.nombreAbuela,
-    });
     if (!navigationState?.key) return; // router todavía no está listo
     if (mostrarOnboarding) {
-      console.log('[ONBOARDING DEBUG] Navegando a onboarding...');
       // Usar setTimeout para asegurar que la navegación ocurra después del render
       setTimeout(() => {
         router.replace('/onboarding' as any);

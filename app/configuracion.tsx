@@ -966,7 +966,7 @@ export default function Configuracion() {
             }
           >
             <Ionicons name="nuclear-outline" size={18} color={M.error} />
-            <Text style={[s.buscarText, { color: M.error }]}>Borrar todos los datos (testing)</Text>
+            <Text style={[s.buscarText, { color: M.error }]}>Borrar todos los datos</Text>
           </TouchableOpacity>
           <View style={s.divisorThin} />
           <TouchableOpacity
