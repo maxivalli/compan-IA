@@ -418,6 +418,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     // Marcar activo inmediatamente para que el watchdog no vuelva a llamar antes del onReady.
     srActivoRef.current = true;
+    // Si el wake SR nativo estaba corriendo (modo idle), detenerlo antes de reanudar
+    // Deepgram para evitar que ambos compitan por el micrófono y DG no reciba audio limpio.
+    if (wakeSRActiveRef.current) detenerWakeSR();
     // reanudarCapturaDG: reactiva AudioCapture si el WS sigue abierto,
     // o reconecta si el WS cayó mientras Rosita hablaba.
     reanudarCapturaDG();
