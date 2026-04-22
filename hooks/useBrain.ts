@@ -935,6 +935,7 @@ export function useBrain(deps: BrainDeps) {
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
             let wdLastCt = -1; let wdStuck = 0;
+            const wdUrl = urlStream; // capturar URL activa al iniciar el watchdog
             musicaWatchdogRef.current = setInterval(() => {
               if (!d.musicaActivaRef.current) {
                 clearInterval(musicaWatchdogRef.current!);
@@ -944,7 +945,10 @@ export function useBrain(deps: BrainDeps) {
               const ct = d.playerMusica.currentTime;
               if (!d.playerMusica.playing) {
                 wdStuck = 0; wdLastCt = ct;
-                try { d.playerMusica.play(); } catch {}
+                // Solo reconectar si la música sigue activa y la URL no cambió
+                if (d.musicaActivaRef.current) {
+                  try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
+                }
                 return;
               }
               // HLS stall: currentTime dejó de avanzar 2 ticks seguidos (~16s) → reconectar
@@ -953,7 +957,9 @@ export function useBrain(deps: BrainDeps) {
                   wdStuck++;
                   if (wdStuck >= 2) {
                     wdStuck = 0; wdLastCt = -1;
-                    try { d.playerMusica.replace({ uri: urlStream }); d.playerMusica.play(); } catch {}
+                    if (d.musicaActivaRef.current) {
+                      try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
+                    }
                   }
                 } else { wdStuck = 0; }
                 wdLastCt = ct;
@@ -984,6 +990,7 @@ export function useBrain(deps: BrainDeps) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
                   if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
                   let wdLastCt2 = -1; let wdStuck2 = 0;
+                  const wdUrl2 = altUrl; // capturar URL activa
                   musicaWatchdogRef.current = setInterval(() => {
                     if (!d.musicaActivaRef.current) {
                       clearInterval(musicaWatchdogRef.current!);
@@ -993,7 +1000,9 @@ export function useBrain(deps: BrainDeps) {
                     const ct = d.playerMusica.currentTime;
                     if (!d.playerMusica.playing) {
                       wdStuck2 = 0; wdLastCt2 = ct;
-                      try { d.playerMusica.play(); } catch {}
+                      if (d.musicaActivaRef.current) {
+                        try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
+                      }
                       return;
                     }
                     if (ct > 0) {
@@ -1001,7 +1010,9 @@ export function useBrain(deps: BrainDeps) {
                         wdStuck2++;
                         if (wdStuck2 >= 2) {
                           wdStuck2 = 0; wdLastCt2 = -1;
-                          try { d.playerMusica.replace({ uri: altUrl }); d.playerMusica.play(); } catch {}
+                          if (d.musicaActivaRef.current) {
+                            try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
+                          }
                         }
                       } else { wdStuck2 = 0; }
                       wdLastCt2 = ct;

@@ -309,6 +309,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
+    onVadSilencio: () => {
+      // El hold-off VAD venció sin que Deepgram disparara speech_final.
+      // Resetear visual 'escuchando' → 'esperando' para no dejar el badge pegado.
+      const d = depsRef.current;
+      if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
+    },
     onReady: () => {
       srActivoRef.current = true;
       ultimaActivacionSrRef.current = Date.now(); // reset zombie timer tras reconexión
@@ -542,6 +548,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Música ────────────────────────────────────────────────────────────────
   function pararMusica() {
+    // pause() detiene la reproducción pero el buffer de red del stream
+    // sigue activo: si el stream cae y reconecta, el player retoma solo.
+    // replace(null) + pause() corta definitivamente la fuente y vacía el buffer.
+    try { playerMusica.replace(null as any); } catch {}
     playerMusica.pause();
     depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);

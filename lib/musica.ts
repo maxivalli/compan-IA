@@ -12,7 +12,7 @@ const HEADERS = { 'Accept': 'application/json', 'User-Agent': 'CompanIA/1.0' };
 // ── Caché AsyncStorage ────────────────────────────────────────────────────────
 const CACHE_TTL_MS  = 7 * 24 * 60 * 60 * 1000; // 7 días
 /** v3: HLS habilitado en API + priorizado sobre raw MP3 para mejor buffering en mobile. */
-const CACHE_PREFIX  = 'radio_cache_v3_';
+const CACHE_PREFIX  = 'radio_cache_v4_';
 
 async function leerCache(clave: string): Promise<string | null> {
   try {
@@ -236,20 +236,22 @@ export async function buscarRadio(termino: string): Promise<string | null> {
   const cached = await leerCache(key);
   if (cached) return cached;
 
-  // 2a. Radios con nombre conocido → primero URL curada si existe, luego API por nombre en AR.
-  // Las URLs curadas son más confiables que RadioBrowser (evitan streams efímeros o con límite de sesión).
+  // 2a. Radios con nombre conocido: primero URL curada (más confiable que RadioBrowser),
+  // luego RadioBrowser como red de seguridad si la curada no está o falla.
   const esRadioNombrada = key in ALIAS_BUSQUEDA;
   if (esRadioNombrada) {
     const curadas = STREAMS_FALLBACK[key];
     const primeraCurada = curadas?.find(u => esStreamValido(u));
     if (primeraCurada) return primeraCurada;
 
-    // Sin URL curada → RadioBrowser
+    // Sin URL curada válida → RadioBrowser como red de seguridad
     const resultado = await buscarPorNombre(key, 'AR');
     if (resultado) {
       notificarClick(resultado.uuid);
       return resultado.url;
     }
+    // Agotadas las opciones para esta radio nombrada
+    return null;
   }
 
   const tagAPI = TAGS_GENERO[key];

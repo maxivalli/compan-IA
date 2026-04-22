@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Animated, BackHandler, DeviceEventEmitter, Dimensions, Platform } from 'react-native';
+import { Alert, Animated, BackHandler, DeviceEventEmitter, Dimensions, Platform, PermissionsAndroid } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
@@ -23,6 +23,7 @@ import { initChatWs } from '../lib/chatWs';
 import { buildRositaSystemPayload } from '../lib/systemPayload';
 import * as Location from 'expo-location';
 import * as Brightness from 'expo-brightness';
+import { useCameraPermissions } from 'expo-camera';
 import { useSmartThings } from './useSmartThings';
 import {
   useBrain, BrainDeps,
@@ -45,6 +46,7 @@ const HORA_FIN           = 23;
 
 export function useRosita() {
   const router = useRouter();
+  const [, requestCameraPermission] = useCameraPermissions();
 
   useEffect(() => {
     activateKeepAwakeAsync();
@@ -550,6 +552,16 @@ export function useRosita() {
         new Promise<void>(resolve => setTimeout(resolve, 3000)),
       ]);
     } catch {}
+    try { await Location.requestForegroundPermissionsAsync(); } catch {}
+    try { await requestCameraPermission(); } catch {}
+    if (Platform.OS === 'android' && Platform.Version >= 31) {
+      try {
+        await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        ]);
+      } catch {}
+    }
     obtenerTokenDispositivo().catch(() => {}); // warmea _cachedToken para urlCartesiaStream
     initChatWs({ getToken: obtenerTokenDispositivo, log: logCliente });
     pipeline.limpiarCacheViejo().catch(() => {});

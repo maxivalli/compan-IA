@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useAudioPlayer } from 'expo-audio';
-import { useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,7 +65,6 @@ export default function Onboarding() {
 
   const [aceptaTerminos,  setAceptaTerminos]  = useState(false);
   const [modalTerminos,   setModalTerminos]   = useState(false);
-  const [, requestCameraPermission] = useCameraPermissions();
   const fadeAnim      = useRef(new Animated.Value(1)).current;
   const slideAnim     = useRef(new Animated.Value(0)).current;
   const finalizandoRef = useRef(false);
@@ -134,7 +132,6 @@ export default function Onboarding() {
       }
     } catch {}
 
-    await requestCameraPermission();
     router.replace('/');
   }
 
