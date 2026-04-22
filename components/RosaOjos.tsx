@@ -465,7 +465,7 @@ const Ojo = memo(function Ojo({
     <Animated.View style={[s.eyeContainer, {
       transform: [{ scaleY }],
     }]}>
-      <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`} overflow="visible">
+      <Svg width={EYE_W} height={EYE_H} viewBox={`0 0 ${EYE_W} ${EYE_H}`}>
         <Defs>
           {/* IDs sufijados con "side" para evitar conflictos entre el ojo L y el R */}
           <ClipPath id={`huevo${side}`}>
@@ -823,28 +823,29 @@ export default function RosaOjos({
     if (noMolestar) {
       expresionAnimRef.current?.stop();
       expresionAnimRef.current = Animated.parallel([
-        Animated.timing(upperLid, { toValue: EYE_H * 0.38, duration: 400, useNativeDriver: false }),
-        Animated.timing(cenoLid,  { toValue: EYE_H * 0.10, duration: 400, useNativeDriver: false }),
+        Animated.timing(upperLid, { toValue: EYE_H * 0.30, duration: 500, useNativeDriver: false }),
+        Animated.timing(lowerLid, { toValue: EYE_H * 0.08, duration: 500, useNativeDriver: false }),
+        Animated.timing(cenoLid,  { toValue: EYE_H * 0.22, duration: 500, useNativeDriver: false }),
+        Animated.timing(py,       { toValue: 6,             duration: 500, useNativeDriver: true  }),
       ]);
       expresionAnimRef.current.start();
       noMolestarLoopRef.current = Animated.loop(
         Animated.sequence([
           Animated.parallel([
-            Animated.timing(py,  { toValue: -MAX * 1.1, duration: 400, useNativeDriver: true }),
-            Animated.timing(pxL, { toValue:  MAX * 0.7, duration: 400, useNativeDriver: true }),
-            Animated.timing(pxR, { toValue:  MAX * 0.7, duration: 400, useNativeDriver: true }),
+            Animated.timing(pxL, { toValue:  MAX * 0.8, duration: 600, useNativeDriver: true }),
+            Animated.timing(pxR, { toValue:  MAX * 0.8, duration: 600, useNativeDriver: true }),
           ]),
-          Animated.delay(500),
+          Animated.delay(600),
           Animated.parallel([
-            Animated.timing(pxL, { toValue: -MAX * 0.7, duration: 2000, useNativeDriver: true }),
-            Animated.timing(pxR, { toValue: -MAX * 0.7, duration: 2000, useNativeDriver: true }),
+            Animated.timing(pxL, { toValue: -MAX * 0.8, duration: 2000, useNativeDriver: true }),
+            Animated.timing(pxR, { toValue: -MAX * 0.8, duration: 2000, useNativeDriver: true }),
           ]),
-          Animated.delay(500),
+          Animated.delay(600),
           Animated.parallel([
             Animated.timing(pxL, { toValue: 0, duration: 800, useNativeDriver: true }),
             Animated.timing(pxR, { toValue: 0, duration: 800, useNativeDriver: true }),
           ]),
-          Animated.delay(400),
+          Animated.delay(500),
         ])
       );
       noMolestarLoopRef.current.start();
@@ -859,6 +860,7 @@ export default function RosaOjos({
           Animated.timing(lowerLid, { toValue: c.lower, duration: 400, useNativeDriver: false }),
           Animated.timing(cenoExpr, { toValue: c.ceno,  duration: 400, useNativeDriver: false }),
           Animated.timing(cenoLid,  { toValue: 0,       duration: 400, useNativeDriver: false }),
+          Animated.timing(py,       { toValue: c.py,    duration: 400, useNativeDriver: true  }),
         ]);
         expresionAnimRef.current.start();
         nightAnimRef.current?.stop();
