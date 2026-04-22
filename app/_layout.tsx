@@ -77,7 +77,7 @@ async function chequearActualizacion() {
 // ── Layout ───────────────────────────────────────────────────────────────────
 
 export default function Layout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     ionicons: IoniconsTTF,   // nombre exacto que usa @expo/vector-icons
     Poppins_400Regular,
     Poppins_600SemiBold,
@@ -110,10 +110,10 @@ export default function Layout() {
     );
   }
 
-  // Las fuentes locales cargan en milisegundos; el splash dura segundos,
-  // así que esto casi nunca bloquea. Si llegara a tardar, mejor null que
-  // mostrar iconos en blanco.
-  if (!fontsLoaded) return null;
+  // Si las fuentes todavía no cargaron Y no hubo error, esperar.
+  // Con error (fontError != null), continuar igual — mejor iconos en blanco
+  // que pantalla blanca infinita.
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <ErrorBoundary>
