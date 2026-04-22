@@ -16,6 +16,7 @@ import {
   Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Updates from 'expo-updates';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { cargarPerfil, guardarPerfil, Perfil, TelegramContacto, obtenerFamiliaId, guardarFamiliaId, obtenerCodigoRegistro, guardarCodigoRegistro, obtenerPIN, guardarPIN, eliminarPIN } from '../lib/memoria';
@@ -494,7 +495,6 @@ export default function Configuracion() {
       nombreAsistente:   perfil?.nombreAsistente ?? 'Rosita',
       vozGenero:         perfil?.vozGenero ?? 'femenina',
       vozId:             perfil?.vozId,
-      cabezaGato:        perfil?.cabezaGato,
       nombreAbuela:      nombreTrimmed,
       edad:              edad.trim() ? parseInt(edad.trim(), 10) : undefined,
       generoUsuario,
@@ -932,6 +932,42 @@ export default function Configuracion() {
               </TouchableOpacity>
             </>
           )}
+          <View style={s.divisorThin} />
+          <TouchableOpacity
+            style={s.buscarBtn}
+            activeOpacity={0.7}
+            onPress={() =>
+              Alert.alert(
+                'Borrar todos los datos',
+                '¿Estás seguro? Esto eliminará TODOS los datos de la app y volverás al onboarding inicial. Esta acción no se puede deshacer.',
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Borrar todo',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        await AsyncStorage.clear();
+                        // Recargar la app completamente
+                        if (!__DEV__) {
+                          await Updates.reloadAsync();
+                        } else {
+                          Alert.alert('Listo', 'Datos borrados. Cerrá y volvé a abrir la app manualmente.', [
+                            { text: 'OK', onPress: () => BackHandler.exitApp() },
+                          ]);
+                        }
+                      } catch (e) {
+                        Alert.alert('Error', 'No se pudieron borrar los datos');
+                      }
+                    },
+                  },
+                ],
+              )
+            }
+          >
+            <Ionicons name="nuclear-outline" size={18} color={M.error} />
+            <Text style={[s.buscarText, { color: M.error }]}>Borrar todos los datos (testing)</Text>
+          </TouchableOpacity>
           <View style={s.divisorThin} />
           <TouchableOpacity
             style={s.buscarBtn}

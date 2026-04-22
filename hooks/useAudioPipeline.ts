@@ -34,7 +34,6 @@ import {
   logCliente,
   VOICE_ID_FEMENINA,
   VOICE_ID_MASCULINA,
-  VOICE_ID_GATO,
   urlFrasePrecacheada,
 } from '../lib/ai';
 import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
@@ -83,18 +82,6 @@ const MULETILLA_ASSETS_MAP: Record<string, Record<TipoMuletilla, number>> = {
     bueno:  require('../assets/audio/Bueno masculino.mp3'),
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     espera: require('../assets/audio/Esperate un momentito masculino.mp3'),
-  },
-  [VOICE_ID_GATO]: {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    mm:     require('../assets/audio/Mmmm gato.mp3'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    ver:    require('../assets/audio/Dejame ver gato.mp3'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    aver:   require('../assets/audio/A ver gato.mp3'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    bueno:  require('../assets/audio/Bueno gato.mp3'),
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    espera: require('../assets/audio/Esperate un momentito gato.mp3'),
   },
 };
 

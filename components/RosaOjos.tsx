@@ -395,86 +395,6 @@ const sc = StyleSheet.create({
   },
 });
 
-// ── Cabeza de gato ────────────────────────────────────────────────────────────
-const CAT_SVG_W      = 320;
-export const CAT_SVG_H      = 373;  // todo el contenido cabe sin overflow (y=0..373)
-const CAT_FUR        = '#C4996A';   // mismo color que los párpados → integración perfecta
-const CAT_FUR_D      = '#B8864E';   // pelaje oscuro para rayas
-const EAR_PINK       = '#F4A0B8';   // oreja interior
-const NOSE_COL       = '#C4658A';   // nariz
-// Espacio extra encima de los ojos que ocupa la cabeza del gato.
-// Se exporta para que los consumers puedan compensar su layout.
-export const CAT_FACE_TOP_EXTRA = 108;
-
-function CabezaGato({ scale = 1, noseOffsetY = 0 }: { scale?: number; noseOffsetY?: number }) {
-  // Todas las coordenadas y están desplazadas +30 respecto al diseño original
-  // para que las puntas de las orejas queden en y=0 (sin negativos).
-  // El SVG tiene el alto justo para contener todo el contenido (y=0..373).
-  return (
-    <Svg
-      width={CAT_SVG_W * scale}
-      height={CAT_SVG_H * scale}
-      viewBox={`0 0 ${CAT_SVG_W} ${CAT_SVG_H}`}
-    >
-      <Defs>
-        <RadialGradient id="gcFace" cx="38%" cy="28%" rx="68%" ry="62%">
-          <Stop offset="0%"   stopColor="#EBBE82" stopOpacity="1" />
-          <Stop offset="38%"  stopColor="#C4996A" stopOpacity="1" />
-          <Stop offset="78%"  stopColor="#9A7048" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#6E4820" stopOpacity="1" />
-        </RadialGradient>
-
-        <LinearGradient id="gcEarL" x1="120" y1="130" x2="50" y2="0" gradientUnits="userSpaceOnUse">
-          <Stop offset="0%"   stopColor="#8A6035" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#DEB87A" stopOpacity="1" />
-        </LinearGradient>
-
-        <LinearGradient id="gcEarR" x1="200" y1="130" x2="270" y2="0" gradientUnits="userSpaceOnUse">
-          <Stop offset="0%"   stopColor="#8A6035" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#DEB87A" stopOpacity="1" />
-        </LinearGradient>
-
-        <RadialGradient id="gcEarIn" cx="50%" cy="68%" rx="52%" ry="48%">
-          <Stop offset="0%"   stopColor="#FDD0DE" stopOpacity="1" />
-          <Stop offset="100%" stopColor="#C07888" stopOpacity="1" />
-        </RadialGradient>
-      </Defs>
-
-      {/* ── Orejas (y original + 30) ── */}
-      {/* Oreja izquierda - más grande (15%) y más inclinada hacia afuera */}
-      <Path d="M 20,156 L 15,14 L 164,111 Z" fill="url(#gcEarL)" />
-      <Path d="M 36,148 L 24,32 L 152,107 Z" fill="url(#gcEarIn)" />
-
-      {/* Oreja derecha - más grande (15%) y más inclinada hacia afuera */}
-      <Path d="M 300,156 L 305,14 L 156,111 Z" fill="url(#gcEarR)" />
-      <Path d="M 284,148 L 296,32 L 168,107 Z" fill="url(#gcEarIn)" />
-
-      {/* ── Cara ── */}
-      <Ellipse cx={160} cy={218} rx={152} ry={143} fill="url(#gcFace)" />
-      <Ellipse cx={160} cy={218} rx={152} ry={143} fill="none" stroke="#4A2E0A" strokeWidth={4} opacity={0.22} />
-
-      {/* ── Rayas tabby ── */}
-      <Path d="M 152,102 Q 160,92 168,102" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.50} />
-      <Path d="M 147,114 Q 160,101 173,114" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.38} />
-      <Path d="M 142,128 Q 160,112 178,128" stroke={CAT_FUR_D} strokeWidth={2.5} fill="none" opacity={0.26} />
-
-      {/* ── Nariz ── */}
-      <Path d={`M 160,${282 + noseOffsetY} L 149,${294 + noseOffsetY} L 171,${294 + noseOffsetY} Z`} fill={NOSE_COL} />
-      <Path d={`M 160,${294 + noseOffsetY} L 160,${300 + noseOffsetY}`} stroke={CAT_FUR_D} strokeWidth={1.5} fill="none" opacity={0.55} />
-
-      {/* ── Bigotes izquierda ── */}
-      <Path d={`M 44,${275 + noseOffsetY} L 138,${283 + noseOffsetY}`} stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d={`M 38,${289 + noseOffsetY} L 136,${289 + noseOffsetY}`} stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d={`M 44,${303 + noseOffsetY} L 138,${295 + noseOffsetY}`} stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-
-      {/* ── Bigotes derecha ── */}
-      <Path d={`M 276,${275 + noseOffsetY} L 182,${283 + noseOffsetY}`} stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d={`M 282,${289 + noseOffsetY} L 184,${289 + noseOffsetY}`} stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-      <Path d={`M 276,${303 + noseOffsetY} L 182,${295 + noseOffsetY}`} stroke="#FFFFFFBB" strokeWidth={1.5} fill="none" />
-    </Svg>
-  );
-}
-
 // ── Ojo SVG ───────────────────────────────────────────────────────────────────
 // memo: evita re-renders cuando cambia expresion en el padre.
 // Las animaciones (párpados, iris) van por Animated y no necesitan re-render.
@@ -757,7 +677,7 @@ const FACE_W = EYE_W * 2 + 32;
 const FACE_H = EYE_H + 120;
 
 export default function RosaOjos({
-  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, cabezaGato = true, catHeadOffsetY = 0, eyeOffsetY = 0, catHeadScale = 1, noseOffsetY = 0,
+  estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, eyeOffsetY = 0,
 }: {
   estado: Estado;
   expresion: Expresion;
@@ -772,11 +692,7 @@ export default function RosaOjos({
   eyeGapExtra?: number;
   zipperOffsetY?: number;
   zipperScale?: number;
-  cabezaGato?: boolean;
-  catHeadOffsetY?: number;
   eyeOffsetY?: number;
-  catHeadScale?: number;
-  noseOffsetY?: number;
 }) {
   const pxL      = useRef(new Animated.Value(0)).current;
   const pxR      = useRef(new Animated.Value(0)).current;
@@ -1134,11 +1050,7 @@ export default function RosaOjos({
     });
   }
 
-  // Con cabezaGato: el outer View crece CAT_FACE_TOP_EXTRA arriba + 4px abajo,
-  // exactamente lo que ocupa el SVG (y=0..373). Sin negativos → sin clipping en Android.
-  const outerH = cabezaGato
-    ? (FACE_H + CAT_FACE_TOP_EXTRA + 4) * scale  // = CAT_SVG_H * scale = 373 * scale
-    : FACE_H * scale;
+  const outerH = FACE_H * scale;
 
   const wrapTransform = [
     ...(scale !== 1      ? [{ scale } as const]              : []),
@@ -1147,24 +1059,13 @@ export default function RosaOjos({
 
   return (
     <View style={{ width: FACE_W * scale, height: outerH, alignItems: 'center', justifyContent: 'flex-start', zIndex: 5 }}>
-      {/* Cabeza de gato: top=0, todo dentro del outer View, sin overflow */}
-      {cabezaGato && (
-        <View
-          style={[s.cabezaWrap, { left: (FACE_W - CAT_SVG_W) / 2 * scale, top: catHeadOffsetY }]}
-          pointerEvents="none"
-        >
-          <CabezaGato scale={scale * catHeadScale} noseOffsetY={noseOffsetY} />
-        </View>
-      )}
-      {/* Espaciador: empuja los ojos hacia abajo para que las orejas queden encima */}
-      {cabezaGato && <View style={{ height: CAT_FACE_TOP_EXTRA * scale }} />}
       <View style={[s.wrap, wrapTransform.length > 0 && { transform: wrapTransform }]}>
         <View style={[s.contenedor, eyeGapExtra !== 0 && { gap: 32 + eyeGapExtra }]}>
           <TouchableOpacity onPress={() => picarOjo('L')} activeOpacity={1} style={{ overflow: 'visible' }}>
-            <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={cabezaGato ? CAT_FUR : bgColor} nightAnim={nightAnim}/>
+            <Ojo side="L" pxAnim={pxL} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapL} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => picarOjo('R')} activeOpacity={1} style={{ overflow: 'visible' }}>
-            <Ojo side="R" pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={cabezaGato ? CAT_FUR : bgColor} nightAnim={nightAnim}/>
+            <Ojo side="R" pxAnim={pxR} pyAnim={py} upperLid={upperLid} lowerLid={lowerLid} blinkLid={blinkLid} cenoLid={cenoLid} cenoExpr={cenoExpr} scaleY={scaleY} offsetX={eyeGapR} lidBg={bgColor} nightAnim={nightAnim}/>
           </TouchableOpacity>
         </View>
         {noMolestar && estado === 'esperando' ? (
@@ -1188,10 +1089,5 @@ const s = StyleSheet.create({
     width: EYE_W,
     height: EYE_H,
     overflow: 'visible',
-  },
-  cabezaWrap: {
-    position: 'absolute',
-    top: 0,
-    zIndex: 0,
   },
 });

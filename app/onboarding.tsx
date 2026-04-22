@@ -18,16 +18,14 @@ import { useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useFonts, Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold } from '@expo-google-fonts/poppins';
 import { guardarPerfil, cargarPerfil, guardarFamiliaId, guardarCodigoRegistro } from '../lib/memoria';
 import { sintetizarVozMuestra, obtenerTokenDispositivo } from '../lib/ai';
+import RosaOjos from '../components/RosaOjos';
 
 const VOCES = [
   { id: 'r3lotmx3BZETVvcKm6R6', label: 'Voz femenina',  genero: 'femenina'  as const, icono: 'woman' as const },
   { id: 'QK4xDwo9ESPHA4JNUpX3', label: 'Voz masculina', genero: 'masculina' as const, icono: 'man'   as const },
-  { id: '5bef3cec918748a290d6d129c26d9484', label: 'Voz de gato',    genero: 'femenina'  as const, icono: 'paw'   as const },
 ];
-import RosaOjos from '../components/RosaOjos';
 
 const { height: H, width: W } = Dimensions.get('window');
 
@@ -60,7 +58,6 @@ export default function Onboarding() {
   const [edad,            setEdad]            = useState('');
   const [nombreAsistente, setNombreAsistente] = useState('Rosita');
   const [vozId,           setVozId]           = useState(VOCES[0].id);
-  const [cabezaGato,      setCabezaGato]      = useState(false);
   const [conyuge,         setConyuge]         = useState('');
   const [hijos,           setHijos]           = useState('');
   const [nietos,          setNietos]          = useState('');
@@ -73,16 +70,12 @@ export default function Onboarding() {
   const fadeAnim      = useRef(new Animated.Value(1)).current;
   const slideAnim     = useRef(new Animated.Value(0)).current;
   const finalizandoRef = useRef(false);
-
-  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', e => setKeyboardHeight(e.endCoordinates.height));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardHeight(0));
     return () => { show.remove(); hide.remove(); };
   }, []);
-
-  if (!fontsLoaded) return <View style={{ flex: 1, backgroundColor: STEP_COLORS[0] }} />;
 
   function irAPaso(n: number) {
     Animated.parallel([
@@ -113,7 +106,6 @@ export default function Onboarding() {
       nombreAsistente: asistente,
       vozGenero:       vozSeleccionada.genero,
       vozId,
-      cabezaGato,
       familiares: [
         conyuge.trim()  && `cónyuge: ${conyuge.trim()}`,
         hijos.trim()    && `hijos: ${hijos.trim()}`,
@@ -200,7 +192,6 @@ export default function Onboarding() {
               edad={edad}                       setEdad={setEdad}
               nombreAsistente={nombreAsistente} setNombreAsistente={setNombreAsistente}
               vozId={vozId}                     setVozId={setVozId}
-              cabezaGato={cabezaGato}           setCabezaGato={setCabezaGato}
               conyuge={conyuge}                 setConyuge={setConyuge}
               hijos={hijos}                     setHijos={setHijos}
               nietos={nietos}                   setNietos={setNietos}
@@ -411,18 +402,16 @@ const fi = StyleSheet.create({
 });
 
 // ── Selector de voces con muestra de audio ───────────────────────────────────
-function SelectorVoces({ vozId, setVozId, nombreAsistente, cabezaGato }: {
+function SelectorVoces({ vozId, setVozId, nombreAsistente }: {
   vozId: string;
   setVozId: (id: string) => void;
   nombreAsistente: string;
-  cabezaGato: boolean;
 }) {
   const [cargando, setCargando] = useState<string | null>(null);
   const player = useAudioPlayer(null);
 
-  function estaDeshabilitada(voz: typeof VOCES[number]) {
-    if (cabezaGato) return voz.icono !== 'paw';      // gato: solo voz de gato disponible
-    return voz.icono === 'paw';                       // rostro: voz de gato deshabilitada
+  function estaDeshabilitada(_voz: typeof VOCES[number]) {
+    return false;
   }
 
   async function reproducir(id: string) {
@@ -446,8 +435,8 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente, cabezaGato }: {
         const activa       = vozId === voz.id;
         const deshabilitada = estaDeshabilitada(voz);
         const cargandoEsta = cargando === voz.id;
-        const color        = deshabilitada ? '#b0b8ba' : voz.icono === 'paw' ? '#FF9F43' : voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
-        const colorBg      = deshabilitada ? '#f0f0f0' : voz.icono === 'paw' ? '#fff4e6' : voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
+        const color        = deshabilitada ? '#b0b8ba' : voz.genero === 'femenina' ? '#C77DFF' : '#7C9EFF';
+        const colorBg      = deshabilitada ? '#f0f0f0' : voz.genero === 'femenina' ? '#f3e8ff' : '#eef0ff';
         return (
           <TouchableOpacity
             key={voz.id}
@@ -461,7 +450,7 @@ function SelectorVoces({ vozId, setVozId, nombreAsistente, cabezaGato }: {
           >
             {/* Ícono grande */}
             <View style={[sv.iconCircle, { backgroundColor: color + '22' }]}>
-              <Ionicons name={voz.icono === 'paw' ? 'paw' : voz.icono === 'woman' ? 'woman' : 'man'} size={28} color={color} />
+              <Ionicons name={voz.icono === 'woman' ? 'woman' : 'man'} size={28} color={color} />
             </View>
 
             {/* Label */}
@@ -513,7 +502,7 @@ const sv = StyleSheet.create({
 });
 
 // ── Contenido por paso ────────────────────────────────────────────────────────
-function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, cabezaGato, setCabezaGato, conyuge, setConyuge, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
+function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, nombreAbuela, setNombreAbuela, generoUsuario, setGeneroUsuario, edad, setEdad, nombreAsistente, setNombreAsistente, vozId, setVozId, conyuge, setConyuge, hijos, setHijos, nietos, setNietos, hermanos, setHermanos, mascotas, setMascotas }: any) {
   const vozSeleccionada = VOCES.find(v => v.id === vozId) ?? VOCES[0];
   const info = [
     { titulo: '¡Hola! Soy CompañIA',         sub: `Tu ${vozSeleccionada.genero === 'masculina' ? 'compañero' : 'compañera'} de voz con inteligencia artificial.` },
@@ -574,55 +563,7 @@ function StepContent({ paso, aceptaTerminos, setAceptaTerminos, onVerTerminos, n
         <TextInput style={ct.input} value={nombreAsistente} onChangeText={setNombreAsistente}
           placeholder="Rosita" placeholderTextColor="#b0b8ba" />
         <Text style={ct.vozLabel}>Elegí una voz</Text>
-        <SelectorVoces vozId={vozId} setVozId={setVozId} nombreAsistente={nombreAsistente} cabezaGato={cabezaGato} />
-        <Text style={[ct.vozLabel, { marginTop: 20 }]}>Elegí la apariencia</Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-          {(['rostro', 'gato'] as const).map(tipo => (
-            <TouchableOpacity
-              key={tipo}
-              style={[
-                {
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  backgroundColor: '#f4f6f7',
-                  borderWidth: 2,
-                  borderColor: (tipo === 'gato' ? cabezaGato : !cabezaGato) ? '#0097b2' : '#e0e6e8',
-                },
-                (tipo === 'gato' ? cabezaGato : !cabezaGato) && { backgroundColor: '#e6f7f9' }
-              ]}
-              onPress={() => {
-                setCabezaGato(tipo === 'gato');
-                // Si selecciona gato, cambiar a la voz de gato
-                if (tipo === 'gato') {
-                  setVozId('5bef3cec918748a290d6d129c26d9484');
-                } else {
-                  // Si deselecciona gato, volver a la voz femenina por defecto
-                  setVozId('r3lotmx3BZETVvcKm6R6');
-                }
-              }}
-              activeOpacity={0.75}
-            >
-              <Ionicons 
-                name={tipo === 'gato' ? 'paw' : 'happy-outline'} 
-                size={18} 
-                color={(tipo === 'gato' ? cabezaGato : !cabezaGato) ? '#0097b2' : '#6b7780'} 
-              />
-              <Text style={{
-                fontSize: 14,
-                fontWeight: '500',
-                color: (tipo === 'gato' ? cabezaGato : !cabezaGato) ? '#0097b2' : '#3a4548',
-                fontFamily: (tipo === 'gato' ? cabezaGato : !cabezaGato) ? 'Poppins_600SemiBold' : 'Poppins_400Regular',
-              }}>
-                {tipo === 'gato' ? 'Cara de gato' : 'Solo rostro'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+        <SelectorVoces vozId={vozId} setVozId={setVozId} nombreAsistente={nombreAsistente} />
       </ScrollView>
     );
   }

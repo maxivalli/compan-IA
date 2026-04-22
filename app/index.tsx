@@ -17,7 +17,7 @@ import { useAccionesRosita } from '../hooks/useAccionesRosita';
 import { useBLEBeacon } from '../hooks/useBLEBeacon';
 import { useClickSound } from '../hooks/useClickSound';
 import RositaHorizontalLayout from '../components/RositaHorizontalLayout';
-import RosaOjos, { BG, CAT_FACE_TOP_EXTRA } from '../components/RosaOjos';
+import RosaOjos, { BG } from '../components/RosaOjos';
 import MenuFlotante from '../components/MenuFlotante';
 import ExpresionOverlay from '../components/ExpresionOverlay';
 import { AnimacionMusica, ZZZ, CieloNoche } from '../components/FondoAnimado';
@@ -541,7 +541,6 @@ export default function Index() {
           onCaricia={onCaricia}
           onRelampago={onRelampago}
           apagarLinterna={apagarLinterna}
-          cabezaGato={refs.perfilRef.current?.cabezaGato !== false}
         />
         <PostItViewer
           visible={mostrarListas}
@@ -652,15 +651,10 @@ export default function Index() {
   style={[
     styles.ojoContenedor,
     { marginTop: (() => {
-        const catOffset = refs.perfilRef.current?.cabezaGato !== false
-          ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
-        const verticalCatOffset = layoutMode === 'vertical' && refs.perfilRef.current?.cabezaGato !== false
-          ? Math.round(screenH * 0.10) : 0;
-        // Subir Rosita un ~15% del área disponible del personaje
         const shiftUp = isTablet ? Math.round(screenH * 0.04) : Math.round(screenH * 0.10);
         return isTablet
-          ? Math.max(0, Math.round(screenH * 0.06) - catOffset + verticalCatOffset - shiftUp)
-          : Math.max(0, 180 - catOffset + verticalCatOffset - shiftUp);
+          ? Math.max(0, Math.round(screenH * 0.06) - shiftUp)
+          : Math.max(0, 180 - shiftUp);
       })() },
   ]}
   {...panCaricia.panHandlers}
@@ -688,11 +682,8 @@ export default function Index() {
           onOjoPicado={onOjoPicado}
           scale={!isTablet && layoutMode === 'vertical' ? faceScale * 0.85 : faceScale}
           amaneciendo={amaneciendo}
-          cabezaGato={refs.perfilRef.current?.cabezaGato !== false}
-          mouthOffsetY={!isTablet && layoutMode === 'vertical' && refs.perfilRef.current?.cabezaGato !== false ? -8 : layoutMode === 'vertical' ? 5 : 0}
+          mouthOffsetY={layoutMode === 'vertical' ? 5 : 0}
           zipperOffsetY={layoutMode === 'vertical' ? -40 : 0}
-          catHeadOffsetY={isTablet && layoutMode === 'vertical' ? -30 : 0}
-          noseOffsetY={isTablet && layoutMode === 'vertical' ? -20 : 0}
         />
         <ExpresionOverlay
           capa="frente"
@@ -704,26 +695,10 @@ export default function Index() {
           silbando={silbando}
           onRelampago={onRelampago}
           esCumpleaños={esCumpleaños}
-          browOffsetY={
-            refs.perfilRef.current?.cabezaGato !== false
-              ? (isTablet && layoutMode === 'vertical' ? 75 : !isTablet && layoutMode === 'vertical' ? 85 : 0)
-              : (isTablet && layoutMode === 'vertical' ? 35 : !isTablet && layoutMode === 'vertical' ? 40 : 0)
-          }
-          browOffsetX={
-            refs.perfilRef.current?.cabezaGato !== false
-              ? (isTablet && layoutMode === 'vertical' ? 15 : 0)
-              : (isTablet && layoutMode === 'vertical' ? 11 : 0)
-          }
-          browScale={
-            refs.perfilRef.current?.cabezaGato !== false
-              ? (isTablet && layoutMode === 'vertical' ? 0.75 : 1)
-              : (isTablet && layoutMode === 'vertical' ? 0.8 : 1)
-          }
-          browGap={
-            refs.perfilRef.current?.cabezaGato !== false
-              ? (isTablet && layoutMode === 'vertical' ? -15 : 0)
-              : (isTablet && layoutMode === 'vertical' ? -18 : 0)
-          }
+          browOffsetY={isTablet && layoutMode === 'vertical' ? 35 : !isTablet && layoutMode === 'vertical' ? 40 : 0}
+          browOffsetX={isTablet && layoutMode === 'vertical' ? 11 : 0}
+          browScale={isTablet && layoutMode === 'vertical' ? 0.8 : 1}
+          browGap={isTablet && layoutMode === 'vertical' ? -18 : 0}
         />
       </View>
       {modoNoche === 'durmiendo' && <ZZZ />}

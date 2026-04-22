@@ -17,8 +17,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFonts, Poppins_700Bold } from '@expo-google-fonts/poppins';
-import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche, CAT_FACE_TOP_EXTRA, CAT_SVG_H } from './RosaOjos';
+import RosaOjos, { BG, EYE_H, EYE_W, GAP, Expresion, ModoNoche } from './RosaOjos';
 import ExpresionOverlay from './ExpresionOverlay';
 import { CieloNoche, WaveformDetectando, ZZZ } from './FondoAnimado';
 import { Globos } from './EfectosExpresion';
@@ -82,11 +81,9 @@ export interface RositaHorizontalProps {
 
   // Linterna
   apagarLinterna: () => void;
-  cabezaGato?: boolean;
 }
 
 function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: number; descripcion: string; codigoActual: number } | null }) {
-  const [fontsLoaded] = useFonts({ Poppins_700Bold });
   const [tiempo, setTiempo] = useState(() => {
     const now = new Date();
     return {
@@ -151,7 +148,7 @@ function RelojHorizontalFullscreen({ climaObj }: { climaObj?: { temperatura: num
     return () => clearInterval(id);
   }, [climaObj?.temperatura]);
 
-  const fontFamily  = fontsLoaded ? 'Poppins_700Bold' : undefined;
+  const fontFamily = 'Poppins_700Bold';
 
   const alertaTexto = climaObj?.temperatura !== undefined && climaObj.temperatura >= 35 ? 'Calor extremo'
     : climaObj?.temperatura !== undefined && climaObj.temperatura <= 3 ? 'Frío extremo'
@@ -205,15 +202,9 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const eyeDominantScale = (screenH * 0.96) / EYE_H;
   const faceFitScale = (screenH * 1.16) / FACE_H;
   const widthFitScale = (screenW * 0.88) / FACE_W;
-  // Con cabezaGato, el componente mide CAT_SVG_H*scale de alto — limitamos para que quepa en pantalla
-  const catFitScale = props.cabezaGato !== false ? (screenH * 0.94) / CAT_SVG_H : Infinity;
-  const faceScale = Math.min(
-    Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8,
-    catFitScale,
-  );
+  const faceScale = Math.min(eyeDominantScale, faceFitScale, widthFitScale) * 0.8;
   const paddingTopCara = Math.max(0, Math.round(screenH * 0.005));
-  const catOffset = props.cabezaGato !== false ? Math.round(CAT_FACE_TOP_EXTRA * faceScale) : 0;
-  const faceTranslateY = Math.max(0, Math.round(screenH * 0.20) - catOffset);
+  const faceTranslateY = Math.max(0, Math.round(screenH * 0.20));
   const mouthOffsetY = 0;
   const eyeGapExtra = Math.round((32 + 10 * faceScale) * 0.85 - 32);
   const zipperOffsetY = esTabletHorizontal
@@ -359,9 +350,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       eyeGapExtra={eyeGapExtra}
                       zipperOffsetY={zipperOffsetY}
                       zipperScale={zipperScale}
-                      cabezaGato={props.cabezaGato !== false}
                       eyeOffsetY={esTabletHorizontal ? 70 : 0}
-                      noseOffsetY={-10}
                     />
                     </View>
                     <ExpresionOverlay
@@ -376,10 +365,10 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       onRelampago={props.onRelampago}
                       esCumpleaños={props.esCumpleaños}
                       modoHorizontal
-                      browOffsetY={props.cabezaGato !== false ? (esTabletHorizontal ? 75 : 115) : (esTabletHorizontal ? 10 : 70)}
-                      browOffsetX={props.cabezaGato !== false ? (esTabletHorizontal ? 10 : 22) : (esTabletHorizontal ? -17 : 19)}
-                      browScale={props.cabezaGato !== false ? (esTabletHorizontal ? 0.85 : 0.6) : (esTabletHorizontal ? 1.32 : 0.65)}
-                      browGap={props.cabezaGato !== false ? (esTabletHorizontal ? 0 : -20) : (esTabletHorizontal ? 25 : -15)}
+                      browOffsetY={esTabletHorizontal ? 10 : 70}
+                      browOffsetX={esTabletHorizontal ? -17 : 19}
+                      browScale={esTabletHorizontal ? 1.32 : 0.65}
+                      browGap={esTabletHorizontal ? 25 : -15}
                     />
                   </View>
                 </View>
