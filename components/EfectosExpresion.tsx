@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Defs, RadialGradient, Stop, Ellipse, Path } from 'react-native-svg';
 
@@ -320,6 +320,99 @@ function UnaNota({ x, delay, size, nota, horizontal }: typeof NOTAS[0] & { horiz
 
 export function NotasMusica({ horizontal }: { horizontal?: boolean }) {
   return <>{NOTAS.map((n, i) => <UnaNota key={i} {...n} horizontal={horizontal} />)}</>;
+}
+
+// ── Cejas curvas elegantes ────────────────────────────────────────────────────
+
+const BROW_W     = 108;
+const LEFT_CX    = 82;
+const RIGHT_CX   = 238;
+const BROW_BASE_Y = 35;
+const BROW_ARC_H  = 16;
+const BROW_THICK  = 12;
+const ARCH_INSET  = 10; // arch peak shifted toward inner (nose side)
+const BROW_COLOR  = '#1A3A5C';
+const BROW_SVG_H  = 60;
+
+type BrowExpr = { angle: number; lift: number };
+const BROW_MAP: Record<string, BrowExpr> = {
+  neutral:      { angle: 0,   lift: 0  },
+  enojada:      { angle: 12,  lift: 5  },
+  triste:       { angle: -8,  lift: 0  },
+  sorprendida:  { angle: 0,   lift: -10 },
+  feliz:        { angle: -2,  lift: -3  },
+  entusiasmada: { angle: -3,  lift: -5  },
+  mimada:       { angle: -2,  lift: -2  },
+  pensativa:    { angle: 4,   lift: 3  },
+  avergonzada:  { angle: 0,   lift: 3  },
+  chiste:       { angle: -4,  lift: -2  },
+  ternura:      { angle: -2,  lift: -2  },
+};
+
+function browPath(lx: number, ly: number, rx: number, ry: number, cpx: number): string {
+  const topCpY = Math.min(ly, ry) - BROW_ARC_H;
+  const botCpY = topCpY + BROW_THICK;
+  return `M ${lx} ${ly} Q ${cpx} ${topCpY} ${rx} ${ry} Q ${cpx} ${botCpY} ${lx} ${ly} Z`;
+}
+
+export function Cejas({
+  expresion = 'neutral',
+  offsetY = 0,
+  offsetX = 0,
+  scale = 1,
+}: {
+  expresion?: string;
+  offsetY?: number;
+  offsetX?: number;
+  scale?: number;
+}) {
+  const angleAnim = useRef(new Animated.Value(0)).current;
+  const liftAnim  = useRef(new Animated.Value(0)).current;
+  const angleRef  = useRef(0);
+  const liftRef   = useRef(0);
+  const [, tick]  = useState(0);
+
+  useEffect(() => {
+    const idA = angleAnim.addListener(({ value }) => { angleRef.current = value; tick(n => n + 1); });
+    const idL = liftAnim.addListener(({ value }) => { liftRef.current = value; });
+    return () => { angleAnim.removeListener(idA); liftAnim.removeListener(idL); };
+  }, []);
+
+  useEffect(() => {
+    const { angle, lift } = BROW_MAP[expresion] ?? BROW_MAP.neutral;
+    Animated.parallel([
+      Animated.spring(angleAnim, { toValue: angle, useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
+      Animated.spring(liftAnim,  { toValue: lift,  useNativeDriver: false, damping: 14, stiffness: 130, mass: 0.8 }),
+    ]).start();
+  }, [expresion]);
+
+  const halfW    = BROW_W / 2;
+  const angleRad = (angleRef.current * Math.PI) / 180;
+  const yOff     = Math.tan(angleRad) * halfW;
+  const lift     = liftRef.current;
+  const baseY    = BROW_BASE_Y + offsetY + lift;
+
+  // Left brow: outer tip = left (goes UP with +angle), inner tip = right (goes DOWN)
+  const lLeft  = browPath(
+    LEFT_CX - halfW + offsetX, baseY - yOff,
+    LEFT_CX + halfW + offsetX, baseY + yOff,
+    LEFT_CX + ARCH_INSET + offsetX,
+  );
+  // Right brow: inner tip = left (goes DOWN), outer tip = right (goes UP)
+  const lRight = browPath(
+    RIGHT_CX - halfW + offsetX, baseY + yOff,
+    RIGHT_CX + halfW + offsetX, baseY - yOff,
+    RIGHT_CX - ARCH_INSET + offsetX,
+  );
+
+  return (
+    <View style={{ position: 'absolute', left: 0, top: 0, width: OW, height: BROW_SVG_H }}>
+      <Svg width={OW} height={BROW_SVG_H} style={{ overflow: 'visible' }}>
+        <Path d={lLeft}  fill={BROW_COLOR} />
+        <Path d={lRight} fill={BROW_COLOR} />
+      </Svg>
+    </View>
+  );
 }
 
 // ── Ceño enojado ──────────────────────────────────────────────────────────────

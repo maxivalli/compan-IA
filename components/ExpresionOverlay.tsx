@@ -3,8 +3,9 @@ import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Expresion, ModoNoche } from './RosaOjos';
 import {
   Lagrimas, Corazones, Mejillas, SignosPregunta, Exclamaciones,
-  Carcajada, NotasMusica, CenoEnojado, Grawlixes,
+  Carcajada, NotasMusica, Grawlixes,
   Bonete, GorroNavidad, Destellos, Confetti, GotaSudor,
+  Cejas,
 } from './EfectosExpresion';
 import {
   GotasLluvia, Nieve, Viento, CalorEfecto,
@@ -100,6 +101,8 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
 
           {(musicaActiva || silbando) && <NotasMusica horizontal={esHorizontalPantalla} />}
 
+          <Cejas expresion={expresion} offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} />
+
           <Animated.View style={[StyleSheet.absoluteFill, { opacity: fade, overflow: 'visible' }]}>
             {expresion === 'triste'        && <Lagrimas />}
             {expresion === 'ternura'       && <Corazones />}
@@ -111,7 +114,6 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
             {expresion === 'pensativa'     && <SignosPregunta />}
             {expresion === 'avergonzada'    && <GotaSudor />}
             {expresion === 'chiste'        && <Carcajada />}
-            {expresion === 'enojada'       && <CenoEnojado offsetY={browOffsetY} offsetX={browOffsetX} scale={browScale} gap={browGap} />}
             {expresion === 'enojada'       && (
               <View style={esHorizontalPantalla ? { transform: [{ translateY: 62 }] } : undefined}>
                 <Grawlixes />

@@ -68,7 +68,7 @@ async function chequearActualizacion() {
 export default function Layout() {
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
   const [iconsLoaded, iconError] = useFonts({
-    ionicons: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
+    Ionicons: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
   });
 
   useEffect(() => { chequearActualizacion(); }, []);
