@@ -143,11 +143,16 @@ export default function PostItViewer({ visible, listas, onBorrar, onClose, inlin
         transform: expandedWidth ? [{ translateX: slideX }] : [{ scale: scaleAnim }, { translateX: slideX }] 
       }}>
         <View style={[
-          s.card, 
-          !inline && !cardStyle && !expandedWidth && s.cardDefault, 
-          inline && s.cardInline, 
-          cardStyle,
-          expandedWidth ? { width: expandedWidth, alignSelf: 'center' } : null,
+          s.card,
+          inline && s.cardInline,
+          !inline && !expandedWidth && s.cardDefault,
+          !expandedWidth && cardStyle,
+          expandedWidth && { 
+            width: expandedWidth, 
+            height: expandedWidth / 0.72,
+            maxHeight: '82%',
+            alignSelf: 'center' 
+          },
           { backgroundColor: c.bg }
         ]}>
           <View style={s.tapeWrap} pointerEvents="none">
