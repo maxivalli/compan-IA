@@ -340,11 +340,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // Registrar acá para poder medir lag_speech_end_ms correctamente.
       d.speechEndTsRef.current = Date.now();
       if (procesandoRef.current || enFlujoVozRef.current) return;
-      if (d.noMolestarRef.current) return;
+      if (d.noMolestarRef.current) { if (d.estadoRef.current === 'esperando') d.setEstado('esperando'); return; }
       if (d.estadoRef.current === 'pensando') return;
       // Bloquear transcripciones mientras Rosita habla (eco de TTS) o SR suspendido (juego activo)
       if (d.estadoRef.current === 'hablando') return;
-      if (srSuspendidoRef.current) return;
+      if (srSuspendidoRef.current) { if (d.estadoRef.current === 'esperando') d.setEstado('esperando'); return; }
       // Filtro de activación: solo responder si estamos en conversación activa (< 60s
       // desde la última respuesta de Rosita) o si el usuario la nombra explícitamente.
       // Evita que Rosita se meta en conversaciones de la sala que no van dirigidas a ella.
@@ -458,6 +458,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       unduckMusica();
       procesandoRef.current = false;
       procesandoDesdeRef.current = 0;
+      // Sincronizar visual con ref: si el ref volvió a 'esperando' pero el React state
+      // quedó en 'escuchando' (onPartial lo setea sin tocar el ref), resetearlo acá.
+      if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
       if (
         d.estadoRef.current === 'esperando'
         && !enFlujoVozRef.current
