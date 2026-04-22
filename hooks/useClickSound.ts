@@ -5,10 +5,21 @@ import * as Haptics from 'expo-haptics';
 export function useClickSound() {
   const player = useAudioPlayer(require('../assets/audio/click.mp3'));
 
-  // Calentar el player al montar para que el primer click suene sin demora.
-  // seekTo(0) sin play() fuerza la carga y decodificación del audio en background.
+  // Warmup real: un play() silencioso fuerza al decoder a inicializarse
+  // completamente al montar. Solo seekTo(0) no alcanza — el pipeline de
+  // audio de expo-audio se activa con el primer play().
   useEffect(() => {
-    try { player.seekTo(0); } catch {}
+    const warmup = async () => {
+      try {
+        player.muted = true;
+        player.play();
+        await new Promise<void>(r => setTimeout(r, 150));
+        player.pause();
+        player.seekTo(0);
+        player.muted = false;
+      } catch {}
+    };
+    warmup();
   }, []);
 
   const playClick = useCallback(() => {
