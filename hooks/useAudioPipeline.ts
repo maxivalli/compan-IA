@@ -325,9 +325,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     },
     onPartial: (texto) => {
-      // Partials de Deepgram = hay voz activa → mostrar waveform
+      // Partials de Deepgram = hay voz activa → mostrar waveform + badge rojo
       activarFeedbackSonido();
-      depsRef.current.onPartialReconocido?.(texto);
+      const d = depsRef.current;
+      // Solo actualiza visual (no estadoRef) para no romper los guards lógicos de SR.
+      if (d.estadoRef.current === 'esperando') d.setEstado('escuchando');
+      d.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
       if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
@@ -348,7 +351,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const enConversacion = !d.musicaActivaRef.current && Date.now() - d.ultimaCharlaRef.current < 60_000;
       const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const mencionaAsistente = textoNorm.includes(d.nombreAsistenteRef.current.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''));
-      if (!enConversacion && !mencionaAsistente) return;
+      if (!enConversacion && !mencionaAsistente) {
+        // Texto descartado por filtros → resetear visual 'escuchando' → 'esperando'
+        if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
+        return;
+      }
       if (d.musicaActivaRef.current) duckMusica();
       procesarTextoReconocido(texto).catch(() => {});
     },

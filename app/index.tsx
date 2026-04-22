@@ -256,12 +256,6 @@ export default function Index() {
   useEffect(() => {
     hintAnimSeqRef.current += 1;
     hintAnimRef.current?.stop();
-    if (estado !== 'esperando') {
-      hintActiveRef.current = false;
-      hintAnimRef.current = Animated.timing(hintOpacity, { toValue: 0, duration: 300, useNativeDriver: true });
-      hintAnimRef.current.start();
-      return;
-    }
     hintActiveRef.current = true;
     hintTranslate.setValue(20);
     hintScale.setValue(0.95);
@@ -306,7 +300,7 @@ export default function Index() {
       clearInterval(id);
       hintAnimRef.current?.stop();
     };
-  }, [estado, musicaActiva]);
+  }, [musicaActiva]);
 
   // ── Modal hint SOS ──────────────────────────────────────────────────────────
   const [hintSOS, setHintSOS] = useState(false);
@@ -919,7 +913,7 @@ export default function Index() {
               activeOpacity={hayFamiliaTelegram ? 1 : 1}
             >
               <LinearGradient colors={sosGradientOff} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                style={[StyleSheet.absoluteFill, { opacity: 0.50 }]} />
+                style={[StyleSheet.absoluteFill, { opacity: 0.88 }]} />
               <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
               <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
                 <LinearGradient colors={sosGradientOn} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
