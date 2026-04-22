@@ -1,34 +1,48 @@
 import { useCallback, useEffect } from 'react';
-import { useAudioPlayer } from 'expo-audio';
+import { createAudioPlayer, AudioPlayer } from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 
-export function useClickSound() {
-  const player = useAudioPlayer(require('../assets/audio/click.mp3'));
+// Mantener la referencia global, pero iniciarla lazily (en el cliente)
+// para evitar que crashee el servidor (SSR) de Expo Router o al evaluar el bundle.
+let globalClickPlayer: AudioPlayer | null = null;
 
-  // Warmup real: un play() silencioso fuerza al decoder a inicializarse
-  // completamente al montar. Solo seekTo(0) no alcanza — el pipeline de
-  // audio de expo-audio se activa con el primer play().
-  useEffect(() => {
-    const warmup = async () => {
+export function initClickSound() {
+  // Evitar SSR
+  if (typeof window === 'undefined' || globalClickPlayer) return;
+  try {
+    globalClickPlayer = createAudioPlayer(require('../assets/audio/click.mp3'));
+    // Warmup silencioso en el arranque
+    globalClickPlayer.muted = true;
+    globalClickPlayer.play();
+    setTimeout(() => {
       try {
-        player.muted = true;
-        player.play();
-        await new Promise<void>(r => setTimeout(r, 150));
-        player.pause();
-        player.seekTo(0);
-        player.muted = false;
+        if (globalClickPlayer) {
+          globalClickPlayer.pause();
+          globalClickPlayer.seekTo(0);
+          globalClickPlayer.muted = false;
+        }
       } catch {}
-    };
-    warmup();
+    }, 150);
+  } catch (err) {
+    console.warn('Error iniciando click player:', err);
+  }
+}
+
+export function useClickSound() {
+  useEffect(() => {
+    // Fallback por si acaso algún componente lo llama antes que el layout
+    initClickSound();
   }, []);
 
   const playClick = useCallback(() => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      player.seekTo(0);
-      player.play();
+      if (globalClickPlayer) {
+        globalClickPlayer.seekTo(0);
+        globalClickPlayer.play();
+      }
     } catch {}
-  }, [player]);
+  }, []);
 
   return { playClick };
 }

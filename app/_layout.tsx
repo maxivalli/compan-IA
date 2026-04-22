@@ -68,6 +68,8 @@ async function chequearActualizacion() {
 
 // ── Layout ───────────────────────────────────────────────────────────────────
 
+import { initClickSound } from '../hooks/useClickSound';
+
 export default function Layout() {
   // Carga Ionicons a nivel de layout, antes de que cualquier ícono renderice.
   // No bloqueamos render: el último render antes del primer frame ya tendrá la fuente.
@@ -75,7 +77,10 @@ export default function Layout() {
 
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
 
-  useEffect(() => { chequearActualizacion(); }, []);
+  useEffect(() => {
+    chequearActualizacion();
+    initClickSound();
+  }, []);
 
   useEffect(() => {
     if (__DEV__) return;
