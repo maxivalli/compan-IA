@@ -3,7 +3,6 @@ import { Tabs } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Updates from 'expo-updates';
 import { Platform, View, Text } from 'react-native';
-import { useFonts } from 'expo-font';
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
 
@@ -67,9 +66,6 @@ async function chequearActualizacion() {
 
 export default function Layout() {
   const [animSplashHecha, setAnimSplashHecha] = useState(false);
-  const [iconsLoaded, iconError] = useFonts({
-    Ionicons: require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf'),
-  });
 
   useEffect(() => { chequearActualizacion(); }, []);
 
@@ -88,7 +84,7 @@ export default function Layout() {
     return () => { ErrorUtils.setGlobalHandler(prevHandler); };
   }, []);
 
-  if (!animSplashHecha || (!iconsLoaded && !iconError)) {
+  if (!animSplashHecha) {
     return (
       <ErrorBoundary>
         <AnimatedSplash onDone={() => setAnimSplashHecha(true)} />
