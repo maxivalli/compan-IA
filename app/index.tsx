@@ -714,27 +714,26 @@ export default function Index() {
           ]}>
             {listas.length > 0
               ? (() => {
-                const PEEK = 9; // px que asoma cada carta de atrás
+                const PEEK   = 8;
+                const nExtra = Math.min(listas.length - 1, 2);
                 return (
                   <TouchableOpacity onPress={() => setMostrarListas(true)} activeOpacity={0.85} style={styles.displayInlineWrap}>
                     <View style={styles.previewDisplayFrame}>
-                      {listas.map((lista, i) => {
+                      {listas.slice(0, 3).map((lista, i) => {
                         const c = POSTIT_COLORES[i % POSTIT_COLORES.length];
-                        // i=0 es la carta frontal (mayor zIndex, sin offset)
-                        // i=1,2... son las cartas de fondo (menor zIndex, offset hacia abajo)
                         return (
                           <View
                             key={lista.id}
                             style={[styles.postItPreviewCard, {
                               position: 'absolute',
-                              top: i * PEEK,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
+                              top:    i * PEEK,
+                              left:   i === 0 ? 0 : 2,
+                              right:  i === 0 ? 0 : 2,
+                              bottom: (nExtra - i) * PEEK,
                               zIndex: listas.length - i,
                               backgroundColor: c.bg,
-                              transform: [
-                                { rotate: i === 0 ? '0deg' : i % 2 === 0 ? '-2deg' : '2deg' },
+                              transform: i === 0 ? [] : [
+                                { rotate: i % 2 === 0 ? '-2deg' : '2deg' },
                               ],
                             }]}
                           >
@@ -757,17 +756,22 @@ export default function Index() {
               : (
                 /* ── Display glass ── */
                 (() => {
-                  const climaEfectivo = climaObj;
+                  const climaEfectivo = climaObj ?? undefined;
                   const musicaEfectiva = musicaActiva;
-                  const dotHasAlert = !!(climaEfectivo?.codigoActual && CODIGOS_ADVERSOS.has(climaEfectivo.codigoActual)) || (climaEfectivo?.temperatura !== undefined && (climaEfectivo.temperatura >= 35 || climaEfectivo.temperatura <= 3));
+                  const codigoActual   = climaEfectivo?.codigoActual ?? 0;
+                  const tempEfectiva   = climaEfectivo?.temperatura;
+                  const tieneCodAlerta = codigoActual > 0 && CODIGOS_ADVERSOS.has(codigoActual);
+                  const tieneCalor     = (tempEfectiva ?? -1) >= 35;
+                  const tieneFrio      = (tempEfectiva ?? 999) <= 3;
+                  const dotHasAlert    = tieneCodAlerta || tieneCalor || tieneFrio;
                   const dotCount =
                     1 +
                     (musicaEfectiva ? 1 : 0) +
-                    (climaEfectivo?.temperatura != null ? 1 : 0) +
+                    (tempEfectiva != null ? 1 : 0) +
                     (dotHasAlert ? 1 : 0);
-                  const alertaTexto = climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura >= 35
+                  const alertaTexto = tieneCalor
                     ? 'Calor extremo'
-                    : climaEfectivo?.temperatura !== undefined && climaEfectivo.temperatura <= 3
+                    : tieneFrio
                       ? 'Frío extremo'
                       : (climaEfectivo?.descripcion || 'Alerta meteorológica');
                   const subFont = Math.max(12, Math.round(displayFontInfo * 0.38));
@@ -805,9 +809,9 @@ export default function Index() {
                             {/* Pantalla 1: Temperatura */}
                             {infoIdx === tempScreenIdx && climaEfectivo?.temperatura != null && (
                               <View style={{ alignItems: 'center' }}>
-                                <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{`${Math.round(climaEfectivo.temperatura)}°`}</Text>
+                                <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{`${Math.round(climaEfectivo?.temperatura ?? 0)}°`}</Text>
                                 <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
-                                  {climaEfectivo.descripcion}
+                                  {climaEfectivo?.descripcion}
                                 </Text>
                               </View>
                             )}
@@ -1049,12 +1053,7 @@ const styles = StyleSheet.create({
   previewDisplayFrame: {
     flex: 1,
     borderRadius: 18,
-    overflow: 'visible',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.38)',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    overflow: 'hidden',
   },
   infoText: {
     fontSize: fs(26),
