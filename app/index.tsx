@@ -713,19 +713,7 @@ export default function Index() {
         styles.ecualizadorWrap,
         { height: displayH, marginTop: Math.round(screenH * 0.05) },
       ]}>
-        {listas.length > 0 && mostrarListas && layoutMode === 'vertical'
-          ? (
-            <View style={styles.displayInlineWrap}>
-              <PostItViewer
-                visible={mostrarListas}
-                listas={listas}
-                onBorrar={(nombre) => { borrarListaVoz(nombre); }}
-                onClose={() => setMostrarListas(false)}
-                inline
-              />
-            </View>
-          )
-          : listas.length > 0
+        {listas.length > 0
           ? (() => {
               const PEEK = 10;
               return (
@@ -1030,14 +1018,13 @@ export default function Index() {
     </LinearGradient>
     </Pressable>
 
-    {layoutMode !== 'vertical' && (
-      <PostItViewer
-        visible={mostrarListas}
-        listas={listas}
-        onBorrar={(nombre) => { borrarListaVoz(nombre); }}
-        onClose={() => setMostrarListas(false)}
-      />
-    )}
+    <PostItViewer
+      visible={mostrarListas}
+      listas={listas}
+      onBorrar={(nombre) => { borrarListaVoz(nombre); }}
+      onClose={() => setMostrarListas(false)}
+      cardStyle={layoutMode === 'vertical' ? styles.postItCardExpanded : undefined}
+    />
     </>
   );
 }
@@ -1097,7 +1084,14 @@ const styles = StyleSheet.create({
   postItLinea:        { height: 5, width: '100%' },
   postItTitulo:       { fontSize: fs(28), fontWeight: '800', textTransform: 'capitalize' },
   postItPreviewBody:  { flex: 1, justifyContent: 'center', paddingHorizontal: 14, paddingVertical: 10 },
-  postItTituloPreview:{ fontSize: fs(15), fontWeight: '800', textTransform: 'capitalize', lineHeight: fs(18) },
+  postItTituloPreview:{ fontSize: fs(21), fontWeight: '800', textTransform: 'capitalize', lineHeight: fs(24), textAlign: 'center' },
+  postItCardExpanded: {
+    width: '92%',
+    aspectRatio: 0.72,
+    height: undefined,
+    maxWidth: 520,
+    maxHeight: '82%',
+  },
   btnGlow:            { position: 'absolute' },
   btnShadow:          { shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.45, shadowRadius: 18, elevation: 10 },
   boton:              { backgroundColor: '#FAFAFA', alignItems: 'center', justifyContent: 'center' },
