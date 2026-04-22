@@ -508,6 +508,8 @@ export function useBrain(deps: BrainDeps) {
   // Ref cancelable para el timer de fallback de radio (10s) — evita que un stream
   // anterior siga corriendo cuando el usuario pide otra música antes de que pasen los 10s.
   const musicaFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Watchdog periódico: detecta y reconecta el stream si se cae mientras música activa.
+  const musicaWatchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Ejecución especulativa de Claude (Deepgram partials) ────────────────────
   // Ejecución especulativa de Claude: arranca con el partial ≥8 palabras.
@@ -886,6 +888,10 @@ export function useBrain(deps: BrainDeps) {
       clearTimeout(musicaFallbackTimerRef.current);
       musicaFallbackTimerRef.current = null;
     }
+    if (musicaWatchdogRef.current) {
+      clearInterval(musicaWatchdogRef.current);
+      musicaWatchdogRef.current = null;
+    }
     // Marcar música activa ANTES de hablar: así el cleanup de hablar() no reinicia SR
     // cuando la respuesta TTS termina (o falla con no-start). musicaActivaRef es la guardia
     // que usan el watchdog y el cleanup de hablar() para decidir si arrancar SR.
@@ -925,8 +931,19 @@ export function useBrain(deps: BrainDeps) {
           // currentTime es 0 en streams de radio en vivo (Icecast/Shoutcast no lo avanza).
           // Usar playerMusica.playing como indicador de que el stream conectó correctamente.
           if (d.playerMusica.playing) {
-            // Stream confirmado como funcionando → guardar en caché
+            // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
+            if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
+            musicaWatchdogRef.current = setInterval(() => {
+              if (!d.musicaActivaRef.current) {
+                clearInterval(musicaWatchdogRef.current!);
+                musicaWatchdogRef.current = null;
+                return;
+              }
+              if (!d.playerMusica.playing) {
+                try { d.playerMusica.play(); } catch {}
+              }
+            }, 8000);
             return;
           }
           // Stream no arrancó → invalidar caché para que la próxima vez busque URL fresca
@@ -949,6 +966,17 @@ export function useBrain(deps: BrainDeps) {
                 if (!d.musicaActivaRef.current) return;
                 if (d.playerMusica.playing) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
+                  if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
+                  musicaWatchdogRef.current = setInterval(() => {
+                    if (!d.musicaActivaRef.current) {
+                      clearInterval(musicaWatchdogRef.current!);
+                      musicaWatchdogRef.current = null;
+                      return;
+                    }
+                    if (!d.playerMusica.playing) {
+                      try { d.playerMusica.play(); } catch {}
+                    }
+                  }, 8000);
                   return;
                 }
                 await hablarError('No pude conectar con esa radio ahora. ¿Querés que intente con otra?');
