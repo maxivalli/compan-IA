@@ -255,6 +255,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const player       = useAudioPlayer(null);
   const playerMusica = useAudioPlayer(null);
 
+  // Callback mutable: useRosita lo conecta con brain.limpiarTimersMusica
+  // para que pararMusica() invalide los callbacks async de useBrain inmediatamente.
+  const onMusicaStoppedRef = useRef<(() => void) | null>(null);
+
   // ── Estado propio del pipeline ────────────────────────────────────────────
   const [silbando,         setSilbando]         = useState(false);
   const [detectandoSonido, setDetectandoSonido] = useState(false);
@@ -576,13 +580,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     playerMusica.pause();
     depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);
-    // Resetear solo el cooldown de inactividad (ultimaActividadRef) para que
-    // el tiempo de música no cuente como "2 horas sin actividad" y no dispare
-    // una charla proactiva inmediata. NO se resetea ultimaCharlaRef: el usuario
-    // debe nombrar a Rosita para que la escuche después de parar la música.
+    // Invalidar callbacks async de useBrain (watchdog, fallback timer)
+    // ANTES de que el useEffect de musicaActiva corra — esto evita la race condition
+    // donde un callback async en vuelo puede hacer replace+play después de pause.
+    onMusicaStoppedRef.current?.();
     depsRef.current.ultimaActividadRef.current = Date.now();
-    // Rearrancar SR después de parar la música — la música lo había detenido
-    // intencionalmente y nadie más lo reactiva al parar manualmente.
     setTimeout(() => iniciarSpeechRecognition(), 300);
   }
   function detenerWakeSR() {
@@ -1171,6 +1173,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     reanudarMusica,
     despertarDG,
     arranqueFrioRef,
+    // Ref mutable: useRosita conecta con brain.limpiarTimersMusica
+    onMusicaStoppedRef,
 
     // SR y escucha manual
     iniciarSpeechRecognition,

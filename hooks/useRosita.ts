@@ -252,6 +252,9 @@ export function useRosita() {
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
   brainRef.current = brain;
+  // Conectar pararMusica() del pipeline con limpiarTimersMusica() del brain
+  // para que al parar música se invaliden inmediatamente los callbacks async (watchdog, fallback)
+  pipeline.onMusicaStoppedRef.current = brain.limpiarTimersMusica;
 
   // ── Detección de presencia por cámara frontal ─────────────────────────────────
   const hablarPresenciaRef = useRef<((texto: string) => Promise<void>) | null>(null);

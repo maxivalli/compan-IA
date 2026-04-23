@@ -516,6 +516,10 @@ export function useBrain(deps: BrainDeps) {
   const musicaFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Watchdog periódico: detecta y reconecta el stream si se cae mientras música activa.
   const musicaWatchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Session ID: se incrementa en cada ejecutarMusica y en limpiarTimersMusica.
+  // Los callbacks async comparan su session capturada con el valor actual
+  // para auto-invalidarse si la música fue parada o cambiada.
+  const musicaSessionRef = useRef(0);
 
   // ── Ejecución especulativa de Claude (Deepgram partials) ────────────────────
   // Ejecución especulativa de Claude: arranca con el partial ≥8 palabras.
@@ -889,15 +893,10 @@ export function useBrain(deps: BrainDeps) {
   async function ejecutarMusica(generoMusica: string, respuesta: string, nuevoHistorial: Mensaje[], ackYaDicho = false): Promise<void> {
     const d = depsRef.current;
     d.setExpresion('neutral');
-    // Cancelar el timer de fallback de un stream anterior si todavía está pendiente
-    if (musicaFallbackTimerRef.current) {
-      clearTimeout(musicaFallbackTimerRef.current);
-      musicaFallbackTimerRef.current = null;
-    }
-    if (musicaWatchdogRef.current) {
-      clearInterval(musicaWatchdogRef.current);
-      musicaWatchdogRef.current = null;
-    }
+    // Invalidar cualquier callback async de una sesión anterior
+    limpiarTimersMusica();
+    // Nueva sesión: cualquier callback con session anterior se auto-invalida
+    const session = ++musicaSessionRef.current;
     // Marcar música activa ANTES de hablar: así el cleanup de hablar() no reinicia SR
     // cuando la respuesta TTS termina (o falla con no-start). musicaActivaRef es la guardia
     // que usan el watchdog y el cleanup de hablar() para decidir si arrancar SR.
@@ -911,9 +910,12 @@ export function useBrain(deps: BrainDeps) {
       const comoDetener = d.isBleConectado?.() ? 'tocá el botón.' : 'tocá la pantalla.';
       await d.hablar(`${respuesta} Para detenerla, ${comoDetener}`);
     }
+    // Si la sesión cambió mientras hablábamos (ej: el usuario pidió otra radio), abortar
+    if (session !== musicaSessionRef.current) return;
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
     const urlStream = await streamPromise;
+    if (session !== musicaSessionRef.current) return;
     if (urlStream) {
       try {
         d.playerMusica.replace({ uri: urlStream });
@@ -930,70 +932,68 @@ export function useBrain(deps: BrainDeps) {
         // SR queda parado mientras suena música — se reactiva en pararMusica()
         if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
         d.expresionTimerRef.current = setTimeout(() => d.setExpresion('neutral'), 5000);
-        // Timer cancelable: si el usuario pide otra radio antes de 10s,
-        // la ref se limpiará en el siguiente ejecutarMusica antes de reprogramar.
+        // Verificación a los 30s: comprobar que el stream siga vivo.
+        // Si playing=false, dar hasta 4 reintentos de 3s antes de ir al fallback.
         if (musicaFallbackTimerRef.current) clearTimeout(musicaFallbackTimerRef.current);
         musicaFallbackTimerRef.current = setTimeout(async () => {
           musicaFallbackTimerRef.current = null;
+          if (session !== musicaSessionRef.current) return;
           if (!d.musicaActivaRef.current) return;
-          // currentTime es 0 en streams de radio en vivo (Icecast/Shoutcast no lo avanza).
-          // Usar playerMusica.playing como indicador de que el stream conectó correctamente.
-          // Dar 3s de margen extra si el primer check cae en un momento de microbuffering.
+          // Dar hasta 4 intentos de 3s (12s extra) para confirmar que el stream anda.
+          // Esto evita falsos negativos por microbuffering momentáneo.
           let estaAndando = d.playerMusica.playing;
           if (!estaAndando) {
-            await new Promise(r => setTimeout(r, 3000));
-            if (!d.musicaActivaRef.current) return;
-            estaAndando = d.playerMusica.playing;
+            for (let intento = 0; intento < 4; intento++) {
+              await new Promise(r => setTimeout(r, 3000));
+              if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
+              if (d.playerMusica.playing) { estaAndando = true; break; }
+            }
           }
           if (estaAndando) {
             // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
             let wdLastCt = -1; let wdStuck = 0; let wdNotPlaying = 0;
-            const wdUrl = urlStream; // capturar URL activa al iniciar el watchdog
+            const wdUrl = urlStream;
             musicaWatchdogRef.current = setInterval(() => {
-              if (!d.musicaActivaRef.current) {
+              if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) {
                 clearInterval(musicaWatchdogRef.current!);
                 musicaWatchdogRef.current = null;
                 return;
               }
               const ct = d.playerMusica.currentTime;
               if (!d.playerMusica.playing) {
-                // No reconectar inmediatamente: Icecast puede tener playing=false momentáneamente
-                // por microbuffering. Esperar 4 ticks consecutivos (~32s) antes de reconectar.
                 wdNotPlaying++;
                 wdStuck = 0; wdLastCt = ct;
-                if (wdNotPlaying >= 4 && d.musicaActivaRef.current) {
-                  // Cooldown: -2 da ~48s antes de considerar otra reconexión tras esta
+                if (wdNotPlaying >= 4) {
                   wdNotPlaying = -2;
-                  if (!d.musicaActivaRef.current) return; // re-check por si pararon mientras tanto
+                  if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                   try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
                 }
                 return;
               }
               wdNotPlaying = 0;
-              // HLS stall: currentTime dejó de avanzar 4 ticks seguidos (~32s) → reconectar
               if (ct > 0) {
                 if (ct === wdLastCt) {
                   wdStuck++;
                   if (wdStuck >= 4) {
                     wdStuck = -2; wdLastCt = -1;
-                    if (d.musicaActivaRef.current) {
-                      try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
-                    }
+                    if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
+                    try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
                   }
                 } else { wdStuck = 0; }
                 wdLastCt = ct;
               }
-              // currentTime === 0: stream Icecast (normal) — playing=false lo maneja arriba
             }, 8000);
             return;
           }
           // Stream no arrancó → invalidar caché para que la próxima vez busque URL fresca
+          if (session !== musicaSessionRef.current) return;
           AsyncStorage.removeItem(`radio_cache_v4_${generoMusica.toLowerCase().trim()}`).catch(() => {});
           const altUrl = getFallbackAlt(generoMusica, urlStream);
 
           async function hablarError(texto: string) {
+            if (session !== musicaSessionRef.current) return;
             d.pararMusica();
             d.pararSRIntencional();
             await new Promise(r => setTimeout(r, 300));
@@ -1003,17 +1003,18 @@ export function useBrain(deps: BrainDeps) {
 
           if (altUrl) {
             try {
+              if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
               d.playerMusica.replace({ uri: altUrl });
               d.playerMusica.play();
               setTimeout(async () => {
-                if (!d.musicaActivaRef.current) return;
+                if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                 if (d.playerMusica.playing) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
                   if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
                   let wdLastCt2 = -1; let wdStuck2 = 0; let wdNotPlaying2 = 0;
-                  const wdUrl2 = altUrl; // capturar URL activa
+                  const wdUrl2 = altUrl;
                   musicaWatchdogRef.current = setInterval(() => {
-                    if (!d.musicaActivaRef.current) {
+                    if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) {
                       clearInterval(musicaWatchdogRef.current!);
                       musicaWatchdogRef.current = null;
                       return;
@@ -1022,9 +1023,9 @@ export function useBrain(deps: BrainDeps) {
                     if (!d.playerMusica.playing) {
                       wdNotPlaying2++;
                       wdStuck2 = 0; wdLastCt2 = ct;
-                      if (wdNotPlaying2 >= 4 && d.musicaActivaRef.current) {
+                      if (wdNotPlaying2 >= 4) {
                         wdNotPlaying2 = -2;
-                        if (!d.musicaActivaRef.current) return;
+                        if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                         try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
                       }
                       return;
@@ -1035,9 +1036,8 @@ export function useBrain(deps: BrainDeps) {
                         wdStuck2++;
                         if (wdStuck2 >= 4) {
                           wdStuck2 = -2; wdLastCt2 = -1;
-                          if (d.musicaActivaRef.current) {
-                            try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
-                          }
+                          if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
+                          try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
                         }
                       } else { wdStuck2 = 0; }
                       wdLastCt2 = ct;
@@ -2122,6 +2122,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
   // ── Limpieza de timers de música (llamada desde useRosita al parar) ──────────
   function limpiarTimersMusica() {
+    // Incrementar sesión: invalida cualquier callback async en vuelo
+    // (setTimeout callbacks que ya empezaron a ejecutar y tienen awaits pendientes)
+    musicaSessionRef.current++;
     if (musicaWatchdogRef.current) {
       clearInterval(musicaWatchdogRef.current);
       musicaWatchdogRef.current = null;
