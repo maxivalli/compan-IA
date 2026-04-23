@@ -54,7 +54,17 @@ export function WaveformDetectando({
 
 // ── Ecualizador de música ─────────────────────────────────────────────────────
 
-export function AnimacionMusica() {
+export function AnimacionMusica({
+  barWidth = 4,
+  barHeight = 28,
+  gap = 3,
+  color = '#33FF66',
+}: {
+  barWidth?: number;
+  barHeight?: number;
+  gap?: number;
+  color?: string;
+} = {}) {
   const alturas = useRef([0.4, 0.8, 0.5, 1.0, 0.6, 0.3, 0.7].map(v => new Animated.Value(v))).current;
 
   useEffect(() => {
@@ -72,11 +82,15 @@ export function AnimacionMusica() {
   }, []);
 
   return (
-    <View style={s.ecualizador}>
+    <View style={[s.ecualizador, { gap, height: barHeight }]}>
       {alturas.map((bar, i) => (
         <Animated.View
           key={i}
-          style={[s.barra, { transform: [{ scaleY: bar }] }]}
+          style={[
+            s.barra,
+            { width: barWidth, height: barHeight, borderRadius: Math.max(2, Math.round(barWidth / 2)), backgroundColor: color },
+            { transform: [{ scaleY: bar }] },
+          ]}
         />
       ))}
     </View>
@@ -342,7 +356,7 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
 // ── Estilos ───────────────────────────────────────────────────────────────────
 
 const s = StyleSheet.create({
-  ecualizador: { flexDirection: 'row', alignItems: 'center', gap: 3, height: 28 },
+  ecualizador: { flexDirection: 'row', alignItems: 'center' },
   barra:       { width: 4, height: 28, borderRadius: 2, backgroundColor: '#33FF66' },
   waveform:    { flexDirection: 'row', alignItems: 'center', gap: 4, height: 26 },
   waveBar:     { width: 5, height: 26, borderRadius: 3, backgroundColor: '#ef4444' },
