@@ -470,7 +470,8 @@ export default function Index() {
 
   // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
   const acciones = useAccionesRosita({
-    estado, musicaActiva, musicaActivaRef: refs.musicaActivaRef, noMolestar,
+    estado, musicaActiva, musicaActivaRef: refs.musicaActivaRef,
+    bloquearReanudarMusicaRef: refs.bloquearReanudarMusicaRef, noMolestar,
     pararMusica, dispararSOS,
     iniciarFlujoFoto,
     setNoMolestar,

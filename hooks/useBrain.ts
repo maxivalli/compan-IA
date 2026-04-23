@@ -458,9 +458,10 @@ export interface BrainDeps {
   arranqueFrioRef:     React.MutableRefObject<boolean>;
   detenerSilbido:      () => void;
   silbidoHabilitadoRef: React.MutableRefObject<boolean>;
-  pararMusica:         () => void;
-  cerrarDGParaMusica:  () => void;
-  playerMusica:        AudioPlayerLike;
+  pararMusica:               () => void;
+  cerrarDGParaMusica:        () => void;
+  playerMusica:              AudioPlayerLike;
+  bloquearReanudarMusicaRef?: React.MutableRefObject<boolean>;
   iniciarSpeechRecognition: () => void;
   pararSRIntencional: () => void;
   setNoMolestar: (v: boolean) => void;
@@ -895,6 +896,8 @@ export function useBrain(deps: BrainDeps) {
     d.setExpresion('neutral');
     // Invalidar cualquier callback async de una sesión anterior
     limpiarTimersMusica();
+    // El usuario pidió música explícitamente → limpiar bloqueo de reinicio manual
+    if (d.bloquearReanudarMusicaRef) d.bloquearReanudarMusicaRef.current = false;
     // Nueva sesión: cualquier callback con session anterior se auto-invalida
     const session = ++musicaSessionRef.current;
     // Marcar música activa ANTES de hablar: así el cleanup de hablar() no reinicia SR
@@ -953,7 +956,7 @@ export function useBrain(deps: BrainDeps) {
             // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-            let wdLastCt = -1; let wdStuck = 0; let wdNotPlaying = 0;
+            let wdLastCt = -1; let wdStuck = 0; let wdNotPlaying = 0; let wdReconnects = 0;
             const wdUrl = urlStream;
             musicaWatchdogRef.current = setInterval(() => {
               if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) {
@@ -966,6 +969,14 @@ export function useBrain(deps: BrainDeps) {
                 wdNotPlaying++;
                 wdStuck = 0; wdLastCt = ct;
                 if (wdNotPlaying >= 4) {
+                  // Tras 3 reconexiones fallidas, detener el watchdog silenciosamente
+                  // para no quedar en un loop infinito de cuts/reconexiones.
+                  if (wdReconnects >= 3) {
+                    clearInterval(musicaWatchdogRef.current!);
+                    musicaWatchdogRef.current = null;
+                    return;
+                  }
+                  wdReconnects++;
                   wdNotPlaying = -2;
                   if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                   try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
@@ -973,10 +984,17 @@ export function useBrain(deps: BrainDeps) {
                 return;
               }
               wdNotPlaying = 0;
+              wdReconnects = 0; // stream funcionando → resetear contador de reconexiones
               if (ct > 0) {
                 if (ct === wdLastCt) {
                   wdStuck++;
                   if (wdStuck >= 4) {
+                    if (wdReconnects >= 3) {
+                      clearInterval(musicaWatchdogRef.current!);
+                      musicaWatchdogRef.current = null;
+                      return;
+                    }
+                    wdReconnects++;
                     wdStuck = -2; wdLastCt = -1;
                     if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                     try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
@@ -1011,7 +1029,7 @@ export function useBrain(deps: BrainDeps) {
                 if (d.playerMusica.playing) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
                   if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-                  let wdLastCt2 = -1; let wdStuck2 = 0; let wdNotPlaying2 = 0;
+                  let wdLastCt2 = -1; let wdStuck2 = 0; let wdNotPlaying2 = 0; let wdReconnects2 = 0;
                   const wdUrl2 = altUrl;
                   musicaWatchdogRef.current = setInterval(() => {
                     if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) {
@@ -1024,6 +1042,12 @@ export function useBrain(deps: BrainDeps) {
                       wdNotPlaying2++;
                       wdStuck2 = 0; wdLastCt2 = ct;
                       if (wdNotPlaying2 >= 4) {
+                        if (wdReconnects2 >= 3) {
+                          clearInterval(musicaWatchdogRef.current!);
+                          musicaWatchdogRef.current = null;
+                          return;
+                        }
+                        wdReconnects2++;
                         wdNotPlaying2 = -2;
                         if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                         try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
@@ -1031,10 +1055,17 @@ export function useBrain(deps: BrainDeps) {
                       return;
                     }
                     wdNotPlaying2 = 0;
+                    wdReconnects2 = 0;
                     if (ct > 0) {
                       if (ct === wdLastCt2) {
                         wdStuck2++;
                         if (wdStuck2 >= 4) {
+                          if (wdReconnects2 >= 3) {
+                            clearInterval(musicaWatchdogRef.current!);
+                            musicaWatchdogRef.current = null;
+                            return;
+                          }
+                          wdReconnects2++;
                           wdStuck2 = -2; wdLastCt2 = -1;
                           if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
                           try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
@@ -1838,6 +1869,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
       // ── PARAR_MUSICA ──
       if (parsed.tagPrincipal === 'PARAR_MUSICA') {
         d.pararMusica(); // incluye musicaActivaRef.current = false (playerMusica.pause solo no lo setea)
+        if (d.bloquearReanudarMusicaRef) d.bloquearReanudarMusicaRef.current = true;
         // Detener SR antes de hablar: el effect [musicaActiva] reinicia el SR con 400ms
         // delay que podría capturar el audio del TTS como input del usuario.
         d.pararSRIntencional();

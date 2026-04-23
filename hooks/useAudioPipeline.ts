@@ -259,6 +259,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // para que pararMusica() invalide los callbacks async de useBrain inmediatamente.
   const onMusicaStoppedRef = useRef<(() => void) | null>(null);
 
+  // Cuando el usuario para la música manualmente (botón o voz), este flag bloquea
+  // que reanudarMusica() la reinicie (p.ej. al terminar una notificación de Telegram).
+  // Se limpia únicamente cuando ejecutarMusica() arranca una nueva sesión de música.
+  const bloquearReanudarMusicaRef = useRef(false);
+
   // ── Estado propio del pipeline ────────────────────────────────────────────
   const [silbando,         setSilbando]         = useState(false);
   const [detectandoSonido, setDetectandoSonido] = useState(false);
@@ -585,7 +590,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // donde un callback async en vuelo puede hacer replace+play después de pause.
     onMusicaStoppedRef.current?.();
     depsRef.current.ultimaActividadRef.current = Date.now();
-    setTimeout(() => iniciarSpeechRecognition(), 300);
+    // Pauses diferidas: cubren la race condition nativa donde el watchdog ya encoló
+    // replace(uri)+play() antes de que llegara este pause() al bridge nativo.
+    setTimeout(() => { if (!depsRef.current.musicaActivaRef.current) { try { playerMusica.pause(); } catch {} } }, 200);
+    setTimeout(() => { if (!depsRef.current.musicaActivaRef.current) { try { playerMusica.pause(); } catch {} } }, 600);
+    setTimeout(() => iniciarSpeechRecognition(), 800);
   }
   function detenerWakeSR() {
     wakeSRActiveRef.current  = false;
@@ -666,6 +675,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     detenerDG();
   }
   function reanudarMusica() {
+    if (bloquearReanudarMusicaRef.current) return;
     playerMusica.play();
     depsRef.current.setMusicaActiva(true);
   }
@@ -1173,6 +1183,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     reanudarMusica,
     despertarDG,
     arranqueFrioRef,
+    bloquearReanudarMusicaRef,
     // Ref mutable: useRosita conecta con brain.limpiarTimersMusica
     onMusicaStoppedRef,
 

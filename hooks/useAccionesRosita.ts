@@ -20,6 +20,7 @@ export interface AccionesRositaDeps {
   estado:                      EstadoRosita;
   musicaActiva:                boolean;
   musicaActivaRef?:            React.MutableRefObject<boolean>;
+  bloquearReanudarMusicaRef?:  React.MutableRefObject<boolean>;
   noMolestar:                  boolean;
   pararMusica:                 () => void;
   iniciarFlujoFoto:            () => void;
@@ -38,10 +39,14 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
 
   /**
    * Acción principal: para la música si está sonando (toque en cara, BLE beacon).
+   * Siempre marca la intención explícita del usuario para bloquear reinicios
+   * automáticos (p.ej. al terminar una notificación de Telegram que pausó la música).
    */
   const toggleTalkOrStopMusic = useCallback(() => {
     const d = depsRef.current;
     if (d.musicaActiva) { d.pararMusica(); }
+    // Bloquear reanudarMusica() aunque musicaActiva ya sea false (p.ej. pausa por notificación)
+    if (d.bloquearReanudarMusicaRef) d.bloquearReanudarMusicaRef.current = true;
   }, []);
 
   /** Envía alerta SOS a todos los contactos familiares. */
@@ -82,6 +87,7 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
     const d = depsRef.current;
     if (d.musicaActiva || d.musicaActivaRef?.current) {
       d.pararMusica();
+      if (d.bloquearReanudarMusicaRef) d.bloquearReanudarMusicaRef.current = true;
       return;
     }
     // Alterna no molestar
