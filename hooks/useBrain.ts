@@ -49,7 +49,7 @@ import { enviarAlertaTelegram } from '../lib/telegram';
 
 export type Mensaje = { role: 'user' | 'assistant'; content: string };
 export type EstadoRosita = 'esperando' | 'escuchando' | 'pensando' | 'hablando';
-export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche';
+export type CategoriaRapida = 'saludo' | 'gracias' | 'de_nada' | 'despedida' | 'afirmacion' | 'no_escuche' | 'musica';
 
 const RAPIDAS_HABILITADAS = true;
 
@@ -84,6 +84,11 @@ export const RESPUESTAS_RAPIDAS: Record<CategoriaRapida, { femenina: string[]; m
     masculina: ['No te escuché bien, ¿me repetís?', 'Perdoname, no llegué a escucharte. ¿Me decís de nuevo?', 'No te escuché bien, ¿me contás otra vez?', '¿Podés repetirme eso?'],
     emotion:   'neutral',
   },
+  musica: {
+    femenina:  ['¡Dale!', '¡Enseguida!', '¡Claro que sí!', '¡Ahí va!'],
+    masculina: ['¡Dale!', '¡Enseguida!', '¡Claro que sí!', '¡Ahí va!'],
+    emotion:   'feliz',
+  },
 };
 
 const EXPRESION_RAPIDA: Record<CategoriaRapida, Expresion> = {
@@ -93,6 +98,7 @@ const EXPRESION_RAPIDA: Record<CategoriaRapida, Expresion> = {
   despedida: 'neutral',
   afirmacion: 'feliz',
   no_escuche: 'neutral',
+  musica: 'feliz',
 };
 
 // ── Frases del sistema (sin variante de género) ──────────────────────────────
@@ -880,7 +886,7 @@ export function useBrain(deps: BrainDeps) {
     } catch {}
   }
 
-  async function ejecutarMusica(generoMusica: string, respuesta: string, nuevoHistorial: Mensaje[]): Promise<void> {
+  async function ejecutarMusica(generoMusica: string, respuesta: string, nuevoHistorial: Mensaje[], ackYaDicho = false): Promise<void> {
     const d = depsRef.current;
     d.setExpresion('neutral');
     // Cancelar el timer de fallback de un stream anterior si todavía está pendiente
@@ -901,8 +907,10 @@ export function useBrain(deps: BrainDeps) {
     d.cerrarDGParaMusica();
     const streamPromise = buscarRadio(generoMusica);
     logCliente('rosita_msg', { tag: 'MUSICA', texto: respuesta.slice(0, 500) });
-    const comoDetener = d.isBleConectado?.() ? 'tocá el botón.' : 'tocá la pantalla.';
-    await d.hablar(`${respuesta} Para detenerla, ${comoDetener}`);
+    if (!ackYaDicho) {
+      const comoDetener = d.isBleConectado?.() ? 'tocá el botón.' : 'tocá la pantalla.';
+      await d.hablar(`${respuesta} Para detenerla, ${comoDetener}`);
+    }
     d.setEstado('pensando');
     d.estadoRef.current = 'pensando';
     const urlStream = await streamPromise;
@@ -930,11 +938,18 @@ export function useBrain(deps: BrainDeps) {
           if (!d.musicaActivaRef.current) return;
           // currentTime es 0 en streams de radio en vivo (Icecast/Shoutcast no lo avanza).
           // Usar playerMusica.playing como indicador de que el stream conectó correctamente.
-          if (d.playerMusica.playing) {
+          // Dar 3s de margen extra si el primer check cae en un momento de microbuffering.
+          let estaAndando = d.playerMusica.playing;
+          if (!estaAndando) {
+            await new Promise(r => setTimeout(r, 3000));
+            if (!d.musicaActivaRef.current) return;
+            estaAndando = d.playerMusica.playing;
+          }
+          if (estaAndando) {
             // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-            let wdLastCt = -1; let wdStuck = 0;
+            let wdLastCt = -1; let wdStuck = 0; let wdNotPlaying = 0;
             const wdUrl = urlStream; // capturar URL activa al iniciar el watchdog
             musicaWatchdogRef.current = setInterval(() => {
               if (!d.musicaActivaRef.current) {
@@ -944,19 +959,25 @@ export function useBrain(deps: BrainDeps) {
               }
               const ct = d.playerMusica.currentTime;
               if (!d.playerMusica.playing) {
+                // No reconectar inmediatamente: Icecast puede tener playing=false momentáneamente
+                // por microbuffering. Esperar 4 ticks consecutivos (~32s) antes de reconectar.
+                wdNotPlaying++;
                 wdStuck = 0; wdLastCt = ct;
-                // Solo reconectar si la música sigue activa y la URL no cambió
-                if (d.musicaActivaRef.current) {
+                if (wdNotPlaying >= 4 && d.musicaActivaRef.current) {
+                  // Cooldown: -2 da ~48s antes de considerar otra reconexión tras esta
+                  wdNotPlaying = -2;
+                  if (!d.musicaActivaRef.current) return; // re-check por si pararon mientras tanto
                   try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
                 }
                 return;
               }
-              // HLS stall: currentTime dejó de avanzar 2 ticks seguidos (~16s) → reconectar
+              wdNotPlaying = 0;
+              // HLS stall: currentTime dejó de avanzar 4 ticks seguidos (~32s) → reconectar
               if (ct > 0) {
                 if (ct === wdLastCt) {
                   wdStuck++;
-                  if (wdStuck >= 2) {
-                    wdStuck = 0; wdLastCt = -1;
+                  if (wdStuck >= 4) {
+                    wdStuck = -2; wdLastCt = -1;
                     if (d.musicaActivaRef.current) {
                       try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
                     }
@@ -969,7 +990,7 @@ export function useBrain(deps: BrainDeps) {
             return;
           }
           // Stream no arrancó → invalidar caché para que la próxima vez busque URL fresca
-          AsyncStorage.removeItem(`radio_cache_v3_${generoMusica.toLowerCase().trim()}`).catch(() => {});
+          AsyncStorage.removeItem(`radio_cache_v4_${generoMusica.toLowerCase().trim()}`).catch(() => {});
           const altUrl = getFallbackAlt(generoMusica, urlStream);
 
           async function hablarError(texto: string) {
@@ -989,7 +1010,7 @@ export function useBrain(deps: BrainDeps) {
                 if (d.playerMusica.playing) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
                   if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-                  let wdLastCt2 = -1; let wdStuck2 = 0;
+                  let wdLastCt2 = -1; let wdStuck2 = 0; let wdNotPlaying2 = 0;
                   const wdUrl2 = altUrl; // capturar URL activa
                   musicaWatchdogRef.current = setInterval(() => {
                     if (!d.musicaActivaRef.current) {
@@ -999,17 +1020,21 @@ export function useBrain(deps: BrainDeps) {
                     }
                     const ct = d.playerMusica.currentTime;
                     if (!d.playerMusica.playing) {
+                      wdNotPlaying2++;
                       wdStuck2 = 0; wdLastCt2 = ct;
-                      if (d.musicaActivaRef.current) {
+                      if (wdNotPlaying2 >= 4 && d.musicaActivaRef.current) {
+                        wdNotPlaying2 = -2;
+                        if (!d.musicaActivaRef.current) return;
                         try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
                       }
                       return;
                     }
+                    wdNotPlaying2 = 0;
                     if (ct > 0) {
                       if (ct === wdLastCt2) {
                         wdStuck2++;
-                        if (wdStuck2 >= 2) {
-                          wdStuck2 = 0; wdLastCt2 = -1;
+                        if (wdStuck2 >= 4) {
+                          wdStuck2 = -2; wdLastCt2 = -1;
                           if (d.musicaActivaRef.current) {
                             try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
                           }
@@ -1217,8 +1242,8 @@ export function useBrain(deps: BrainDeps) {
     const RADIOS_INEQUIVOCAS = /\b(radio\s+\d+|radio10|radio 10|mitre|cadena 3|cadena3|continental|rivadavia|la red|lared|metro|aspen|la 100|la100|con vos|convos|urbana|destape|mega|fm\s+vida|radio\s+vida|del plata|delplata|lt8|lv3)\b/;
     // Géneros ambiguos (salsa/rock/pop son también comida o contexto no-musical):
     // solo se activan si hay un verbo explícito de música antes o después
-    const GENEROS_AMBIGUOS   = /\b(tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical)\b/;
-    const VERBO_MUSICA       = /\b(pon[eé]|poneme|poné|pone|quiero escuchar|quiero oír|mand[aá]|dej[aá])\b/;
+    const GENEROS_AMBIGUOS   = /\b(tango|bolero|folklore|folclore|romantica|romántica|clasica|clásica|jazz|pop|cumbia|cuarteto|rock|salsa|tropical|zamba|chacarera|vals|chamame|cueca)\b/;
+    const VERBO_MUSICA       = /\b(pon[eé]|poneme|poné|pone|quiero escuchar|quiero oír|mand[aá]|dej[aá]|cant[aá](me)?)\b/;
     const pideMusicaDirecta =
       // "poneme música", "pone música", "quiero música", "poné música", etc.
       // Incluye poneme/poné explícitamente porque \bpone\b no matchea "poneme" como palabra completa.
@@ -1230,7 +1255,7 @@ export function useBrain(deps: BrainDeps) {
       // Si detectarGenero matcheó una clave conocida, usarla — si no, pasar el texto limpio
       // directamente a buscarRadio como búsqueda abierta en Radio Browser.
       const claveMusica = generoDirecto || textoNorm
-        .replace(/\b(pon[eé]|pone|quiero|mand[aá]|dej[aá]|pone|poné|quiero escuchar|pon[eé]me|poneme)\b/gi, '')
+        .replace(/\b(pon[eé]|pone|quiero|mand[aá]|dej[aá]|pone|poné|quiero escuchar|pon[eé]me|poneme|cant[aá]me?)\b/gi, '')
         .replace(/\b(musica|música|radio|fm|la radio|una radio)\b/gi, '')
         .replace(/[^a-záéíóúüñ0-9\s]/gi, '') // eliminar puntuación residual (ej: ".")
         .trim();
@@ -1239,13 +1264,24 @@ export function useBrain(deps: BrainDeps) {
       const nombreAsist = (p?.nombreAsistente ?? 'rosita').toLowerCase().trim();
       const claveReal   = claveMusica && claveMusica !== nombreAsist ? claveMusica : '';
       if (claveReal) {
-        const nombreRadio = nombreRadioOGenero(claveReal);
-        const esRadioNombrada = /^(mitre|cadena3|lv3|continental|rivadavia|lared|metro|aspen|la100|folklorenac|rockpop|convos|urbana|radio10|destape|mega|fm\s*vida|radio\s*vida|delplata|lt8)$/.test(claveReal);
-        const respuesta = esRadioNombrada ? `¡Claro! Va ${nombreRadio}.` : `¡Dale! Pongo ${nombreRadio}.`;
+        const { femenina, masculina, emotion } = RESPUESTAS_RAPIDAS.musica;
+        const vozGenero = (p.vozGenero ?? 'femenina') === 'masculina' ? 'masculina' : 'femenina';
+        const lista = vozGenero === 'masculina' ? masculina : femenina;
+        const ultimo = ultimaRapidaRef.current.musica ?? -1;
+        let idx: number;
+        do { idx = Math.floor(Math.random() * lista.length); } while (idx === ultimo && lista.length > 1);
+        ultimaRapidaRef.current.musica = idx;
+        const frase = lista[idx];
+        d.setExpresion(EXPRESION_RAPIDA.musica);
         d.ultimaActividadRef.current = Date.now();
-        logCliente('rapida_msg', { cat: 'musica_local', texto: respuesta });
+        d.ultimaCharlaRef.current = Date.now();
+        logCliente('rapida_msg', { cat: 'musica_local', texto: frase });
         cancelarEspeculativo();
-        await ejecutarMusica(claveReal, respuesta, nuevoHistorial);
+        const nuevoHist = [...nuevoHistorial, { role: 'assistant' as const, content: frase }].slice(-30);
+        historialRef.current = nuevoHist;
+        guardarHistorial(nuevoHist).catch(() => {});
+        await d.hablar(frase, emotion);
+        await ejecutarMusica(claveReal, frase, nuevoHistorial, true);
         return;
       } else {
         // "poneme música" sin género: preguntar qué quieren escuchar.
@@ -2084,6 +2120,18 @@ REGLAS CRÍTICAS PARA RESPONDER:
     }
   }
 
+  // ── Limpieza de timers de música (llamada desde useRosita al parar) ──────────
+  function limpiarTimersMusica() {
+    if (musicaWatchdogRef.current) {
+      clearInterval(musicaWatchdogRef.current);
+      musicaWatchdogRef.current = null;
+    }
+    if (musicaFallbackTimerRef.current) {
+      clearTimeout(musicaFallbackTimerRef.current);
+      musicaFallbackTimerRef.current = null;
+    }
+  }
+
   // ── Interfaz pública ──────────────────────────────────────────────────────────
   return {
     historialRef,
@@ -2095,5 +2143,6 @@ REGLAS CRÍTICAS PARA RESPONDER:
     arrancarCharlaProactiva,
     generarResumenSesion,
     cargarNoticiasDiarias,
+    limpiarTimersMusica,
   };
 }

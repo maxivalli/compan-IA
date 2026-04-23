@@ -372,10 +372,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // speech_final de Deepgram es el proxy más cercano a "el usuario dejó de hablar".
       // Registrar acá para poder medir lag_speech_end_ms correctamente.
       d.speechEndTsRef.current = Date.now();
-      if (procesandoRef.current || enFlujoVozRef.current) return;
+      if (procesandoRef.current || enFlujoVozRef.current) { resetVisualEscuchando(d); return; }
       if (d.noMolestarRef.current) { resetVisualEscuchando(d); return; }
-      if (d.estadoRef.current === 'pensando') return;
-      if (d.estadoRef.current === 'hablando') return;
+      if (d.estadoRef.current === 'pensando') { resetVisualEscuchando(d); return; }
+      if (d.estadoRef.current === 'hablando') { resetVisualEscuchando(d); return; }
       if (srSuspendidoRef.current) { resetVisualEscuchando(d); return; }
       const enConversacion = !d.musicaActivaRef.current && Date.now() - d.ultimaCharlaRef.current < 60_000;
       const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -568,9 +568,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Música ────────────────────────────────────────────────────────────────
   function pararMusica() {
-    // pause() detiene la reproducción pero el buffer de red del stream
-    // sigue activo: si el stream cae y reconecta, el player retoma solo.
-    // replace(null) + pause() corta definitivamente la fuente y vacía el buffer.
+    // pause() primero para cortar el audio inmediatamente, luego replace(null)
+    // para vaciar el buffer de red. Si replace(null) falla (try/catch),
+    // al menos el audio ya fue pausado. Segundo pause() como safety net.
+    playerMusica.pause();
     try { playerMusica.replace(null as any); } catch {}
     playerMusica.pause();
     depsRef.current.musicaActivaRef.current = false;

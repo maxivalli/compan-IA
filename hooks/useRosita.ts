@@ -297,6 +297,9 @@ export function useRosita() {
     } else {
       pipeline.detenerSilbido();
       clearMusicaNocheTimers();
+      // Limpiar watchdog y fallback timers de música en useBrain para evitar
+      // que un tick pendiente resucite la reproducción después de pararMusica().
+      brain.limpiarTimersMusica();
       if (!pipeline.enFlujoVozRef.current) {
         // Delay de 400ms: misma razón que en hablar() — AudioSession de Android necesita
         // tiempo para liberar el foco del altavoz y devolver el mic al SR.
