@@ -956,7 +956,10 @@ export function useBrain(deps: BrainDeps) {
             // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-            let wdLastCt = -1; let wdStuck = 0; let wdNotPlaying = 0; let wdReconnects = 0;
+            // Solo usar currentTime para detectar stream muerto.
+            // playerMusica.playing es poco confiable en streams en vivo (expo-audio
+            // reporta false durante buffering aunque el audio siga saliendo).
+            let wdLastCt = -1; let wdStuck = 0; let wdReconnects = 0;
             const wdUrl = urlStream;
             musicaWatchdogRef.current = setInterval(() => {
               if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) {
@@ -965,43 +968,27 @@ export function useBrain(deps: BrainDeps) {
                 return;
               }
               const ct = d.playerMusica.currentTime;
-              if (!d.playerMusica.playing) {
-                wdNotPlaying++;
-                wdStuck = 0; wdLastCt = ct;
-                if (wdNotPlaying >= 4) {
-                  // Tras 3 reconexiones fallidas, detener el watchdog silenciosamente
-                  // para no quedar en un loop infinito de cuts/reconexiones.
+              if (ct > 0 && ct !== wdLastCt) {
+                // currentTime avanzando → stream sano
+                wdStuck = 0;
+                wdReconnects = 0;
+              } else if (wdLastCt >= 0) {
+                // currentTime no avanza (ni ct=0 ni ct moviéndose) → posiblemente muerto.
+                // Solo contar si ya tuvimos al menos una lectura previa (evita falsos en carga inicial).
+                wdStuck++;
+                if (wdStuck >= 5) { // 5×8s=40s sin progreso → reconectar
                   if (wdReconnects >= 3) {
                     clearInterval(musicaWatchdogRef.current!);
                     musicaWatchdogRef.current = null;
                     return;
                   }
                   wdReconnects++;
-                  wdNotPlaying = -2;
-                  if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
+                  wdStuck = -3; // 3 ticks de gracia (24s) antes del próximo intento
+                  if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) { wdLastCt = ct; return; }
                   try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
                 }
-                return;
               }
-              wdNotPlaying = 0;
-              wdReconnects = 0; // stream funcionando → resetear contador de reconexiones
-              if (ct > 0) {
-                if (ct === wdLastCt) {
-                  wdStuck++;
-                  if (wdStuck >= 4) {
-                    if (wdReconnects >= 3) {
-                      clearInterval(musicaWatchdogRef.current!);
-                      musicaWatchdogRef.current = null;
-                      return;
-                    }
-                    wdReconnects++;
-                    wdStuck = -2; wdLastCt = -1;
-                    if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
-                    try { d.playerMusica.replace({ uri: wdUrl }); d.playerMusica.play(); } catch {}
-                  }
-                } else { wdStuck = 0; }
-                wdLastCt = ct;
-              }
+              wdLastCt = ct;
             }, 8000);
             return;
           }
@@ -1029,7 +1016,7 @@ export function useBrain(deps: BrainDeps) {
                 if (d.playerMusica.playing) {
                   confirmarRadio(generoMusica, altUrl).catch(() => {});
                   if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-                  let wdLastCt2 = -1; let wdStuck2 = 0; let wdNotPlaying2 = 0; let wdReconnects2 = 0;
+                  let wdLastCt2 = -1; let wdStuck2 = 0; let wdReconnects2 = 0;
                   const wdUrl2 = altUrl;
                   musicaWatchdogRef.current = setInterval(() => {
                     if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) {
@@ -1038,41 +1025,24 @@ export function useBrain(deps: BrainDeps) {
                       return;
                     }
                     const ct = d.playerMusica.currentTime;
-                    if (!d.playerMusica.playing) {
-                      wdNotPlaying2++;
-                      wdStuck2 = 0; wdLastCt2 = ct;
-                      if (wdNotPlaying2 >= 4) {
+                    if (ct > 0 && ct !== wdLastCt2) {
+                      wdStuck2 = 0;
+                      wdReconnects2 = 0;
+                    } else if (wdLastCt2 >= 0) {
+                      wdStuck2++;
+                      if (wdStuck2 >= 5) {
                         if (wdReconnects2 >= 3) {
                           clearInterval(musicaWatchdogRef.current!);
                           musicaWatchdogRef.current = null;
                           return;
                         }
                         wdReconnects2++;
-                        wdNotPlaying2 = -2;
-                        if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
+                        wdStuck2 = -3;
+                        if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) { wdLastCt2 = ct; return; }
                         try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
                       }
-                      return;
                     }
-                    wdNotPlaying2 = 0;
-                    wdReconnects2 = 0;
-                    if (ct > 0) {
-                      if (ct === wdLastCt2) {
-                        wdStuck2++;
-                        if (wdStuck2 >= 4) {
-                          if (wdReconnects2 >= 3) {
-                            clearInterval(musicaWatchdogRef.current!);
-                            musicaWatchdogRef.current = null;
-                            return;
-                          }
-                          wdReconnects2++;
-                          wdStuck2 = -2; wdLastCt2 = -1;
-                          if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
-                          try { d.playerMusica.replace({ uri: wdUrl2 }); d.playerMusica.play(); } catch {}
-                        }
-                      } else { wdStuck2 = 0; }
-                      wdLastCt2 = ct;
-                    }
+                    wdLastCt2 = ct;
                   }, 8000);
                   return;
                 }
