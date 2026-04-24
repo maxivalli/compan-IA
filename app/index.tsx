@@ -916,7 +916,7 @@ export default function Index() {
             return (
               <View style={{
                 flexDirection: 'row', alignItems: 'center',
-                width: Math.round(screenW * 0.61 * 1.2), gap: 12,
+                width: Math.round(screenW * 0.61), gap: 12,
               }}>
 
                 {/* Badge de estado */}

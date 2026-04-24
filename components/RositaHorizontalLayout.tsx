@@ -11,9 +11,14 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated, Modal, PanResponder, Pressable, StyleSheet,
-  Text, TouchableOpacity, View, useWindowDimensions,
+  Animated, LayoutAnimation, Modal, PanResponder, Platform,
+  Pressable, StyleSheet, Text, TouchableOpacity, UIManager,
+  View, useWindowDimensions,
 } from 'react-native';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -248,6 +253,63 @@ function RelojHorizontalFullscreen({
     </>
   );
 }
+// ── Pastilla de indicadores ───────────────────────────────────────────────────
+
+interface PastillaProps {
+  top: number; right: number;
+  hasListas: boolean; listasCount: number; onOpenListas: () => void;
+  deteccionPresenciaActiva: boolean; modoWatchingPresencia: boolean; presenciaVista: boolean;
+  bleConectado?: boolean; hayRecordatorios?: boolean;
+}
+
+function PastillaIndicadores(props: PastillaProps) {
+  useEffect(() => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [props.hasListas, props.deteccionPresenciaActiva, props.hayRecordatorios]);
+
+  return (
+    <TouchableOpacity
+      activeOpacity={props.hasListas ? 0.8 : 1}
+      onPress={props.hasListas ? props.onOpenListas : undefined}
+      style={{
+        position: 'absolute', top: props.top, right: props.right,
+        flexDirection: 'row', alignItems: 'center', gap: 10,
+        paddingHorizontal: 14, height: 40, borderRadius: 20,
+        backgroundColor: 'rgba(0,0,0,0.28)',
+        borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)',
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.18, shadowRadius: 6,
+        overflow: 'hidden',
+      }}
+    >
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+      {props.hasListas && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name="document-text-outline" size={15} color="#ffffffcc" />
+          <Text style={{ color: '#ffffffcc', fontSize: 11, fontWeight: '600' }}>
+            {props.listasCount > 9 ? '9+' : props.listasCount}
+          </Text>
+        </View>
+      )}
+      {props.deteccionPresenciaActiva && (
+        <Ionicons
+          name={props.presenciaVista ? 'person' : props.modoWatchingPresencia ? 'eye' : 'eye-outline'}
+          size={15}
+          color={props.presenciaVista ? '#22c55e' : props.modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
+        />
+      )}
+      <Ionicons
+        name={props.bleConectado ? 'bluetooth' : 'bluetooth-outline'}
+        size={15}
+        color={props.bleConectado ? '#3b82f6' : 'rgba(255,255,255,0.35)'}
+      />
+      {props.hayRecordatorios && (
+        <Ionicons name="alarm" size={15} color="#facc15" />
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
@@ -478,17 +540,17 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           {/* No molestar — esquina superior izquierda */}
           <TouchableOpacity
             onPress={props.acciones.toggleDoNotDisturb}
-            style={[styles.iconBtn, { top: safeTop + 16, left: safeLeft + 16 }]}
+            style={[styles.iconBtn, { top: safeTop + 14, left: safeLeft + 16 }]}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <LinearGradient
               colors={props.noMolestar ? ['#ea580c', '#9a3412'] : ['#1e293b', '#0f172a']}
-              style={[StyleSheet.absoluteFill, { borderRadius: 27, opacity: 0.7 }]}
+              style={[StyleSheet.absoluteFill, { borderRadius: 20, opacity: 0.7 }]}
             />
-            <View style={[StyleSheet.absoluteFill, { borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
             <Ionicons
               name={props.noMolestar ? 'mic-off' : 'mic-outline'}
-              size={22}
+              size={18}
               color={props.noMolestar ? '#fff' : '#ffffffcc'}
             />
           </TouchableOpacity>
@@ -496,17 +558,17 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
 
           <TouchableOpacity
             onPress={props.onToggleModoReloj}
-            style={[styles.iconBtn, { left: safeLeft + 16, bottom: safeBottom + 16 }]}
+            style={[styles.iconBtn, { left: safeLeft + 16, bottom: safeBottom + 14 }]}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <LinearGradient
               colors={props.modoReloj ? ['#3b82f6', '#1d4ed8'] : ['#1e293b', '#0f172a']}
-              style={[StyleSheet.absoluteFill, { borderRadius: 27, opacity: 0.7 }]}
+              style={[StyleSheet.absoluteFill, { borderRadius: 20, opacity: 0.7 }]}
             />
-            <View style={[StyleSheet.absoluteFill, { borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
             <Ionicons
               name={props.modoReloj ? 'happy-outline' : 'time-outline'}
-              size={22}
+              size={18}
               color="#ffffffcc"
             />
           </TouchableOpacity>
@@ -518,41 +580,19 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           />
 
 
-          {/* Indicadores — esquina superior derecha (espejo de los de abajo) */}
-          <View style={{
-            position: 'absolute', top: safeTop + 14, right: safeRight + 16,
-            flexDirection: 'row', alignItems: 'center', gap: 8,
-          }}>
-            {props.hasListas && (
-              <TouchableOpacity onPress={props.onOpenListas} activeOpacity={0.8} style={styles.indicadorBtn}>
-                <Ionicons name="document-text-outline" size={15} color="#ffffffcc" />
-                <View style={styles.listasBadge}>
-                  <Text style={styles.listasBadgeText}>{props.listasCount > 9 ? '9+' : props.listasCount}</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-            {props.deteccionPresenciaActiva && (
-              <View style={styles.indicadorBtn}>
-                <Ionicons
-                  name={props.presenciaVista ? 'person' : props.modoWatchingPresencia ? 'eye' : 'eye-outline'}
-                  size={15}
-                  color={props.presenciaVista ? '#22c55e' : props.modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
-                />
-              </View>
-            )}
-            <View style={styles.indicadorBtn}>
-              <Ionicons
-                name={props.bleConectado ? 'bluetooth' : 'bluetooth-outline'}
-                size={15}
-                color={props.bleConectado ? '#3b82f6' : 'rgba(255,255,255,0.35)'}
-              />
-            </View>
-            {props.hayRecordatorios && (
-              <View style={styles.indicadorBtn}>
-                <Ionicons name="alarm" size={15} color="#facc15" />
-              </View>
-            )}
-          </View>
+          {/* Pastilla de indicadores — esquina superior derecha */}
+          <PastillaIndicadores
+            top={safeTop + 14}
+            right={safeRight + 16}
+            hasListas={props.hasListas}
+            listasCount={props.listasCount}
+            onOpenListas={props.onOpenListas}
+            deteccionPresenciaActiva={props.deteccionPresenciaActiva}
+            modoWatchingPresencia={props.modoWatchingPresencia}
+            presenciaVista={props.presenciaVista}
+            bleConectado={props.bleConectado}
+            hayRecordatorios={props.hayRecordatorios}
+          />
 
           {/* Badge de estado + SOS — fila inferior derecha */}
           <View style={{
@@ -706,9 +746,9 @@ const styles = StyleSheet.create({
   },
   iconBtn: {
     position: 'absolute',
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
