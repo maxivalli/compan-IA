@@ -159,6 +159,7 @@ function RelojHorizontalFullscreen({
     animSeqRef.current += 1;
     animRef.current?.stop();
     activeRef.current = true;
+    fadeAnim.setValue(0);
     slideAnim.setValue(20);
     scaleAnim.setValue(0.95);
     const seq = animSeqRef.current;
@@ -177,7 +178,8 @@ function RelojHorizontalFullscreen({
         Animated.timing(scaleAnim, { toValue: 0.95, duration: 400, useNativeDriver: true }),
       ]);
       animRef.current.start(({ finished }) => {
-        if (!finished || !activeRef.current || animSeqRef.current !== seq) return;
+        if (!activeRef.current || animSeqRef.current !== seq) return;
+        if (!finished) { fadeAnim.setValue(0); }
         setInfoIdx(prev => {
           const co = climaObjRef.current;
           const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
