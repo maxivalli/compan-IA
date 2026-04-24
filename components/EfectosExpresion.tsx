@@ -327,7 +327,7 @@ export function NotasMusica({ horizontal }: { horizontal?: boolean }) {
 const BROW_W     = 96;  // Achicadas 10% según pedido
 const LEFT_CX    = 82;
 const RIGHT_CX   = 238;
-const BROW_BASE_Y = 35;
+const BROW_BASE_Y = 40;
 const BROW_ARC_H  = 34; // Curvatura profunda (medialuna)
 const BROW_THICK  = 12; // Grosor base
 const ARCH_INSET  = 0;  // 0 para curva simétrica (evita el efecto de estar "descentradas" al subir el arco)
