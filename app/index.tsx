@@ -191,15 +191,14 @@ export default function Index() {
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
   const hora = horaActual;
-  const esAtardecerBg = temaForzado ? temaForzado === 'atardecer' : hora >= 17 && hora < 20;
-  const esAmanecer    = temaForzado ? temaForzado === 'amanecer'  : hora >= 5 && hora < 8;
-  const esFondoNoche  = temaForzado ? temaForzado === 'noche'     : hora >= 20 || hora < 5;
+  const esAtardecerBg = hora >= 17 && hora < 20;
+  const esAmanecer    = hora >= 5 && hora < 8;
+  const esFondoNoche  = hora >= 20 || hora < 5;
   const esBotonesNoche = esFondoNoche;
-  const esClimaOscuro = temaForzado ? temaForzado === 'nublado'
-    : !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo|chaparrón|nevada/);
+  const esClimaOscuro = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo|chaparrón|nevada/);
 
   // Tu color base original
-  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#64748B' : esAmanecer ? '#FED7AA' : esAtardecerBg ? '#F97316' : '#A5F3FC';
+  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#64748B' : esAmanecer ? '#FED7AA' : esAtardecerBg ? '#FDBA74' : '#A5F3FC';
   // Párpados de piel normal si el cielo ya aclaró pero Rosita aún duerme (ej: 5-9h)
   const amaneciendo = !esFondoNoche && modoNoche === 'durmiendo';
 
@@ -211,7 +210,7 @@ export default function Index() {
       : esAmanecer
         ? ['#818CF8', '#D8B4FE', bgActual]
         : esAtardecerBg
-          ? ['#1E3A5F', '#9333EA', '#F97316', bgActual]
+          ? ['#1E3A5F', '#7C3AED', '#FB923C', bgActual]
           : ['#38BDF8', '#93C5FD', bgActual];
 
   const desc = climaObj?.descripcion?.toLowerCase() ?? '';
@@ -337,8 +336,6 @@ export default function Index() {
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
   const [mostrarListas, setMostrarListas] = useState(false);
-  // TODO_TEMP: forzar tema para preview — borrar antes de release
-  const [temaForzado, setTemaForzado] = useState<'dia'|'amanecer'|'atardecer'|'noche'|'nublado'|null>(null);
   const sosBrillo = useRef(new Animated.Value(0)).current;
 
   // ── LED de presencia (ojo en LCD) ───────────────────────────────────────────
@@ -611,18 +608,6 @@ export default function Index() {
           {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
           {esCumpleaños && <Globos />}
 
-          {/* TODO_TEMP: botones de preview de temas — borrar antes de release */}
-          <View style={{ position: 'absolute', bottom: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6, zIndex: 99 }}>
-            {(['dia','amanecer','atardecer','noche','nublado'] as const).map(t => (
-              <TouchableOpacity
-                key={t}
-                onPress={() => setTemaForzado(prev => prev === t ? null : t)}
-                style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: temaForzado === t ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.35)' }}
-              >
-                <Text style={{ fontSize: 11, fontWeight: '700', color: temaForzado === t ? '#000' : '#fff' }}>{t}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
           <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
           <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectadaConLed} />
 
@@ -663,6 +648,7 @@ export default function Index() {
             faceScale={!isTablet && layoutMode === 'vertical' ? faceScale * 0.85 : faceScale}
             screenW={screenW}
             faceBottom={faceBottom}
+            esNoche={esFondoNoche}
           />
           <View
             style={[
