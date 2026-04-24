@@ -7,6 +7,7 @@ import {
   Linking,
   Modal,
   PermissionsAndroid,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -376,18 +377,22 @@ const fc = StyleSheet.create({
 });
 
 // ── Permisos ───────────────────────────────────────────────────────────────────────────────
+// En Android < 12 (API 31), BLUETOOTH_SCAN/CONNECT no son permisos de runtime.
+// El escaneo BLE usa ACCESS_FINE_LOCATION, que ya pide el ítem de Ubicación.
 const PERMISOS_INFO = [
-  { id: 'microfono', icono: 'mic'       as const, color: '#0097b2', titulo: 'Micrófono',           descripcion: 'Para que puedas hablarle y que te escuche.',                                    perms: ['android.permission.RECORD_AUDIO'] },
-  { id: 'ubicacion', icono: 'location'  as const, color: '#57CC99', titulo: 'Ubicación',            descripcion: 'Para el clima de tu ciudad y encontrar lugares cercanos.',                   perms: ['android.permission.ACCESS_FINE_LOCATION'] },
-  { id: 'camara',    icono: 'camera'    as const, color: '#FF8FAB', titulo: 'Cámara',              descripcion: 'Para detectar si estás cerca y activarse automáticamente.',                  perms: ['android.permission.CAMERA'] },
-  { id: 'bluetooth', icono: 'bluetooth' as const, color: '#7C9EFF', titulo: 'Dispositivos cercanos', descripcion: 'Para conectarse con tu pulsera o botón de emergencia por Bluetooth.',    perms: ['android.permission.BLUETOOTH_SCAN', 'android.permission.BLUETOOTH_CONNECT'] },
+  { id: 'microfono', icono: 'mic'       as const, color: '#0097b2', titulo: 'Micrófono',             descripcion: 'Para que puedas hablarle y que te escuche.',                                 perms: ['android.permission.RECORD_AUDIO'] },
+  { id: 'ubicacion', icono: 'location'  as const, color: '#57CC99', titulo: 'Ubicación',              descripcion: 'Para el clima de tu ciudad, lugares cercanos y el control Bluetooth.', perms: ['android.permission.ACCESS_FINE_LOCATION'] },
+  { id: 'camara',    icono: 'camera'    as const, color: '#FF8FAB', titulo: 'Cámara',                descripcion: 'Para detectar si estás cerca y activarse automáticamente.',                perms: ['android.permission.CAMERA'] },
+  ...((Platform.Version as number) >= 31 ? [{
+    id: 'bluetooth', icono: 'bluetooth' as const, color: '#7C9EFF', titulo: 'Dispositivos cercanos',  descripcion: 'Para conectarse con tu pulsera o botón de emergencia por Bluetooth.',    perms: ['android.permission.BLUETOOTH_SCAN', 'android.permission.BLUETOOTH_CONNECT'],
+  }] : []),
 ];
 
 function PantallaPermisos({ onTodosOk }: { onTodosOk: (ok: boolean) => void }) {
   type Estado = 'pendiente' | 'concedido' | 'denegado';
-  const [estados, setEstados] = useState<Record<string, Estado>>({
-    microfono: 'pendiente', ubicacion: 'pendiente', camara: 'pendiente', bluetooth: 'pendiente',
-  });
+  const [estados, setEstados] = useState<Record<string, Estado>>(
+    () => Object.fromEntries(PERMISOS_INFO.map(p => [p.id, 'pendiente' as Estado]))
+  );
 
   const todosOk = Object.values(estados).every(e => e === 'concedido');
   useEffect(() => { onTodosOk(todosOk); }, [todosOk]);

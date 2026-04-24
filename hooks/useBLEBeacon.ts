@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
 import { Buffer } from 'buffer';
 import { AccionesRosita } from './useAccionesRosita';
 
@@ -271,8 +271,43 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
       }
     }
 
+    async function pedirPermisosAndroid(): Promise<boolean> {
+      if (Platform.OS !== 'android') return true;
+      if ((Platform.Version as number) >= 31) {
+        // Android 12+ — BLUETOOTH_SCAN + BLUETOOTH_CONNECT
+        const results = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        ]);
+        return (
+          results[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN]  === PermissionsAndroid.RESULTS.GRANTED &&
+          results[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED
+        );
+      } else {
+        // Android ≤ 11 — el escaneo BLE requiere ubicación
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Permiso de ubicación requerido',
+            message: 'Para encontrar el control Bluetooth necesitamos acceso a la ubicación.',
+            buttonPositive: 'Permitir',
+            buttonNegative: 'Cancelar',
+          }
+        );
+        return result === PermissionsAndroid.RESULTS.GRANTED;
+      }
+    }
+
     async function iniciar() {
       try {
+        if (Platform.OS === 'android') {
+          const granted = await pedirPermisosAndroid();
+          if (!granted) {
+            console.warn('[BLEBeacon] Permisos BLE denegados');
+            return;
+          }
+        }
+
         const { BleManager: BM } = await import('react-native-ble-plx');
         manager = new BM();
 

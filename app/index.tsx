@@ -578,11 +578,11 @@ export default function Index() {
             style={{
               position: 'absolute', top: safeTop + 12, left: 16,
               width: btnH, height: btnH, borderRadius: btnH / 2, zIndex: 20,
-              backgroundColor: noMolestar ? 'rgba(239,68,68,0.30)' : 'rgba(255,255,255,0.18)',
-              borderWidth: 1, borderColor: noMolestar ? 'rgba(239,68,68,0.60)' : 'rgba(255,255,255,0.40)',
+              backgroundColor: noMolestar ? 'rgba(239,68,68,0.40)' : 'rgba(0,0,0,0.10)',
+              borderWidth: 1, borderColor: noMolestar ? 'rgba(239,68,68,0.70)' : 'rgba(255,255,255,0.30)',
               alignItems: 'center', justifyContent: 'center',
               shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.18, shadowRadius: 8,
+              shadowOpacity: 0.30, shadowRadius: 8,
             }}
             onPress={() => { playClick(); acciones.toggleDoNotDisturb(); }}
             activeOpacity={0.7}
@@ -595,11 +595,11 @@ export default function Index() {
             style={{
               position: 'absolute', top: safeTop + 12, right: 16,
               width: btnH, height: btnH, borderRadius: btnH / 2, zIndex: 20,
-              backgroundColor: 'rgba(255,255,255,0.18)',
-              borderWidth: 1, borderColor: 'rgba(255,255,255,0.40)',
+              backgroundColor: 'rgba(0,0,0,0.10)',
+              borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)',
               alignItems: 'center', justifyContent: 'center',
               shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.18, shadowRadius: 8,
+              shadowOpacity: 0.30, shadowRadius: 8,
             }}
             onPress={() => { menuTriggerRef.current?.(); }}
             activeOpacity={0.7}
@@ -794,8 +794,8 @@ export default function Index() {
                   return (
                     <View style={{
                       width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
-                      borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
-                      backgroundColor: 'rgba(255,255,255,0.12)',
+                      borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+                      backgroundColor: 'rgba(0,0,0,0.10)',
                     }}>
                       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 }}>
                         {modoNoche !== 'despierta'
@@ -805,7 +805,7 @@ export default function Index() {
                             {infoIdx === 0 && (
                               <View style={{ alignItems: 'center' }}>
                                 <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{horaMinuto}</Text>
-                                <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
+                                <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }} numberOfLines={1}>
                                   {fechaDisplay}
                                 </Text>
                               </View>
@@ -823,7 +823,7 @@ export default function Index() {
                             {infoIdx === tempScreenIdx && climaEfectivo?.temperatura != null && (
                               <View style={{ alignItems: 'center' }}>
                                 <Text style={[styles.infoText, { fontSize: displayFontInfo }]}>{`${Math.round(climaEfectivo?.temperatura ?? 0)}°`}</Text>
-                                <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center' }} numberOfLines={1}>
+                                <Text style={{ fontSize: subFont, color: '#ffffff', marginTop: 3, textTransform: 'capitalize', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }} numberOfLines={1}>
                                   {climaEfectivo?.descripcion}
                                 </Text>
                               </View>
@@ -857,9 +857,21 @@ export default function Index() {
                           </View>
                         )}
 
-                        {/* Indicador BLE — esquina inferior derecha del display */}
+                        {/* Indicador recordatorios — amarillo cuando hay timers/recordatorios */}
+                        {hayRecordatorios && (
+                          <View style={{
+                            position: 'absolute', top: 7, right: 60,
+                            width: 20, height: 20, borderRadius: 10,
+                            backgroundColor: 'rgba(0,0,0,0.22)',
+                            alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Ionicons name="alarm" size={11} color="#facc15" />
+                          </View>
+                        )}
+
+                        {/* Indicador BLE — a la izquierda del indicador de presencia */}
                         <View style={{
-                          position: 'absolute', bottom: 7, right: 8,
+                          position: 'absolute', top: 7, right: 34,
                           width: 20, height: 20, borderRadius: 10,
                           backgroundColor: 'rgba(0,0,0,0.22)',
                           alignItems: 'center', justifyContent: 'center',
@@ -1086,6 +1098,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 2,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   relojNoche: {
     fontSize: fs(51),
