@@ -701,7 +701,7 @@ export default function Index() {
               silbando={silbando}
               onRelampago={onRelampago}
               esCumpleaños={esCumpleaños}
-              browOffsetY={isTablet && layoutMode === 'vertical' ? -30 : 45}
+              browOffsetY={isTablet && layoutMode === 'vertical' ? -30 : modoNoche === 'durmiendo' ? 40 : 45}
               browOffsetX={0}
               browScale={isTablet && layoutMode === 'vertical' ? 1.0 : 0.85}
               browGap={isTablet && layoutMode === 'vertical' ? 0 : -12}
