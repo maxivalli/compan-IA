@@ -543,6 +543,7 @@ export default function Index() {
           modoWatchingPresencia={modoWatchingPresencia}
           presenciaVista={presenciaVista}
           bleConectado={bleConectado}
+          hayRecordatorios={hayRecordatorios}
         />
         <PostItViewer
           visible={mostrarListas}
@@ -910,79 +911,76 @@ export default function Index() {
           />
 
           {/* ── Zona de botones ── */}
-          <View style={[styles.botonesZona, isTablet && styles.botonesZonaTablet]}>
+          {(() => {
+            const hayFamiliaTelegram = (refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0;
+            return (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center',
+                width: Math.round(screenW * 0.61 * 1.2), gap: 12,
+              }}>
 
-            {/* Fila principal — Badge estado */}
-            <View style={[styles.botonesFilaPrincipal, isTablet && { gap: 20 }]}>
-
-              {/* Badge de estado */}
-              <TouchableOpacity
-                onPress={acciones.toggleTalkOrStopMusic}
-                activeOpacity={musicaActiva ? 0.75 : 0.9}
-                style={[styles.estadoBadgeWrap, {
-                  width: btnW, height: btnH, borderRadius: btnH / 2,
-                  borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
-                  shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
-                  overflow: 'hidden',
-                }]}
-              >
-                <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                  style={[StyleSheet.absoluteFill, { opacity: isEsperando ? 0.50 : 0.88 }]} />
-                <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
-                {isEsperando && (
-                  <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>
-                    <LinearGradient colors={['#fde68a', '#f59e0b']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                      style={StyleSheet.absoluteFill} />
-                  </Animated.View>
-                )}
-                <View style={styles.estadoBadgeGradient}>
-                  <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
-                    {badgeLabel}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-            </View>
-
-            {/* Botón SOS */}
-            {(() => {
-              const hayFamiliaTelegram = (refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0;
-              return (
-                <View style={{ alignItems: 'center', opacity: hayFamiliaTelegram ? 1 : 0.35 }}>
-                  <TouchableOpacity
-                    style={[styles.botonSOSWrap, {
-                      width: btnW, height: btnH, borderRadius: btnH / 2,
-                      borderWidth: 1, borderColor: sosPresionando ? 'rgba(255,100,100,0.60)' : 'rgba(255,255,255,0.38)',
-                      shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
-                      overflow: 'hidden',
-                    }]}
-                    onPress={hayFamiliaTelegram ? mostrarHintSOS : undefined}
-                    onPressIn={hayFamiliaTelegram ? sosPresionado : undefined}
-                    onPressOut={hayFamiliaTelegram ? sosSoltado : undefined}
-                    onLongPress={hayFamiliaTelegram ? async () => { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); dispararSOS(); } : undefined}
-                    delayLongPress={2000}
-                    activeOpacity={hayFamiliaTelegram ? 1 : 1}
-                  >
-                    <LinearGradient colors={sosGradientOff} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                      style={[StyleSheet.absoluteFill, { opacity: 0.88 }]} />
-                    <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
-                      <LinearGradient colors={sosGradientOn} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                {/* Badge de estado */}
+                <TouchableOpacity
+                  onPress={acciones.toggleTalkOrStopMusic}
+                  activeOpacity={musicaActiva ? 0.75 : 0.9}
+                  style={[styles.estadoBadgeWrap, {
+                    flex: 1, height: btnH, borderRadius: btnH / 2,
+                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
+                    overflow: 'hidden',
+                  }]}
+                >
+                  <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { opacity: isEsperando ? 0.50 : 0.88 }]} />
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
+                  {isEsperando && (
+                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>
+                      <LinearGradient colors={['#fde68a', '#f59e0b']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
                         style={StyleSheet.absoluteFill} />
                     </Animated.View>
-                    <View style={styles.estadoBadgeGradient}>
-                      <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.2), fontWeight: sosPresionando ? '400' : '700', marginBottom: sosPresionando ? 3 : 0 }]}>
-                        {sosPresionando ? 'Espera...' : 'SOS'}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              );
-            })()}
+                  )}
+                  <View style={styles.estadoBadgeGradient}>
+                    <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
+                      {badgeLabel}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
 
-          </View>
+                {/* Botón SOS — círculo a la derecha */}
+                <TouchableOpacity
+                  style={[styles.botonSOSWrap, {
+                    width: btnH, height: btnH, borderRadius: btnH / 2,
+                    borderWidth: 1, borderColor: sosPresionando ? 'rgba(255,100,100,0.60)' : 'rgba(255,255,255,0.38)',
+                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: hayFamiliaTelegram ? 0.18 : 0.10, shadowRadius: 8, elevation: 4,
+                    overflow: 'hidden',
+                    opacity: hayFamiliaTelegram ? 1 : 0.35,
+                  }]}
+                  onPress={hayFamiliaTelegram ? mostrarHintSOS : undefined}
+                  onPressIn={hayFamiliaTelegram ? sosPresionado : undefined}
+                  onPressOut={hayFamiliaTelegram ? sosSoltado : undefined}
+                  onLongPress={hayFamiliaTelegram ? async () => { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); dispararSOS(); } : undefined}
+                  delayLongPress={2000}
+                  activeOpacity={1}
+                >
+                  <LinearGradient colors={sosGradientOff} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                    style={[StyleSheet.absoluteFill, { opacity: 0.88 }]} />
+                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+                  <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
+                    <LinearGradient colors={sosGradientOn} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                      style={StyleSheet.absoluteFill} />
+                  </Animated.View>
+                  <View style={styles.estadoBadgeGradient}>
+                    <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.1) }]}>
+                      SOS
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+              </View>
+            );
+          })()}
 
           {mostrarOnboarding && (
             <TouchableOpacity

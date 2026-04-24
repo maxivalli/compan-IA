@@ -91,6 +91,9 @@ export interface RositaHorizontalProps {
 
   // BLE Beacon
   bleConectado?: boolean;
+
+  // Recordatorios
+  hayRecordatorios?: boolean;
 }
 
 function RelojHorizontalFullscreen({
@@ -490,23 +493,6 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
             />
           </TouchableOpacity>
 
-          {props.hasListas && (
-            <TouchableOpacity
-              onPress={props.onOpenListas}
-              style={[styles.iconBtn, { top: safeTop + 16, right: safeRight + 16 }]}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <LinearGradient
-                colors={['#1e293b', '#0f172a']}
-                style={[StyleSheet.absoluteFill, { borderRadius: 27, opacity: 0.7 }]}
-              />
-              <View style={[StyleSheet.absoluteFill, { borderRadius: 27, backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-              <Ionicons name="document-text-outline" size={22} color="#ffffffcc" />
-              <View style={styles.listasBadge}>
-                <Text style={styles.listasBadgeText}>{props.listasCount > 9 ? '9+' : props.listasCount}</Text>
-              </View>
-            </TouchableOpacity>
-          )}
 
           <TouchableOpacity
             onPress={props.onToggleModoReloj}
@@ -532,75 +518,111 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           />
 
 
-          {props.deteccionPresenciaActiva && (
-            <View style={[styles.presenciaBadge, {
-              bottom: safeBottom + 14,
-              right: safeRight + 132,
-            }]}>
+          {/* Indicadores — esquina superior derecha (espejo de los de abajo) */}
+          <View style={{
+            position: 'absolute', top: safeTop + 14, right: safeRight + 16,
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+          }}>
+            {props.hasListas && (
+              <TouchableOpacity onPress={props.onOpenListas} activeOpacity={0.8} style={styles.indicadorBtn}>
+                <Ionicons name="document-text-outline" size={15} color="#ffffffcc" />
+                <View style={styles.listasBadge}>
+                  <Text style={styles.listasBadgeText}>{props.listasCount > 9 ? '9+' : props.listasCount}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            {props.deteccionPresenciaActiva && (
+              <View style={styles.indicadorBtn}>
+                <Ionicons
+                  name={props.presenciaVista ? 'person' : props.modoWatchingPresencia ? 'eye' : 'eye-outline'}
+                  size={15}
+                  color={props.presenciaVista ? '#22c55e' : props.modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
+                />
+              </View>
+            )}
+            <View style={styles.indicadorBtn}>
               <Ionicons
-                name={props.presenciaVista ? 'person' : props.modoWatchingPresencia ? 'eye' : 'eye-outline'}
+                name={props.bleConectado ? 'bluetooth' : 'bluetooth-outline'}
                 size={15}
-                color={props.presenciaVista ? '#22c55e' : props.modoWatchingPresencia ? '#ef4444' : 'rgba(255,255,255,0.65)'}
+                color={props.bleConectado ? '#3b82f6' : 'rgba(255,255,255,0.35)'}
               />
             </View>
-          )}
-
-          {/* Badge BLE — a la izquierda de presencia si está activa, o a la izquierda del badge de estado */}
-          <View style={[styles.presenciaBadge, {
-            bottom: safeBottom + 14,
-            right: safeRight + (props.deteccionPresenciaActiva ? 180 : 132),
-          }]}>
-            <Ionicons
-              name={props.bleConectado ? 'bluetooth' : 'bluetooth-outline'}
-              size={15}
-              color={props.bleConectado ? '#3b82f6' : 'rgba(255,255,255,0.35)'}
-            />
+            {props.hayRecordatorios && (
+              <View style={styles.indicadorBtn}>
+                <Ionicons name="alarm" size={15} color="#facc15" />
+              </View>
+            )}
           </View>
 
-          {/* Badge de estado — esquina inferior derecha, mismo estilo que vertical */}
-          <TouchableOpacity
-            onPress={props.acciones.toggleTalkOrStopMusic}
-            activeOpacity={0.85}
-            style={[styles.estadoBadge, {
-              bottom: safeBottom + 14,
-              right: safeRight + 16,
-              borderWidth: 1,
-              borderColor: 'rgba(255,255,255,0.32)',
-              overflow: 'hidden',
-              shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.18, shadowRadius: 6,
-            }]}
-          >
-            <LinearGradient
-              colors={estadoGradient}
-              start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-              style={[StyleSheet.absoluteFill, { opacity: 0.55 }]}
-            />
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-            {props.detectandoSonido && props.estado === 'esperando'
-              ? (
-                <View style={styles.waveformCompactWrap}>
-                  <WaveformDetectando barWidth={3} barHeight={14} gap={2} />
-                </View>
-              )
-              : <>
-                {esperandoActivo ? (
-                  <Animated.View
-                    style={[
-                      styles.estadoDotEsperando,
-                      {
-                        opacity: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
-                        transform: [{ scale: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
-                      },
-                    ]}
-                  />
-                ) : (
-                  <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
-                )}
-                <Text style={styles.estadoTexto}>{estadoBadgeLabel}</Text>
-              </>
-            }
-          </TouchableOpacity>
+          {/* Badge de estado + SOS — fila inferior derecha */}
+          <View style={{
+            position: 'absolute', bottom: safeBottom + 14, right: safeRight + 16,
+            flexDirection: 'row', alignItems: 'center', gap: 8,
+          }}>
+            <TouchableOpacity
+              onPress={props.acciones.toggleTalkOrStopMusic}
+              activeOpacity={0.85}
+              style={[styles.estadoBadgeInner, {
+                borderWidth: 1, borderColor: 'rgba(255,255,255,0.32)',
+                overflow: 'hidden',
+                shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18, shadowRadius: 6,
+              }]}
+            >
+              <LinearGradient
+                colors={estadoGradient}
+                start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                style={[StyleSheet.absoluteFill, { opacity: 0.55 }]}
+              />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+              {props.detectandoSonido && props.estado === 'esperando'
+                ? (
+                  <View style={styles.waveformCompactWrap}>
+                    <WaveformDetectando barWidth={3} barHeight={14} gap={2} />
+                  </View>
+                )
+                : <>
+                  {esperandoActivo ? (
+                    <Animated.View
+                      style={[
+                        styles.estadoDotEsperando,
+                        {
+                          opacity: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }),
+                          transform: [{ scale: esperaPulso.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
+                        },
+                      ]}
+                    />
+                  ) : (
+                    <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
+                  )}
+                  <Text style={styles.estadoTexto}>{estadoBadgeLabel}</Text>
+                </>
+              }
+            </TouchableOpacity>
+
+            {/* Botón SOS */}
+            <TouchableOpacity
+              onLongPress={props.acciones.triggerSOS}
+              delayLongPress={2000}
+              activeOpacity={0.85}
+              style={{
+                width: 40, height: 40, borderRadius: 20,
+                overflow: 'hidden',
+                borderWidth: 1, borderColor: 'rgba(255,100,100,0.50)',
+                alignItems: 'center', justifyContent: 'center',
+                shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.18, shadowRadius: 6,
+              }}
+            >
+              <LinearGradient
+                colors={['#b91c1c', '#7f1d1d']}
+                start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
+                style={[StyleSheet.absoluteFill, { opacity: 0.88 }]}
+              />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>SOS</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Flash overlay (relámpago / linterna) */}
           <Animated.View
@@ -732,6 +754,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 6,
   },
+  indicadorBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.32)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+  },
   waveformWrap: {
     position: 'absolute',
     alignSelf: 'center',
@@ -744,6 +780,17 @@ const styles = StyleSheet.create({
   },
   estadoBadge: {
     position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    minWidth: 108,
+    height: 40,
+    borderRadius: 20,
+  },
+  estadoBadgeInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
