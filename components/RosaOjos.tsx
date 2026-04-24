@@ -254,16 +254,20 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       sb.boca,
       forma,
       { transform: [{ scaleX }, { scaleY }] },
-      esCurvaNeutral && {
-        backgroundColor: 'transparent',
-        borderBottomWidth: 3,
-        borderLeftWidth: 1.5,
-        borderRightWidth: 1.5,
-        borderTopWidth: 0,
-        borderColor: '#3D2A1E',
-        borderTopColor: 'transparent',
-      }
-    ]} />
+      esCurvaNeutral ? { backgroundColor: 'transparent' } : null
+    ]}>
+      {esCurvaNeutral && (
+        <Svg width="100%" height="100%" viewBox={`0 0 ${BOCA_W} ${BOCA_H}`}>
+          <Path
+            d={`M 1.5,0 A 12.5,12.5 0 0,0 14,12.5 L ${BOCA_W - 14},12.5 A 12.5,12.5 0 0,0 ${BOCA_W - 1.5},0`}
+            fill="none"
+            stroke="#3D2A1E"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+        </Svg>
+      )}
+    </Animated.View>
   );
 }
 
