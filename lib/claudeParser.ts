@@ -121,6 +121,7 @@ export function detectarGenero(tag: string): string {
   // Géneros musicales
   const mapa: [string, string[]][] = [
     // Radios específicas — van antes que los géneros para evitar falsos positivos
+    ['radio city',  ['radio city', 'city', 'radio city san cristobal']],
     ['convos',      ['convos', 'con vos', 'convo', 'radio con vos', '89.9', '899']],
     ['cadena3',     ['cadena3', 'cadena 3']],
     ['mitre',       ['mitre']],
