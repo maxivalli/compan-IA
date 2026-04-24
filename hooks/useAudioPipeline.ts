@@ -674,13 +674,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     reanudarCapturaDG();
   }
 
-  /** Cierra completamente el WebSocket de Deepgram. Usar cuando la pausa va a ser
-   *  larga (modo música) para que Deepgram no siga recibiendo audio del altavoz. */
+  /** Pausa AudioCapture durante música: el WS queda abierto con keepalive.
+   *  Al parar la música, reanudarCapturaDG() reactiva el AudioCapture sin reconectar. */
   function cerrarDGParaMusica() {
     srActivoRef.current = false;
-    // Fix #1: cancelar idle timer — con música activa nunca queremos wake SR
     if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
-    detenerDG();
+    pausarCapturaDG();
   }
   function reanudarMusica() {
     if (bloquearReanudarMusicaRef.current) return;
