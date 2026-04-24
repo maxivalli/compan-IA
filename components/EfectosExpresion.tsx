@@ -384,7 +384,7 @@ export function Cejas({
 
   useEffect(() => {
     const idA = angleAnim.addListener(({ value }) => { angleRef.current = value; tick(n => n + 1); });
-    const idL = liftAnim.addListener(({ value }) => { liftRef.current = value; });
+    const idL = liftAnim.addListener(({ value }) => { liftRef.current = value; tick(n => n + 1); });
     return () => { angleAnim.removeListener(idA); liftAnim.removeListener(idL); };
   }, []);
 
