@@ -113,12 +113,11 @@ function RelojHorizontalFullscreen({
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(20)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  const animRef = useRef<Animated.CompositeAnimation | null>(null);
-  const activeRef = useRef(false);
-  const animSeqRef = useRef(0);
   const [infoIdx, setInfoIdx] = useState(0);
   const climaObjRef = useRef(climaObj);
   useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
+  const musicaActivaRef = useRef(musicaActiva);
+  useEffect(() => { musicaActivaRef.current = musicaActiva; }, [musicaActiva]);
 
   // Reloj
   useEffect(() => {
@@ -144,67 +143,39 @@ function RelojHorizontalFullscreen({
     return () => anim.stop();
   }, []);
 
-  // Guard de screens: si cambia clima/musica, clamear infoIdx al rango válido
+  // Guard: si cambia clima/musica, clampear infoIdx al rango válido
   useEffect(() => {
     const hasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
     const screens = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
     setInfoIdx(prev => Math.min(prev, Math.max(0, screens - 1)));
   }, [climaObj, musicaActiva]);
 
-  // Patrón exacto del display vertical (index.tsx líneas 256-303):
-  // stop() explícito antes de cada nueva animación + guards de seq para
-  // no ejecutar callbacks de animaciones viejas. Esto evita que finished=false
-  // cancele el fade-in cuando el interval dispara mientras hay una anim en curso.
+  // Timer de rotación — solo actualiza el índice, no toca animaciones
   useEffect(() => {
-    animSeqRef.current += 1;
-    animRef.current?.stop();
-    activeRef.current = true;
+    const id = setInterval(() => {
+      const co = climaObjRef.current;
+      const musica = musicaActivaRef.current;
+      const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
+      const screens = 1 + (musica ? 1 : 0) + (co?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+      const max = Math.max(0, screens - 1);
+      setInfoIdx(prev => prev >= max ? 0 : prev + 1);
+    }, 5000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Animación de fade-in — se dispara cada vez que cambia el índice
+  useEffect(() => {
     fadeAnim.setValue(0);
     slideAnim.setValue(20);
     scaleAnim.setValue(0.95);
-    const seq = animSeqRef.current;
-    animRef.current = Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 700, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
+    const anim = Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+      Animated.timing(scaleAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
     ]);
-    animRef.current.start();
-    const id = setInterval(() => {
-      if (!activeRef.current || animSeqRef.current !== seq) return;
-      animRef.current?.stop();
-      animRef.current = Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
-        Animated.timing(slideAnim, { toValue: -20, duration: 400, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 0.95, duration: 400, useNativeDriver: true }),
-      ]);
-      animRef.current.start(({ finished }) => {
-        if (!activeRef.current || animSeqRef.current !== seq) return;
-        if (!finished) { fadeAnim.setValue(0); }
-        setInfoIdx(prev => {
-          const co = climaObjRef.current;
-          const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
-          const screens = 1 + (musicaActiva ? 1 : 0) + (co?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
-          const max = Math.max(0, screens - 1);
-          const next = prev >= max ? 0 : prev + 1;
-          slideAnim.setValue(20);
-          scaleAnim.setValue(0.95);
-          return next;
-        });
-        animRef.current?.stop();
-        animRef.current = Animated.parallel([
-          Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-          Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
-          Animated.timing(scaleAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
-        ]);
-        animRef.current.start();
-      });
-    }, 4500);
-    return () => {
-      activeRef.current = false;
-      clearInterval(id);
-      animRef.current?.stop();
-    };
-  }, [musicaActiva]);
+    anim.start();
+    return () => anim.stop();
+  }, [infoIdx]);
 
   const fontFamily = 'Poppins_700Bold';
 
