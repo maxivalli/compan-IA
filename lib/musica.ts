@@ -35,6 +35,7 @@ export async function confirmarRadio(termino: string, url: string): Promise<void
 
 // ── Fallbacks hardcodeados (último recurso si la API falla) ───────────────────
 export const STREAMS_FALLBACK: Record<string, string[]> = {
+  'radio city':['https://stm1.voxhd.com.br:10072/'],
   radiocity:   ['https://stm1.voxhd.com.br:10072/'],
   cadena3:     ['https://liveradio.mediainbox.net/radio3.mp3', 'https://streams.cadena3.com/cadena3/mp3/128/stream'],
   lv3:         ['https://liveradio.mediainbox.net/radio3.mp3', 'https://streams.cadena3.com/cadena3/mp3/128/stream'],
@@ -66,6 +67,7 @@ export const STREAMS_FALLBACK: Record<string, string[]> = {
 
 // ── Alias de búsqueda → nombre real para la API ───────────────────────────────
 export const ALIAS_BUSQUEDA: Record<string, string> = {
+  'radio city':'Radio City San Cristobal',
   radiocity:   'Radio City San Cristobal',
   cadena3:     'Cadena 3',
   lv3:         'Cadena 3',
