@@ -236,7 +236,7 @@ function RelojHorizontalFullscreen({
             </View>
           )}
           {musicaActiva && infoIdx === radioScreenIdx && (
-            <View style={{ alignItems: 'center', width: '100%' }}>
+            <View style={{ alignItems: 'center', width: '100%', paddingTop: 32 }}>
               <AnimacionMusica barWidth={10} barHeight={80} gap={6} />
               <Text style={[styles.relojHora, { fontFamily, fontSize: 80, marginTop: 18, maxWidth: 560 }]} numberOfLines={1} adjustsFontSizeToFit>
                 {nombreRadioOGenero(ultimaRadio ?? 'FM Cristal 98.9')}
