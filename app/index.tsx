@@ -191,27 +191,28 @@ export default function Index() {
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
   const hora = horaActual;
-  const esAtardecerBg = hora >= 17 && hora < 20;
-  const esAmanecer = hora >= 5 && hora < 8;
-  const esFondoNoche = hora >= 20 || hora < 5;
-  const esBotonesNoche = esFondoNoche; // sincronizado con el estado de noche del perfil
-  const esClimaOscuro = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo|chaparrón|nevada/);
+  const esAtardecerBg = temaForzado ? temaForzado === 'atardecer' : hora >= 17 && hora < 20;
+  const esAmanecer    = temaForzado ? temaForzado === 'amanecer'  : hora >= 5 && hora < 8;
+  const esFondoNoche  = temaForzado ? temaForzado === 'noche'     : hora >= 20 || hora < 5;
+  const esBotonesNoche = esFondoNoche;
+  const esClimaOscuro = temaForzado ? temaForzado === 'nublado'
+    : !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo|chaparrón|nevada/);
 
   // Tu color base original
-  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#6B7280' : esAmanecer ? '#87CEEB' : esAtardecerBg ? '#FFBD59' : '#38B6FF';
+  const bgActual = esFondoNoche ? BG : esClimaOscuro ? '#64748B' : esAmanecer ? '#FED7AA' : esAtardecerBg ? '#F97316' : '#A5F3FC';
   // Párpados de piel normal si el cielo ya aclaró pero Rosita aún duerme (ej: 5-9h)
   const amaneciendo = !esFondoNoche && modoNoche === 'durmiendo';
 
   // Degradados para el cielo
   const degradadoCielo: readonly [string, string, string] | readonly [string, string, string, string] = esFondoNoche
-    ? ['#000000', '#050A30', bgActual] // Negro arriba -> Azul Profundo abajo -> BG
+    ? ['#0F172A', '#1E1B4B', bgActual]
     : esClimaOscuro
-      ? ['#374151', '#4B5563', bgActual]
+      ? ['#94A3B8', '#64748B', bgActual]
       : esAmanecer
-        ? ['#87CEEB', '#FF8C00', '#CC2200'] // celeste arriba → naranja → rojo abajo
+        ? ['#818CF8', '#D8B4FE', bgActual]
         : esAtardecerBg
-          ? ['#2B1055', '#FF416C', '#FF4B2B', bgActual] // 4 colores: Violeta -> Rosa → Naranja -> Fondo
-          : ['#0052D4', '#4364F7', bgActual];
+          ? ['#1E3A5F', '#9333EA', '#F97316', bgActual]
+          : ['#38BDF8', '#93C5FD', bgActual];
 
   const desc = climaObj?.descripcion?.toLowerCase() ?? '';
   const cieloTapado = /\bnublado\b/.test(desc) && !/parcial|algunas nubes/.test(desc)
@@ -336,6 +337,8 @@ export default function Index() {
   // ── Animación del botón SOS ─────────────────────────────────────────────────
   const [sosPresionando, setSosPresionando] = useState(false);
   const [mostrarListas, setMostrarListas] = useState(false);
+  // TODO_TEMP: forzar tema para preview — borrar antes de release
+  const [temaForzado, setTemaForzado] = useState<'dia'|'amanecer'|'atardecer'|'noche'|'nublado'|null>(null);
   const sosBrillo = useRef(new Animated.Value(0)).current;
 
   // ── LED de presencia (ojo en LCD) ───────────────────────────────────────────
@@ -607,6 +610,19 @@ export default function Index() {
 
           {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
           {esCumpleaños && <Globos />}
+
+          {/* TODO_TEMP: botones de preview de temas — borrar antes de release */}
+          <View style={{ position: 'absolute', bottom: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 6, zIndex: 99 }}>
+            {(['dia','amanecer','atardecer','noche','nublado'] as const).map(t => (
+              <TouchableOpacity
+                key={t}
+                onPress={() => setTemaForzado(prev => prev === t ? null : t)}
+                style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: temaForzado === t ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.35)' }}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '700', color: temaForzado === t ? '#000' : '#fff' }}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
           <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectadaConLed} />
 
