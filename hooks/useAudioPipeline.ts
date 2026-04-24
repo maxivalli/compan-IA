@@ -538,6 +538,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         logCliente('watchdog_reset', { estado: d.estadoRef.current, colgadoMs: Date.now() - procesandoDesdeRef.current });
         procesandoRef.current = false;
         procesandoDesdeRef.current = 0;
+        // Fix #5: notificar a la abuela en vez de hacer un reset silencioso
+        const p = d.perfilRef.current;
+        const nombre = p?.nombreAbuela ? `, ${p.nombreAbuela.split(' ')[0]}` : '';
+        d.setEstado('esperando');
+        d.estadoRef.current = 'esperando';
+        hablar(`Perdoname${nombre}, no llegó la respuesta. ¿Me repetís?`).catch(() => {});
       }
 
       if (d.estadoRef.current !== 'esperando' || procesandoRef.current) return;
@@ -672,6 +678,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
    *  larga (modo música) para que Deepgram no siga recibiendo audio del altavoz. */
   function cerrarDGParaMusica() {
     srActivoRef.current = false;
+    // Fix #1: cancelar idle timer — con música activa nunca queremos wake SR
+    if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
     detenerDG();
   }
   function reanudarMusica() {
@@ -1090,8 +1098,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     ultimoFinTTSRef.current = Date.now();
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
     // Idle timer: 60s sin actividad → cerrar DG, activar wake-word SR.
+    // Guardia: si hay música activa no arrancar wake SR — compite por el foco de audio
+    // en Android y provoca el bucle arranca/para de ~1s que se siente como un "latido".
     if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
     dgIdleTimerRef.current = setTimeout(() => {
+      if (depsRef.current.musicaActivaRef.current) return;
       logCliente('dg_idle_close', {});
       dgIdleTimerRef.current = null;
       dgIdleRef.current = true;

@@ -47,20 +47,20 @@ const CY = EYE_H * 0.58;     // ~80 — iris centrado en mitad baja
  * - anclaMediaY / anclaBajaY → dónde “abulta” el costado
  */
 const EYE_SILUETA = {
-  puntaSuperiorY: 6,
-  bordeInferior: 5,
-  hombroSuperiorX: 0.85,
-  bulgeLateralX: 1.055,
+  puntaSuperiorY: 10,
+  bordeInferior: 0.5,
+  hombroSuperiorX: 0.95,
+  bulgeLateralX: 1.01,
   anclaMediaY: 0.37,
-  anclaBajaX: 1.0,
-  anclaBajaY: 0.635,
-  curvaHaciaPuntaX: 0.98,
-  curvaHaciaPuntaY: 0.88,
-  esquinaInferiorInteriorX: 0.78,
+  anclaBajaX: 1,
+  anclaBajaY: 0.655,
+  curvaHaciaPuntaX: 0.99,
+  curvaHaciaPuntaY: 0.7,
+  esquinaInferiorInteriorX: 0.99,
   /** Control X hacia el borde izquierdo (no es espejo del lado derecho). */
-  curvaInteriorBajaIzqX: 0.02,
+  curvaInteriorBajaIzqX: 0.01,
   curvaExteriorIzqX: -0.04,
-  vueltaAlCentroIzqX: 0.16,
+  vueltaAlCentroIzqX: 0.1,
 } as const;
 
 function pathFormaOjoSvg(side: 'L' | 'R' = 'R'): string {

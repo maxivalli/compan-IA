@@ -437,6 +437,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                         faceScale={faceScale * 0.88}
                         screenW={screenW}
                         faceBottom={faceBottomH}
+                        esNoche={props.esFondoNoche}
                       />
                     )}
                     <View

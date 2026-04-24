@@ -42,7 +42,7 @@ const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
 // Si speech_final llega con frase que termina en artículo/preposición (frase abierta),
 // esperamos hasta MERGE_WINDOW_MS por continuación antes de flushear.
-const MERGE_WINDOW_MS = 2000;
+const MERGE_WINDOW_MS = 3000; // subido de 2000 — tolera jitter de red sin fragmentar frases (fix #4)
 // Incluye pronombres átonos (se, me, te, nos, lo) que casi nunca cierran una oración.
 const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que|se|me|te|nos|lo)\s*$/i;
 // Pregunta que abre con ¿ pero no cierra con ? → siempre incompleta
@@ -88,8 +88,12 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   const keepaliveRef     = useRef<ReturnType<typeof setInterval> | null>(null);
   const vadHoldOffRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const vozActivaRef     = useRef(false);
-  const vadGatedSinceRef = useRef<number>(0);   // timestamp desde que el VAD empieza a gatear
-  const vadGatedLogRef   = useRef<ReturnType<typeof setTimeout> | null>(null); // timer de log diagnóstico
+  const vadGatedSinceRef = useRef<number>(0);
+  const vadGatedLogRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Fix #3: noise floor adaptativo — EMA de RMS en silencio real.
+  // Se actualiza solo cuando VAD detecta silencio verdadero (no hold-off post-voz).
+  // Threshold efectivo = max(baseThreshold, noiseFloor × 2.5) para adaptarse a TV/lluvia/ruido.
+  const noiseFloorRef    = useRef<number>(40); // estimación inicial conservadora
 
   function calcularRMS(pcm16: Uint8Array): number {
     const samples = pcm16.length >> 1; // 2 bytes por muestra
@@ -134,8 +138,6 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
 
   function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return;
-    // No detenemos keepalive — sigue corriendo junto con AudioCapture para que
-    // Deepgram no cierre el WS durante silencios largos gateados por VAD.
     vozActivaRef.current = false;
     try {
       audioSubRef.current = addAudioDataListener(({ data }) => {
@@ -143,10 +145,14 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         try {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
           const rms = calcularRMS(binary);
-          const threshold = optsRef.current.getVadThreshold?.() ?? VAD_RMS_THRESHOLD_CONVERSACION;
+          const baseThreshold = optsRef.current.getVadThreshold?.() ?? VAD_RMS_THRESHOLD_CONVERSACION;
+          // Fix #3: threshold efectivo = max(base, noiseFloor × 2.5)
+          // Esto sube el umbral automáticamente si hay TV o ruido ambiente elevado,
+          // sin afectar el comportamiento en ambientes silenciosos.
+          const threshold = Math.max(baseThreshold, noiseFloorRef.current * 2.5);
 
           if (rms > threshold) {
-            // Hay voz → enviar y cancelar hold-off + timer de gating si estaban corriendo
+            // Hay voz → enviar y cancelar hold-off + timer de gating
             vozActivaRef.current = true;
             vadGatedSinceRef.current = 0;
             if (vadGatedLogRef.current) { clearTimeout(vadGatedLogRef.current); vadGatedLogRef.current = null; }
@@ -160,20 +166,18 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
               vadHoldOffRef.current = setTimeout(() => {
                 vozActivaRef.current = false;
                 vadHoldOffRef.current = null;
-                // Si Deepgram no disparó speech_final en el hold-off, avisarle al pipeline
-                // para que pueda resetear el visual 'escuchando' → 'esperando'.
                 optsRef.current.onVadSilencio?.();
               }, VAD_HOLD_OFF_MS);
             }
           } else {
-            // Silencio largo sin voz activa → no enviar (el keepalive JSON mantiene el WS)
-            // Diagnóstico: si llevamos mucho tiempo gateando, loguear RMS promedio para
-            // detectar si el threshold está descartando voz real en producción.
+            // Silencio real (sin voz activa) → actualizar noise floor con EMA lenta
+            // Alpha 0.02: se adapta en ~50 frames (~5s) al nuevo nivel de ruido.
+            noiseFloorRef.current = noiseFloorRef.current * 0.98 + rms * 0.02;
             if (!vadGatedSinceRef.current) vadGatedSinceRef.current = Date.now();
             if (!vadGatedLogRef.current) {
               vadGatedLogRef.current = setTimeout(() => {
                 vadGatedLogRef.current = null;
-                logCliente('dg_vad_gated', { rms: Math.round(rms), threshold });
+                logCliente('dg_vad_gated', { rms: Math.round(rms), threshold: Math.round(threshold), noiseFloor: Math.round(noiseFloorRef.current) });
               }, VAD_GATED_LOG_MS);
             }
           }
@@ -358,6 +362,14 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
       };
 
       ws.onclose = (event) => {
+        // Fix #2: si este WS ya fue reemplazado (detener() puso wsRef=null o inició uno nuevo),
+        // limpiar sus recursos pero NO reconectar — evita reconexiones espúrias tras desmontaje.
+        if (ws !== wsRef.current) {
+          detenerKeepalive();
+          detenerAudioCapture();
+          descartarAcumulador();
+          return;
+        }
         detenerKeepalive();
         detenerAudioCapture();
         descartarAcumulador();
@@ -365,8 +377,6 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
         connOpenRef.current = 0;
         const is1011 = event.code === 1011;
         if (is1011) {
-          // 1011 = error del servidor Deepgram. Mantener backoff creciente aunque
-          // la conexión duró >10s (tormenta de 1011 consecutivos → delay acumulativo).
           consecutive1011Ref.current += 1;
           reconnCount.current = Math.max(reconnCount.current, consecutive1011Ref.current);
         } else {

@@ -956,9 +956,11 @@ export function useBrain(deps: BrainDeps) {
             // Stream confirmado como funcionando → guardar en caché y arrancar watchdog
             confirmarRadio(generoMusica, urlStream).catch(() => {});
             if (musicaWatchdogRef.current) clearInterval(musicaWatchdogRef.current);
-            // Solo usar currentTime para detectar stream muerto.
-            // playerMusica.playing es poco confiable en streams en vivo (expo-audio
-            // reporta false durante buffering aunque el audio siga saliendo).
+            // Usar currentTime + playing para detectar stream muerto.
+            // currentTime solo NO es suficiente para streams en vivo: expo-audio reporta
+            // currentTime=0 constantemente aunque el audio esté saliendo, lo que provocaba
+            // reconexiones falsas cada ~40s (el "latido"). Solo reconectamos si currentTime
+            // está estancado Y playing también es false.
             let wdLastCt = -1; let wdStuck = 0; let wdReconnects = 0;
             const wdUrl = urlStream;
             musicaWatchdogRef.current = setInterval(() => {
@@ -968,12 +970,13 @@ export function useBrain(deps: BrainDeps) {
                 return;
               }
               const ct = d.playerMusica.currentTime;
-              if (ct > 0 && ct !== wdLastCt) {
-                // currentTime avanzando → stream sano
+              const playing = d.playerMusica.playing;
+              if ((ct > 0 && ct !== wdLastCt) || playing) {
+                // currentTime avanzando O player activo → stream sano
                 wdStuck = 0;
                 wdReconnects = 0;
               } else if (wdLastCt >= 0) {
-                // currentTime no avanza (ni ct=0 ni ct moviéndose) → posiblemente muerto.
+                // currentTime estancado Y playing=false → posiblemente muerto.
                 // Solo contar si ya tuvimos al menos una lectura previa (evita falsos en carga inicial).
                 wdStuck++;
                 if (wdStuck >= 5) { // 5×8s=40s sin progreso → reconectar
@@ -1025,7 +1028,9 @@ export function useBrain(deps: BrainDeps) {
                       return;
                     }
                     const ct = d.playerMusica.currentTime;
-                    if (ct > 0 && ct !== wdLastCt2) {
+                    const playing2 = d.playerMusica.playing;
+                    if ((ct > 0 && ct !== wdLastCt2) || playing2) {
+                      // currentTime avanzando O player activo → stream sano
                       wdStuck2 = 0;
                       wdReconnects2 = 0;
                     } else if (wdLastCt2 >= 0) {
