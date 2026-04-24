@@ -54,8 +54,8 @@ const KEEPALIVE_MSG = JSON.stringify({ type: 'KeepAlive' });
 const KEEPALIVE_INTERVAL_MS = 5000;
 
 // VAD (Voice Activity Detection) — filtra chunks de silencio antes de enviar a Deepgram.
-const VAD_RMS_THRESHOLD_CONVERSACION = 80;   // Umbral normal: dentro de ventana de 60s
-const VAD_RMS_THRESHOLD_IDLE         = 220;  // Umbral idle: filtra TV/lluvia/ruido ambiente
+const VAD_RMS_THRESHOLD_CONVERSACION = 55;   // Umbral normal: dentro de ventana de 60s
+const VAD_RMS_THRESHOLD_IDLE         = 100;  // Umbral idle: filtra TV/lluvia/ruido ambiente
 const VAD_HOLD_OFF_MS   = 1200;
 const VAD_GATED_LOG_MS  = 3000;
 
@@ -146,10 +146,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
           const rms = calcularRMS(binary);
           const baseThreshold = optsRef.current.getVadThreshold?.() ?? VAD_RMS_THRESHOLD_CONVERSACION;
-          // Fix #3: threshold efectivo = max(base, noiseFloor × 2.5)
-          // Esto sube el umbral automáticamente si hay TV o ruido ambiente elevado,
-          // sin afectar el comportamiento en ambientes silenciosos.
-          const threshold = Math.max(baseThreshold, noiseFloorRef.current * 2.5);
+          // threshold efectivo = max(base, noiseFloor × 1.8)
+          // Sube el umbral si hay TV/ruido ambiente, pero con menos agresividad.
+          const threshold = Math.max(baseThreshold, noiseFloorRef.current * 1.8);
 
           if (rms > threshold) {
             // Hay voz → enviar y cancelar hold-off + timer de gating
@@ -170,9 +169,12 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
               }, VAD_HOLD_OFF_MS);
             }
           } else {
-            // Silencio real (sin voz activa) → actualizar noise floor con EMA lenta
-            // Alpha 0.02: se adapta en ~50 frames (~5s) al nuevo nivel de ruido.
-            noiseFloorRef.current = noiseFloorRef.current * 0.98 + rms * 0.02;
+            // Silencio real (sin voz activa) → actualizar noise floor con EMA lenta.
+            // Solo si el rms es claramente ambiente (< noiseFloor × 1.5): evita que
+            // voz gateada entrene el piso hacia arriba causando un feedback loop.
+            if (rms < noiseFloorRef.current * 1.5) {
+              noiseFloorRef.current = noiseFloorRef.current * 0.98 + rms * 0.02;
+            }
             if (!vadGatedSinceRef.current) vadGatedSinceRef.current = Date.now();
             if (!vadGatedLogRef.current) {
               vadGatedLogRef.current = setTimeout(() => {

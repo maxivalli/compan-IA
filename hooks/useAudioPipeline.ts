@@ -336,7 +336,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // En conversación activa (< 60s desde última charla) usar umbral bajo para capturar voz suave.
       // En idle usar umbral alto para ignorar TV, lluvia y conversaciones de fondo.
       const enConversacion = !d.musicaActivaRef.current && Date.now() - d.ultimaCharlaRef.current < 60_000;
-      return enConversacion ? 80 : 220;
+      return enConversacion ? 55 : 100;
     },
     onVadSilencio: () => {
       // El hold-off VAD venció sin que Deepgram disparara speech_final.
