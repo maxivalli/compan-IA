@@ -60,6 +60,8 @@ export interface BLEBeaconDeps {
   acciones:        AccionesRosita;
   /** Ref externo a actualizar con el estado de conexión BLE. */
   conectadoRef?:   React.MutableRefObject<boolean>;
+  /** Callback que se dispara cuando cambia el estado de conexión (para actualizar UI). */
+  onConexionChange?: (conectado: boolean) => void;
 }
 
 // ── Hook ───────────────────────────────────────────────────────────────────
@@ -195,6 +197,7 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
     function scheduleReconectar() {
       conectadoRef.current = false;
       if (deps.conectadoRef) deps.conectadoRef.current = false;
+      depsRef.current.onConexionChange?.(false);
       limpiarConexion();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
       reconnectTimeout = setTimeout(() => {
@@ -218,7 +221,7 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
           manager.startDeviceScan(null, null, (error: any, dev: any) => {
             if (!mounted) { clearTimeout(timeout); manager.stopDeviceScan(); return; }
-            if (error)    { clearTimeout(timeout); reject(error); return; }
+            if (error)    { clearTimeout(timeout); manager.stopDeviceScan(); reject(error); return; }
             const nombre = (dev?.name ?? dev?.localName ?? '').toUpperCase();
             if (nombre.includes('HOLY-IOT') || nombre.includes('HOLYIOT')) {
               clearTimeout(timeout);
@@ -230,8 +233,17 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
         if (!mounted) return;
 
-        const connected = await device.connect();
-        await connected.discoverAllServicesAndCharacteristics();
+        const connectTimeout = <T>(ms: number, msg: string): Promise<T> =>
+          new Promise<T>((_, rej) => setTimeout(() => rej(new Error(msg)), ms));
+
+        const connected = await Promise.race([
+          device.connect(),
+          connectTimeout<never>(10_000, 'connect timeout'),
+        ]);
+        await Promise.race([
+          connected.discoverAllServicesAndCharacteristics(),
+          connectTimeout<never>(10_000, 'discover timeout'),
+        ]);
 
         // Manejar desconexión inesperada
         disconnectSub = manager.onDeviceDisconnected(connected.id, () => {
@@ -243,13 +255,14 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
           NUS_SERVICE_UUID,
           NUS_TX_UUID,
           (_error: any, char: any) => {
-            if (_error) return; // disconnectSub se encarga del reconect
+            if (_error) { if (mounted) scheduleReconectar(); return; }
             procesarRef.current(char?.value ?? null);
           }
         );
 
         conectadoRef.current = true;
         if (deps.conectadoRef) deps.conectadoRef.current = true;
+        depsRef.current.onConexionChange?.(true);
         console.log('[BLEBeacon] conectado a Holy-IOT');
 
       } catch (err) {

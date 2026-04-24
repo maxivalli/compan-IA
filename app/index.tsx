@@ -157,6 +157,7 @@ export default function Index() {
   // ── Foto recibida por Telegram ───────────────────────────────────────────────
   const [fotoTelegram, setFotoTelegram] = React.useState<{ url: string; descripcion: string } | null>(null);
   const [modoRelojHorizontal, setModoRelojHorizontal] = useState(false);
+  const [bleConectado, setBleConectado] = useState(false);
   const [hayRecordatorios, setHayRecordatorios] = useState(false);
   const fotoTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -482,7 +483,7 @@ export default function Index() {
   });
 
   // ── BLE Beacon ────────────────────────────────────────────────────────────────
-  useBLEBeacon({ acciones, conectadoRef: bleConectadoRef });
+  useBLEBeacon({ acciones, conectadoRef: bleConectadoRef, onConexionChange: setBleConectado });
 
 
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
@@ -541,6 +542,7 @@ export default function Index() {
           deteccionPresenciaActiva={deteccionPresenciaActiva}
           modoWatchingPresencia={modoWatchingPresencia}
           presenciaVista={presenciaVista}
+          bleConectado={bleConectado}
         />
         <PostItViewer
           visible={mostrarListas}
@@ -854,6 +856,20 @@ export default function Index() {
                             />
                           </View>
                         )}
+
+                        {/* Indicador BLE — esquina inferior derecha del display */}
+                        <View style={{
+                          position: 'absolute', bottom: 7, right: 8,
+                          width: 20, height: 20, borderRadius: 10,
+                          backgroundColor: 'rgba(0,0,0,0.22)',
+                          alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Ionicons
+                            name={bleConectado ? 'bluetooth' : 'bluetooth-outline'}
+                            size={11}
+                            color={bleConectado ? '#22c55e' : 'rgba(255,255,255,0.35)'}
+                          />
+                        </View>
 
                         {/* Pagination dots del carrusel */}
                         {modoNoche === 'despierta' && (

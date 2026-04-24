@@ -88,6 +88,9 @@ export interface RositaHorizontalProps {
   deteccionPresenciaActiva: boolean;
   modoWatchingPresencia: boolean;
   presenciaVista: boolean;
+
+  // BLE Beacon
+  bleConectado?: boolean;
 }
 
 function RelojHorizontalFullscreen({
@@ -568,6 +571,18 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
               />
             </View>
           )}
+
+          {/* Badge BLE — a la izquierda de presencia si está activa, o a la izquierda del badge de estado */}
+          <View style={[styles.presenciaBadge, {
+            bottom: safeBottom + 20,
+            right: safeRight + (props.deteccionPresenciaActiva ? 168 : 132),
+          }]}>
+            <Ionicons
+              name={props.bleConectado ? 'bluetooth' : 'bluetooth-outline'}
+              size={15}
+              color={props.bleConectado ? '#22c55e' : 'rgba(255,255,255,0.35)'}
+            />
+          </View>
 
           {/* Badge de estado — esquina inferior derecha, mismo estilo que vertical */}
           <TouchableOpacity
