@@ -548,6 +548,7 @@ export default function Index() {
           onBorrar={(nombre) => { borrarListaVoz(nombre); }}
           onClose={() => setMostrarListas(false)}
         />
+        <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectadaConLed} />
       </>
     );
   }
