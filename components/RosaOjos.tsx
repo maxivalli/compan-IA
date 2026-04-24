@@ -243,7 +243,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
     : expresion === 'avergonzada'
     ? { borderTopLeftRadius: 3, borderTopRightRadius: 3, borderBottomLeftRadius: 3, borderBottomRightRadius: 3 }
     : expresion === 'neutral'
-    ? { borderBottomLeftRadius: 42, borderBottomRightRadius: 42, borderTopLeftRadius: 0, borderTopRightRadius: 0 }
+    ? { borderBottomLeftRadius: 14, borderBottomRightRadius: 14, borderTopLeftRadius: 0, borderTopRightRadius: 0 }
     : { borderTopLeftRadius: 2, borderTopRightRadius: 2, borderBottomLeftRadius: 18, borderBottomRightRadius: 18 };
 
   return (
