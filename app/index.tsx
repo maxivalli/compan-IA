@@ -867,7 +867,7 @@ export default function Index() {
                           <Ionicons
                             name={bleConectado ? 'bluetooth' : 'bluetooth-outline'}
                             size={11}
-                            color={bleConectado ? '#22c55e' : 'rgba(255,255,255,0.35)'}
+                            color={bleConectado ? '#3b82f6' : 'rgba(255,255,255,0.35)'}
                           />
                         </View>
 

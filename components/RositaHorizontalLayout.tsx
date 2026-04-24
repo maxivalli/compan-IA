@@ -561,7 +561,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
 
           {props.deteccionPresenciaActiva && (
             <View style={[styles.presenciaBadge, {
-              bottom: safeBottom + 20,
+              bottom: safeBottom + 14,
               right: safeRight + 132,
             }]}>
               <Ionicons
@@ -574,13 +574,13 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
 
           {/* Badge BLE — a la izquierda de presencia si está activa, o a la izquierda del badge de estado */}
           <View style={[styles.presenciaBadge, {
-            bottom: safeBottom + 20,
-            right: safeRight + (props.deteccionPresenciaActiva ? 168 : 132),
+            bottom: safeBottom + 14,
+            right: safeRight + (props.deteccionPresenciaActiva ? 180 : 132),
           }]}>
             <Ionicons
               name={props.bleConectado ? 'bluetooth' : 'bluetooth-outline'}
               size={15}
-              color={props.bleConectado ? '#22c55e' : 'rgba(255,255,255,0.35)'}
+              color={props.bleConectado ? '#3b82f6' : 'rgba(255,255,255,0.35)'}
             />
           </View>
 
@@ -746,12 +746,18 @@ const styles = StyleSheet.create({
   presenciaBadge: {
     position: 'absolute',
     zIndex: 20,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(0,0,0,0.28)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.32)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
   },
   waveformWrap: {
     position: 'absolute',
