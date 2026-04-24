@@ -259,7 +259,9 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
         borderBottomWidth: 3,
         borderLeftWidth: 1.5,
         borderRightWidth: 1.5,
+        borderTopWidth: 0,
         borderColor: '#3D2A1E',
+        borderTopColor: 'transparent',
       }
     ]} />
   );
