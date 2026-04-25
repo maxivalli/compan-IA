@@ -344,10 +344,12 @@ export default function Index() {
   }, [isEsperando]);
 
   // ── Deslizador SOS ──────────────────────────────────────────────────────────
-  const swipeXAnim       = useRef(new Animated.Value(0)).current;
-  const containerWidthRef = useRef(0);
-  const arrowsOpacity    = useRef(new Animated.Value(0.4)).current;
-  const dispararSOSRef   = useRef(dispararSOS);
+  const swipeXAnim        = useRef(new Animated.Value(0)).current;
+  const containerWidthRef  = useRef(0);
+  const stateSectionXRef   = useRef(0);
+  const stateLabelXRef     = useRef(0);
+  const arrowsOpacity      = useRef(new Animated.Value(0.4)).current;
+  const dispararSOSRef     = useRef(dispararSOS);
   useEffect(() => { dispararSOSRef.current = dispararSOS; }, [dispararSOS]);
   const [mostrarListas, setMostrarListas] = useState(false);
 
@@ -396,21 +398,34 @@ export default function Index() {
 
   const sosPanResponder = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, g) => g.dx > 5 && Math.abs(g.dy) < 40,
+    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 5 && Math.abs(g.dy) < 40,
     onPanResponderGrant: () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     },
     onPanResponderMove: (_, g) => {
       if (g.dx < 0) return;
-      const maxDrag = containerWidthRef.current * 0.65;
+      const maxDrag = stateLabelXRef.current > 0
+        ? stateLabelXRef.current - 4
+        : containerWidthRef.current * 0.65;
       swipeXAnim.setValue(Math.min(g.dx, maxDrag));
     },
     onPanResponderRelease: async (_, g) => {
-      if (g.dx >= containerWidthRef.current * 0.50) {
+      const springBack = () =>
+        Animated.spring(swipeXAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 8 }).start();
+      // Tap sin deslizar → mostrar hint
+      if (Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) {
+        mostrarHintSOS();
+        springBack();
+        return;
+      }
+      const maxDrag = stateLabelXRef.current > 0
+        ? stateLabelXRef.current - 4
+        : containerWidthRef.current * 0.65;
+      if (g.dx >= maxDrag * 0.90) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         dispararSOSRef.current();
       }
-      Animated.spring(swipeXAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 8 }).start();
+      springBack();
     },
     onPanResponderTerminate: () => {
       Animated.spring(swipeXAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 8 }).start();
@@ -1029,6 +1044,7 @@ export default function Index() {
                 <TouchableOpacity
                   onPress={acciones.toggleTalkOrStopMusic}
                   activeOpacity={musicaActiva ? 0.75 : 0.9}
+                  onLayout={e => { stateSectionXRef.current = e.nativeEvent.layout.x; }}
                   style={{
                     flex: 1,
                     height: '100%',
@@ -1040,6 +1056,9 @@ export default function Index() {
                   }}
                 >
                   <Text
+                    onLayout={e => {
+                      stateLabelXRef.current = stateSectionXRef.current + e.nativeEvent.layout.x;
+                    }}
                     style={{
                       fontWeight: '600',
                       fontSize: btnFont,
