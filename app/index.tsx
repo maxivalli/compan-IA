@@ -314,9 +314,11 @@ export default function Index() {
 
   // ── Modal hint SOS ──────────────────────────────────────────────────────────
   const [hintSOS, setHintSOS] = useState(false);
+  const [hintSOSSinFamilia, setHintSOSSinFamilia] = useState(false);
   const hintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function mostrarHintSOS() {
+  function mostrarHintSOS(sinFamilia = false) {
+    setHintSOSSinFamilia(sinFamilia);
     setHintSOS(true);
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
     hintTimerRef.current = setTimeout(() => setHintSOS(false), 3500);
@@ -1005,7 +1007,7 @@ export default function Index() {
                   </Animated.View>
                 ) : (
                   <TouchableOpacity
-                    onPress={mostrarHintSOS}
+                    onPress={() => mostrarHintSOS(true)}
                     style={{
                       width: sosZoneW,
                       height: '100%',
@@ -1153,9 +1155,15 @@ export default function Index() {
               <View style={[styles.sosModalCard, isTablet && { paddingVertical: 52, paddingHorizontal: 57, borderRadius: 36, gap: 21 }]}>
                 <Ionicons name="alert-circle" size={isTablet ? 110 : 88} color="#fff" />
                 <Text style={[styles.sosModalTitulo, isTablet && { fontSize: fs(32) * 1.3 }]}>Botón SOS</Text>
-                <Text style={[styles.sosModalTexto, isTablet && { fontSize: fs(22) * 1.3, lineHeight: fs(32) * 1.3 }]}>
-                  Deslizá el SOS{'\n'}hacia la derecha{'\n'}para avisar{'\n'}a tu familia
-                </Text>
+                {hintSOSSinFamilia ? (
+                  <Text style={[styles.sosModalTexto, isTablet && { fontSize: fs(22) * 1.3, lineHeight: fs(32) * 1.3 }]}>
+                    Agregá un familiar{'\n'}en Configuración{'\n'}para poder usar{'\n'}el botón SOS
+                  </Text>
+                ) : (
+                  <Text style={[styles.sosModalTexto, isTablet && { fontSize: fs(22) * 1.3, lineHeight: fs(32) * 1.3 }]}>
+                    Deslizá el SOS{'\n'}hacia la derecha{'\n'}para avisar{'\n'}a tu familia
+                  </Text>
+                )}
               </View>
             </TouchableOpacity>
           </Modal>
