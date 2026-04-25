@@ -44,6 +44,8 @@ export function useSmartThings(deps: SmartThingsDeps) {
   // ── Estado de dispositivos ────────────────────────────────────────────────
   const dispositivosRef = useRef<Dispositivo[]>([]);
   const inicializacionRef = useRef<Promise<void> | null>(null);
+  const lastRefreshRef = useRef<number>(0);
+  const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
   const normalizeTexto = (texto: string) =>
     texto
@@ -99,10 +101,14 @@ export function useSmartThings(deps: SmartThingsDeps) {
     return mejor?.dispositivo;
   };
 
-  async function refrescarDispositivos(): Promise<Dispositivo[]> {
+  async function refrescarDispositivos(force = false): Promise<Dispositivo[]> {
+    if (!force && Date.now() - lastRefreshRef.current < CACHE_TTL_MS) {
+      return dispositivosRef.current;
+    }
     const lista = await actualizarDispositivos().catch(() => []);
     if (lista.length > 0) {
       dispositivosRef.current = lista;
+      lastRefreshRef.current = Date.now();
       return lista;
     }
     return dispositivosRef.current;
@@ -138,6 +144,7 @@ export function useSmartThings(deps: SmartThingsDeps) {
         );
 
         dispositivosRef.current = conEstado;
+        lastRefreshRef.current = Date.now();
       } catch {}
     })();
 
@@ -174,13 +181,12 @@ export function useSmartThings(deps: SmartThingsDeps) {
       }
       let dispositivo = findDispositivo(dispositivoNombre, dispositivos);
       if (!dispositivo) {
-        dispositivos = await refrescarDispositivos();
+        dispositivos = await refrescarDispositivos(true);
         dispositivo = findDispositivo(dispositivoNombre, dispositivos);
       }
 
       if (dispositivo) {
-        // Refrescar estado online del dispositivo antes de controlar
-        // para evitar actuar sobre cache desactualizado.
+        // Refrescar solo si el cache tiene más de CACHE_TTL_MS (evita 1-2s de overhead en cada control).
         dispositivos = await refrescarDispositivos();
         dispositivo = findDispositivo(dispositivoNombre, dispositivos) ?? dispositivo;
 

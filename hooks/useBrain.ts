@@ -177,7 +177,7 @@ export const LUGAR_TIPOS: Array<{ patron: RegExp; tipo: string }> = [
 
 
 export function categorizarRapida(texto: string): CategoriaRapida | null {
-  if (texto.length > 50) return null;
+  if (texto.length > 70) return null;
   if (PATRON_EMPATICO.test(texto))     return null;
   if (PATRON_ALEGRIA.test(texto))      return null;
   if (PATRON_SALUD.test(texto))        return null;
@@ -185,12 +185,12 @@ export function categorizarRapida(texto: string): CategoriaRapida | null {
   if (PATRON_MUSICA.test(texto))       return null;
   if (PATRON_RECORDATORIO.test(texto)) return null;
   if (PATRON_COMANDO.test(texto))      return null;
-  // Si hay una pregunta o contenido sustancial después del saludo, dejar que Claude responda.
-  // La coma sola no es suficiente: "Hola, Rosita." tiene coma pero no es contenido extra.
-  // Exigimos al menos dos palabras tras la coma para considerar que hay una cláusula adicional.
-  if (/[¿?]/.test(texto) || /,\s*\w+\s+\w/.test(texto)) return null;
-  if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';
+  if (/[¿?]/.test(texto)) return null;
+  // Gracias: intercept even with extra appreciative content ("Gracias, Rosita, qué buena que sos")
   if (/\b(gracias|much[aí]simas?\s+gracias|te agradezco)\b/i.test(texto)) return 'gracias';
+  // Para el resto: si hay contenido sustancial tras una coma, dejar que Claude responda.
+  if (/,\s*\w+\s+\w/.test(texto)) return null;
+  if (/\b(hola\b|qu[eé] tal|c[oó]mo (est[aá]s|and[aá]s)\b|c[oó]mo (va|viene)\s*[,?]?\s*$|buen[ao]s?\s*(d[ií]as?|tardes?|noches?))/i.test(texto)) return 'saludo';
   if (/\bde nada\b/i.test(texto)) return 'de_nada';
   if (/\b(chau|chao|hasta\s*(luego|pronto|ma[ñn]ana)|nos vemos)\b/i.test(texto)) return 'despedida';
   if (/\b(perfecto|entendido|re bien|todo bien|muy bien|genial|de acuerdo|b[aá]rbaro)\b/i.test(texto)) return 'afirmacion';
@@ -546,7 +546,7 @@ export function useBrain(deps: BrainDeps) {
     if (d.estadoRef.current !== 'esperando' && d.estadoRef.current !== 'escuchando') return;
 
     const palabras = textoParcial.split(/\s+/).filter(Boolean);
-    if (textoParcial.length < 35 || palabras.length < 5) return;
+    if (textoParcial.length < 20 || palabras.length < 5) return;
 
     const norm = textoParcial.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     if (PATRON_SKIP.test(norm)) return;
