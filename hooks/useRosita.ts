@@ -1103,6 +1103,7 @@ export function useRosita() {
   return {
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
     detectandoSonido: pipeline.detectandoSonido,
+    wakeSRActivo: pipeline.wakeSRActivo,
     musicaActiva, silbando: pipeline.silbando, noMolestar, setNoMolestar,
     listas,
     borrarListaVoz: (nombre: string) => borrarLista(nombre).then(() => cargarListas().then(setListas)).catch(() => {}),

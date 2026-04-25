@@ -117,7 +117,7 @@ export default function Index() {
   const navigationState = useRootNavigationState();
   const {
     estado, expresion, cargando, mostrarOnboarding, setMostrarOnboarding,
-    musicaActiva, silbando, noMolestar, setNoMolestar,
+    musicaActiva, silbando, noMolestar, setNoMolestar, wakeSRActivo,
     linternaActiva, apagarLinterna,
     modoNoche, horaActual, climaObj, ciudadDetectada, flashAnim,
     pararMusica, reanudarMusica, dispararSOS,
@@ -245,9 +245,9 @@ export default function Index() {
 
   useEffect(() => {
     const hasAlert = !!(climaObj?.codigoActual && CODIGOS_ADVERSOS.has(climaObj.codigoActual)) || (climaObj?.temperatura !== undefined && (climaObj.temperatura >= 35 || climaObj.temperatura <= 3));
-    const screens = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+    const screens = 1 + (musicaActiva ? 1 : 0) + (climaObj?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0) + (wakeSRActivo ? 1 : 0);
     setInfoIdx(prev => Math.min(prev, Math.max(0, screens - 1)));
-  }, [climaObj, musicaActiva]);
+  }, [climaObj, musicaActiva, wakeSRActivo]);
 
   const fechaDisplay = useMemo(() => {
     const d = new Date();
@@ -289,7 +289,7 @@ export default function Index() {
         setInfoIdx(prev => {
           const co = climaObjRef.current;
           const hasAlert = !!(co?.codigoActual && CODIGOS_ADVERSOS.has(co.codigoActual)) || (co?.temperatura !== undefined && (co.temperatura >= 35 || co.temperatura <= 3));
-          const screens = 1 + (musicaActiva ? 1 : 0) + (co?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0);
+          const screens = 1 + (musicaActiva ? 1 : 0) + (co?.temperatura != null ? 1 : 0) + (hasAlert ? 1 : 0) + (wakeSRActivo ? 1 : 0);
           const max = Math.max(0, screens - 1);
           const next = prev >= max ? 0 : prev + 1;
           hintTranslate.setValue(20);
@@ -824,7 +824,8 @@ export default function Index() {
                     1 +
                     (musicaEfectiva ? 1 : 0) +
                     (tempEfectiva != null ? 1 : 0) +
-                    (dotHasAlert ? 1 : 0);
+                    (dotHasAlert ? 1 : 0) +
+                    (wakeSRActivo ? 1 : 0);
                   const alertaTexto = tieneCalor
                     ? 'Calor extremo'
                     : tieneFrio
@@ -834,6 +835,7 @@ export default function Index() {
                   const radioScreenIdx = musicaEfectiva ? 1 : -1;
                   const tempScreenIdx = 1 + (musicaEfectiva ? 1 : 0);
                   const alertScreenIdx = tempScreenIdx + (climaEfectivo?.temperatura != null ? 1 : 0);
+                  const wakeScreenIdx = alertScreenIdx + (dotHasAlert ? 1 : 0);
                   return (
                     <View style={{
                       width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
@@ -879,6 +881,17 @@ export default function Index() {
                                 </Text>
                                 <Text style={{ fontSize: subFont, color: '#ffffff', textAlign: 'center' }} numberOfLines={2}>
                                   {alertaTexto}
+                                </Text>
+                              </View>
+                            )}
+                            {/* Pantalla wake-word: hint para iniciar conversación */}
+                            {wakeSRActivo && infoIdx === wakeScreenIdx && (
+                              <View style={{ alignItems: 'center', paddingHorizontal: 8 }}>
+                                <Text style={{ fontSize: subFont, color: 'rgba(255,255,255,0.75)', textAlign: 'center', marginBottom: 4 }}>
+                                  Para iniciar decí:
+                                </Text>
+                                <Text style={{ fontSize: Math.round(displayFontInfo * 0.72), fontWeight: '700', color: '#ffffff', textAlign: 'center', textShadowColor: 'rgba(0,0,0,0.35)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 }} numberOfLines={1} adjustsFontSizeToFit>
+                                  {`Hola ${nombreAsistente}`}
                                 </Text>
                               </View>
                             )}

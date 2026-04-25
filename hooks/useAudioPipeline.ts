@@ -307,9 +307,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   const silbidoTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Idle DG + wake-word SR ────────────────────────────────────────────────
-  const dgIdleRef         = useRef(false);
+  // Arranca en true: la app inicia en modo wake-word (native SR).
+  // Deepgram solo conecta cuando se detecta la wake word.
+  const dgIdleRef         = useRef(true);
   const dgIdleTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wakeSRActiveRef   = useRef(false);
+  // Estado reactivo que expone el modo wake-word al UI (para mostrar el hint).
+  const [wakeSRActivo, setWakeSRActivo] = useState(true);
   const wakeSRStartingRef = useRef(false); // guard contra double-start
   const wakeSubsRef       = useRef<Array<{ remove: () => void }>>([]);
   // true solo en el primer turno tras reconexion desde idle (wake word).
@@ -325,6 +329,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (escuchandoSafeTimerRef.current) { clearTimeout(escuchandoSafeTimerRef.current); escuchandoSafeTimerRef.current = null; }
     if (visualEscuchandoRef.current) {
       visualEscuchandoRef.current = false;
+      // Actualizar el ref síncronamente — setEstado solo actualiza React state,
+      // el ref se sincroniza en el siguiente render (useEffect en useRosita).
+      // Sin esto, el finally de procesarTextoReconocido y los watchdogs siguen
+      // viendo 'escuchando' y nunca reinician SR ni limpian el badge.
+      d.estadoRef.current = 'esperando';
       d.setEstado('esperando');
     }
   }
@@ -341,9 +350,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     },
     onVadSilencio: () => {
       // El hold-off VAD venció sin que Deepgram disparara speech_final.
-      // Resetear visual 'escuchando' → 'esperando' si nadie lo processó.
+      // Resetear visual 'escuchando' → 'esperando' si nadie lo procesó.
       const d = depsRef.current;
-      if (d.estadoRef.current === 'esperando') resetVisualEscuchando(d);
+      if (d.estadoRef.current === 'esperando' || d.estadoRef.current === 'escuchando') resetVisualEscuchando(d);
     },
     onReady: () => {
       srActivoRef.current = true;
@@ -369,7 +378,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         if (!escuchandoSafeTimerRef.current) {
           escuchandoSafeTimerRef.current = setTimeout(() => {
             escuchandoSafeTimerRef.current = null;
-            if (depsRef.current.estadoRef.current === 'esperando') resetVisualEscuchando(depsRef.current);
+            const st = depsRef.current.estadoRef.current;
+            if (st === 'esperando' || st === 'escuchando') resetVisualEscuchando(depsRef.current);
           }, 4000);
         }
       }
@@ -378,6 +388,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     onFinal: (texto) => {
       if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
       dgIdleRef.current = false;
+      setWakeSRActivo(false);
       const d = depsRef.current;
       // Registrar cuándo la app recibe speech_final de Deepgram.
       // Esto NO es el fin físico de voz del usuario; es un hito de cierre ASR.
@@ -473,6 +484,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       procesandoRef.current = true;
       procesandoDesdeRef.current = Date.now();
       safeStopSpeechRecognition();
+      // Limpiar el visual 'escuchando' de inmediato — el badge pasa a 'esperando' ahora
+      // y a 'pensando' ~5ms después cuando useBrain llama setEstado('pensando').
+      resetVisualEscuchando(d);
       const esRepeticion = enConversacion
         && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
         && ultimoAudioUriRef.current !== null;
@@ -511,8 +525,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       unduckMusica();
       procesandoRef.current = false;
       procesandoDesdeRef.current = 0;
-      // Sincronizar visual con ref: si el ref volvió a 'esperando' pero el React state
-      // quedó en 'escuchando' (onPartial lo setea sin tocar el ref), resetearlo acá.
+      // Garantizar que el visual 'escuchando' quede limpio pase lo que pase
+      // (p.ej. responderConClaude retornó early sin tocar el estado).
+      resetVisualEscuchando(d);
       if (d.estadoRef.current === 'esperando') d.setEstado('esperando');
       if (
         d.estadoRef.current === 'esperando'
@@ -568,7 +583,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       const srVencido = srActivoRef.current && tiempoDesdeInicio > 45000;
 
       if (srSuspendidoRef.current) return;
-      if (dgIdleRef.current) { d.verificarCharlaProactiva(); return; }
+      if (dgIdleRef.current) {
+        if (!wakeSRActiveRef.current) iniciarWakeSR();
+        d.verificarCharlaProactiva();
+        return;
+      }
       if (!srActivoRef.current || srZombie || srVencido) {
         if (srZombie || srVencido) {
           if (__DEV__) console.log('[Watchdog] SR', srVencido ? 'vencido (15s)' : 'zombie — reiniciando');
@@ -643,19 +662,27 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     }
 
+    // Saludos v\u00e1lidos para combinar con el nombre del asistente.
+    // Sin saludo no hay wake \u2014 evita disparar con "Rosita, c\u00f3mo est\u00e1 el clima?".
+    // Texto ya normalizado sin tildes cuando se eval\u00faa.
+    const WAKE_SALUDO = /\b(hola|hey|ey|buenas?|buen\s+dia|buenos\s+dias|buenas\s+tardes|buenas\s+noches)\b/;
+
     const resultSub = ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
       if (!wakeSRActiveRef.current) return;
       const nombreNorm = depsRef.current.nombreAsistenteRef.current
         .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const hayWakeWord = (event?.results ?? []).some((r: any) => {
         const t = (r?.transcript ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        return t.split(/\s+/).some((p: string) => p.includes(nombreNorm));
+        const tienNombre  = t.split(/\s+/).some((p: string) => p.includes(nombreNorm));
+        const tienSaludo  = WAKE_SALUDO.test(t);
+        return tienNombre && tienSaludo;
       });
       if (hayWakeWord) {
         const transcript: string = event?.results?.[0]?.transcript ?? '';
         logCliente('wake_word', { transcript });
         detenerWakeSR();
         dgIdleRef.current = false;
+        setWakeSRActivo(false);
         arranqueFrioRef.current = true; // primer turno de la reconexión → muletilla
         reanudarCapturaDG();
         procesarTextoReconocido(transcript).catch(() => {});
@@ -684,6 +711,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // Llamado desde charla proactiva — reconectar sin marcar arranque frío.
     detenerWakeSR();
     dgIdleRef.current = false;
+    setWakeSRActivo(false);
     reanudarCapturaDG();
   }
 
@@ -1133,6 +1161,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       logCliente('dg_idle_close', {});
       dgIdleTimerRef.current = null;
       dgIdleRef.current = true;
+      setWakeSRActivo(true);
       detenerDG();
       iniciarWakeSR();
     }, 60_000);
@@ -1189,6 +1218,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // Estado
     silbando,
     detectandoSonido,
+    wakeSRActivo,
 
     // Refs de control de flujo (compartidos con brain y useRosita)
     enFlujoVozRef,
