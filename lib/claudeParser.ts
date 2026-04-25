@@ -7,6 +7,7 @@ import { construirContexto } from './memoria';
 export type TagPrincipal =
   | 'PARAR_MUSICA'
   | 'LINTERNA'
+  | 'APAGAR_LINTERNA'
   | 'MUSICA'
   | 'FELIZ' | 'TRISTE' | 'SORPRENDIDA' | 'PENSATIVA' | 'NEUTRAL'
   | 'CUENTO' | 'JUEGO' | 'CHISTE' | 'ENOJADA' | 'AVERGONZADA' | 'CANSADA'
@@ -47,6 +48,7 @@ export type RespuestaParsed = {
   jugarTateti?: boolean;
   jugarAhorcado?: boolean;
   jugarMemoria?: boolean;
+  audiolibro?: string;   // titulo_id (ej: "el_principito")
 };
 
 const ANIMOS_VALIDOS: ExpresionAnimo[] = ['feliz', 'triste', 'sorprendida', 'pensativa', 'neutral'];
@@ -321,7 +323,7 @@ function esFechaISOValida(fechaISO: string): boolean {
 }
 
 function normalizarTagPrincipalInline(respuestaRaw: string): string {
-  const tagInline = respuestaRaw.match(/\[(PARAR_MUSICA|LINTERNA|MUSICA:\s*[^\]]+|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA|MIMADA)\]/i);
+  const tagInline = respuestaRaw.match(/\[(PARAR_MUSICA|LINTERNA|APAGAR_LINTERNA|MUSICA:\s*[^\]]+|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA|MIMADA)\]/i);
   if (!tagInline || tagInline.index === undefined || tagInline.index <= 0 || tagInline.index >= 80) return respuestaRaw;
   const prefix = respuestaRaw.slice(0, tagInline.index).trim();
   const suffix = respuestaRaw.slice(tagInline.index + tagInline[0].length).trim();
@@ -339,10 +341,12 @@ function limpiarTagsFinales(texto: string): string {
     .replace(/\[ALARMA:[^\]]*\]?\s*/gi, '')
     .replace(/\[TIMER:\s*\d+\]?\s*/gi, '')
     .replace(/\[LINTERNA\]\s*/gi, '')
+    .replace(/\[APAGAR_LINTERNA\]\s*/gi, '')
     .replace(/\[PARAR_MUSICA\]\s*/gi, '')
     .replace(/\[MUSICA:[^\]]*\]?\s*/gi, '')
     .replace(/\[JUGAR_TATETI\]\s*/gi, '')
     .replace(/\[JUGAR_AHORCADO\]\s*/gi, '')
+    .replace(/\[AUDIOLIBRO:[^\]]*\]\s*/gi, '')
     .replace(/\[DOMOTICA[^\]]*\]?\s*/gi, '')
     .replace(/\[DOMOTICA_ESTADO:[^\]]*\]?\s*/gi, '')
     .replace(/\[LISTA_NUEVA:[^\]]*\]?\s*/gi, '')
@@ -407,7 +411,7 @@ export function parsearRespuesta(
   // Ej: "¡Claro! [MUSICA: tango]..." → "[MUSICA: tango]..."
   // Solo hacer el slice si el bracket abre un TAG PRINCIPAL — evita tirar el texto
   // hablable cuando el primer "[" es un tag secundario como [ANIMO_USUARIO:].
-  const PATRON_TAG_PRINCIPAL = /^\[(?:PARAR_MUSICA|LINTERNA|MUSICA:|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA|MIMADA)/i;
+  const PATRON_TAG_PRINCIPAL = /^\[(?:PARAR_MUSICA|LINTERNA|APAGAR_LINTERNA|MUSICA:|FELIZ|TRISTE|SORPRENDIDA|PENSATIVA|NEUTRAL|CUENTO|JUEGO|CHISTE|ENOJADA|AVERGONZADA|CANSADA|TERNURA|PREOCUPADA|ENTUSIASMADA|MIMADA)/i;
   const firstBracket = respuestaNormalizada.indexOf('[');
   const raw = firstBracket > 0 && firstBracket < 80 && PATRON_TAG_PRINCIPAL.test(respuestaNormalizada.slice(firstBracket))
     ? respuestaNormalizada.slice(firstBracket)
@@ -423,6 +427,12 @@ export function parsearRespuesta(
   if (/^\[LINTERNA\]/i.test(raw)) {
     const respuesta = limpiarTagsFinales(raw.replace(/^\[LINTERNA\]\s*/, ''));
     return { tagPrincipal: 'LINTERNA', respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
+  }
+
+  // ── APAGAR LINTERNA ──
+  if (/^\[APAGAR_LINTERNA\]/i.test(raw)) {
+    const respuesta = limpiarTagsFinales(raw.replace(/^\[APAGAR_LINTERNA\]\s*/, ''));
+    return { tagPrincipal: 'APAGAR_LINTERNA', respuesta, expresion: 'neutral', animoUsuario: 'neutral', recuerdos: [] };
   }
 
   // ── MUSICA ──
@@ -562,6 +572,11 @@ export function parsearRespuesta(
   const jugarMemoria  = /\[JUGAR_MEMORIA\]/i.test(raw);
   respuesta = respuesta.replace(/\[JUGAR_TATETI\]\s*/gi, '').replace(/\[JUGAR_AHORCADO\]\s*/gi, '').replace(/\[JUGAR_MEMORIA\]\s*/gi, '').trim();
 
+  // ── AUDIOLIBRO ──
+  const audiolibroMatch = raw.match(/\[AUDIOLIBRO:\s*([^\]]+)\]/i);
+  const audiolibro = audiolibroMatch ? audiolibroMatch[1].trim().toLowerCase() : undefined;
+  respuesta = respuesta.replace(/\[AUDIOLIBRO:[^\]]*\]\s*/gi, '').trim();
+
   // ── LLAMAR_FAMILIA ──
   const alertaMatch = respuesta.match(/\[LLAMAR_FAMILIA:\s*([^\]]*)\]?/i);
   const llamarFamilia = alertaMatch?.[1]?.trim();
@@ -610,5 +625,6 @@ export function parsearRespuesta(
     jugarTateti:   jugarTateti   || undefined,
     jugarAhorcado: jugarAhorcado || undefined,
     jugarMemoria:  jugarMemoria  || undefined,
+    audiolibro,
   };
 }

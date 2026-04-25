@@ -469,6 +469,7 @@ export interface BrainDeps {
   reanudarSR?:  () => void;
   ejecutarAccionDomotica: (action: DomoticaAction) => Promise<void>;
   lanzarJuego?: (tipo: 'tateti' | 'ahorcado' | 'memoria') => void;
+  lanzarAudiolibro?: (tituloId: string) => void;
   /** Función que retorna true si el beacon BLE está conectado en este momento. */
   isBleConectado?: () => boolean;
 }
@@ -1828,6 +1829,7 @@ REGLAS CRÍTICAS PARA RESPONDER:
         || parsed.tagPrincipal === 'MUSICA'
         || parsed.tagPrincipal === 'PARAR_MUSICA'
         || parsed.tagPrincipal === 'LINTERNA'
+        || parsed.tagPrincipal === 'APAGAR_LINTERNA'
         || ofrecerMenuAburrimiento;
 
       if (!mantenerLarga) {
@@ -1899,12 +1901,29 @@ REGLAS CRÍTICAS PARA RESPONDER:
         return;
       }
 
+      // ── AUDIOLIBRO ──
+      if (parsed.audiolibro) {
+        await d.hablar(parsed.respuesta);
+        if (d.expresionTimerRef.current) clearTimeout(d.expresionTimerRef.current);
+        d.setExpresion('neutral');
+        d.lanzarAudiolibro?.(parsed.audiolibro);
+        return;
+      }
+
       // ── LINTERNA ──
       if (parsed.tagPrincipal === 'LINTERNA') {
         d.setLinternaActiva(true);
         Animated.timing(d.flashAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
         // No llamar Brightness directamente: setLinternaActiva dispara el effect
         // en useRosita que centraliza todo el brillo via aplicarBrilloDeseado.
+        await d.hablar(parsed.respuesta);
+        return;
+      }
+
+      // ── APAGAR LINTERNA ──
+      if (parsed.tagPrincipal === 'APAGAR_LINTERNA') {
+        d.setLinternaActiva(false);
+        Animated.timing(d.flashAnim, { toValue: 0, duration: 300, useNativeDriver: true }).start();
         await d.hablar(parsed.respuesta);
         return;
       }

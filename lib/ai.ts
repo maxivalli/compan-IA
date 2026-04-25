@@ -848,6 +848,16 @@ export async function reportarCrash(message: string, stack: string, platform: st
   } catch {}
 }
 
+export async function fetchCapitulosAudiolibro(): Promise<import('./audiolibro').Capitulo[]> {
+  const token = await obtenerTokenDispositivo();
+  const res = await fetchConTimeout(`${BACKEND_URL}/audiolibros/capitulos`, {
+    headers: { 'x-device-token': token },
+  }, 10000);
+  if (!res.ok) throw new Error(`fetchCapitulosAudiolibro error ${res.status}`);
+  const body = await res.json();
+  return body.capitulos;
+}
+
 /** URL de un archivo de audio pre-generado en el backend.
  *  genero requerido solo para rapida; omitir para el resto.
  *  El archivo es público (sin auth) — express.static lo sirve directamente. */

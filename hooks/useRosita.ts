@@ -251,6 +251,9 @@ export function useRosita() {
       const rutaJuego = { tateti: '/tateti', ahorcado: '/ahorcado', memoria: '/memoria' } as const;
       router.push(rutaJuego[tipo] as Parameters<typeof router.push>[0]);
     },
+    lanzarAudiolibro: (tituloId) => {
+      router.push({ pathname: '/audiolibro', params: { tituloId } } as unknown as Parameters<typeof router.push>[0]);
+    },
   });
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
