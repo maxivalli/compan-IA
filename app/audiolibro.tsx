@@ -12,6 +12,7 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { Ionicons } from '@expo/vector-icons';
 
 import { fetchCapitulosAudiolibro } from '../lib/ai';
 import { Capitulo, getProgreso, saveProgreso, NOMBRE_LIBRO } from '../lib/audiolibro';
@@ -77,10 +78,10 @@ export default function AudiolibroScreen() {
         const idx = caps.findIndex(c => c.idx === progreso.capituloIdx);
         const capIdx = idx >= 0 ? idx : 0;
         setCapActual(capIdx);
-        await cargarCapituloInline(caps, capIdx, progreso.posicionSegundos, false);
+        await cargarCapituloInline(caps, capIdx, progreso.posicionSegundos, true);
       } else if (caps.length > 0) {
         setCapActual(0);
-        await cargarCapituloInline(caps, 0, 0, false);
+        await cargarCapituloInline(caps, 0, 0, true);
       }
     } catch (e: any) {
       setError('No se pudieron cargar los capítulos. Verificá tu conexión.');
@@ -198,7 +199,7 @@ export default function AudiolibroScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={cerrar} style={styles.btnCerrar} hitSlop={12}>
-          <Text style={[styles.btnCerrarTxt, { fontSize: fs(17) }]}>✕ Cerrar</Text>
+          <Ionicons name="chevron-down" size={fs(28)} color={C.accentL} />
         </TouchableOpacity>
         <Text style={[styles.headerTitulo, { fontSize: fs(18) }]}>{nombreLibro}</Text>
         <View style={{ width: 80 }} />
@@ -245,13 +246,15 @@ export default function AudiolibroScreen() {
                 disabled={capActual === 0}
                 style={[styles.btnControl, capActual === 0 && styles.btnDisabled]}
               >
-                <Text style={[styles.btnControlTxt, { fontSize: fs(28) }]}>⏮</Text>
+                <Ionicons name="play-skip-back" size={fs(28)} color={C.text} />
               </TouchableOpacity>
 
               <TouchableOpacity onPress={togglePlay} style={styles.btnPlay}>
-                <Text style={[styles.btnPlayTxt, { fontSize: fs(40) }]}>
-                  {reproduciendo ? '⏸' : '▶'}
-                </Text>
+                <Ionicons
+                  name={reproduciendo ? 'pause' : 'play'}
+                  size={fs(34)}
+                  color="#fff"
+                />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -259,7 +262,7 @@ export default function AudiolibroScreen() {
                 disabled={capActual >= capitulos.length - 1}
                 style={[styles.btnControl, capActual >= capitulos.length - 1 && styles.btnDisabled]}
               >
-                <Text style={[styles.btnControlTxt, { fontSize: fs(28) }]}>⏭</Text>
+                <Ionicons name="play-skip-forward" size={fs(28)} color={C.text} />
               </TouchableOpacity>
             </View>
           </View>
@@ -278,7 +281,7 @@ export default function AudiolibroScreen() {
                 ]}
               >
                 <View style={styles.capNumBadge}>
-                  <Text style={[styles.capNum, { fontSize: fs(13) }]}>{cap.idx}</Text>
+                  <Text style={[styles.capNum, { fontSize: fs(13) }]}>{idx + 1}</Text>
                 </View>
                 <Text
                   style={[
@@ -306,8 +309,7 @@ const styles = StyleSheet.create({
   root:          { flex: 1, backgroundColor: C.bg },
   header:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   headerTitulo:  { color: C.text, fontWeight: '700', flex: 1, textAlign: 'center' },
-  btnCerrar:     { width: 80 },
-  btnCerrarTxt:  { color: C.accentL, fontWeight: '600' },
+  btnCerrar:     { width: 80, alignItems: 'flex-start' },
   centered:      { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   subTxt:        { color: C.sub },
   errorTxt:      { color: C.danger, textAlign: 'center' },
@@ -328,7 +330,6 @@ const styles = StyleSheet.create({
   btnControlTxt: { color: C.text },
   btnDisabled:   { opacity: 0.3 },
   btnPlay:       { backgroundColor: C.accent, width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center' },
-  btnPlayTxt:    { color: '#fff' },
 
   listaHeader:   { color: C.sub, fontWeight: '700', letterSpacing: 1, marginHorizontal: 20, marginBottom: 6 },
   lista:         { flex: 1, marginHorizontal: 12 },
