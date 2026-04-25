@@ -343,10 +343,13 @@ export default function Index() {
     return () => { badgePulsoRef.current?.stop(); };
   }, [isEsperando]);
 
-  // ── Animación del botón SOS ─────────────────────────────────────────────────
-  const [sosPresionando, setSosPresionando] = useState(false);
+  // ── Deslizador SOS ──────────────────────────────────────────────────────────
+  const swipeXAnim       = useRef(new Animated.Value(0)).current;
+  const containerWidthRef = useRef(0);
+  const arrowsOpacity    = useRef(new Animated.Value(0.4)).current;
+  const dispararSOSRef   = useRef(dispararSOS);
+  useEffect(() => { dispararSOSRef.current = dispararSOS; }, [dispararSOS]);
   const [mostrarListas, setMostrarListas] = useState(false);
-  const sosBrillo = useRef(new Animated.Value(0)).current;
 
   // ── LED de presencia (ojo en LCD) ───────────────────────────────────────────
   const deteccionPresenciaActiva = refs.perfilRef.current?.deteccionPresenciaActiva ?? false;
@@ -380,16 +383,39 @@ export default function Index() {
     return () => { ojoPulsoRef.current?.stop(); };
   }, [ojoDebePulsar]);
 
-  function sosPresionado() {
-    setSosPresionando(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Animated.timing(sosBrillo, { toValue: 1, duration: 150, useNativeDriver: true }).start();
-  }
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(arrowsOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(arrowsOpacity, { toValue: 0.25, duration: 600, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, []);
 
-  function sosSoltado() {
-    setSosPresionando(false);
-    Animated.timing(sosBrillo, { toValue: 0, duration: 200, useNativeDriver: true }).start();
-  }
+  const sosPanResponder = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: (_, g) => g.dx > 5 && Math.abs(g.dy) < 40,
+    onPanResponderGrant: () => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    },
+    onPanResponderMove: (_, g) => {
+      if (g.dx < 0) return;
+      const maxDrag = containerWidthRef.current * 0.65;
+      swipeXAnim.setValue(Math.min(g.dx, maxDrag));
+    },
+    onPanResponderRelease: async (_, g) => {
+      if (g.dx >= containerWidthRef.current * 0.50) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        dispararSOSRef.current();
+      }
+      Animated.spring(swipeXAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 8 }).start();
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(swipeXAnim, { toValue: 0, useNativeDriver: true, tension: 120, friction: 8 }).start();
+    },
+  })).current;
 
 
   // ── Nombre del asistente para el onboarding ─────────────────────────────────
@@ -469,13 +495,6 @@ export default function Index() {
             : esBotonesNoche ? '#6366f1'
               : '#f59e0b';
 
-  // Rojo oscuro = luz apagada (base siempre visible)
-  const sosGradientOff: [string, string] = esBotonesNoche ? ['#7f1d1d', '#450a0a'] : ['#b91c1c', '#7f1d1d'];
-  // Rojo brillante = luz encendida (se mezcla encima con opacity animada)
-  const sosGradientOn: [string, string] = ['#fca5a5', '#ef4444'];
-  const sosShadowColor = sosPresionando ? '#ff2222' : esBotonesNoche ? '#6B1111' : '#CC2222';
-  const sosShadowOpacity = sosPresionando ? 0.85 : esBotonesNoche ? 0.20 : 0.55;
-  const sosInnerBorder = sosPresionando ? 'rgba(255,255,255,0.40)' : 'rgba(0,0,0,0.32)';
 
 
   // ── Acciones canónicas (touch vertical y BLE horizontal llaman a lo mismo) ───
@@ -922,71 +941,127 @@ export default function Index() {
           {/* ── Zona de botones ── */}
           {(() => {
             const hayFamiliaTelegram = (refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0;
-            return (
-              <View style={{
-                flexDirection: 'row', alignItems: 'center',
-                width: Math.round(screenW * 0.61), gap: 12,
-              }}>
+            const sosPillH = btnH - 10;
+            const sosZoneW = Math.round(btnH * 1.6);
 
-                {/* Badge de estado */}
+            return (
+              <View
+                style={{
+                  width: screenW - 32,
+                  height: btnH,
+                  borderRadius: btnH / 2,
+                  backgroundColor: esBotonesNoche ? 'rgba(15,17,35,0.85)' : 'rgba(255,255,255,0.72)',
+                  borderWidth: 1,
+                  borderColor: esBotonesNoche ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.90)',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 12,
+                  elevation: 6,
+                }}
+                onLayout={e => { containerWidthRef.current = e.nativeEvent.layout.width; }}
+              >
+                {/* SOS — izquierda, deslizable */}
+                {hayFamiliaTelegram ? (
+                  <Animated.View
+                    {...sosPanResponder.panHandlers}
+                    style={{
+                      width: sosZoneW,
+                      height: '100%',
+                      alignItems: 'flex-start',
+                      justifyContent: 'center',
+                      paddingLeft: 4,
+                      transform: [{ translateX: swipeXAnim }],
+                    }}
+                  >
+                    <View style={{
+                      backgroundColor: 'rgba(220,38,38,0.90)',
+                      borderRadius: sosPillH / 2,
+                      paddingHorizontal: 16,
+                      height: sosPillH,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: btnFont }}>SOS</Text>
+                    </View>
+                  </Animated.View>
+                ) : (
+                  <TouchableOpacity
+                    onPress={mostrarHintSOS}
+                    style={{
+                      width: sosZoneW,
+                      height: '100%',
+                      alignItems: 'flex-start',
+                      justifyContent: 'center',
+                      paddingLeft: 4,
+                      opacity: 0.38,
+                    }}
+                  >
+                    <View style={{
+                      backgroundColor: 'rgba(220,38,38,0.90)',
+                      borderRadius: sosPillH / 2,
+                      paddingHorizontal: 16,
+                      height: sosPillH,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Text style={{ color: '#fff', fontWeight: '800', fontSize: btnFont }}>SOS</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Flechas indicadoras */}
+                {hayFamiliaTelegram && (
+                  <Animated.Text style={{
+                    opacity: arrowsOpacity,
+                    color: esBotonesNoche ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.22)',
+                    fontSize: fs(15),
+                    marginLeft: 2,
+                  }}>
+                    {'›››'}
+                  </Animated.Text>
+                )}
+
+                {/* Estado de Rosita — derecha */}
                 <TouchableOpacity
                   onPress={acciones.toggleTalkOrStopMusic}
                   activeOpacity={musicaActiva ? 0.75 : 0.9}
-                  style={[styles.estadoBadgeWrap, {
-                    flex: 1, height: btnH, borderRadius: btnH / 2,
-                    borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)',
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.18, shadowRadius: 8, elevation: 4,
-                    overflow: 'hidden',
-                  }]}
+                  style={{
+                    flex: 1,
+                    height: '100%',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    paddingRight: 18,
+                    gap: 10,
+                  }}
                 >
-                  <LinearGradient colors={badgeGradient} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                    style={[StyleSheet.absoluteFill, { opacity: isEsperando ? 0.50 : 0.88 }]} />
-                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.12)' }]} />
-                  {isEsperando && (
-                    <Animated.View style={[StyleSheet.absoluteFill, { opacity: badgePulso }]}>
-                      <LinearGradient colors={['#fde68a', '#f59e0b']} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                        style={StyleSheet.absoluteFill} />
-                    </Animated.View>
-                  )}
-                  <View style={styles.estadoBadgeGradient}>
-                    <Text style={[styles.estadoBadgeTexto, { color: badgeColor, fontSize: btnFont }]}>
-                      {badgeLabel}
-                    </Text>
-                  </View>
+                  <Text
+                    style={{
+                      fontWeight: '600',
+                      fontSize: btnFont,
+                      color: esBotonesNoche ? '#e2e8f0' : '#1f2937',
+                      textAlign: 'right',
+                    }}
+                    numberOfLines={1}
+                  >
+                    {badgeLabel}
+                  </Text>
+                  <Animated.View
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: 6,
+                      backgroundColor: glowColor,
+                      opacity: isEsperando
+                        ? badgePulso.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] })
+                        : 1,
+                    }}
+                  />
                 </TouchableOpacity>
-
-                {/* Botón SOS — círculo a la derecha */}
-                <TouchableOpacity
-                  style={[styles.botonSOSWrap, {
-                    width: btnH, height: btnH, borderRadius: btnH / 2,
-                    borderWidth: 1, borderColor: sosPresionando ? 'rgba(255,100,100,0.60)' : 'rgba(255,255,255,0.38)',
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: hayFamiliaTelegram ? 0.18 : 0.10, shadowRadius: 8, elevation: 4,
-                    overflow: 'hidden',
-                    opacity: hayFamiliaTelegram ? 1 : 0.35,
-                  }]}
-                  onPress={hayFamiliaTelegram ? mostrarHintSOS : undefined}
-                  onPressIn={hayFamiliaTelegram ? sosPresionado : undefined}
-                  onPressOut={hayFamiliaTelegram ? sosSoltado : undefined}
-                  onLongPress={hayFamiliaTelegram ? async () => { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); dispararSOS(); } : undefined}
-                  delayLongPress={2000}
-                  activeOpacity={1}
-                >
-                  <LinearGradient colors={sosGradientOff} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                    style={[StyleSheet.absoluteFill, { opacity: 0.88 }]} />
-                  <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(255,255,255,0.10)' }]} />
-                  <Animated.View style={[StyleSheet.absoluteFill, { opacity: sosBrillo }]}>
-                    <LinearGradient colors={sosGradientOn} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-                      style={StyleSheet.absoluteFill} />
-                  </Animated.View>
-                  <View style={styles.estadoBadgeGradient}>
-                    <Text style={[styles.botonSOSTexto, { fontSize: isTablet ? sosFontTablet : Math.round(btnFont * 1.1) }]}>
-                      SOS
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
               </View>
             );
           })()}
@@ -1047,10 +1122,6 @@ export default function Index() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            onLongPress={() => silbando ? detenerSilbido() : iniciarSilbido()}
-            style={{ position: 'absolute', bottom: safeBottom + 50, left: 0, width: 70, height: 70 }}
-          />
 
 
           <Animated.View
@@ -1064,7 +1135,7 @@ export default function Index() {
                 <Ionicons name="alert-circle" size={isTablet ? 110 : 88} color="#fff" />
                 <Text style={[styles.sosModalTitulo, isTablet && { fontSize: fs(32) * 1.3 }]}>Botón SOS</Text>
                 <Text style={[styles.sosModalTexto, isTablet && { fontSize: fs(22) * 1.3, lineHeight: fs(32) * 1.3 }]}>
-                  Mantené presionado{'\n'}2 segundos para avisar{'\n'}a tu familia
+                  Deslizá el SOS{'\n'}hacia la derecha{'\n'}para avisar{'\n'}a tu familia
                 </Text>
               </View>
             </TouchableOpacity>
