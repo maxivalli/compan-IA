@@ -65,7 +65,7 @@ const KEEPALIVE_INTERVAL_MS = 5000;
 
 // VAD (Voice Activity Detection) — filtra chunks de silencio antes de enviar a Deepgram.
 const VAD_RMS_THRESHOLD_CONVERSACION = 55;   // Umbral normal: dentro de ventana de 60s
-const VAD_RMS_THRESHOLD_IDLE         = 100;  // Umbral idle: filtra TV/lluvia/ruido ambiente
+const VAD_RMS_THRESHOLD_IDLE         = 75;   // Umbral idle: filtra TV/lluvia/ruido ambiente
 const VAD_HOLD_OFF_MS   = 1200;
 const VAD_GATED_LOG_MS  = 3000;
 
@@ -158,9 +158,9 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
           const binary = Uint8Array.from(atob(data), c => c.charCodeAt(0));
           const rms = calcularRMS(binary);
           const baseThreshold = optsRef.current.getVadThreshold?.() ?? VAD_RMS_THRESHOLD_CONVERSACION;
-          // threshold efectivo = max(base, noiseFloor × 1.8)
-          // Sube el umbral si hay TV/ruido ambiente, pero con menos agresividad.
-          const threshold = Math.max(baseThreshold, noiseFloorRef.current * 1.8);
+          // threshold efectivo = max(base, noiseFloor × 1.5)
+          // Sube el umbral si hay TV/ruido ambiente, adaptativo pero menos restrictivo.
+          const threshold = Math.max(baseThreshold, noiseFloorRef.current * 1.5);
 
           if (rms > threshold) {
             // Hay voz → enviar y cancelar hold-off + timer de gating
