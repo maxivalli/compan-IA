@@ -1057,31 +1057,40 @@ export default function Index() {
                     gap: 10,
                   }}
                 >
-                  <Text
-                    onLayout={e => {
-                      stateLabelXRef.current = stateSectionXRef.current + e.nativeEvent.layout.x;
-                    }}
-                    style={{
-                      fontWeight: '600',
-                      fontSize: btnFont,
-                      color: esBotonesNoche ? '#e2e8f0' : '#1f2937',
-                      textAlign: 'right',
-                    }}
-                    numberOfLines={1}
-                  >
-                    {badgeLabel}
-                  </Text>
                   <Animated.View
                     style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: 6,
-                      backgroundColor: glowColor,
-                      opacity: isEsperando
-                        ? badgePulso.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] })
-                        : 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 10,
+                      opacity: swipeXAnim.interpolate({ inputRange: [0, 20], outputRange: [1, 0], extrapolate: 'clamp' }),
                     }}
-                  />
+                  >
+                    <Text
+                      onLayout={e => {
+                        stateLabelXRef.current = stateSectionXRef.current + e.nativeEvent.layout.x;
+                      }}
+                      style={{
+                        fontWeight: '600',
+                        fontSize: btnFont,
+                        color: esBotonesNoche ? '#e2e8f0' : '#1f2937',
+                        textAlign: 'right',
+                      }}
+                      numberOfLines={1}
+                    >
+                      {badgeLabel}
+                    </Text>
+                    <Animated.View
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: 6,
+                        backgroundColor: glowColor,
+                        opacity: isEsperando
+                          ? badgePulso.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] })
+                          : 1,
+                      }}
+                    />
+                  </Animated.View>
                 </TouchableOpacity>
               </View>
             );
