@@ -27,7 +27,7 @@ import { ModoNoche } from '../components/RosaOjos';
 import { hashTexto, velocidadSegunEdad } from '../lib/claudeParser';
 import {
   beginTurnTelemetry,
-  getCurrentTurnMetrics,
+  getCurrentTurnStartedAt,
   markTurnFirstAudio,
   sintetizarVoz,
   urlFishRealtimeStream,
@@ -479,11 +479,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       d.srResultTsRef.current = Date.now();
       const lagDeepgramFinalMs = d.deepgramFinalTsRef.current ? d.srResultTsRef.current - d.deepgramFinalTsRef.current : -1;
       const newTurnId = beginTurnTelemetry();
+      d.rcStartTsRef.current = 0;
+      logCliente('dg_final', {
+        chars: texto.length,
+        texto_debug: texto,
+        turn_id: newTurnId,
+      });
       logCliente('sr_final_received', {
         chars: texto.length,
         lag_dg_final_to_sr_final_ms: lagDeepgramFinalMs,
         sr_final_basis: 'deepgram_final_received_app_ts',
         texto_debug: texto,
+        turn_id: newTurnId,
       });
       if (esRepeticion) {
         await hablar(ultimoTextoHabladoRef.current!);
@@ -918,12 +925,15 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (__DEV__) console.log('[TTS] hablar() llamado, chars:', texto.length, '| texto:', texto.slice(0, 40));
     const lagRcMs = d.rcStartTsRef.current ? Date.now() - d.rcStartTsRef.current : -1;
     const turnAudio = markTurnFirstAudio();
+    const turnId = turnAudio.turnId;
+    const turnStartedAt = getCurrentTurnStartedAt();
     if (turnAudio.firstForTurn) {
       logCliente('first_audio', {
         chars: texto.length,
         emotion: emotion ?? 'none',
         lag_rc_ms: lagRcMs,
         e2e_first_audio_ms: turnAudio.e2eFirstAudioMs ?? -1,
+        turn_id: turnId ?? 'none',
       });
     }
     logCliente('hablar_start', {
@@ -933,6 +943,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       e2e_first_audio_ms: turnAudio.e2eFirstAudioMs ?? -1,
       first_audio_turn: turnAudio.firstForTurn ? 'si' : 'no',
       skip_cache: skipCacheCheck ? 'si' : 'no',
+      turn_id: turnId ?? 'none',
     });
     safeStopSpeechRecognition();
     detenerSilbido();
@@ -967,13 +978,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         // En paralelo, descargamos y cacheamos con sintetizarVoz para el próximo turn.
         try {
           const streamUrl = await urlFishRealtimeStream(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
-          logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_stream' });
+          logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_stream', turn_id: turnId ?? 'none' });
           // Cache en background via precachearTexto (usa el in-flight map, evita double call)
           precachearTexto(texto, emotion).catch(() => {});
           playUri = streamUrl;
         } catch {
           // Fallback a REST si no se puede construir la URL de stream
-          logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_rest_fallback' });
+          logCliente('tts_path', { chars: texto.length, emotion: emotion ?? 'none', provider: 'fish_rest_fallback', turn_id: turnId ?? 'none' });
           try {
             const base64 = await sintetizarVoz(texto, voiceId, velocidadSegunEdad(p?.edad), emotion);
             if (base64) {
@@ -1004,12 +1015,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             clearTimeout(noStartTimer);
             if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
             if (__DEV__) console.log('[TTS] fin de reproducción, motivo:', motivo);
-            const turnMetrics = getCurrentTurnMetrics();
             logCliente('hablar_end', {
               motivo,
               pos: Math.round(((player as AudioPlayerExt).currentTime ?? 0) * 1000),
               dur: Math.round(((player as AudioPlayerExt).duration ?? 0) * 1000),
-              e2e_now_ms: turnMetrics.e2eNowMs ?? -1,
+              e2e_now_ms: turnStartedAt ? Date.now() - turnStartedAt : -1,
+              turn_id: turnId ?? 'none',
             });
             resolve();
           };

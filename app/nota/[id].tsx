@@ -49,6 +49,18 @@ type ResultBusqueda = {
   fuentes?: Fuente[];
 };
 
+type DatoClave = { etiqueta: string; valor: string };
+type Seccion = { titulo: string; contenido: string };
+
+type ResultWikipedia = {
+  titulo: string;
+  resumen_corto?: string;
+  contenido?: string;
+  datos_clave?: DatoClave[];
+  secciones?: Seccion[];
+  fuentes?: Fuente[];
+};
+
 /** "2 horas 30 minutos" → "2:30 Hs" | "45 minutos" → "45 min" | "1 hora" → "1:00 Hs" */
 function formatTiempo(t: string): string {
   const h = t.match(/(\d+)\s*hora/i);
@@ -131,14 +143,16 @@ export default function NotaScreen() {
           <Ionicons name="arrow-back" size={isLandscape ? 24 : 30} color={M3.primary} />
         </Pressable>
         <Text style={[styles.headerTitle, isLandscape && styles.headerTitleLandscape]} numberOfLines={1}>
-          {job.tipo === 'receta' ? 'Receta' : 'Nota'}
+          {job.tipo === 'receta' ? 'Receta' : job.tipo === 'wikipedia' ? 'Wikipedia' : 'Nota'}
         </Text>
       </View>
 
       <ScrollView contentContainerStyle={[styles.scroll, isLandscape && styles.scrollLandscape]} showsVerticalScrollIndicator={false}>
         {job.tipo === 'receta'
           ? <RecetaViewer data={job.resultJson as ResultReceta} isLandscape={isLandscape} />
-          : <BusquedaViewer data={job.resultJson as ResultBusqueda} isLandscape={isLandscape} />
+          : job.tipo === 'wikipedia'
+            ? <WikipediaViewer data={job.resultJson as ResultWikipedia} isLandscape={isLandscape} />
+            : <BusquedaViewer data={job.resultJson as ResultBusqueda} isLandscape={isLandscape} />
         }
       </ScrollView>
     </View>
@@ -259,6 +273,72 @@ function BusquedaViewer({ data, isLandscape }: { data: ResultBusqueda; isLandsca
   );
 }
 
+function WikipediaViewer({ data, isLandscape }: { data: ResultWikipedia; isLandscape: boolean }) {
+  const header = (
+    <>
+      <Text style={styles.titulo}>{data.titulo}</Text>
+      {data.resumen_corto ? <Text style={styles.resumen}>{data.resumen_corto}</Text> : null}
+    </>
+  );
+
+  const datosClaveSection = data.datos_clave?.length ? (
+    <View style={styles.datosClaveBox}>
+      {data.datos_clave.map((dato, i) => (
+        <View key={i} style={styles.datoClaveRow}>
+          <Text style={styles.datoClaveLabel}>{dato.etiqueta}</Text>
+          <Text style={styles.datoClaveValor}>{dato.valor}</Text>
+        </View>
+      ))}
+    </View>
+  ) : null;
+
+  const contenidoSection = data.contenido ? (
+    <Text style={styles.contenidoTexto}>{data.contenido}</Text>
+  ) : null;
+
+  const seccionesSection = data.secciones?.length ? (
+    <>
+      {data.secciones.map((sec, i) => (
+        <View key={i} style={styles.seccionWiki}>
+          <Text style={styles.seccion}>{sec.titulo}</Text>
+          <Text style={styles.contenidoTexto}>{sec.contenido}</Text>
+        </View>
+      ))}
+    </>
+  ) : null;
+
+  const fuentesSection = <FuentesSection fuentes={data.fuentes} />;
+
+  if (isLandscape) {
+    return (
+      <>
+        {header}
+        <View style={styles.dosColumnas}>
+          <View style={styles.columnaIzq}>
+            {datosClaveSection}
+            {contenidoSection}
+            {seccionesSection}
+          </View>
+          <View style={styles.separadorVertical} />
+          <View style={styles.columnaDer}>
+            {fuentesSection}
+          </View>
+        </View>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {header}
+      {datosClaveSection}
+      {contenidoSection}
+      {seccionesSection}
+      {fuentesSection}
+    </>
+  );
+}
+
 function FuentesSection({ fuentes }: { fuentes?: Fuente[] }) {
   if (!fuentes?.length) return null;
   return (
@@ -346,6 +426,22 @@ const styles = StyleSheet.create({
 
   fuenteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
   fuenteTexto: { flex: 1, fontSize: 18, color: M3.onSurfaceVariant, lineHeight: 26 },
+
+  // ── Wikipedia específico ───────────────────────────────────────────────
+  datosClaveBox: {
+    backgroundColor: M3.elevation1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: M3.outlineVariant,
+  },
+  datoClaveRow: { flexDirection: 'row', marginBottom: 10, gap: 12 },
+  datoClaveLabel: { fontSize: 17, fontWeight: '600', color: M3.primary, minWidth: 100 },
+  datoClaveValor: { flex: 1, fontSize: 17, color: M3.onSurface, lineHeight: 24 },
+  
+  contenidoTexto: { fontSize: 19, color: M3.onSurface, lineHeight: 32, marginBottom: 16 },
+  seccionWiki: { marginBottom: 16 },
 
   emptyText: { fontSize: 20, color: M3.onSurfaceVariant, marginTop: 8 },
 });

@@ -681,6 +681,7 @@ export type ModoNoche = 'despierta' | 'soñolienta' | 'durmiendo';
 
 const FACE_W = EYE_W * 2 + 32;
 const FACE_H = EYE_H + 120;
+const SLEEP_EYE_LIFT_PX = 5;
 
 export default function RosaOjos({
   estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, eyeOffsetY = 0,

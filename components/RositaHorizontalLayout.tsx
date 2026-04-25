@@ -517,7 +517,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
                       onRelampago={props.onRelampago}
                       esCumpleaños={props.esCumpleaños}
                       modoHorizontal
-                      browOffsetY={esTabletHorizontal ? -55 : 50}
+                      browOffsetY={esTabletHorizontal ? -55 : props.modoNoche === 'durmiendo' ? 45 : 50}
                       browOffsetX={0}
                       browScale={esTabletHorizontal ? 1.0 : 1.04}
                       browGap={esTabletHorizontal ? 3 : 3}

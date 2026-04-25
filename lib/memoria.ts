@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { emitPerfilLocalGuardado } from './perfilSync';
+import { emitRecordatoriosLocalesActualizados } from './recordatorioSync';
 
 const CLAVE_PERFIL         = 'rosa_perfil';
 const CLAVE_HISTORIAL      = 'rosa_historial';
@@ -598,6 +599,7 @@ export async function guardarRecordatorio(r: Recordatorio): Promise<void> {
       if (yaExiste) return;
       lista.push(r);
       await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(lista));
+      emitRecordatoriosLocalesActualizados();
     } catch {}
   }).catch(() => {});
   await recordatorioWriteQueue;
@@ -618,6 +620,7 @@ export async function borrarRecordatorio(id: string): Promise<void> {
     const lista: Recordatorio[] = data ? JSON.parse(data) : [];
     const nueva = lista.filter(r => r.id !== id);
     await AsyncStorage.setItem(CLAVE_RECORDATORIOS_PERSONAL, JSON.stringify(nueva));
+    emitRecordatoriosLocalesActualizados();
   } catch {}
 }
 

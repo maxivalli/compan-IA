@@ -247,7 +247,6 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     const texto = acumuladorRef.current.join(' ').trim();
     acumuladorRef.current = [];
     if (texto) {
-      logCliente('dg_final', { chars: texto.length, texto_debug: texto });
       optsRef.current.onFinal(texto);
     }
   }

@@ -36,7 +36,39 @@ type Grupo = {
 
 const GRUPOS: Grupo[] = [
   {
-    titulo: 'Charlar con Rosita',
+    titulo: 'Primeros pasos',
+    icono: 'footsteps-outline',
+    color: '#0F766E',
+    bg: '#CCFBF1',
+    secciones: [
+      {
+        icono: 'play-circle-outline',
+        titulo: 'Configuración inicial',
+        descripcion: 'Cuando abras Rosita por primera vez, entrá a Configuración y terminá de cargar los datos principales: nombre, fecha de nacimiento, medicamentos, horarios de descanso y cualquier información importante para personalizar la experiencia.',
+        color: '#0F766E',
+        bg: '#CCFBF1',
+        nota: 'Lo ideal es revisar esta parte primero. Cuantos más datos tenga Rosita, mejor te puede acompañar y ayudar en el día a día.',
+      },
+      {
+        icono: 'paper-plane-outline',
+        titulo: 'Conectar Telegram',
+        descripcion: 'Si querés usar mensajes, audios, fotos y resúmenes para la familia, configurá Telegram desde Configuración. Ahí podés vincular el bot y dejar cargados los contactos familiares.',
+        color: '#004785',
+        bg: '#D3E4FF',
+        nota: 'Telegram es opcional, pero hace falta para que Rosita pueda enviar avisos, mensajes y fotos a la familia.',
+      },
+      {
+        icono: 'home-outline',
+        titulo: 'Conectar SmartThings',
+        descripcion: 'Si querés manejar luces, enchufes, ventiladores o aires con la voz, desde Configuración también podés vincular SmartThings y dejar habilitado el control del hogar.',
+        color: '#475569',
+        bg: '#F1F5F9',
+        nota: 'SmartThings también es opcional. Solo hace falta si querés que Rosita controle dispositivos de la casa.',
+      },
+    ],
+  },
+  {
+    titulo: 'Charlar con tu asistente',
     icono: 'chatbubbles-outline',
     color: '#B45309',
     bg: '#FEF3C7',
@@ -44,26 +76,36 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'chatbubbles-outline',
         titulo: 'Charlar',
-        descripcion: 'Podés hablar de cualquier tema: cómo te sentís, recuerdos, noticias, familia. Rosita te escucha y responde con cariño.',
+        descripcion: 'Podés hablar de cualquier tema: cómo te sentís, recuerdos, noticias, familia. Tu asistente te escucha y responde con cariño.',
         color: '#7C5200',
         bg: '#FFE0A0',
         comandos: ['¿Cómo estás hoy?', 'Contame algo', 'Extraño a mi hijo', 'Qué aburrimiento'],
+        nota: 'El nombre del asistente se puede personalizar desde Configuración. "Rosita" es solo el nombre por defecto.',
       },
       {
         icono: 'sunny-outline',
         titulo: 'Presencia activa',
-        descripcion: 'Rosita te saluda cada mañana, te inicia charla si no hubo conversación en un rato, y silba suavemente si lleva tiempo sola.',
+        descripcion: 'Tu asistente te saluda cada mañana, te inicia charla si no hubo conversación en un rato, y silba suavemente si lleva tiempo sola.',
         color: '#7C5200',
         bg: '#FFE0A0',
         nota: 'Todo esto ocurre automáticamente según el horario del día.',
       },
       {
         icono: 'game-controller-outline',
-        titulo: 'Juegos y ejercicios',
-        descripcion: 'Juegos para entretener y ejercitar la mente. Adivinanzas, trivia, cálculos, trabalenguas, refranes y más.',
+        titulo: 'Juegos conversacionales',
+        descripcion: 'Juegos por voz para entretener y ejercitar la mente. Adivinanzas, trivia, cálculos, trabalenguas, refranes y más.',
         color: '#8B1500',
         bg: '#FFDAD4',
-        comandos: ['Juguemos a las adivinanzas', 'Una trivia', 'Contame un refrán', 'Poneme un cálculo', 'Un trabalenguas', 'Juego de memoria'],
+        comandos: ['Juguemos a las adivinanzas', 'Una trivia', 'Contame un refrán', 'Poneme un cálculo', 'Un trabalenguas'],
+      },
+      {
+        icono: 'game-controller',
+        titulo: 'Juegos táctiles',
+        descripcion: 'Juegos interactivos en pantalla completa. Ahorcado con 69 palabras, Memoria visual con emojis, y Ta-Te-Ti contra la IA. Se juegan tocando la pantalla.',
+        color: '#8B1500',
+        bg: '#FFDAD4',
+        comandos: ['Jugamos al ahorcado', 'Jugamos a la memoria', 'Jugamos al tateti'],
+        nota: 'Para salir de un juego, tocá el botón Cerrar o decí "salir" o "basta".',
       },
       {
         icono: 'mic-circle-outline',
@@ -76,7 +118,7 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'refresh-outline',
         titulo: 'Repetir lo último',
-        descripcion: 'Si no escuchaste bien lo que dijo Rosita, pedile que lo repita y lo vuelve a decir al instante, sin hacer una nueva consulta.',
+        descripcion: 'Si no escuchaste bien lo que dijo tu asistente, pedile que lo repita y lo vuelve a decir al instante, sin hacer una nueva consulta.',
         color: '#5C3800',
         bg: '#FFDEAA',
         comandos: ['Repetime', 'No te escuché', 'Más alto', 'No te oí'],
@@ -191,6 +233,15 @@ const GRUPOS: Grupo[] = [
         bg: '#D3E4FF',
         nota: 'La familia también puede pedir el resumen en cualquier momento mandando /informe al bot de Telegram — funciona aunque la app esté cerrada.',
       },
+      {
+        icono: 'terminal-outline',
+        titulo: 'Comandos remotos',
+        descripcion: 'La familia puede enviar comandos especiales al bot de Telegram para interactuar con la app a distancia.',
+        color: '#004785',
+        bg: '#D3E4FF',
+        comandos: ['/informe', '/camara', '/recordatorio'],
+        nota: 'El comando /camara se rechaza automáticamente de noche (22h–9h). Los recordatorios remotos usan el formato: /recordatorio texto, fecha, hora.',
+      },
     ],
   },
   {
@@ -220,18 +271,18 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'alert-circle-outline',
         titulo: 'Botón SOS',
-        descripcion: 'Si necesitás ayuda urgente, mantené presionado el botón rojo. Rosita avisa a toda tu familia de inmediato.',
+        descripcion: 'Si necesitás ayuda urgente, podés activar el SOS desde la app manteniendo presionado el botón rojo o también desde la pulsera, a distancia. Rosita avisa a toda tu familia de inmediato.',
         color: '#B3000C',
         bg: '#FFDAD6',
-        nota: 'Mantené presionado 2 segundos para activarlo. No alcanza con un toque.',
+        nota: 'El SOS está disponible tanto desde la app como desde la pulsera. En la app hay que mantener el botón presionado 2 segundos para activarlo.',
       },
       {
         icono: 'body-outline',
         titulo: 'Detección de caídas',
-        descripcion: 'El teléfono detecta automáticamente si hubo una caída brusca. En ese caso Rosita pregunta si estás bien y, si no hay respuesta, avisa a la familia de inmediato.',
+        descripcion: 'La detección de caídas está disponible para quienes tengan la pulsera adicional con acelerómetro y botón SOS. Si la pulsera detecta una caída brusca, Rosita pregunta si estás bien y, si no hay respuesta, avisa a la familia de inmediato.',
         color: '#B3000C',
         bg: '#FFDAD6',
-        nota: 'La detección funciona en segundo plano mientras la app está abierta. El registro queda en el historial de ánimo del día.',
+        nota: 'La pulsera se vende por separado. Esta función no está disponible solo con el teléfono.',
       },
     ],
   },
@@ -252,10 +303,10 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'bookmark-outline',
         titulo: 'Recuerdos',
-        descripcion: 'Cuando contás algo importante — el cumpleaños de un familiar, un gusto, una anécdota — Rosita lo guarda y lo recuerda en futuras charlas.',
+        descripcion: 'Rosita puede guardar información relevante de las charlas, como gustos, temas personales o anécdotas, y usarla para dar continuidad en conversaciones futuras.',
         color: '#1B5E28',
         bg: '#C8EFCE',
-        nota: 'Los recuerdos se guardan automáticamente. También podés verlos y editarlos desde el perfil.',
+        nota: 'El guardado depende del contenido de la conversación. Algunos datos personales también pueden quedar cargados en el perfil para personalizar mejor las respuestas.',
       },
       {
         icono: 'clipboard-outline',
@@ -270,6 +321,14 @@ const GRUPOS: Grupo[] = [
           '¿Qué tengo en la lista del super?',
         ],
         nota: 'Si hay listas guardadas, aparecen como post-its amarillos en la pantalla. Tocá los post-its para ver los detalles.',
+      },
+      {
+        icono: 'document-text-outline',
+        titulo: 'Notas automáticas',
+        descripcion: 'Cuando Rosita busca información o prepara una receta completa, puede guardar el resultado en una nota automática para que la veas más tarde con calma.',
+        color: '#004785',
+        bg: '#D3E4FF',
+        nota: 'Las notas quedan guardadas en la sección "Notas". Ahí podés volver a abrir las últimas recetas y búsquedas que Rosita preparó para vos.',
       },
       {
         icono: 'gift-outline',
@@ -287,14 +346,6 @@ const GRUPOS: Grupo[] = [
     color: '#475569',
     bg: '#F1F5F9',
     secciones: [
-      {
-        icono: 'mic-circle-outline',
-        titulo: 'Botón de hablar',
-        descripcion: 'Si preferís no hablar en voz alta, podés mantener apretado el botón del micrófono. Rosita escucha mientras lo sostenés y responde al soltar.',
-        color: '#004785',
-        bg: '#D3E4FF',
-        nota: 'El botón muestra en todo momento el estado de Rosita: "Escuchando..." mientras capta tu voz, "Pensando..." mientras procesa la respuesta y "Hablando..." mientras te habla. Así siempre sabés qué está haciendo.',
-      },
       {
         icono: 'eye-outline',
         titulo: 'Leer textos y documentos',
@@ -315,10 +366,27 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'moon-outline',
         titulo: 'Modo noche',
-        descripcion: 'Después de las 23h Rosita baja el perfil y no inicia conversación. Se reactiva sola al día siguiente. El horario de descanso se puede personalizar desde Configuración.',
+        descripcion: 'Durante el horario de descanso configurado, tu asistente baja el perfil y no inicia conversación. Se reactiva sola al terminar ese horario.',
         color: '#3D1C6E',
         bg: '#E8D5FF',
-        nota: 'Si hablás de noche ella igual te responde, solo no interrumpe.',
+        nota: 'El horario se define desde Configuración. Si hablás durante ese período, igual te responde: solo evita interrumpir por iniciativa propia.',
+      },
+      {
+        icono: 'volume-mute-outline',
+        titulo: 'Modo No Molestar',
+        descripcion: 'Activá este modo cuando no querés que Rosita te interrumpa. Podés activarlo tocando el botón 🔕 en la pantalla principal o por voz.',
+        color: '#3D1C6E',
+        bg: '#E8D5FF',
+        comandos: ['Hacé silencio', 'Modo no molestar', 'Callate'],
+        nota: 'Cuando está activo, Rosita no escucha ni responde. Para desactivarlo, tocá el botón nuevamente.',
+      },
+      {
+        icono: 'eye-outline',
+        titulo: 'Detección de presencia',
+        descripcion: 'Si activás esta función en Configuración, Rosita te saluda automáticamente cuando detecta que te acercás a la pantalla después de 30 minutos sin actividad.',
+        color: '#6A0D91',
+        bg: '#F0DEFF',
+        nota: 'Usa la cámara frontal para detectar rostros. Solo funciona en Android y es completamente opcional. Todo el procesamiento es local.',
       },
       {
         icono: 'cloud-offline-outline',
@@ -482,12 +550,6 @@ export default function GuiaScreen() {
     <View style={{ flex: 1, backgroundColor: M.surface }}>
       <ScreenHeader titulo="Guía de uso" eyebrow="Cómo usar la app" icono="book-outline" />
 
-      {/* Intro */}
-      <View style={st.intro}>
-        <Ionicons name="mic-outline" size={16} color={M.primary} />
-        <Text style={st.introTexto}>Hablá con Rosita en voz alta o usá el botón del micrófono.</Text>
-      </View>
-
       {/* Buscador */}
       <View style={st.searchWrap}>
         <Ionicons name="search-outline" size={17} color={M.onSurfaceVariant} style={st.searchIcon} />
@@ -569,19 +631,26 @@ const st = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: M.outlineVariant,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    shadowColor: '#0097b2',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  searchIcon: { marginRight: 8 },
+  searchIcon: { marginRight: 10 },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     color: M.onSurface,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
-  clearBtn: { padding: 2, marginLeft: 4 },
+  clearBtn: { padding: 4, marginLeft: 4 },
 
   lista: { paddingHorizontal: 16, paddingTop: 16 },
   grupoCards: { gap: 10, marginTop: 10, marginBottom: 4 },

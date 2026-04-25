@@ -17,11 +17,56 @@ let _bootstrapPromise: Promise<string> | null = null;
 let _currentTurnId: string | null = null;
 let _currentTurnStartedAt = 0;
 let _currentTurnFirstAudioAt = 0;
+let _serverClockOffsetMs = 0;
+let _serverClockSyncRttMs = -1;
+let _serverClockSyncedAt = 0;
+let _serverClockSyncPromise: Promise<void> | null = null;
+
+const CLOCK_SYNC_TTL_MS = 5 * 60 * 1000;
+
+function hasFreshClockSync(): boolean {
+  return _serverClockSyncedAt > 0 && Date.now() - _serverClockSyncedAt < CLOCK_SYNC_TTL_MS;
+}
+
+function estimateServerTimestamp(clientTs: number): number {
+  return Math.round(clientTs + _serverClockOffsetMs);
+}
+
+async function syncServerClock(force = false): Promise<void> {
+  if (!force && hasFreshClockSync()) return;
+  if (_serverClockSyncPromise) return _serverClockSyncPromise;
+  _serverClockSyncPromise = (async () => {
+    const token = await obtenerTokenDispositivo();
+    const t0 = Date.now();
+    const res = await fetchConTimeout(`${BACKEND_URL}/debug/time`, {
+      headers: { 'x-device-token': token },
+    }, 5000, 'ClockSync');
+    if (!res.ok) throw new Error(`ClockSync ${res.status}`);
+    const data = await res.json() as { now_ms?: number };
+    const t1 = Date.now();
+    const serverNow = typeof data.now_ms === 'number' ? data.now_ms : NaN;
+    if (!Number.isFinite(serverNow)) throw new Error('ClockSync invalid payload');
+    const midpoint = t0 + ((t1 - t0) / 2);
+    _serverClockOffsetMs = serverNow - midpoint;
+    _serverClockSyncRttMs = t1 - t0;
+    _serverClockSyncedAt = t1;
+  })().finally(() => {
+    _serverClockSyncPromise = null;
+  });
+  return _serverClockSyncPromise;
+}
 
 export async function obtenerTokenDispositivo(): Promise<string> {
-  if (_cachedToken) return _cachedToken;
+  if (_cachedToken) {
+    if (!hasFreshClockSync()) syncServerClock().catch(() => {});
+    return _cachedToken;
+  }
   const stored = await obtenerDeviceToken();
-  if (stored) { _cachedToken = stored; return stored; }
+  if (stored) {
+    _cachedToken = stored;
+    if (!hasFreshClockSync()) syncServerClock().catch(() => {});
+    return stored;
+  }
   if (_bootstrapPromise) return _bootstrapPromise;
   return bootstrapDispositivo();
 }
@@ -40,6 +85,7 @@ export async function bootstrapDispositivo(): Promise<string> {
     const token: string = data.deviceToken;
     await guardarDeviceToken(token);
     _cachedToken = token;
+    syncServerClock(true).catch(() => {});
     return token;
   })();
   try {
@@ -184,9 +230,10 @@ export async function llamarClaudeConStreaming(options: {
   const baseBody = typeof options.system === 'string' || Array.isArray(options.system)
     ? { max_tokens: options.maxTokens ?? 140, system: options.system, messages: options.messages }
     : { max_tokens: options.maxTokens ?? 140, system_payload: options.system, messages: options.messages };
+  await syncServerClock().catch(() => {});
   const body = {
     ...baseBody,
-    ...(options.speechFinalTs ? { speech_final_ts: options.speechFinalTs } : {}),
+    ...(options.speechFinalTs ? { speech_final_ts: estimateServerTimestamp(options.speechFinalTs) } : {}),
     ...(options.isSpec ? { spec: true } : {}),
   };
 
@@ -206,12 +253,17 @@ export async function llamarClaudeConStreaming(options: {
     // Reusar el turn_id actual de la app para que cliente, backend, Claude y TTS
     // compartan la misma identidad de turno en todos los logs.
     const turnId = _currentTurnId ?? `t${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    logCliente('pre_ws_send', { pre_send_ms: Date.now() - t0 });
+    const clientPreWsTs = Date.now();
+    logCliente('pre_ws_send', {
+      pre_send_ms: clientPreWsTs - t0,
+      clock_offset_ms: Math.round(_serverClockOffsetMs),
+      clock_rtt_ms: _serverClockSyncRttMs,
+    });
 
     type WsResult = { ok: true; full: string } | { ok: false; cancelled: boolean; reason?: string };
 
     const wsResult = await new Promise<WsResult>((resolve) => {
-      const cancel = sendTurn(turnId, body, {
+      const cancel = sendTurn(turnId, { ...body, client_pre_ws_ts: estimateServerTimestamp(clientPreWsTs) }, {
         onPrimeraFrase: onPrimeraFraseGuard,
         onChunk: () => {},
         onDone: (full) => resolve({ ok: true, full }),
@@ -244,7 +296,12 @@ export async function llamarClaudeConStreaming(options: {
 
   // ── Fallback: XHR SSE (camino original) ──────────────────────────────────────
   const headers = await jsonHeaders();
-  logCliente('pre_xhr_send', { pre_send_ms: Date.now() - t0 });
+  const clientPreXhrTs = Date.now();
+  logCliente('pre_xhr_send', {
+    pre_send_ms: clientPreXhrTs - t0,
+    clock_offset_ms: Math.round(_serverClockOffsetMs),
+    clock_rtt_ms: _serverClockSyncRttMs,
+  });
 
   return new Promise<string>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -333,7 +390,7 @@ export async function llamarClaudeConStreaming(options: {
       options.cancelRef.current = () => rejectOnce(new Error('spec_cancelled'));
     }
 
-    xhr.send(JSON.stringify(body));
+    xhr.send(JSON.stringify({ ...body, client_pre_xhr_ts: estimateServerTimestamp(clientPreXhrTs) }));
   });
 }
 
@@ -718,7 +775,8 @@ export async function buscarMemoriasSemanticoRemoto(query: string): Promise<Memo
 
 /** Fire-and-forget: loguea un evento de cliente en Railway. */
 export function logCliente(event: string, data?: Record<string, string | number | boolean>): void {
-  const payload = _currentTurnId ? { ...data, turn_id: _currentTurnId } : data;
+  const alreadyTagged = !!data && Object.prototype.hasOwnProperty.call(data, 'turn_id');
+  const payload = alreadyTagged || !_currentTurnId ? data : { ...data, turn_id: _currentTurnId };
   obtenerTokenDispositivo()
     .then(token => fetch(`${BACKEND_URL}/debug/log`, {
       method: 'POST',

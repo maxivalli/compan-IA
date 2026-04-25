@@ -1087,6 +1087,7 @@ export function useBrain(deps: BrainDeps) {
   async function responderConClaude(textoUsuario: string, prebuiltTurnId?: string) {
     const d = depsRef.current;
     const turnId = prebuiltTurnId ?? beginTurnTelemetry();
+    if (!prebuiltTurnId) d.rcStartTsRef.current = 0;
     if (__DEV__) console.log('[RC] responderConClaude llamado, texto:', textoUsuario.slice(0, 40));
     const p = d.perfilRef.current;
     if (!p) { if (__DEV__) console.log('[RC] sin perfil, saliendo'); return; }
@@ -1517,6 +1518,7 @@ export function useBrain(deps: BrainDeps) {
       resolverPrimeraFrase(primera);
     };
 
+    const memoriaPromiseStartedAt = Date.now();
     const memoriaPromise = refrescarYConstruirMemoria(textoUsuario);
 
     const contextoInterlocutor = interlocutorActivo
@@ -1623,6 +1625,13 @@ export function useBrain(deps: BrainDeps) {
         const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
         lastUsedSystemRef.current = systemPreview;
         const tPreClaude = Date.now();
+        logCliente('rc_stage_prompt_ready', {
+          path: 'fast',
+          mem_strategy: esConsultaLiviana ? 'skip' : (episodicaCacheRef.current?.lastRelevant ? 'cache' : 'background'),
+          since_rc_start_ms: tPreClaude - d.rcStartTsRef.current,
+          memoria_started_ms: memoriaPromiseStartedAt - d.rcStartTsRef.current,
+          extra_chars: extraBase.length,
+        });
         logCliente('prompt_ctx', { hist_msgs: msgSliceBase.length, mem_count: contextoMemoria.count, mem_chars: contextoMemoria.chars, extra_chars: extraBase.length, pre_claude_ms: tPreClaude - d.rcStartTsRef.current });
 
         // Muletilla solo en arranque frío (primera respuesta tras reconexión desde idle).
@@ -1692,6 +1701,13 @@ export function useBrain(deps: BrainDeps) {
           ]),
           memoriaPromise,
         ]);
+        logCliente('rc_stage_memoria_ready', {
+          path: 'slow',
+          since_rc_start_ms: Date.now() - d.rcStartTsRef.current,
+          since_memoria_start_ms: Date.now() - memoriaPromiseStartedAt,
+          mem_count: contextoMemoria.count,
+          mem_chars: contextoMemoria.chars,
+        });
 
         // Resultados listos → parar tecleo y esperar que se detenga limpiamente
         tecleoAbort.current = true;
@@ -1723,6 +1739,15 @@ REGLAS CRÍTICAS PARA RESPONDER:
         }
         const systemFull = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase + contextoNoticias + contextoBusqueda + contextoWiki, pideChiste);
         const tPreClaudeSlow = Date.now();
+        logCliente('rc_stage_prompt_ready', {
+          path: 'slow',
+          since_rc_start_ms: tPreClaudeSlow - d.rcStartTsRef.current,
+          since_memoria_start_ms: tPreClaudeSlow - memoriaPromiseStartedAt,
+          extra_chars: (extraBase + contextoNoticias + contextoBusqueda + contextoWiki).length,
+          has_search: resultadosBusqueda ? 'si' : 'no',
+          has_news: noticiasFinales ? 'si' : 'no',
+          has_wiki: wikiResult ? 'si' : 'no',
+        });
         claudePromise = resolverClaudeConFallback({
           system: systemFull,
           messages: msgSliceBase,
@@ -2072,7 +2097,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
       if (parsed.asyncJob) {
         const avisoNota = parsed.asyncJob.tipo === 'receta'
           ? 'Ahora te preparo una nota con la receta completa para que la puedas ver cuando quieras.'
-          : 'Voy a buscar más información y la voy a guardar en una nota para que la tengas a mano.';
+          : parsed.asyncJob.tipo === 'wikipedia'
+            ? 'Te voy a preparar una nota con toda la información para que la puedas leer tranquila cuando quieras.'
+            : 'Voy a buscar más información y la voy a guardar en una nota para que la tengas a mano.';
         await d.hablar(avisoNota);
       }
 

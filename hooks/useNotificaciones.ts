@@ -1349,7 +1349,11 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       // el usuario pidió esto explícitamente así que no aplica dormida/noMolestar
       const job = jobs[0];
       const tituloJob = (job.resultJson as any)?.titulo ?? job.query;
-      const frase = `Te dejé una nota con ${job.tipo === 'receta' ? 'la receta de' : 'información sobre'} "${tituloJob}". Podés verla cuando quieras.`;
+      const frase = `Te dejé una nota con ${
+        job.tipo === 'receta' ? 'la receta de' : 
+        job.tipo === 'wikipedia' ? 'información sobre' : 
+        'información sobre'
+      } "${tituloJob}". Podés verla cuando quieras.`;
 
       setUltimaNotaId(job.id);
 

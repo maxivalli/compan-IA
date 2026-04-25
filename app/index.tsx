@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useRootNavigationState } from 'expo-router';
-import { Animated, Easing, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, DeviceEventEmitter, Easing, Modal, PanResponder, PixelRatio, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 
@@ -30,6 +30,7 @@ import { OvaloRosita } from '../components/FaceGlow';
 import { CODIGOS_ADVERSOS } from '../lib/clima';
 import { nombreRadioOGenero } from '../lib/musica';
 import { cargarRecordatorios } from '../lib/memoria';
+import { RECORDATORIOS_LOCAL_ACTUALIZADOS } from '../lib/recordatorioSync';
 
 
 function RelojNoche({ fontSize }: { fontSize: number }) {
@@ -165,6 +166,14 @@ export default function Index() {
   useEffect(() => () => {
     if (fotoTimerRef.current) clearTimeout(fotoTimerRef.current);
     if (hintTimerRef.current) clearTimeout(hintTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    const syncRecordatorios = () => {
+      cargarRecordatorios().then(r => setHayRecordatorios(r.length > 0)).catch(() => {});
+    };
+    const sub = DeviceEventEmitter.addListener(RECORDATORIOS_LOCAL_ACTUALIZADOS, syncRecordatorios);
+    return () => sub.remove();
   }, []);
 
   function mostrarFoto(urlFoto: string, descripcion: string) {
@@ -704,7 +713,7 @@ export default function Index() {
               silbando={silbando}
               onRelampago={onRelampago}
               esCumpleaños={esCumpleaños}
-              browOffsetY={isTablet && layoutMode === 'vertical' ? -30 : modoNoche === 'durmiendo' ? 40 : 45}
+              browOffsetY={isTablet && layoutMode === 'vertical' ? -30 : modoNoche === 'durmiendo' ? 35 : 45}
               browOffsetX={0}
               browScale={isTablet && layoutMode === 'vertical' ? 1.0 : 0.85}
               browGap={isTablet && layoutMode === 'vertical' ? 0 : -12}

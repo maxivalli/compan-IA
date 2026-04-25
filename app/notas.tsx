@@ -55,6 +55,11 @@ function resumenNota(job: JobInbox): string {
     const partes = [res?.tiempo_total, res?.porciones].filter(Boolean);
     return partes.length > 0 ? partes.join(' · ') : 'Receta completa';
   }
+  if (job.tipo === 'wikipedia') {
+    return res?.resumen_corto
+      ? String(res.resumen_corto).slice(0, 80) + (String(res.resumen_corto).length > 80 ? '…' : '')
+      : 'Artículo completo';
+  }
   return res?.resumen
     ? String(res.resumen).slice(0, 80) + (String(res.resumen).length > 80 ? '…' : '')
     : 'Información guardada';
@@ -128,19 +133,39 @@ export default function NotasScreen() {
                   android_ripple={{ color: M.primaryContainer, radius: 300 }}
                 >
                   {/* Ícono por tipo */}
-                  <View style={[s.iconWrap, nota.tipo === 'receta' ? s.iconReceta : s.iconBusqueda]}>
+                  <View style={[
+                    s.iconWrap, 
+                    nota.tipo === 'receta' ? s.iconReceta : 
+                    nota.tipo === 'wikipedia' ? s.iconWikipedia : 
+                    s.iconBusqueda
+                  ]}>
                     <Ionicons
-                      name={nota.tipo === 'receta' ? 'restaurant-outline' : 'search-outline'}
+                      name={
+                        nota.tipo === 'receta' ? 'restaurant-outline' : 
+                        nota.tipo === 'wikipedia' ? 'book-outline' : 
+                        'search-outline'
+                      }
                       size={22}
-                      color={nota.tipo === 'receta' ? '#7D2D00' : '#004785'}
+                      color={
+                        nota.tipo === 'receta' ? '#7D2D00' : 
+                        nota.tipo === 'wikipedia' ? '#4A148C' : 
+                        '#004785'
+                      }
                     />
                   </View>
 
                   {/* Textos */}
                   <View style={s.textos}>
                     <View style={s.tipoRow}>
-                      <Text style={[s.tipoBadge, nota.tipo === 'receta' ? s.tipoBadgeReceta : s.tipoBadgeBusqueda]}>
-                        {nota.tipo === 'receta' ? 'Receta' : 'Búsqueda'}
+                      <Text style={[
+                        s.tipoBadge, 
+                        nota.tipo === 'receta' ? s.tipoBadgeReceta : 
+                        nota.tipo === 'wikipedia' ? s.tipoBadgeWikipedia : 
+                        s.tipoBadgeBusqueda
+                      ]}>
+                        {nota.tipo === 'receta' ? 'Receta' : 
+                         nota.tipo === 'wikipedia' ? 'Wikipedia' : 
+                         'Búsqueda'}
                       </Text>
                       <Text style={s.fecha}>{fechaRelativa(nota.createdAt)}</Text>
                     </View>
@@ -198,8 +223,9 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
-  iconReceta:   { backgroundColor: '#FFDCC8' },
-  iconBusqueda: { backgroundColor: '#D3E4FF' },
+  iconReceta:    { backgroundColor: '#FFDCC8' },
+  iconBusqueda:  { backgroundColor: '#D3E4FF' },
+  iconWikipedia: { backgroundColor: '#E1BEE7' },
 
   textos: { flex: 1, gap: 4 },
 
@@ -210,8 +236,9 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', paddingHorizontal: 8, paddingVertical: 3,
     borderRadius: 20,
   },
-  tipoBadgeReceta:   { backgroundColor: '#FFDCC8', color: '#7D2D00' },
-  tipoBadgeBusqueda: { backgroundColor: '#D3E4FF', color: '#004785' },
+  tipoBadgeReceta:    { backgroundColor: '#FFDCC8', color: '#7D2D00' },
+  tipoBadgeBusqueda:  { backgroundColor: '#D3E4FF', color: '#004785' },
+  tipoBadgeWikipedia: { backgroundColor: '#E1BEE7', color: '#4A148C' },
 
   fecha:  { fontSize: 11, color: M.onSurfaceVariant },
   titulo: { fontSize: 15, fontWeight: '600', color: M.onSurface, lineHeight: 21 },
