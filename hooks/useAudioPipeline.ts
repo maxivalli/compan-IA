@@ -439,6 +439,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── SR: iniciar ──────────────────────────────────────────────────────────
   function iniciarSpeechRecognition(fromBargeIn = false) {
+    // En modo wake-word (dgIdleRef=true) Deepgram no debe conectar —
+    // el watchdog arranca el SR nativo; aquí solo llega por error de callers.
+    if (dgIdleRef.current) return;
     const ahora = Date.now();
     if (ahora - ultimaActivacionSrRef.current < 1500) return;
     // Actualizar antes de cualquier check para que llamadas concurrentes vean el lock
