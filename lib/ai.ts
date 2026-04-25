@@ -203,7 +203,9 @@ export async function llamarClaudeConStreaming(options: {
 
   // ── Intento por WebSocket persistente (sin TCP+TLS handshake) ───────────────
   if (isChatWsReady()) {
-    const turnId = `t${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // Reusar el turn_id actual de la app para que cliente, backend, Claude y TTS
+    // compartan la misma identidad de turno en todos los logs.
+    const turnId = _currentTurnId ?? `t${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     logCliente('pre_ws_send', { pre_send_ms: Date.now() - t0 });
 
     type WsResult = { ok: true; full: string } | { ok: false; cancelled: boolean; reason?: string };
