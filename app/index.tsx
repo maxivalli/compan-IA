@@ -348,6 +348,7 @@ export default function Index() {
   // ── Deslizador SOS ──────────────────────────────────────────────────────────
   const swipeXAnim        = useRef(new Animated.Value(0)).current;
   const containerWidthRef  = useRef(0);
+  const sosZoneWRef        = useRef(0);
   const stateSectionXRef   = useRef(0);
   const stateLabelXRef     = useRef(0);
   const arrowsOpacity      = useRef(new Animated.Value(0.4)).current;
@@ -406,9 +407,7 @@ export default function Index() {
     },
     onPanResponderMove: (_, g) => {
       if (g.dx < 0) return;
-      const maxDrag = stateLabelXRef.current > 0
-        ? stateLabelXRef.current - 4
-        : containerWidthRef.current * 0.65;
+      const maxDrag = containerWidthRef.current - sosZoneWRef.current - 8;
       swipeXAnim.setValue(Math.min(g.dx, maxDrag));
     },
     onPanResponderRelease: async (_, g) => {
@@ -420,10 +419,8 @@ export default function Index() {
         springBack();
         return;
       }
-      const maxDrag = stateLabelXRef.current > 0
-        ? stateLabelXRef.current - 4
-        : containerWidthRef.current * 0.65;
-      if (g.dx >= maxDrag * 0.90) {
+      const maxDrag = containerWidthRef.current - sosZoneWRef.current - 8;
+      if (g.dx >= maxDrag * 0.88) {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         dispararSOSRef.current();
       }
@@ -960,6 +957,7 @@ export default function Index() {
             const hayFamiliaTelegram = (refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0;
             const sosPillH = btnH - 10;
             const sosZoneW = Math.round(btnH * 1.6);
+            sosZoneWRef.current = sosZoneW;
 
             return (
               <View
