@@ -45,13 +45,29 @@ export default function AudiolibroScreen() {
   const [capActual,    setCapActual]    = useState(0);   // índice en array capitulos[]
   const [reproduciendo, setReproduciendo] = useState(false);
 
-  const player       = useAudioPlayer(null);
-  const status       = useAudioPlayerStatus(player);
-  const guardadoRef  = useRef(false);
-  const posRef       = useRef(0);
+  const player          = useAudioPlayer(null);
+  const status          = useAudioPlayerStatus(player);
+  const guardadoRef     = useRef(false);
+  const posRef          = useRef(0);
+  const pendingSeekRef  = useRef<number | null>(null);   // seek a aplicar cuando el audio cargue
+  const pendingPlayRef  = useRef(false);
 
   // Persistir posición en ref para no recrear callbacks
   useEffect(() => { posRef.current = status.currentTime ?? 0; }, [status.currentTime]);
+
+  // Aplicar seek pendiente cuando el audio termina de cargar (duration pasa a > 0)
+  useEffect(() => {
+    const dur = status.duration ?? 0;
+    if (dur <= 0) return;
+    if (pendingSeekRef.current !== null) {
+      player.seekTo(pendingSeekRef.current);
+      pendingSeekRef.current = null;
+    }
+    if (pendingPlayRef.current) {
+      player.play();
+      pendingPlayRef.current = false;
+    }
+  }, [status.duration]);
 
   // Avanzar al siguiente capítulo cuando termina
   useEffect(() => {
@@ -93,16 +109,10 @@ export default function AudiolibroScreen() {
   async function cargarCapituloInline(caps: Capitulo[], arrayIdx: number, posSegundos: number, autoplay: boolean) {
     const cap = caps[arrayIdx];
     if (!cap) return;
+    pendingSeekRef.current = posSegundos > 0 ? posSegundos : null;
+    pendingPlayRef.current = autoplay;
+    if (autoplay) setReproduciendo(true);
     player.replace({ uri: cap.url });
-    if (posSegundos > 0) {
-      player.seekTo(posSegundos);
-    }
-    if (autoplay) {
-      player.play();
-      setReproduciendo(true);
-    } else {
-      setReproduciendo(false);
-    }
     guardadoRef.current = false;
   }
 
@@ -111,15 +121,11 @@ export default function AudiolibroScreen() {
     const cap = capitulos[arrayIdx];
     if (!cap) return;
     setCapActual(arrayIdx);
+    pendingSeekRef.current = posSegundos > 0 ? posSegundos : null;
+    pendingPlayRef.current = autoplay;
+    if (autoplay) setReproduciendo(true);
+    if (!autoplay) { player.pause(); setReproduciendo(false); }
     player.replace({ uri: cap.url });
-    if (posSegundos > 0) player.seekTo(posSegundos);
-    if (autoplay) {
-      player.play();
-      setReproduciendo(true);
-    } else {
-      player.pause();
-      setReproduciendo(false);
-    }
     guardadoRef.current = false;
   }
 
@@ -254,6 +260,7 @@ export default function AudiolibroScreen() {
                   name={reproduciendo ? 'pause' : 'play'}
                   size={fs(34)}
                   color="#fff"
+                  style={reproduciendo ? undefined : { marginLeft: 4 }}
                 />
               </TouchableOpacity>
 
