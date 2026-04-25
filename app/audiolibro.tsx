@@ -86,7 +86,7 @@ export default function AudiolibroScreen() {
     try {
       setCargando(true);
       setError(null);
-      const caps    = await fetchCapitulosAudiolibro();
+      const caps    = await fetchCapitulosAudiolibro(tituloId);
       const progreso = await getProgreso(tituloId);
       setCapitulos(caps);
 

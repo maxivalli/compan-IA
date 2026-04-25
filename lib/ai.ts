@@ -848,9 +848,9 @@ export async function reportarCrash(message: string, stack: string, platform: st
   } catch {}
 }
 
-export async function fetchCapitulosAudiolibro(): Promise<import('./audiolibro').Capitulo[]> {
+export async function fetchCapitulosAudiolibro(tituloId: string): Promise<import('./audiolibro').Capitulo[]> {
   const token = await obtenerTokenDispositivo();
-  const res = await fetchConTimeout(`${BACKEND_URL}/audiolibros/capitulos`, {
+  const res = await fetchConTimeout(`${BACKEND_URL}/audiolibros/capitulos?tituloId=${encodeURIComponent(tituloId)}`, {
     headers: { 'x-device-token': token },
   }, 10000);
   if (!res.ok) throw new Error(`fetchCapitulosAudiolibro error ${res.status}`);

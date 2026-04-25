@@ -254,6 +254,13 @@ export function useRosita() {
     lanzarAudiolibro: (tituloId) => {
       router.push({ pathname: '/audiolibro', params: { tituloId } } as unknown as Parameters<typeof router.push>[0]);
     },
+    precalentarClaude: () => calentarConDebounce(buildRositaSystemPayload({
+      perfil:       perfilRef.current!,
+      dispositivos: smartthings.dispositivosTuyaRef.current,
+      climaTexto:   climaRef.current,
+      ciudad:       ciudadRef.current,
+      coords:       coordRef.current,
+    })),
   });
 
   // Actualizar brainRef en cada render — permite que el pipeline llame brain.responderConClaude
