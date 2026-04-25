@@ -179,6 +179,11 @@ export function useSmartThings(deps: SmartThingsDeps) {
       }
 
       if (dispositivo) {
+        // Refrescar estado online del dispositivo antes de controlar
+        // para evitar actuar sobre cache desactualizado.
+        dispositivos = await refrescarDispositivos();
+        dispositivo = findDispositivo(dispositivoNombre, dispositivos) ?? dispositivo;
+
         if (!dispositivo.online) {
           await depsRef.current.hablar(`La ${dispositivo.nombre} aparece sin conexión en SmartThings.`);
           return;
@@ -200,9 +205,10 @@ export function useSmartThings(deps: SmartThingsDeps) {
             const estadoTexto = encendida ? 'encendida' : 'apagada';
             await depsRef.current.hablar(`Le mandé la orden a ${dispositivo.nombre}, pero SmartThings todavía la muestra ${estadoTexto}.`);
           } else if (encendida === null || encendida === undefined) {
-            // GET de verificación falló — no hablar del estado real, el control
-            // igual se envió (ok === true). El estado local queda con 'esperado'.
-            if (__DEV__) console.log('[SmartThings] GET estado post-control falló, usando valor esperado');
+            // GET de verificación falló: el dispositivo probablemente está sin conexión.
+            // No actualizar el cache con el valor esperado — mantener estado anterior.
+            dispositivosRef.current = dispositivos;
+            await depsRef.current.hablar(`Mandé la orden, pero ${dispositivo.nombre} no confirmó. Puede que esté sin conexión.`);
           }
         } else {
           await depsRef.current.hablar(`No pude controlar ${dispositivo.nombre} desde SmartThings.`);

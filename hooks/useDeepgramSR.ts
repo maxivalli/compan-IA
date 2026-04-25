@@ -31,8 +31,8 @@ const DG_WS_URL =
   '&language=es-419' +
   '&smart_format=true' +
   '&interim_results=true' +
-  '&endpointing=500' +
-  '&utterance_end_ms=1000' +
+  '&endpointing=1200' +
+  '&utterance_end_ms=1500' +
   '&vad_events=true' +
   '&encoding=linear16' +
   '&sample_rate=16000' +
@@ -42,7 +42,7 @@ const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
 // Si speech_final llega con frase que termina en artículo/preposición (frase abierta),
 // esperamos hasta MERGE_WINDOW_MS por continuación antes de flushear.
-const MERGE_WINDOW_MS = 3000; // subido de 2000 — tolera jitter de red sin fragmentar frases (fix #4)
+const MERGE_WINDOW_MS = 4500; // con endpointing=1200ms necesitamos al menos 4200ms de tolerancia total
 // Incluye pronombres átonos (se, me, te, nos, lo) que casi nunca cierran una oración.
 const FRASE_INCOMPLETA = /\b(el|la|los|las|le|les|un|una|unos|unas|con|de|del|al|en|por|para|y|o|e|u|a|ni|que|si|como|cuando|aunque|pero|sino|sino que|se|me|te|nos|lo)\s*$/i;
 // Pregunta que abre con ¿ pero no cierra con ? → siempre incompleta

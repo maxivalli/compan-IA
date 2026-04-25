@@ -448,7 +448,7 @@ export interface BrainDeps {
   flashAnim:          Animated.Value;
 
   // Funciones del pipeline de audio
-  hablar:              (texto: string, emotion?: string) => Promise<void>;
+  hablar:              (texto: string, emotion?: string, skipCacheCheck?: boolean) => Promise<void>;
   hablarConCola:       (oraciones: string[], emotion?: string) => Promise<void>;
   splitEnOraciones:    (texto: string) => string[];
   extraerPrimeraFrase: (texto: string) => { primera: string; resto: string };
@@ -541,7 +541,9 @@ export function useBrain(deps: BrainDeps) {
 
   function onPartialReconocido(textoParcial: string) {
     const d = depsRef.current;
-    if (d.estadoRef.current !== 'esperando') return;
+    // Permitir 'escuchando' además de 'esperando': el pipeline cambia el estado a
+    // 'escuchando' en el primer onPartial, antes de llamar a este callback.
+    if (d.estadoRef.current !== 'esperando' && d.estadoRef.current !== 'escuchando') return;
 
     const palabras = textoParcial.split(/\s+/).filter(Boolean);
     if (textoParcial.length < 35 || palabras.length < 5) return;
@@ -1753,7 +1755,9 @@ REGLAS CRÍTICAS PARA RESPONDER:
 
       // Si ya tenemos la primera frase, reproducirla en paralelo mientras llega el resto de Claude
       if (winner.kind === 'primera' && winner.t) {
-        hablarPrimeraPromise = d.hablar(winner.t, tagDetectadoStreaming);
+        // skipCacheCheck=true: la primera frase del streaming es texto recén generado,
+        // cache miss garantizado — evitar FileSystem.getInfoAsync para reducir latencia.
+        hablarPrimeraPromise = d.hablar(winner.t, tagDetectadoStreaming, true);
         primeraFraseReproducida = true;
       }
 
