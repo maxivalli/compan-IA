@@ -25,18 +25,28 @@ import type { EventSubscription } from 'expo-modules-core';
 import { logCliente, obtenerTokenDispositivo } from '../lib/ai';
 
 const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
-const DG_WS_URL =
+const DG_WS_BASE =
   'wss://api.deepgram.com/v1/listen' +
   '?model=nova-3' +
   '&language=es-419' +
   '&smart_format=true' +
   '&interim_results=true' +
-  '&endpointing=1200' +
-  '&utterance_end_ms=1500' +
   '&vad_events=true' +
   '&encoding=linear16' +
   '&sample_rate=16000' +
   '&channels=1';
+
+function endpointingSegunEdad(edad?: number): { endpointing: number; utterance_end_ms: number } {
+  if (!edad || edad >= 75) return { endpointing: 1200, utterance_end_ms: 1500 };
+  if (edad >= 61)          return { endpointing: 1000, utterance_end_ms: 1300 };
+  if (edad >= 41)          return { endpointing: 900,  utterance_end_ms: 1200 };
+  return                          { endpointing: 700,  utterance_end_ms: 1000 };
+}
+
+function buildDgUrl(edad?: number): string {
+  const { endpointing, utterance_end_ms } = endpointingSegunEdad(edad);
+  return DG_WS_BASE + `&endpointing=${endpointing}&utterance_end_ms=${utterance_end_ms}`;
+}
 
 const SPEECH_FINAL_DEBOUNCE_MS = 300;
 
@@ -67,6 +77,8 @@ export type UseDeepgramSROptions = {
   onVadSilencio?: () => void;
   /** Devuelve el threshold RMS a usar en este momento. Permite threshold dinámico. */
   getVadThreshold?: () => number;
+  /** Devuelve la edad del usuario para calibrar el endpointing de Deepgram. */
+  getEdad?: () => number | undefined;
 };
 
 export function useDeepgramSR(opts: UseDeepgramSROptions) {
@@ -297,7 +309,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
 
       // Subprotocolo 'token' — forma oficial de autenticar desde clientes móviles/web
       // sin usar el tercer argumento del constructor (que rompe binary send en RN).
-      const ws = new WebSocket(DG_WS_URL, ['token', dgKey]);
+      const edad = optsRef.current.getEdad?.();
+      const ws = new WebSocket(buildDgUrl(edad), ['token', dgKey]);
       wsRef.current = ws;
 
       ws.onopen = () => {

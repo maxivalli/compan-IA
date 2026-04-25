@@ -103,9 +103,11 @@ export function useRosita() {
   const modoVisionRef          = useRef(false);
 
   // ── Timestamps para medir lag percibido ──────────────────────────────────────
-  const speechEndTsRef   = useRef(0);  // cuando el ASR detecta fin de voz del usuario
-  const srResultTsRef    = useRef(0);  // cuando SR devuelve resultado
-  const rcStartTsRef     = useRef(0);  // cuando empieza responderConClaude
+  // deepgramFinalTsRef NO representa el fin físico de voz del usuario.
+  // Marca cuándo la app recibe el cierre de turno de Deepgram (speech_final).
+  const deepgramFinalTsRef = useRef(0);
+  const srResultTsRef      = useRef(0);  // cuando SR entrega el texto final al pipeline
+  const rcStartTsRef       = useRef(0);  // cuando empieza responderConClaude
   // enFlujoVozRef, enColaHablaRef → pipeline.*
   // mensajesSesionRef → brain.*
 
@@ -166,7 +168,7 @@ export function useRosita() {
     nombreAsistenteRef,
     proximaAlarmaRef,
     rcStartTsRef,
-    speechEndTsRef,
+    deepgramFinalTsRef,
     srResultTsRef,
     setEstado,
     setMusicaActiva,
@@ -220,7 +222,7 @@ export function useRosita() {
     perfilRef,
     ultimaRadioRef,
     dispositivosTuyaRef:      smartthings.dispositivosTuyaRef,
-    speechEndTsRef,
+    deepgramFinalTsRef,
     srResultTsRef,
     rcStartTsRef,
     flashAnim,

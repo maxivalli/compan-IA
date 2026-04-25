@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+
 import { useAudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
@@ -230,11 +230,11 @@ export default function AhorcadoScreen() {
 
   const [juego, setJuego]           = useState<EstadoAhorcado>(estadoInicial());
   const [fase, setFase]             = useState<Fase>('jugando');
-  const [escuchando, setEscuchando] = useState(false);
+
   const [juegoKey, setJuegoKey]     = useState(0); // cambia en cada reinicio para remount de Vidas
   const overlayAnim  = useRef(new Animated.Value(0)).current;
   const hablandoRef  = useRef(false);
-  const lastSpokeRef = useRef(0);
+
   const clickPlayer    = useAudioPlayer(CLICK_ASSET);
   const feedbackPlayer = useAudioPlayer(null);
   const phraseCache    = useRef<Record<string, string>>({});
@@ -283,8 +283,6 @@ export default function AhorcadoScreen() {
 
   function decir(texto: string, onDone?: () => void) {
     hablandoRef.current = true;
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-    setEscuchando(false);
 
     const uri = phraseCache.current[texto];
     if (uri) {
@@ -298,22 +296,17 @@ export default function AhorcadoScreen() {
       if (terminated) return;
       terminated = true;
       hablandoRef.current = false;
-      lastSpokeRef.current = Date.now();
       onDone?.();
-      // Si onDone ya arranca SR (o encadena otro decir), no lanzar un segundo start.
-      if (!onDone) setTimeout(iniciarSR, 800);
     }
 
     setTimeout(() => {
       if (uri && feedbackPlayer.playing) {
-        // Audio más largo que la estimación: esperar a que realmente pare
         const poll = setInterval(() => {
           if (!feedbackPlayer.playing) {
             clearInterval(poll);
             terminate();
           }
         }, 150);
-        // Seguridad: máximo 4 segundos extra de espera
         setTimeout(() => { clearInterval(poll); terminate(); }, 4000);
       } else {
         terminate();
@@ -321,49 +314,17 @@ export default function AhorcadoScreen() {
     }, durMs);
   }
 
-  // ── SR ────────────────────────────────────────────────────────────────────────
+  // ── Pista ─────────────────────────────────────────────────────────────────────
 
-  useSpeechRecognitionEvent('result', e => {
+  function escucharPista() {
     if (hablandoRef.current) return;
-    if (Date.now() - lastSpokeRef.current < 1000) return;
-    const txt = (e.results?.[0]?.transcript ?? '')
-      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
-      detenerSR();
-      router.replace('/');
-      return;
-    }
-    // Pedido de pista por voz
-    if (/\b(pista|ayudame|ayuda|una pista|dame una pista|no se|no me sale)\b/.test(txt)) {
-      decir(al(FRASES.pista), () => decir(juego.pista));
-    }
-  });
-
-  useSpeechRecognitionEvent('end', () => {
-    setEscuchando(false);
-    if (!hablandoRef.current) setTimeout(iniciarSR, 600);
-  });
-
-  function iniciarSR() {
-    if (hablandoRef.current) return;
-    try {
-      ExpoSpeechRecognitionModule.start({ lang: 'es-AR', interimResults: false, continuous: false });
-      setEscuchando(true);
-    } catch {}
-  }
-
-  function detenerSR() {
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-    setEscuchando(false);
+    decir(al(FRASES.pista), () => decir(juego.pista));
   }
 
   useEffect(() => {
     pausarSRPrincipalParaJuego();
-    decir(al(FRASES.intro), () => iniciarSR());
-    return () => {
-      detenerSR();
-      reanudarSRPrincipalTrasJuego();
-    };
+    decir(al(FRASES.intro));
+    return () => reanudarSRPrincipalTrasJuego();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -408,7 +369,6 @@ export default function AhorcadoScreen() {
     setJuego(estadoInicial());
     setFase('jugando');
     setJuegoKey(k => k + 1); // fuerza remount de Vidas → anims se resetean a 1
-    setTimeout(iniciarSR, 300);
   }
 
   // ── Render helpers ────────────────────────────────────────────────────────────
@@ -425,6 +385,13 @@ export default function AhorcadoScreen() {
       <Text style={[sv.titulo, { fontSize: tituloSize }]}>AHORCADO</Text>
 
       <Text style={[sv.pista, { fontSize: pistaSize }]}>💡 {juego.pista}</Text>
+      <TouchableOpacity
+        style={[sv.btnPista, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
+        onPress={escucharPista}
+        disabled={hablandoRef.current}
+      >
+        <Text style={[sv.btnPistaTexto, isTablet && { fontSize: 20 }]}>🔊 Escuchar pista</Text>
+      </TouchableOpacity>
 
       {/* Palabra con máscaras */}
       <View style={sv.palabraRow}>
@@ -496,13 +463,12 @@ export default function AhorcadoScreen() {
       {/* Header */}
       <View style={[sv.header, { paddingVertical: hdrVPad }]}>
         <TouchableOpacity
-          onPress={() => { detenerSR(); router.replace('/'); }}
+          onPress={() => router.replace('/')}
           style={[sv.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={[sv.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
         </TouchableOpacity>
-        <View style={[sv.srDot, escuchando && sv.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
       {/* Contenido principal — column en portrait, row en landscape */}
@@ -532,7 +498,7 @@ export default function AhorcadoScreen() {
           <TouchableOpacity style={sv.btnOtra} onPress={reiniciar}>
             <Text style={sv.btnOtraTexto}>Jugar otra vez</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={sv.btnVolver} onPress={() => { detenerSR(); router.replace('/'); }}>
+          <TouchableOpacity style={sv.btnVolver} onPress={() => router.replace('/')}>
             <Text style={sv.btnVolverTexto}>Volver a Rosita</Text>
           </TouchableOpacity>
         </View>
@@ -553,8 +519,8 @@ const sv = StyleSheet.create({
   },
   btnSalir: { backgroundColor: M.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
   btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
-  srDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
-  srDotActive: { backgroundColor: '#4ade80' },
+  btnPista: { marginTop: 10, backgroundColor: M.surface, borderRadius: 12, borderWidth: 1, borderColor: M.border, paddingHorizontal: 16, paddingVertical: 8 },
+  btnPistaTexto: { color: M.sub, fontSize: 15, fontWeight: '600' },
 
   bodyLandscape: { flex: 1, flexDirection: 'row' },
 

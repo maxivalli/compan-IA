@@ -442,7 +442,7 @@ export interface BrainDeps {
   perfilRef:          React.MutableRefObject<Perfil | null>;
   ultimaRadioRef:     React.MutableRefObject<string | null>;
   dispositivosTuyaRef:React.MutableRefObject<Dispositivo[]>;
-  speechEndTsRef:     React.MutableRefObject<number>;
+  deepgramFinalTsRef: React.MutableRefObject<number>;
   srResultTsRef:      React.MutableRefObject<number>;
   rcStartTsRef:       React.MutableRefObject<number>;
   flashAnim:          Animated.Value;
@@ -1485,14 +1485,15 @@ export function useBrain(deps: BrainDeps) {
 
     d.rcStartTsRef.current = Date.now();
     const lagSrMs = d.srResultTsRef.current ? d.rcStartTsRef.current - d.srResultTsRef.current : -1;
-    const lagSpeechEndMs = d.speechEndTsRef.current ? d.rcStartTsRef.current - d.speechEndTsRef.current : -1;
+    const lagDeepgramFinalMs = d.deepgramFinalTsRef.current ? d.rcStartTsRef.current - d.deepgramFinalTsRef.current : -1;
     logCliente('rc_start', {
       chars: textoUsuario.length,
       busqueda: pideBusqueda ? 'si' : 'no',
       wiki: pideWikipedia ? 'si' : 'no',
       noticias: pideNoticias ? 'si' : 'no',
       lag_sr_ms: lagSrMs,
-      lag_speech_end_ms: lagSpeechEndMs,
+      lag_dg_final_to_rc_ms: lagDeepgramFinalMs,
+      rc_start_basis: 'deepgram_final_received_app_ts',
     });
     logCliente('turn_start', { turn_id: turnId, user_chars: textoUsuario.length });
 
@@ -1547,7 +1548,7 @@ export function useBrain(deps: BrainDeps) {
             messages: params.messages,
             maxTokens: params.maxTokens,
             onPrimeraFrase,
-            speechFinalTs: d.speechEndTsRef.current || undefined,
+            speechFinalTs: d.deepgramFinalTsRef.current || undefined,
             _t0: params._t0,
           });
           if (esRespuestaUtil(streamText)) {
@@ -1583,8 +1584,6 @@ export function useBrain(deps: BrainDeps) {
       let claudePromise: Promise<string>;
 
       const tecleoAbort = { current: false };
-
-      cancelarEspeculativo();
 
       const usaTecleo = pideNoticias || pideBusqueda || pideWikipedia;
       const tecleoPromise = usaTecleo ? d.reproducirTecleo(tecleoAbort) : Promise.resolve();
@@ -1672,6 +1671,8 @@ export function useBrain(deps: BrainDeps) {
         }
       } else {
         // ── Slow path: búsqueda + memoria + tecleo corren todos en paralelo ──
+        // El especulativo nunca aplica al slow path (tiene búsquedas extra).
+        cancelarEspeculativo();
 
         const [[titulosNoticias, busquedaResult, wikiResult], contextoMemoria] = await Promise.all([
           Promise.all([

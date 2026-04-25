@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+
 import { useAudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
@@ -207,16 +207,16 @@ export default function TatetiScreen() {
   const [turno, setTurno]           = useState<'X' | 'O'>('X');
   const [fase, setFase]             = useState<Fase>('jugando');
   const [linea, setLinea]           = useState<number[] | null>(null);
-  const [escuchando, setEscuchando] = useState(false);
+
   // bloqueado como estado (no ref) para que el disabled de las celdas se actualice con el render.
   // iaRef/hablandoRef siguen existiendo para los handlers de SR, pero no controlan disabled.
   const [bloqueado, setBloqueado]   = useState(true); // true durante el TTS de intro
-  // Refs de estado para acceso seguro desde handlers de SR (evita stale closures)
+  // Refs de estado para acceso seguro desde callbacks async (evita stale closures)
   const tableroRef      = useRef<Tablero>(tableroInicial());
   const faseRef         = useRef<Fase>('jugando');
   const iaRef           = useRef(false);
   const hablandoRef     = useRef(false);
-  const lastSpokeRef    = useRef(0);
+
   const overlayAnim     = useRef(new Animated.Value(0)).current;
   const clickPlayer     = useAudioPlayer(CLICK_ASSET);
   const feedbackPlayer  = useAudioPlayer(null);
@@ -258,8 +258,6 @@ export default function TatetiScreen() {
 
   function decir(texto: string, onDone?: () => void) {
     hablandoRef.current = true;
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-    setEscuchando(false);
 
     const uri = phraseCache.current[texto];
     if (uri) {
@@ -273,22 +271,17 @@ export default function TatetiScreen() {
       if (terminated) return;
       terminated = true;
       hablandoRef.current = false;
-      lastSpokeRef.current = Date.now();
       onDone?.();
-      // Si onDone ya arranca SR (o encadena otro decir), no lanzar un segundo start.
-      if (!onDone) setTimeout(iniciarSR, 800);
     }
 
     setTimeout(() => {
       if (uri && feedbackPlayer.playing) {
-        // Audio más largo que la estimación: esperar a que realmente pare
         const poll = setInterval(() => {
           if (!feedbackPlayer.playing) {
             clearInterval(poll);
             terminate();
           }
         }, 150);
-        // Seguridad: máximo 4 segundos extra de espera
         setTimeout(() => { clearInterval(poll); terminate(); }, 4000);
       } else {
         terminate();
@@ -304,47 +297,12 @@ export default function TatetiScreen() {
   useEffect(() => { tableroRef.current = tablero; }, [tablero]);
   useEffect(() => { faseRef.current    = fase;    }, [fase]);
 
-  // ── SR ────────────────────────────────────────────────────────────────────────
 
-  useSpeechRecognitionEvent('result', e => {
-    if (hablandoRef.current) return;
-    if (Date.now() - lastSpokeRef.current < 1000) return;
-    const txt = (e.results?.[0]?.transcript ?? '')
-      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
-      detenerSR();
-      router.replace('/');
-      return;
-    }
-  });
-
-  useSpeechRecognitionEvent('end', () => {
-    setEscuchando(false);
-    // No reiniciar SR si la IA está en su turno (pensando o moviendo):
-    // lo rearrancaremos manualmente al terminar el turno.
-    if (!hablandoRef.current && !iaRef.current) setTimeout(iniciarSR, 600);
-  });
-
-  function iniciarSR() {
-    if (hablandoRef.current) return;
-    try {
-      ExpoSpeechRecognitionModule.start({ lang: 'es-AR', interimResults: false, continuous: false });
-      setEscuchando(true);
-    } catch {}
-  }
-
-  function detenerSR() {
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-    setEscuchando(false);
-  }
 
   useEffect(() => {
     pausarSRPrincipalParaJuego();
-    decir(al(FRASES.intro), () => { setBloqueado(false); iniciarSR(); });
-    return () => {
-      detenerSR();
-      reanudarSRPrincipalTrasJuego();
-    };
+    decir(al(FRASES.intro), () => setBloqueado(false));
+    return () => reanudarSRPrincipalTrasJuego();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -380,13 +338,12 @@ export default function TatetiScreen() {
     iaRef.current = true;
     // Detener SR mientras la IA "piensa" para evitar que un "salir" accidental
     // interrumpa el turno cuando el tablero ya cambió pero la IA aún no movió.
-    detenerSR();
     decir(al(FRASES.movUsuario), () => {
       // Pausa de "pensamiento" antes de que la IA mueva (600–1400 ms)
       const pensar = 600 + Math.random() * 800;
       setTimeout(() => {
         const movIA = calcularMovimientoIA(nuevo);
-        if (movIA === -1) { iaRef.current = false; iniciarSR(); return; }
+        if (movIA === -1) { iaRef.current = false; return; }
         const t2 = [...nuevo] as Tablero;
         t2[movIA] = 'O';
         setTablero(t2);
@@ -406,7 +363,7 @@ export default function TatetiScreen() {
           setTurno('X');
           iaRef.current = false;
           // Reanuda SR recién después de que la IA habló su comentario
-          setTimeout(() => decir(al(FRASES.movIA), () => { setBloqueado(false); iniciarSR(); }), 200);
+          setTimeout(() => decir(al(FRASES.movIA), () => { setBloqueado(false); }), 200);
         }
       }, pensar);
     });
@@ -428,7 +385,6 @@ export default function TatetiScreen() {
     iaRef.current      = false;
     hablandoRef.current = false;
     setBloqueado(false);
-    setTimeout(iniciarSR, 300);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -453,13 +409,12 @@ export default function TatetiScreen() {
       {/* Header */}
       <View style={[s.header, { paddingVertical: hdrVPad }]} onLayout={e => setHeaderH(e.nativeEvent.layout.height)}>
         <TouchableOpacity
-          onPress={() => { detenerSR(); router.replace('/'); }}
+          onPress={() => router.replace('/')}
           style={[s.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={[s.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
         </TouchableOpacity>
-        <View style={[s.srDot, escuchando && s.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
       {/* Cuerpo Principal */}
@@ -517,7 +472,7 @@ export default function TatetiScreen() {
           <TouchableOpacity style={[s.btnOtra, isTablet && { paddingVertical: 24, borderRadius: 20 }]} onPress={reiniciar}>
             <Text style={[s.btnOtraTexto, isTablet && { fontSize: 28 }]}>Jugar otra vez</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.btnVolver, isTablet && { paddingVertical: 22, borderRadius: 20 }]} onPress={() => { detenerSR(); router.replace('/'); }}>
+          <TouchableOpacity style={[s.btnVolver, isTablet && { paddingVertical: 22, borderRadius: 20 }]} onPress={() => router.replace('/')}>
             <Text style={[s.btnVolverTexto, isTablet && { fontSize: 26 }]}>Volver a Rosita</Text>
           </TouchableOpacity>
         </View>
@@ -542,8 +497,6 @@ const s = StyleSheet.create({
     paddingHorizontal: 18, paddingVertical: 10,
   },
   btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
-  srDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
-  srDotActive: { backgroundColor: '#4ade80' },
 
   titulo: {
     color: M.text, fontSize: 42, fontWeight: '900',

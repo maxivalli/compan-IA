@@ -224,7 +224,7 @@ export interface AudioPipelineDeps {
   nombreAsistenteRef:       React.MutableRefObject<string>;
   proximaAlarmaRef:         React.MutableRefObject<number>;
   rcStartTsRef:             React.MutableRefObject<number>;
-  speechEndTsRef:           React.MutableRefObject<number>;
+  deepgramFinalTsRef:       React.MutableRefObject<number>;
   srResultTsRef:            React.MutableRefObject<number>;
 
   // Setters de estado visual
@@ -331,6 +331,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
   // ── Deepgram SR hook ─────────────────────────────────────────────────────
   const { detenerDG, pausarCapturaDG, reanudarCapturaDG } = useDeepgramSR({
+    getEdad: () => depsRef.current.perfilRef?.current?.edad,
     getVadThreshold: () => {
       const d = depsRef.current;
       // En conversación activa (< 60s desde última charla) usar umbral bajo para capturar voz suave.
@@ -378,9 +379,9 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
       dgIdleRef.current = false;
       const d = depsRef.current;
-      // speech_final de Deepgram es el proxy más cercano a "el usuario dejó de hablar".
-      // Registrar acá para poder medir lag_speech_end_ms correctamente.
-      d.speechEndTsRef.current = Date.now();
+      // Registrar cuándo la app recibe speech_final de Deepgram.
+      // Esto NO es el fin físico de voz del usuario; es un hito de cierre ASR.
+      d.deepgramFinalTsRef.current = Date.now();
       if (procesandoRef.current || enFlujoVozRef.current) { resetVisualEscuchando(d); return; }
       if (d.noMolestarRef.current) { resetVisualEscuchando(d); return; }
       if (d.estadoRef.current === 'pensando') { resetVisualEscuchando(d); return; }
@@ -447,7 +448,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (d.noMolestarRef.current) return;
 
     if (d.estadoRef.current === 'esperando') {
-      d.speechEndTsRef.current = 0;
+      d.deepgramFinalTsRef.current = 0;
       d.srResultTsRef.current = 0;
     }
 
@@ -476,9 +477,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         && /repet[ií]|no te escuch[eé]|no entend[ií]|m[aá]s (alto|fuerte)|no te o[ií]|no te oi/.test(textoNorm)
         && ultimoAudioUriRef.current !== null;
       d.srResultTsRef.current = Date.now();
-      const lagSpeechEndMs = d.speechEndTsRef.current ? d.srResultTsRef.current - d.speechEndTsRef.current : -1;
+      const lagDeepgramFinalMs = d.deepgramFinalTsRef.current ? d.srResultTsRef.current - d.deepgramFinalTsRef.current : -1;
       const newTurnId = beginTurnTelemetry();
-      logCliente('sr_final_received', { chars: texto.length, lag_speech_end_ms: lagSpeechEndMs, texto_debug: texto });
+      logCliente('sr_final_received', {
+        chars: texto.length,
+        lag_dg_final_to_sr_final_ms: lagDeepgramFinalMs,
+        sr_final_basis: 'deepgram_final_received_app_ts',
+        texto_debug: texto,
+      });
       if (esRepeticion) {
         await hablar(ultimoTextoHabladoRef.current!);
       } else if (/\b(sac[aá](me)?\s+una?\s+foto|man[dá]|mand[aá](me|les?)?\s+una?\s+foto|hacé?\s+una?\s+foto|tir[aá]\s+una?\s+foto|foto\s+para\s+(la\s+)?famil|foto\s+a\s+(la\s+)?famil)\b/i.test(textoNorm)) {
@@ -899,7 +905,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   // ── TTS principal ─────────────────────────────────────────────────────────
-  async function hablar(texto: string, emotion?: string) {
+  // skipCacheCheck: true cuando se llama desde onPrimeraFrase del streaming de Claude.
+  // La primera frase es texto recién generado → cache miss garantizado → saltamos
+  // FileSystem.getInfoAsync (~30-50ms) en el camino crítico de latencia perceptible.
+  async function hablar(texto: string, emotion?: string, skipCacheCheck = false) {
     // Esperar a que la muletilla del turno termine antes de reproducir TTS.
     // Si no hay muletilla activa, muletillaPromiseRef ya está resuelta — sin costo.
     await muletillaPromiseRef.current.catch(() => {});
@@ -923,6 +932,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       lag_rc_ms: lagRcMs,
       e2e_first_audio_ms: turnAudio.e2eFirstAudioMs ?? -1,
       first_audio_turn: turnAudio.firstForTurn ? 'si' : 'no',
+      skip_cache: skipCacheCheck ? 'si' : 'no',
     });
     safeStopSpeechRecognition();
     detenerSilbido();
@@ -934,15 +944,22 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     texto = limpiarTextoParaTTS(texto);
 
     try {
-      // ── TTS — cache disco o REST Fish Audio ──────────────────────────────
+      // ── TTS — cache disco o stream Fish Audio ────────────────────────────
       const cacheKey = hashTexto(texto + '|' + (emotion ?? ''));
       const cacheUri = FileSystem.cacheDirectory + `tts_${TTS_CACHE_VERSION}_` + cacheKey + '.mp3';
-      const info = await FileSystem.getInfoAsync(cacheUri);
       const p = d.perfilRef.current;
       const voiceId = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
-      if (__DEV__) console.log(`[TTS-CACHE] ${info.exists ? 'HIT' : 'MISS'} | chars:${texto.length}`);
 
-      let playUri: string | null = info.exists ? cacheUri : null;
+      // skipCacheCheck: evita getInfoAsync (~30-50ms) cuando se sabe que es cache miss
+      // (primera frase de streaming — texto recién generado por Claude).
+      let playUri: string | null = null;
+      if (!skipCacheCheck) {
+        const info = await FileSystem.getInfoAsync(cacheUri);
+        if (__DEV__) console.log(`[TTS-CACHE] ${info.exists ? 'HIT' : 'MISS'} | chars:${texto.length}`);
+        playUri = info.exists ? cacheUri : null;
+      } else {
+        if (__DEV__) console.log(`[TTS-CACHE] SKIP-CHECK (streaming primera frase) | chars:${texto.length}`);
+      }
 
       if (!playUri) {
         // Stream directo: ExoPlayer empieza a reproducir cuando llegan los primeros chunks

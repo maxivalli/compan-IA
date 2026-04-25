@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+
 import { useAudioPlayer } from 'expo-audio';
 import * as FileSystem from 'expo-file-system/legacy';
 import {
@@ -137,11 +137,11 @@ export default function MemoriaScreen() {
   const [revealedPos, setRevealedPos] = useState<Set<number>>(new Set());
   const [wrongPos,    setWrongPos]    = useState<number | null>(null);
   const [hintPos,     setHintPos]     = useState<number | null>(null);
-  const [escuchando,  setEscuchando]  = useState(false);
+
 
   const overlayAnim    = useRef(new Animated.Value(0)).current;
   const hablandoRef    = useRef(false);
-  const lastSpokeRef   = useRef(0); // timestamp fin de TTS para bloquear eco
+
   const gameRef        = useRef(game);
   const nivelRef       = useRef(nivel);
   // faceAnims[i] controla la ficha en posición de grilla i (0-8)
@@ -206,8 +206,6 @@ export default function MemoriaScreen() {
   // ── TTS ───────────────────────────────────────────────────────────────────────
   function decir(texto: string, onDone?: () => void) {
     hablandoRef.current = true;
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-    setEscuchando(false);
 
     const uri  = phraseCache.current[texto];
     if (uri) { feedbackPlayer.replace({ uri }); feedbackPlayer.play(); }
@@ -218,10 +216,7 @@ export default function MemoriaScreen() {
       if (terminated) return;
       terminated = true;
       hablandoRef.current = false;
-      lastSpokeRef.current = Date.now(); // marca fin de TTS
       onDone?.();
-      // Si onDone ya arranca SR (o encadena otro decir), no lanzar un segundo start.
-      if (!onDone) setTimeout(iniciarSR, 800);
     }
     setTimeout(() => {
       if (uri && feedbackPlayer.playing) {
@@ -235,39 +230,9 @@ export default function MemoriaScreen() {
     }, durMs);
   }
 
-  // ── SR ────────────────────────────────────────────────────────────────────────
-  useSpeechRecognitionEvent('result', e => {
-    if (hablandoRef.current) return;
-    if (Date.now() - lastSpokeRef.current < 1000) return; // ignorar eco post-TTS
-    const txt = (e.results?.[0]?.transcript ?? '')
-      .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (/\b(salir|basta|no quiero jugar|volver|terminar|chau|me voy)\b/.test(txt)) {
-      detenerSR(); router.replace('/');
-    }
-  });
-  useSpeechRecognitionEvent('end', () => {
-    setEscuchando(false);
-    if (!hablandoRef.current) setTimeout(iniciarSR, 600);
-  });
-
-  function iniciarSR() {
-    if (hablandoRef.current) return;
-    try {
-      ExpoSpeechRecognitionModule.start({ lang: 'es-AR', interimResults: false, continuous: false });
-      setEscuchando(true);
-    } catch {}
-  }
-  function detenerSR() {
-    try { ExpoSpeechRecognitionModule.stop(); } catch {}
-    setEscuchando(false);
-  }
   useEffect(() => {
     pausarSRPrincipalParaJuego();
-    iniciarSR();
-    return () => {
-      detenerSR();
-      reanudarSRPrincipalTrasJuego();
-    };
+    return () => reanudarSRPrincipalTrasJuego();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -387,7 +352,6 @@ export default function MemoriaScreen() {
     // avanzarNivel usa setIdx stale — lo sobreescribimos con nextIdx
     const newGame = crearJuego(nextIdx, NIVEL_TILES[1]);
     setGame(newGame);
-    setTimeout(iniciarSR, 300);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -471,13 +435,12 @@ export default function MemoriaScreen() {
       {/* Header */}
       <View style={[sm.header, { height: hdrH }]}>
         <TouchableOpacity
-          onPress={() => { detenerSR(); router.replace('/'); }}
+          onPress={() => router.replace('/')}
           style={[sm.btnSalir, isTablet && { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 }]}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <Text style={[sm.btnSalirTexto, isTablet && { fontSize: 22 }]}>✕ Salir</Text>
         </TouchableOpacity>
-        <View style={[sm.srDot, escuchando && sm.srDotActive, isTablet && { width: 20, height: 20, borderRadius: 10 }]} />
       </View>
 
       {/* Cuerpo */}
@@ -531,7 +494,7 @@ export default function MemoriaScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[sm.btnVolver, isTablet && { paddingVertical: 22, borderRadius: 20 }]}
-            onPress={() => { detenerSR(); router.replace('/'); }}
+            onPress={() => router.replace('/')}
           >
             <Text style={[sm.btnVolverTexto, isTablet && { fontSize: 26 }]}>Volver a Rosita</Text>
           </TouchableOpacity>
@@ -552,8 +515,6 @@ const sm = StyleSheet.create({
   },
   btnSalir:      { backgroundColor: M.surface, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
   btnSalirTexto: { color: M.sub, fontSize: 16, fontWeight: '600' },
-  srDot:         { width: 14, height: 14, borderRadius: 7, backgroundColor: M.border },
-  srDotActive:   { backgroundColor: '#4ade80' },
 
   bodyLandscape: { flex: 1, flexDirection: 'row' },
   colLeft:  { flex: 1,   justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 },
