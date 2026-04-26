@@ -152,8 +152,8 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
   async function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return;
     try {
-      const perm = await ExpoSpeechRecognitionModule.getPermissionsAsync();
-      if (perm.status !== 'granted') return;
+      const perm = await ExpoSpeechRecognitionModule.getMicrophonePermissionsAsync();
+      if (!perm.granted) return;
     } catch {}
     vozActivaRef.current = false;
     try {

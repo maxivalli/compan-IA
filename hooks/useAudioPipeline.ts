@@ -658,8 +658,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       if (!wakeSRActiveRef.current) return;
       if (wakeSRStartingRef.current) return; // guard: ya hay un start en vuelo
       try {
-        const perm = await ExpoSpeechRecognitionModule.getPermissionsAsync();
-        if (perm.status !== 'granted') return;
+        const [mic, sr] = await Promise.all([
+          ExpoSpeechRecognitionModule.getMicrophonePermissionsAsync(),
+          ExpoSpeechRecognitionModule.getPermissionsAsync(),
+        ]);
+        if (!mic.granted || sr.status !== 'granted') return;
       } catch {}
       wakeSRStartingRef.current = true;
       try {
