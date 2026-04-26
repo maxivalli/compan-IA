@@ -1751,7 +1751,10 @@ ${resultadosBusqueda}
 REGLAS CRÍTICAS PARA RESPONDER:
 1. Usá SOLO los datos que aparecen en los resultados. NUNCA inventes nombres de lugares, direcciones, teléfonos ni personas. Si el dato no está en los resultados, decí claramente "No tengo ese dato ahora mismo" o "No lo encontré".
 2. PRONUNCIACIÓN OBLIGATORIA: Cualquier número que sea altura de dirección o teléfono, escribilo separando CADA dígito con coma y espacio. Ejemplos: "Yrigoyen 7, 6, 2" — "Colón 1, 2, 5, 0" — "3, 4, 0, 8, 6, 7, 7". Sin excepción. No hagas esto con años (1990, 2024).
-3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta. Entregá la información y terminá en punto final.`;
+3. CERO PREGUNTAS: NUNCA hagas preguntas de seguimiento al final de tu respuesta. Entregá la información y terminá en punto final.
+4. NO uses el tag [ASYNC_JOB] — los resultados ya están aquí. Respondé directamente en esta misma respuesta.`;
+        } else if (esConsultaDistancia) {
+          contextoBusqueda = `\n\nNota interna: intenté buscar la distancia pero no pude obtener el dato ahora. Decile honestamente que no pudiste conseguirlo en este momento, sin inventar ninguna distancia ni kilometraje.`;
         }
         let contextoWiki = '';
         if (wikiResult) {
