@@ -9,6 +9,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 const _IONICONS_FONT = { ionicons: require('../assets/fonts/ionicons.ttf') };
 import { AnimatedSplash } from '../components/AnimatedSplash';
 import { reportarCrash } from '../lib/ai';
+import TrackPlayer from 'react-native-track-player';
+
+// Registrar el servicio de reproducción de RNTP en el hilo nativo.
+// Debe llamarse antes del primer render, a nivel de módulo.
+TrackPlayer.registerPlaybackService(() => require('../service'));
 
 void SplashScreen.preventAutoHideAsync();
 

@@ -11,12 +11,17 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
+import TrackPlayer, {
+  useProgress,
+  useTrackPlayerEvents,
+  Event as TPEvent,
+} from 'react-native-track-player';
 
 import { fetchCapitulosAudiolibro } from '../lib/ai';
 import { Capitulo, getProgreso, saveProgreso, NOMBRE_LIBRO } from '../lib/audiolibro';
 import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
+import { setupMusicaPlayer } from '../lib/musicaPlayer';
 
 // ── Paleta ────────────────────────────────────────────────────────────────────
 
@@ -39,103 +44,108 @@ export default function AudiolibroScreen() {
   const params     = useLocalSearchParams<{ tituloId?: string }>();
   const tituloId   = params.tituloId ?? 'el_principito';
 
-  const [capitulos,    setCapitulos]    = useState<Capitulo[]>([]);
-  const [cargando,     setCargando]     = useState(true);
-  const [error,        setError]        = useState<string | null>(null);
-  const [capActual,    setCapActual]    = useState(0);   // índice en array capitulos[]
+  const [capitulos,     setCapitulos]     = useState<Capitulo[]>([]);
+  const [cargando,      setCargando]      = useState(true);
+  const [error,         setError]         = useState<string | null>(null);
+  const [capActual,     setCapActual]     = useState(0);
   const [reproduciendo, setReproduciendo] = useState(false);
 
-  const player          = useAudioPlayer(null);
-  const status          = useAudioPlayerStatus(player);
-  const guardadoRef     = useRef(false);
-  const posRef          = useRef(0);
-  const pendingSeekRef  = useRef<number | null>(null);   // seek a aplicar cuando el audio cargue
-  const pendingPlayRef  = useRef(false);
+  // Refs para evitar stale closures en callbacks RNTP
+  const capitRef  = useRef<Capitulo[]>([]);
+  const capRef    = useRef(0);
+  const repRef    = useRef(false);
+  const guardadoRef = useRef(false);
 
-  // Persistir posición en ref para no recrear callbacks
-  useEffect(() => { posRef.current = status.currentTime ?? 0; }, [status.currentTime]);
+  useEffect(() => { capitRef.current = capitulos; }, [capitulos]);
+  useEffect(() => { capRef.current   = capActual;  }, [capActual]);
+  useEffect(() => { repRef.current   = reproduciendo; }, [reproduciendo]);
 
-  // Aplicar seek pendiente cuando el audio termina de cargar (duration pasa a > 0)
-  useEffect(() => {
-    const dur = status.duration ?? 0;
-    if (dur <= 0) return;
-    if (pendingSeekRef.current !== null) {
-      player.seekTo(pendingSeekRef.current);
-      pendingSeekRef.current = null;
-    }
-    if (pendingPlayRef.current) {
-      player.play();
-      pendingPlayRef.current = false;
-    }
-  }, [status.duration]);
+  // Posición en curso para guardar progreso
+  const progress = useProgress(500);
+  const posRef   = useRef(0);
+  useEffect(() => { posRef.current = progress.position; }, [progress.position]);
 
-  // Avanzar al siguiente capítulo cuando termina
-  useEffect(() => {
-    if (status.didJustFinish && capitulos.length > 0) {
-      const sig = capActual + 1;
-      if (sig < capitulos.length) {
-        cargarCapitulo(sig, 0, true);
-      } else {
-        setReproduciendo(false);
-        saveProgreso(tituloId, capitulos[0].idx, 0).catch(() => {});
-      }
+  // ── Control RNTP ───────────────────────────────────────────────────────────
+
+  const cargarEnRNTP = useCallback(async (url: string, titulo: string, posSegundos: number, autoplay: boolean) => {
+    await setupMusicaPlayer();
+    await TrackPlayer.reset();
+    await TrackPlayer.add({
+      url,
+      title:  titulo,
+      artist: NOMBRE_LIBRO[tituloId] ?? tituloId,
+    });
+    if (posSegundos > 0) await TrackPlayer.seekTo(posSegundos);
+    if (autoplay) await TrackPlayer.play();
+  }, [tituloId]);
+
+  // Avanzar al siguiente capítulo cuando termina el audio
+  useTrackPlayerEvents([TPEvent.PlaybackQueueEnded], async () => {
+    const caps   = capitRef.current;
+    const capIdx = capRef.current;
+    const sig    = capIdx + 1;
+    if (sig < caps.length) {
+      setCapActual(sig);
+      const cap = caps[sig];
+      if (cap) await cargarEnRNTP(cap.url, cap.titulo, 0, true);
+    } else {
+      setReproduciendo(false);
+      if (caps.length > 0) saveProgreso(tituloId, caps[0].idx, 0).catch(() => {});
     }
-  }, [status.didJustFinish]);
+  });
+
+  // ── Carga inicial ──────────────────────────────────────────────────────────
 
   async function cargarCapitulosYProgreso() {
     try {
       setCargando(true);
       setError(null);
-      const caps    = await fetchCapitulosAudiolibro(tituloId);
+      const caps     = await fetchCapitulosAudiolibro(tituloId);
       const progreso = await getProgreso(tituloId);
       setCapitulos(caps);
+      capitRef.current = caps;
 
       if (progreso && caps.length > 0) {
-        const idx = caps.findIndex(c => c.idx === progreso.capituloIdx);
+        const idx    = caps.findIndex(c => c.idx === progreso.capituloIdx);
         const capIdx = idx >= 0 ? idx : 0;
         setCapActual(capIdx);
-        await cargarCapituloInline(caps, capIdx, progreso.posicionSegundos, true);
+        capRef.current = capIdx;
+        const cap = caps[capIdx];
+        if (cap) await cargarEnRNTP(cap.url, cap.titulo, progreso.posicionSegundos, true);
       } else if (caps.length > 0) {
         setCapActual(0);
-        await cargarCapituloInline(caps, 0, 0, true);
+        capRef.current = 0;
+        const cap = caps[0];
+        if (cap) await cargarEnRNTP(cap.url, cap.titulo, 0, true);
       }
-    } catch (e: any) {
+    } catch {
       setError('No se pudieron cargar los capítulos. Verificá tu conexión.');
     } finally {
       setCargando(false);
     }
   }
 
-  async function cargarCapituloInline(caps: Capitulo[], arrayIdx: number, posSegundos: number, autoplay: boolean) {
-    const cap = caps[arrayIdx];
-    if (!cap) return;
-    pendingSeekRef.current = posSegundos > 0 ? posSegundos : null;
-    pendingPlayRef.current = autoplay;
-    if (autoplay) setReproduciendo(true);
-    player.replace({ uri: cap.url });
-    guardadoRef.current = false;
-  }
+  // ── Controles ──────────────────────────────────────────────────────────────
 
-  function cargarCapitulo(arrayIdx: number, posSegundos: number, autoplay: boolean) {
-    if (capitulos.length === 0) return;
-    const cap = capitulos[arrayIdx];
+  async function cargarCapitulo(arrayIdx: number, posSegundos: number, autoplay: boolean) {
+    const caps = capitRef.current;
+    const cap  = caps[arrayIdx];
     if (!cap) return;
     setCapActual(arrayIdx);
-    pendingSeekRef.current = posSegundos > 0 ? posSegundos : null;
-    pendingPlayRef.current = autoplay;
+    capRef.current = arrayIdx;
     if (autoplay) setReproduciendo(true);
-    if (!autoplay) { player.pause(); setReproduciendo(false); }
-    player.replace({ uri: cap.url });
+    else          setReproduciendo(false);
     guardadoRef.current = false;
+    await cargarEnRNTP(cap.url, cap.titulo, posSegundos, autoplay);
   }
 
-  function togglePlay() {
+  async function togglePlay() {
     if (reproduciendo) {
-      player.pause();
+      await TrackPlayer.pause();
       setReproduciendo(false);
       guardarProgreso();
     } else {
-      player.play();
+      await TrackPlayer.play();
       setReproduciendo(true);
     }
   }
@@ -143,27 +153,27 @@ export default function AudiolibroScreen() {
   function anterior() {
     if (capActual > 0) {
       guardarProgreso();
-      cargarCapitulo(capActual - 1, 0, reproduciendo);
+      cargarCapitulo(capActual - 1, 0, reproduciendo).catch(() => {});
     }
   }
 
   function siguiente() {
     if (capActual < capitulos.length - 1) {
       guardarProgreso();
-      cargarCapitulo(capActual + 1, 0, reproduciendo);
+      cargarCapitulo(capActual + 1, 0, reproduciendo).catch(() => {});
     }
   }
 
   function guardarProgreso() {
-    if (capitulos.length === 0) return;
-    const cap = capitulos[capActual];
+    const caps = capitRef.current;
+    const cap  = caps[capRef.current];
     if (!cap) return;
     saveProgreso(tituloId, cap.idx, posRef.current).catch(() => {});
   }
 
   function cerrar() {
     guardarProgreso();
-    player.pause();
+    TrackPlayer.pause().catch(() => {});
     reanudarSRPrincipalTrasJuego();
     router.back();
   }
@@ -173,7 +183,7 @@ export default function AudiolibroScreen() {
     cargarCapitulosYProgreso();
     return () => {
       guardarProgreso();
-      player.pause();
+      TrackPlayer.pause().catch(() => {});
       reanudarSRPrincipalTrasJuego();
     };
   }, []);
@@ -183,16 +193,18 @@ export default function AudiolibroScreen() {
     if (!reproduciendo) return;
     const id = setInterval(() => { guardarProgreso(); }, 15000);
     return () => clearInterval(id);
-  }, [reproduciendo, capActual, capitulos]);
+  }, [reproduciendo, capActual]);
 
-  const capInfo    = capitulos[capActual];
-  const duracion   = status.duration ?? 0;
-  const posicion   = status.currentTime ?? 0;
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const capInfo     = capitulos[capActual];
+  const duracion    = progress.duration ?? 0;
+  const posicion    = progress.position ?? 0;
   const progresoPct = duracion > 0 ? posicion / duracion : 0;
   const nombreLibro = NOMBRE_LIBRO[tituloId] ?? tituloId;
 
   function formatTiempo(s: number): string {
-    const m = Math.floor(s / 60);
+    const m  = Math.floor(s / 60);
     const ss = Math.floor(s % 60);
     return `${m}:${String(ss).padStart(2, '0')}`;
   }
@@ -280,7 +292,7 @@ export default function AudiolibroScreen() {
             {capitulos.map((cap, idx) => (
               <Pressable
                 key={cap.publicId}
-                onPress={() => { guardarProgreso(); cargarCapitulo(idx, 0, true); }}
+                onPress={() => { guardarProgreso(); cargarCapitulo(idx, 0, true).catch(() => {}); }}
                 style={({ pressed }) => [
                   styles.capItem,
                   idx === capActual && styles.capItemActivo,

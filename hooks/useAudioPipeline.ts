@@ -17,6 +17,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { useAudioPlayer, AudioPlayer } from 'expo-audio';
+import { musicaPlayer, setupMusicaPlayer } from '../lib/musicaPlayer';
 
 // expo-audio no expone duration, currentTime ni loop en sus tipos TypeScript,
 // pero sí existen en el objeto subyacente de Android/iOS.
@@ -252,8 +253,10 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   depsRef.current = deps;
 
   // ── Reproductores ─────────────────────────────────────────────────────────
-  const player       = useAudioPlayer(null);
-  const playerMusica = useAudioPlayer(null);
+  const player        = useAudioPlayer(null);
+  // playerEfectos: canal separado (expo-audio) para tecleo y muletillas.
+  // El audio de música/radio/audiolibro va por RNTP (musicaPlayer singleton).
+  const playerEfectos = useAudioPlayer(null);
 
   // Callback mutable: useRosita lo conecta con brain.limpiarTimersMusica
   // para que pararMusica() invalide los callbacks async de useBrain inmediatamente.
@@ -604,6 +607,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         d.verificarCharlaProactiva();
       }
     }, 3000);
+    setupMusicaPlayer().catch(() => {});
     return () => {
       clearInterval(watchdog);
       if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
@@ -615,17 +619,16 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Duck / unduck música ──────────────────────────────────────────────────
   const MUSICA_VOL_NORMAL = 0.45;
   const MUSICA_VOL_DUCK   = 0.15;
-  function duckMusica()   { try { playerMusica.volume = MUSICA_VOL_DUCK;   } catch {} }
-  function unduckMusica() { try { playerMusica.volume = MUSICA_VOL_NORMAL; } catch {} }
+  function duckMusica()   { musicaPlayer.volume = MUSICA_VOL_DUCK;   }
+  function unduckMusica() { musicaPlayer.volume = MUSICA_VOL_NORMAL; }
 
   // ── Música ────────────────────────────────────────────────────────────────
   function pararMusica() {
     // pause() primero para cortar el audio inmediatamente, luego replace(null)
-    // para vaciar el buffer de red. Si replace(null) falla (try/catch),
-    // al menos el audio ya fue pausado. Segundo pause() como safety net.
-    playerMusica.pause();
-    try { playerMusica.replace(null as any); } catch {}
-    playerMusica.pause();
+    // para vaciar el buffer de red. La cola de operaciones de musicaPlayer
+    // garantiza que ambas se ejecuten en orden sin race conditions.
+    musicaPlayer.pause();
+    musicaPlayer.replace(null);
     depsRef.current.musicaActivaRef.current = false;
     depsRef.current.setMusicaActiva(false);
     // Invalidar callbacks async de useBrain (watchdog, fallback timer)
@@ -633,10 +636,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     // donde un callback async en vuelo puede hacer replace+play después de pause.
     onMusicaStoppedRef.current?.();
     depsRef.current.ultimaActividadRef.current = Date.now();
-    // Pauses diferidas: cubren la race condition nativa donde el watchdog ya encoló
-    // replace(uri)+play() antes de que llegara este pause() al bridge nativo.
-    setTimeout(() => { if (!depsRef.current.musicaActivaRef.current) { try { playerMusica.pause(); } catch {} } }, 200);
-    setTimeout(() => { if (!depsRef.current.musicaActivaRef.current) { try { playerMusica.pause(); } catch {} } }, 600);
     setTimeout(() => iniciarSpeechRecognition(), 800);
   }
   function detenerWakeSR() {
@@ -736,7 +735,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
   function reanudarMusica() {
     if (bloquearReanudarMusicaRef.current) return;
-    playerMusica.play();
+    musicaPlayer.play();
     depsRef.current.setMusicaActiva(true);
   }
 
@@ -801,8 +800,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       // mientras no se haya pedido abort ni haya música activa.
       while (!abort.current && !depsRef.current.musicaActivaRef.current) {
         if (Date.now() - startedAt > SAFETY_MS) break; // safety timeout
-        playerMusica.replace(TECLEO_ASSET);
-        playerMusica.play();
+        playerEfectos.replace(TECLEO_ASSET);
+        playerEfectos.play();
         // Esperar fin del clip o abort — poll cada 80ms
         await new Promise<void>(resolve => {
           const safety = setTimeout(() => resolve(), 6000); // máx 6s por clip
@@ -810,8 +809,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
             if (abort.current || depsRef.current.musicaActivaRef.current) {
               clearTimeout(safety); clearInterval(poll); resolve(); return;
             }
-            const dur = (playerMusica as AudioPlayerExt).duration ?? NaN;
-            const pos = (playerMusica as AudioPlayerExt).currentTime ?? NaN;
+            const dur = (playerEfectos as AudioPlayerExt).duration ?? NaN;
+            const pos = (playerEfectos as AudioPlayerExt).currentTime ?? NaN;
             if (!isNaN(dur) && dur > 0 && isFinite(dur) && pos >= dur - 0.1) {
               clearTimeout(safety); clearInterval(poll); resolve();
             }
@@ -820,9 +819,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       }
     } catch {}
     finally {
-      // No pausar si la música ya tomó el playerMusica.
       try {
-        if (!depsRef.current.musicaActivaRef.current) playerMusica.pause();
+        if (!depsRef.current.musicaActivaRef.current) playerEfectos.pause();
       } catch {}
     }
   }
@@ -838,13 +836,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         const p = depsRef.current.perfilRef?.current;
         const vid = p?.vozId ?? (p?.vozGenero === 'masculina' ? VOICE_ID_MASCULINA : VOICE_ID_FEMENINA);
         const assets = MULETILLA_ASSETS_MAP[vid] ?? MULETILLA_ASSETS_MAP[VOICE_ID_FEMENINA];
-        playerMusica.replace(assets[tipo]);
-        playerMusica.play();
+        playerEfectos.replace(assets[tipo]);
+        playerEfectos.play();
         await new Promise<void>(resolve => {
           const safety = setTimeout(() => resolve(), 4000);
           const poll = setInterval(() => {
-            const dur = (playerMusica as AudioPlayerExt).duration ?? NaN;
-            const pos = (playerMusica as AudioPlayerExt).currentTime ?? NaN;
+            const dur = (playerEfectos as AudioPlayerExt).duration ?? NaN;
+            const pos = (playerEfectos as AudioPlayerExt).currentTime ?? NaN;
             if (!isNaN(dur) && dur > 0 && isFinite(dur) && pos >= dur - 0.1) {
               clearTimeout(safety); clearInterval(poll); resolve();
             }
@@ -853,7 +851,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       } catch {}
       finally {
         try {
-          if (!depsRef.current.musicaActivaRef.current) playerMusica.pause();
+          if (!depsRef.current.musicaActivaRef.current) playerEfectos.pause();
         } catch {}
       }
     })();
@@ -1225,7 +1223,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   return {
     // Reproductores (brain y useRosita los necesitan)
     player,
-    playerMusica,
+    playerMusica: musicaPlayer,
 
     // Estado
     silbando,
