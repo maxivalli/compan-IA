@@ -85,11 +85,11 @@ const GRUPOS: Grupo[] = [
       {
         icono: 'hand-left-outline',
         titulo: 'Empezar una conversación',
-        descripcion: 'Cuando abras la app o pase un rato sin charlar, lo más cómodo es saludar primero: "Hola Rosita". Tu asistente responde al instante con un saludo cacheado y en ese momento prepara todo para que tu siguiente pregunta también sea rápida.',
+        descripcion: 'Cuando la app está esperando, en la pantalla aparece una indicación con el nombre de tu asistente. Mencioná ese nombre para activarla. Una vez que arrancó la conversación, podés hablar libremente sin repetirlo — tu asistente te sigue escuchando durante toda la charla.',
         color: '#7C5200',
         bg: '#FFE0A0',
-        comandos: ['Hola Rosita', 'Buenas Rosita', 'Buenas tardes'],
-        nota: 'Si querés, podés hacer la pregunta directamente sin saludar primero — igual funciona, solo puede tardar un poco más en responder esa primera vez.',
+        comandos: ['Hola Rosita', 'Buenas Rosita', 'Buenas tardes, Rosita'],
+        nota: 'Si pasan más de 60 segundos sin hablar, la app vuelve al modo de espera. Los ejemplos usan "Rosita", que es el nombre por defecto — si lo cambiaste desde Configuración, usá el nombre que elegiste.',
       },
       {
         icono: 'sunny-outline',
