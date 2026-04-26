@@ -601,7 +601,7 @@ export function useRosita() {
             new Promise<null>(resolve => setTimeout(() => resolve(null), ms)),
           ]);
         };
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== 'granted') { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }
         const serviciosOn = await Location.hasServicesEnabledAsync().catch(() => false);
         if (!serviciosOn) { climaTimerRef.current = setTimeout(intentarClima, 30000); return; }

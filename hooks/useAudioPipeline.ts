@@ -654,9 +654,13 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
 
     const RESTART_DELAY_MS = 800;
 
-    function startListen() {
+    async function startListen() {
       if (!wakeSRActiveRef.current) return;
       if (wakeSRStartingRef.current) return; // guard: ya hay un start en vuelo
+      try {
+        const perm = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+        if (perm.status !== 'granted') return;
+      } catch {}
       wakeSRStartingRef.current = true;
       try {
         ExpoSpeechRecognitionModule.start({ lang: 'es', continuous: false, interimResults: true });

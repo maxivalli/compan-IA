@@ -20,10 +20,11 @@
  * En web queda en modo silencioso (no hace nada, no rompe).
  */
 
-import { useEffect, useRef, useCallback } from 'react';
-import { Platform, PermissionsAndroid } from 'react-native';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { Platform, PermissionsAndroid, DeviceEventEmitter } from 'react-native';
 import { Buffer } from 'buffer';
 import { AccionesRosita } from './useAccionesRosita';
+import { PERFIL_LOCAL_GUARDADO } from '../lib/perfilSync';
 
 // ── Configuración del beacon ───────────────────────────────────────────────
 
@@ -72,6 +73,9 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
 
   /** Ref estable que indica si el beacon está actualmente conectado. */
   const conectadoRef = useRef(false);
+
+  /** Incrementar este contador re-ejecuta el effect principal (retry post-onboarding). */
+  const [retryCount, setRetryCount] = useState(0);
 
   // ── Timing de gestos ──────────────────────────────────────────────────
   const gestureSeqRef     = useRef(0);
@@ -271,39 +275,25 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
       }
     }
 
-    async function pedirPermisosAndroid(): Promise<boolean> {
+    async function verificarPermisosAndroid(): Promise<boolean> {
       if (Platform.OS !== 'android') return true;
       if ((Platform.Version as number) >= 31) {
         // Android 12+ — BLUETOOTH_SCAN + BLUETOOTH_CONNECT
-        const results = await PermissionsAndroid.requestMultiple([
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-        ]);
-        return (
-          results[PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN]  === PermissionsAndroid.RESULTS.GRANTED &&
-          results[PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT] === PermissionsAndroid.RESULTS.GRANTED
-        );
+        const scan    = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN);
+        const connect = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT);
+        return scan && connect;
       } else {
         // Android ≤ 11 — el escaneo BLE requiere ubicación
-        const result = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-          {
-            title: 'Permiso de ubicación requerido',
-            message: 'Para encontrar el control Bluetooth necesitamos acceso a la ubicación.',
-            buttonPositive: 'Permitir',
-            buttonNegative: 'Cancelar',
-          }
-        );
-        return result === PermissionsAndroid.RESULTS.GRANTED;
+        return PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION);
       }
     }
 
     async function iniciar() {
       try {
         if (Platform.OS === 'android') {
-          const granted = await pedirPermisosAndroid();
+          const granted = await verificarPermisosAndroid();
           if (!granted) {
-            console.warn('[BLEBeacon] Permisos BLE denegados');
+            console.warn('[BLEBeacon] Permisos BLE no concedidos — esperando onboarding');
             return;
           }
         }
@@ -345,7 +335,16 @@ export function useBLEBeacon(deps: BLEBeaconDeps) {
       limpiarConexion();
       try { manager?.destroy?.(); } catch {}
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [retryCount]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cuando el onboarding guarda el perfil (permisos ya otorgados),
+  // disparar un retry si el beacon todavía no está conectado.
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(PERFIL_LOCAL_GUARDADO, () => {
+      if (!conectadoRef.current) setRetryCount(n => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
 
   return { conectadoRef };
 }

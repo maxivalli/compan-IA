@@ -23,6 +23,7 @@ import { useRef, useCallback } from 'react';
 import { addAudioDataListener, start as startCapture, stop as stopCapture } from 'audio-capture';
 import type { EventSubscription } from 'expo-modules-core';
 import { logCliente, obtenerTokenDispositivo } from '../lib/ai';
+import { ExpoSpeechRecognitionModule } from 'expo-speech-recognition';
 
 const BACKEND_URL = (process.env.EXPO_PUBLIC_BACKEND_URL ?? '').trim();
 const DG_WS_BASE =
@@ -148,8 +149,12 @@ export function useDeepgramSR(opts: UseDeepgramSROptions) {
     vadGatedSinceRef.current = 0;
   }
 
-  function iniciarAudioCapture(ws: WebSocket) {
+  async function iniciarAudioCapture(ws: WebSocket) {
     if (capturaActivaRef.current) return;
+    try {
+      const perm = await ExpoSpeechRecognitionModule.getPermissionsAsync();
+      if (perm.status !== 'granted') return;
+    } catch {}
     vozActivaRef.current = false;
     try {
       audioSubRef.current = addAudioDataListener(({ data }) => {
