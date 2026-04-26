@@ -386,9 +386,6 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       d.onPartialReconocido?.(texto);
     },
     onFinal: (texto) => {
-      if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
-      dgIdleRef.current = false;
-      setWakeSRActivo(false);
       const d = depsRef.current;
       // Registrar cuándo la app recibe speech_final de Deepgram.
       // Esto NO es el fin físico de voz del usuario; es un hito de cierre ASR.
@@ -405,6 +402,11 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         resetVisualEscuchando(d);
         return;
       }
+      // Cancelar el idle timer solo cuando hay texto real para procesar —
+      // no ante ruido ambiente que pasa por speech_final pero queda filtrado arriba.
+      if (dgIdleTimerRef.current) { clearTimeout(dgIdleTimerRef.current); dgIdleTimerRef.current = null; }
+      dgIdleRef.current = false;
+      setWakeSRActivo(false);
       if (d.musicaActivaRef.current) duckMusica();
       procesarTextoReconocido(texto).catch(() => {});
     },

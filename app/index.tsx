@@ -310,7 +310,7 @@ export default function Index() {
       clearInterval(id);
       hintAnimRef.current?.stop();
     };
-  }, [musicaActiva]);
+  }, [musicaActiva, wakeSRActivo]);
 
   // ── Modal hint SOS ──────────────────────────────────────────────────────────
   const [hintSOS, setHintSOS] = useState(false);

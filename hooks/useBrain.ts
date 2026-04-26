@@ -1688,6 +1688,10 @@ export function useBrain(deps: BrainDeps) {
         // ── Slow path: búsqueda + memoria + tecleo corren todos en paralelo ──
         // El especulativo nunca aplica al slow path (tiene búsquedas extra).
         cancelarEspeculativo();
+        // Consumir arranqueFrío aquí también: el tecleo ya cubre el silencio de espera,
+        // no hay muletilla, y si no se resetea el flag dispara una muletilla espúrea
+        // en el siguiente turno fluido (fast path).
+        d.arranqueFrioRef.current = false;
 
         const [[titulosNoticias, busquedaResult, wikiResult], contextoMemoria] = await Promise.all([
           Promise.all([
