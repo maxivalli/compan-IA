@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, InteractionManager, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { esDispositivoGamaBaja } from '../lib/dispositivoUtils';
 import Svg, { Path, Circle } from 'react-native-svg';
 
 // ── Waveform SR — aparece en el botón cuando el micrófono detecta sonido ──────
@@ -113,25 +114,28 @@ export function ZZZ({ modoHorizontal = false }: { modoHorizontal?: boolean } = {
   }))).current;
 
   useEffect(() => {
-    const loops = zetas.map((z, i) => {
-      const loop = Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 900),
-          Animated.parallel([
-            Animated.timing(z.opacity, { toValue: 1,   duration: 400,  useNativeDriver: true }),
-            Animated.timing(z.y,       { toValue: -70, duration: 2200, useNativeDriver: true }),
-          ]),
-          Animated.timing(z.opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
-          Animated.parallel([
-            Animated.timing(z.y,       { toValue: 0, duration: 0, useNativeDriver: true }),
-            Animated.timing(z.opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
-          ]),
-        ])
-      );
-      loop.start();
-      return loop;
+    let loops: Animated.CompositeAnimation[] = [];
+    const task = InteractionManager.runAfterInteractions(() => {
+      loops = zetas.map((z, i) => {
+        const loop = Animated.loop(
+          Animated.sequence([
+            Animated.delay(i * 900),
+            Animated.parallel([
+              Animated.timing(z.opacity, { toValue: 1,   duration: 400,  useNativeDriver: true }),
+              Animated.timing(z.y,       { toValue: -70, duration: 2200, useNativeDriver: true }),
+            ]),
+            Animated.timing(z.opacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+            Animated.parallel([
+              Animated.timing(z.y,       { toValue: 0, duration: 0, useNativeDriver: true }),
+              Animated.timing(z.opacity, { toValue: 0, duration: 0, useNativeDriver: true }),
+            ]),
+          ])
+        );
+        loop.start();
+        return loop;
+      });
     });
-    return () => loops.forEach(l => l.stop());
+    return () => { task.cancel(); loops.forEach(l => l.stop()); };
   }, []);
 
   return (
@@ -185,14 +189,17 @@ const ESTRELLAS_NOCHE = [
 function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }) {
   const opacity = useRef(new Animated.Value(0.3 + (i % 3) * 0.2)).current;
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1,   duration: 700 + i * 220, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 0.2, duration: 900 + i * 180, useNativeDriver: true }),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
+    let anim: Animated.CompositeAnimation | null = null;
+    const task = InteractionManager.runAfterInteractions(() => {
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(opacity, { toValue: 1,   duration: 700 + i * 220, useNativeDriver: true }),
+          Animated.timing(opacity, { toValue: 0.2, duration: 900 + i * 180, useNativeDriver: true }),
+        ])
+      );
+      anim.start();
+    });
+    return () => { task.cancel(); anim?.stop(); };
   }, []);
   return (
     <Animated.View style={{
@@ -322,25 +329,29 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
   const floatY = useRef(new Animated.Value(0)).current;
   const lunaOp = useRef(new Animated.Value(0.85)).current;
   useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(floatY, { toValue: -8,  duration: 2600, useNativeDriver: true }),
-          Animated.timing(lunaOp, { toValue: 1,   duration: 2600, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(floatY, { toValue: 0,    duration: 2600, useNativeDriver: true }),
-          Animated.timing(lunaOp, { toValue: 0.75, duration: 2600, useNativeDriver: true }),
-        ]),
-      ])
-    );
-    anim.start();
-    return () => anim.stop();
+    let anim: Animated.CompositeAnimation | null = null;
+    const task = InteractionManager.runAfterInteractions(() => {
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(floatY, { toValue: -8,  duration: 2600, useNativeDriver: true }),
+            Animated.timing(lunaOp, { toValue: 1,   duration: 2600, useNativeDriver: true }),
+          ]),
+          Animated.parallel([
+            Animated.timing(floatY, { toValue: 0,    duration: 2600, useNativeDriver: true }),
+            Animated.timing(lunaOp, { toValue: 0.75, duration: 2600, useNativeDriver: true }),
+          ]),
+        ])
+      );
+      anim.start();
+    });
+    return () => { task.cancel(); anim?.stop(); };
   }, []);
 
+  const estrellas = esDispositivoGamaBaja ? ESTRELLAS_NOCHE.filter((_, i) => i % 2 === 0) : ESTRELLAS_NOCHE;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
-      {ESTRELLAS_NOCHE.map((e) => (
+      {estrellas.map((e) => (
         <Estrella key={e.i} x={e.x * scaleX} y={e.y} r={e.r * skyScale} i={e.i} />
       ))}
       <LunaFase
