@@ -264,6 +264,7 @@ export default function TatetiScreen() {
       feedbackPlayer.replace({ uri });
       feedbackPlayer.play();
     }
+    // durMs se usa solo como safety timeout, no como tiempo mínimo de espera.
     const durMs = Math.max(texto.length * 85, 800) + 600;
 
     let terminated = false;
@@ -274,19 +275,17 @@ export default function TatetiScreen() {
       onDone?.();
     }
 
+    // Esperar 400ms para que el player arranque, luego pollear cada 150ms.
+    // Antes se esperaba durMs completo antes de empezar a pollear, lo que
+    // dejaba el tablero bloqueado hasta 2s extra por frase aunque el audio
+    // ya había terminado.
     setTimeout(() => {
-      if (uri && feedbackPlayer.playing) {
-        const poll = setInterval(() => {
-          if (!feedbackPlayer.playing) {
-            clearInterval(poll);
-            terminate();
-          }
-        }, 150);
-        setTimeout(() => { clearInterval(poll); terminate(); }, 4000);
-      } else {
-        terminate();
-      }
-    }, durMs);
+      if (!uri) { terminate(); return; }
+      const poll = setInterval(() => {
+        if (!feedbackPlayer.playing) { clearInterval(poll); terminate(); }
+      }, 150);
+      setTimeout(() => { clearInterval(poll); terminate(); }, durMs + 2000);
+    }, 400);
   }
 
   function playClick() {
