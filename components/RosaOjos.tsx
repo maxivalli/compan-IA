@@ -832,6 +832,7 @@ export default function RosaOjos({
     noMolestarLoopRef.current?.stop();
     if (noMolestar) {
       noMolestarAnimRef.current?.stop();
+      expresionAnimRef.current?.stop();   // evita que una animación de expresión en curso compita con los párpados
       // Párpados y ceño: JS thread (useNativeDriver: false)
       Animated.parallel([
         Animated.timing(upperLid, { toValue: EYE_H * 0.30, duration: 500, useNativeDriver: false }),
@@ -1014,11 +1015,13 @@ export default function RosaOjos({
       }, 280 + Math.random() * 180);
     }
 
-    Animated.timing(cenoLid, {
-      toValue: estado === 'pensando' ? EYE_H * 0.22 : 0,
-      duration: 400,
-      useNativeDriver: false,
-    }).start();
+    if (!noMolestarRef.current) {
+      Animated.timing(cenoLid, {
+        toValue: estado === 'pensando' ? EYE_H * 0.22 : 0,
+        duration: 400,
+        useNativeDriver: false,
+      }).start();
+    }
 
     if (estado === 'esperando' && modoNoche === 'despierta') {
       breathingAnim.current = Animated.loop(
