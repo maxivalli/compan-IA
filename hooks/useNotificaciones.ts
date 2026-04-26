@@ -849,7 +849,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const ya = await yaRecordo(clave);
       if (ya) return;
       await marcarRecordado(clave);
-      const clima = await obtenerClima();
+      const coord = coordRef.current;
+      const clima = await obtenerClima(coord?.lat, coord?.lon);
       if (!clima) return;
       const adversoAhora = CODIGOS_ADVERSOS.has(clima.codigoActual);
       const manana = clima.pronostico[0];
@@ -874,7 +875,8 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
       const ahora = Date.now();
       if (ahora - ultimoRefrescoClima < 30 * 60 * 1000) return;
       ultimoRefrescoClima = ahora;
-      const clima = await obtenerClima();
+      const coord = coordRef.current;
+      const clima = await obtenerClima(coord?.lat, coord?.lon);
       if (!clima) return;
       climaRef.current  = climaATexto(clima);
       ciudadRef.current = clima.ciudad ?? '';

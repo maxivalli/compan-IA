@@ -71,7 +71,7 @@ export async function obtenerClima(latitud?: number, longitud?: number): Promise
       lat = latitud;
       lon = longitud;
     } else {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') return null;
       const gpsPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
       const timeout    = new Promise<null>(r => setTimeout(() => r(null), 10000));
