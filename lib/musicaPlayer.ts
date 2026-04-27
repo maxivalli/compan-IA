@@ -38,11 +38,9 @@ export function setupMusicaPlayer(): Promise<void> {
   if (_setupPromise) return _setupPromise;
   _setupPromise = (async () => {
     try {
-      await TrackPlayer.setupPlayer({ waitForBuffer: true });
+      await TrackPlayer.setupPlayer();
       await TrackPlayer.updateOptions({
         capabilities: [Capability.Play, Capability.Pause, Capability.Stop],
-        compactCapabilities: [Capability.Play, Capability.Pause],
-        notificationCapabilities: [Capability.Play, Capability.Pause, Capability.Stop],
       });
       TrackPlayer.addEventListener(Event.PlaybackState, ({ state }) => {
         const wasPlaying = _playing;
