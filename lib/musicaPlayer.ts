@@ -9,7 +9,6 @@
  */
 
 import TrackPlayer, { Capability, Event, State } from 'react-native-track-player';
-import { setAudioModeAsync } from 'expo-audio';
 
 // ── Estado cacheado (lectura síncrona desde el watchdog de useBrain) ──────────
 
@@ -38,11 +37,6 @@ function detenerProgressTimer() {
 export function setupMusicaPlayer(): Promise<void> {
   if (_setupPromise) return _setupPromise;
   _setupPromise = (async () => {
-    // Configurar sesión de audio antes de RNTP para que iOS mantenga
-    // la sesión activa en background aunque expo-audio (TTS) termine.
-    try {
-      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true });
-    } catch {}
     try {
       await TrackPlayer.setupPlayer({ waitForBuffer: true });
     } catch {
