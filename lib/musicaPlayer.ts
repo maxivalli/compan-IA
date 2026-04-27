@@ -39,13 +39,10 @@ export function setupMusicaPlayer(): Promise<void> {
   _setupPromise = (async () => {
     try {
       await TrackPlayer.setupPlayer({ waitForBuffer: true });
-    } catch {
-      // setupPlayer lanza si ya fue llamado — continuamos igual
-    }
-    try {
       await TrackPlayer.updateOptions({
         capabilities: [Capability.Play, Capability.Pause, Capability.Stop],
         compactCapabilities: [Capability.Play, Capability.Pause],
+        notificationCapabilities: [Capability.Play, Capability.Pause, Capability.Stop],
       });
       TrackPlayer.addEventListener(Event.PlaybackState, ({ state }) => {
         const wasPlaying = _playing;
@@ -53,7 +50,9 @@ export function setupMusicaPlayer(): Promise<void> {
         if (_playing && !wasPlaying) iniciarProgressTimer();
         else if (!_playing && wasPlaying) detenerProgressTimer();
       });
-    } catch {}
+    } catch {
+      // setupPlayer puede lanzar si ya fue llamado — es seguro ignorarlo
+    }
   })();
   return _setupPromise;
 }

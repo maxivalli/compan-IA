@@ -183,8 +183,7 @@ export default function AudiolibroScreen() {
     cargarCapitulosYProgreso();
     return () => {
       guardarProgreso();
-      // No pausar aquí: permite que el audio siga en segundo plano cuando el
-      // usuario navega a otra pantalla. Solo cerrar() pausa intencionalmente.
+      TrackPlayer.pause().catch(() => {});
       reanudarSRPrincipalTrasJuego();
     };
   }, []);
