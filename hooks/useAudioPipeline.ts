@@ -735,6 +735,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
   function reanudarMusica() {
     if (bloquearReanudarMusicaRef.current) return;
+    if (musicaPlayer.pausedByUser) return;
     musicaPlayer.play();
     depsRef.current.setMusicaActiva(true);
   }

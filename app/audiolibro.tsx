@@ -16,6 +16,7 @@ import TrackPlayer, {
   useProgress,
   useTrackPlayerEvents,
   Event as TPEvent,
+  State as TPState,
 } from 'react-native-track-player';
 
 import { fetchCapitulosAudiolibro } from '../lib/ai';
@@ -78,6 +79,13 @@ export default function AudiolibroScreen() {
     if (posSegundos > 0) await TrackPlayer.seekTo(posSegundos);
     if (autoplay) await TrackPlayer.play();
   }, [tituloId]);
+
+  // Sincronizar reproduciendo con cambios externos (pausa desde notificación / lock screen)
+  useTrackPlayerEvents([TPEvent.PlaybackState], ({ state }) => {
+    const isPlaying = state === TPState.Playing || state === TPState.Buffering;
+    setReproduciendo(isPlaying);
+    repRef.current = isPlaying;
+  });
 
   // Avanzar al siguiente capítulo cuando termina el audio
   useTrackPlayerEvents([TPEvent.PlaybackQueueEnded], async () => {

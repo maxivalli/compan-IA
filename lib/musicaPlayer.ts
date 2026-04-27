@@ -12,9 +12,10 @@ import TrackPlayer, { Capability, Event, State } from 'react-native-track-player
 
 // ── Estado cacheado (lectura síncrona desde el watchdog de useBrain) ──────────
 
-let _playing     = false;
-let _currentTime = 0;
-let _volume      = 0.45;
+let _playing      = false;
+let _currentTime  = 0;
+let _volume       = 0.45;
+let _pausedByUser = false; // true cuando el usuario pausó desde la notificación/lock screen
 let _setupPromise: Promise<void> | null = null;
 let _progressTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -48,6 +49,14 @@ export function setupMusicaPlayer(): Promise<void> {
         if (_playing && !wasPlaying) iniciarProgressTimer();
         else if (!_playing && wasPlaying) detenerProgressTimer();
       });
+      TrackPlayer.addEventListener(Event.RemotePause, () => {
+        _pausedByUser = true;
+        TrackPlayer.pause().catch(() => {});
+      });
+      TrackPlayer.addEventListener(Event.RemotePlay, () => {
+        _pausedByUser = false;
+        TrackPlayer.play().catch(() => {});
+      });
     } catch {
       // setupPlayer puede lanzar si ya fue llamado — es seguro ignorarlo
     }
@@ -66,9 +75,10 @@ function enqueue(fn: () => Promise<void>): void {
 // ── Interfaz pública — satisface AudioPlayerLike de useBrain ─────────────────
 
 export const musicaPlayer = {
-  get playing()     { return _playing; },
-  get currentTime() { return _currentTime; },
-  get volume()      { return _volume; },
+  get playing()       { return _playing; },
+  get currentTime()   { return _currentTime; },
+  get volume()        { return _volume; },
+  get pausedByUser()  { return _pausedByUser; },
 
   set volume(v: number) {
     _volume = v;
@@ -87,7 +97,8 @@ export const musicaPlayer = {
     }
     // Streams en vivo: radios y HLS sin extensión de archivo estática.
     const isLive = !streamUri.match(/\.(mp3|aac|m4a|ogg|flac|wav|opus)(\?|$)/i);
-    _currentTime = 0;
+    _currentTime  = 0;
+    _pausedByUser = false;
     enqueue(async () => {
       await setupMusicaPlayer();
       await TrackPlayer.reset();

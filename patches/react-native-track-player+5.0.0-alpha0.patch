@@ -1,0 +1,14 @@
+diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+index b495b5a..4b98065 100644
+--- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
++++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
+@@ -100,9 +100,6 @@ class MusicService : HeadlessJsMediaService() {
+         fakePlayer = ExoPlayer.Builder(this).build()
+         val openAppIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+-            // Add the Uri data so apps can identify that it was a notification click
+-            data = Uri.parse("trackplayer://notification.click")
+-            action = Intent.ACTION_VIEW
+         }
+         mediaSession = MediaLibrarySession.Builder(this, fakePlayer,
+             InnerMediaSessionCallback()
