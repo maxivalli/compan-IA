@@ -9,6 +9,7 @@
  */
 
 import TrackPlayer, { Capability, Event, State } from 'react-native-track-player';
+import { setAudioModeAsync } from 'expo-audio';
 
 // ── Estado cacheado (lectura síncrona desde el watchdog de useBrain) ──────────
 
@@ -37,12 +38,20 @@ function detenerProgressTimer() {
 export function setupMusicaPlayer(): Promise<void> {
   if (_setupPromise) return _setupPromise;
   _setupPromise = (async () => {
+    // Configurar sesión de audio antes de RNTP para que iOS mantenga
+    // la sesión activa en background aunque expo-audio (TTS) termine.
+    try {
+      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true });
+    } catch {}
     try {
       await TrackPlayer.setupPlayer({ waitForBuffer: true });
+    } catch {
+      // setupPlayer lanza si ya fue llamado — continuamos igual
+    }
+    try {
       await TrackPlayer.updateOptions({
         capabilities: [Capability.Play, Capability.Pause, Capability.Stop],
         compactCapabilities: [Capability.Play, Capability.Pause],
-        notificationCapabilities: [Capability.Play, Capability.Pause, Capability.Stop],
       });
       TrackPlayer.addEventListener(Event.PlaybackState, ({ state }) => {
         const wasPlaying = _playing;
@@ -50,9 +59,7 @@ export function setupMusicaPlayer(): Promise<void> {
         if (_playing && !wasPlaying) iniciarProgressTimer();
         else if (!_playing && wasPlaying) detenerProgressTimer();
       });
-    } catch {
-      // setupPlayer puede lanzar si ya fue llamado — es seguro ignorarlo
-    }
+    } catch {}
   })();
   return _setupPromise;
 }
