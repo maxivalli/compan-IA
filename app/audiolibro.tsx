@@ -24,6 +24,9 @@ import { Capitulo, getProgreso, saveProgreso, NOMBRE_LIBRO } from '../lib/audiol
 import { pausarSRPrincipalParaJuego, reanudarSRPrincipalTrasJuego } from '../lib/rositaSpeechForGames';
 import { setupMusicaPlayer } from '../lib/musicaPlayer';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const APP_ICON = require('../assets/images/icon.png');
+
 // ── Paleta ────────────────────────────────────────────────────────────────────
 
 const C = {
@@ -73,8 +76,9 @@ export default function AudiolibroScreen() {
     await TrackPlayer.reset();
     await TrackPlayer.add({
       url,
-      title:  titulo,
-      artist: NOMBRE_LIBRO[tituloId] ?? tituloId,
+      title:   titulo,
+      artist:  NOMBRE_LIBRO[tituloId] ?? tituloId,
+      artwork: APP_ICON,
     });
     if (posSegundos > 0) await TrackPlayer.seekTo(posSegundos);
     if (autoplay) await TrackPlayer.play();

@@ -10,6 +10,9 @@
 
 import TrackPlayer, { Capability, Event, State } from 'react-native-track-player';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const APP_ICON = require('../assets/images/icon.png');
+
 // ── Estado cacheado (lectura síncrona desde el watchdog de useBrain) ──────────
 
 let _playing      = false;
@@ -104,8 +107,9 @@ export const musicaPlayer = {
       await TrackPlayer.reset();
       await TrackPlayer.add({
         url: streamUri,
-        title:       isLive ? 'Radio' : 'Audio',
-        artist:      'CompañIA',
+        title:        isLive ? 'Radio' : 'Audio',
+        artist:       'CompañIA',
+        artwork:      APP_ICON,
         isLiveStream: isLive,
       });
       await TrackPlayer.setVolume(_volume);
