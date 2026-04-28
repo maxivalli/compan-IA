@@ -236,27 +236,29 @@ async function buscarAbierto(texto: string): Promise<{ url: string; uuid: string
 export async function buscarRadio(termino: string): Promise<string | null> {
   const key = termino.toLowerCase().trim();
 
-  // 1. Caché
-  const cached = await leerCache(key);
-  if (cached) return cached;
-
-  // 2a. Radios con nombre conocido: primero URL curada (más confiable que RadioBrowser),
-  // luego RadioBrowser como red de seguridad si la curada no está o falla.
+  // 2a. Radios con nombre conocido: URL curada PRIMERO (mantenida a mano, más confiable).
+  // No pasa por caché — una URL cacheada vieja de RadioBrowser puede estar rota
+  // y bloquea el uso de la curada que sí funciona.
   const esRadioNombrada = key in ALIAS_BUSQUEDA;
   if (esRadioNombrada) {
     const curadas = STREAMS_FALLBACK[key];
     const primeraCurada = curadas?.find(u => esStreamValido(u));
     if (primeraCurada) return primeraCurada;
 
-    // Sin URL curada válida → RadioBrowser como red de seguridad
+    // Sin URL curada → caché, luego RadioBrowser como red de seguridad
+    const cached = await leerCache(key);
+    if (cached) return cached;
     const resultado = await buscarPorNombre(key, 'AR');
     if (resultado) {
       notificarClick(resultado.uuid);
       return resultado.url;
     }
-    // Agotadas las opciones para esta radio nombrada
     return null;
   }
+
+  // 1. Caché (géneros y búsquedas abiertas — no tienen URL curada confiable)
+  const cached = await leerCache(key);
+  if (cached) return cached;
 
   const tagAPI = TAGS_GENERO[key];
 
