@@ -1400,6 +1400,8 @@ export function useBrain(deps: BrainDeps) {
     const pideJuego  = pideJuegoBase;
     const pideChiste = pideChisteBase;
     const pideCuento  = /\b(cuento|historia|relato|narrac|contame (algo|lo que|una)|habla(me)? de (algo|lo que)|que sabes de|libre|lo que quieras|lo que se te ocurra|sorprendeme)\b/.test(textoNorm);
+    const pideCharlaLibre = !pideJuegoBase && !pideChisteBase && !ofrecerMenuAburrimiento
+      && /\b(elegi (un tema|de que|algo)|arranca(me)? (vos|con algo|un tema)|de que (hablamos|charlamos|podemos charlar)|proponeme (algo|un tema)|hablemos de algo|charlemos de algo|vos elegi|elige vos|empieza vos|empeza vos|empezá vos|sos vos|arranca vos|empecemos con algo|contame algo (lindo|interesante|bueno|nuevo))\b/i.test(textoNorm);
     const pideAccion = /\b(recordatorio|recordame|recorda(me)?|alarma|avisa(me)?|timer|temporizador|anota|anotame|anotá|guarda|guardame|papelito|nota\b|nota me|manda(le)?|envia(le)?|llama(le)?|emergencia)\b/.test(textoNorm);
     const esConsultaHorario = /\b(cuando juega|cuand[oa] juega|proximo partido|a que hora juega|a que hora es|proxima carrera|proximo gran premio|f1 horario|calendario deportivo|fixture|cuando es el partido|juega el|juega boca|juega river|juega racing|juega independiente|juega san lorenzo|juega belgrano|juega huracan|juega la seleccion|juega argentina)\b/.test(textoNorm);
     const pideNoticias = !esConsultaHorario && /\b(como salio|partido|noticias|novedades|que paso|que se sabe|que esta pasando|actualidad|enterame|boca|river|racing|independiente|san lorenzo|huracan|belgrano|seleccion|mundial|liga|torneo|politica|gobierno|presidente|congreso|senado|diputados|elecciones|ministerio|economia|dolar|inflacion|pobreza|desempleo|formulauno|formula.?1|f1|gran premio|verstappen|hamilton|leclerc|norris|moto ?gp|tenis|roland garros|wimbledon|us open|nba|nfl|olimpiadas?|clima de manana|pronostico)\b/.test(textoNorm);
@@ -1542,6 +1544,8 @@ export function useBrain(deps: BrainDeps) {
       : `\nSi no sabés quién habla, no uses nombres propios.`;
     const maxTokBase  = pideCuento
       ? 1100
+      : pideCharlaLibre
+      ? 400
       : (pideJuego || pideChiste)
       ? 700
       : ofrecerMenuAburrimiento
@@ -1610,7 +1614,7 @@ export function useBrain(deps: BrainDeps) {
         // ── Fast path ─────────────────────────────────────────────────────────
         // Para consultas de entretenimiento o charla social, la memoria episódica
         // no aporta valor y genera ~800ms de espera innecesaria. Usamos string vacío.
-        const esConsultaLiviana = pideCuento || pideChiste || pideJuego || ofrecerMenuAburrimiento || esCharlaSocialBreve(textoNorm);
+        const esConsultaLiviana = pideCuento || pideChiste || pideJuego || ofrecerMenuAburrimiento || pideCharlaLibre || esCharlaSocialBreve(textoNorm);
         const contextoMemoria = esConsultaLiviana
           ? { texto: '', count: 0, chars: 0 }
           : (episodicaCacheRef.current?.lastRelevant?.result ?? { texto: '', count: 0, chars: 0 });
@@ -1635,6 +1639,12 @@ export function useBrain(deps: BrainDeps) {
                 : '';
               const opcionNoticias = nots.length > 0 ? ', contarle algo interesante que pasó hoy (tenés noticias del día para compartir)' : '';
               return `\n\nDIRECTIVA ABURRIMIENTO: El usuario está aburrido. OBLIGATORIO: tu respuesta DEBE mencionar por nombre las opciones disponibles. NO respondas solo con "¿qué querés hacer?" ni preguntas abiertas genéricas — eso no sirve. PROPONÉ vos las opciones nombrándolas: 1) jugar al ta-te-ti [JUGAR_TATETI], al ahorcado [JUGAR_AHORCADO] o al juego de memoria [JUGAR_MEMORIA], 2) una trivia/adivinanza${opcionNoticias}, 3) música o radio, 4) charlar de lo que quiera. Sé cálida y breve, pero nombrá al menos 2 opciones concretas.${noticiasBloque}`;
+            })()
+          : pideCharlaLibre
+          ? (() => {
+              const gustosList = (p?.gustos ?? []).slice(0, 6);
+              const gustosStr = gustosList.length > 0 ? ` Sus intereses: ${gustosList.join(', ')}.` : '';
+              return `\n\nDIRECTIVA CHARLA_LIBRE: El usuario quiere que vos elijas el tema.${gustosStr} Elegí uno de sus gustos (si los hay) o un tema interesante. Arrancá la conversación vos con algo concreto: un dato curioso, una anécdota, una pregunta abierta. NO le preguntes de qué quiere hablar — elegí vos y empezá directamente.`;
             })()
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
