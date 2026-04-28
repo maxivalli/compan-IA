@@ -697,6 +697,7 @@ export default function Index() {
           bleConectado={bleConectado}
           hayRecordatorios={hayRecordatorios}
           hayFamiliaTelegram={(refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0}
+          subtitulosActivos={subtitulosActivos}
           subtituloChunk={subtituloChunk}
           subtituloOpacity={subtituloOpacity}
         />

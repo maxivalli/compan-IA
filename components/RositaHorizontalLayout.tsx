@@ -103,6 +103,9 @@ export interface RositaHorizontalProps {
   // SOS
   hayFamiliaTelegram?: boolean;
 
+  // Subtítulos activos
+  subtitulosActivos?: boolean;
+
   // Subtítulos
   subtituloChunk?: string;
   subtituloOpacity?: Animated.Value;
@@ -266,7 +269,7 @@ interface PastillaProps {
   top: number; right: number;
   hasListas: boolean; listasCount: number; onOpenListas: () => void;
   deteccionPresenciaActiva: boolean; modoWatchingPresencia: boolean; presenciaVista: boolean;
-  bleConectado?: boolean; hayRecordatorios?: boolean;
+  bleConectado?: boolean; hayRecordatorios?: boolean; subtitulosActivos?: boolean;
 }
 
 const PastillaIndicadores = memo(function PastillaIndicadores(props: PastillaProps) {
@@ -313,6 +316,12 @@ const PastillaIndicadores = memo(function PastillaIndicadores(props: PastillaPro
       {props.hayRecordatorios && (
         <Ionicons name="alarm" size={15} color="#facc15" />
       )}
+      <Ionicons
+        name="text"
+        size={15}
+        color={props.subtitulosActivos ? '#a78bfa' : 'rgba(255,255,255,0.35)'}
+        style={{ opacity: props.subtitulosActivos ? 1 : 0.4 }}
+      />
     </TouchableOpacity>
   );
 });
@@ -619,6 +628,7 @@ export default memo(function RositaHorizontalLayout(props: RositaHorizontalProps
             presenciaVista={props.presenciaVista}
             bleConectado={props.bleConectado}
             hayRecordatorios={props.hayRecordatorios}
+            subtitulosActivos={props.subtitulosActivos}
           />
 
           {/* Badge de estado + SOS — fila inferior derecha */}
