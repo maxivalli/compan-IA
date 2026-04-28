@@ -8,7 +8,7 @@
  * Las operaciones async se encolan para garantizar el orden replace→play.
  */
 
-import TrackPlayer, { Capability, Event, State } from 'react-native-track-player';
+import TrackPlayer, { Capability, Event, State, TrackType } from 'react-native-track-player';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const APP_ICON = require('../assets/images/icon.png');
@@ -106,7 +106,8 @@ export const musicaPlayer = {
       await setupMusicaPlayer();
       await TrackPlayer.reset();
       await TrackPlayer.add({
-        url: streamUri,
+        url:          streamUri,
+        type:         streamUri.endsWith('.m3u8') ? TrackType.HLS : TrackType.Default,
         title:        isLive ? 'Radio' : 'Audio',
         artist:       'CompañIA',
         artwork:      APP_ICON,
