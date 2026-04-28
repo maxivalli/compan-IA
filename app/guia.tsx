@@ -350,20 +350,45 @@ const GRUPOS: Grupo[] = [
     ],
   },
   {
+    titulo: 'Accesibilidad',
+    icono: 'accessibility-outline',
+    color: '#0F766E',
+    bg: '#CCFBF1',
+    secciones: [
+      {
+        icono: 'text-outline',
+        titulo: 'Subtítulos en pantalla',
+        descripcion: 'Todo lo que dice Rosita aparece en texto grande entre su cara y el display. Se puede activar o desactivar desde Configuración. Ideal si hay ruido o si preferís leer además de escuchar.',
+        color: '#0F766E',
+        bg: '#CCFBF1',
+        nota: 'Cuando está activo, aparece un ícono de subtítulos en la pantalla principal junto al indicador de Bluetooth. El texto se divide en frases cortas para facilitar la lectura.',
+      },
+      {
+        icono: 'document-text-outline',
+        titulo: 'Leer textos y documentos',
+        descripcion: 'Si tenés algo escrito que no podés leer bien — un papel, una receta, una carta — pedile a Rosita que te lo lea. Apuntás la cámara y ella te dice en voz alta todo lo que ve.',
+        color: '#0F766E',
+        bg: '#CCFBF1',
+        comandos: ['Rosita, ¿qué dice acá?', '¿Qué pone acá?', 'Leeme esto'],
+        nota: 'La cámara trasera se abre sola con una cuenta regresiva de 3 segundos. Quedate quieto y Rosita lee todo lo que encuentre.',
+      },
+      {
+        icono: 'eye-outline',
+        titulo: 'Modo visión',
+        descripcion: 'Pedile a Rosita que describa lo que ve y apuntá la cámara al entorno. Ella captura un frame y te cuenta en voz alta qué hay: objetos, personas, colores, texto. Útil cuando necesitás orientarte o identificar algo.',
+        color: '#0F766E',
+        bg: '#CCFBF1',
+        comandos: ['¿Qué ves?', 'Describime lo que hay', '¿Qué hay acá?', 'Mirá y contame'],
+        nota: 'La cámara trasera se abre en vivo. Apuntá lo que querés que Rosita vea y ella toma la foto sola después de unos segundos.',
+      },
+    ],
+  },
+  {
     titulo: 'App',
     icono: 'settings-outline',
     color: '#475569',
     bg: '#F1F5F9',
     secciones: [
-      {
-        icono: 'eye-outline',
-        titulo: 'Leer textos y documentos',
-        descripcion: 'Si tenés algo escrito que no podés leer bien — un papel, una receta, una carta — pedile a Rosita que te lo lea. Apuntás la cámara y ella te dice en voz alta todo lo que ve.',
-        color: '#004785',
-        bg: '#D3E4FF',
-        comandos: ['Rosita, ¿qué dice acá?', '¿Qué pone acá?', 'Leeme esto', 'Describime esto'],
-        nota: 'La cámara trasera se abre sola con una cuenta regresiva de 3 segundos. Quedate quieto y Rosita lee todo lo que encuentre.',
-      },
       {
         icono: 'color-palette-outline',
         titulo: 'Fondo vivo',
@@ -489,19 +514,19 @@ function GrupoColapsable({
     <View>
       <Pressable
         onPress={onToggle}
-        style={({ pressed }) => [cab.wrap, { backgroundColor: grupo.bg, borderLeftColor: grupo.color, opacity: pressed ? 0.75 : 1 }]}
+        style={({ pressed }) => [cab.wrap, { backgroundColor: '#ffffff', borderLeftColor: grupo.color, opacity: pressed ? 0.75 : 1 }]}
       >
         <View style={[cab.iconCircle, { backgroundColor: grupo.color + '20' }]}>
           <Ionicons name={grupo.icono as any} size={16} color={grupo.color} />
         </View>
-        <Text style={[cab.titulo, { color: grupo.color, flex: 1 }]}>{grupo.titulo}</Text>
-        <View style={[cab.badge, { backgroundColor: grupo.color + '18' }]}>
-          <Text style={[cab.badgeTexto, { color: grupo.color }]}>{grupo.secciones.length}</Text>
+        <Text style={[cab.titulo, { color: M.onSurface, flex: 1 }]}>{grupo.titulo}</Text>
+        <View style={[cab.badge, { backgroundColor: M.surfaceVariant }]}>
+          <Text style={[cab.badgeTexto, { color: M.onSurfaceVariant }]}>{grupo.secciones.length}</Text>
         </View>
         <Ionicons
           name={expandido ? 'chevron-up' : 'chevron-down'}
           size={16}
-          color={grupo.color}
+          color={M.onSurfaceVariant}
           style={{ marginLeft: 6 }}
         />
       </Pressable>

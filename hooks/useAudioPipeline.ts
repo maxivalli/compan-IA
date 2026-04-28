@@ -254,6 +254,20 @@ export interface AudioPipelineDeps {
   verificarCharlaProactiva: () => boolean;
 }
 
+// Extrae la pregunta del transcript del wake word, descartando el saludo + nombre.
+// "Hola, Rosita, cómo está el clima?" → "cómo está el clima?"
+// "Hola, Rosita" → "" (solo saludo, sin pregunta)
+function stripWakePhrase(transcript: string, nombreNorm: string): string {
+  const norm = transcript.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const nombreEsc = nombreNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wakeRe = new RegExp(
+    `^[\\s¡¿]*(hola|hey|ey|buenas?|buen\\s+dia|buenos\\s+dias|buenas\\s+tardes|buenas\\s+noches)?[\\s,\\.!?\\u00a1\\u00bf]*${nombreEsc}[\\s,\\.!?\\u00a1\\u00bf]*`
+  );
+  const m = norm.match(wakeRe);
+  if (!m) return '';
+  return transcript.slice(m[0].length).trim();
+}
+
 // ── useAudioPipeline ──────────────────────────────────────────────────────────
 
 export function useAudioPipeline(deps: AudioPipelineDeps) {
@@ -285,6 +299,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // Compartidos con brain via depsRef y con useRosita (se devuelven en el return)
   const enFlujoVozRef      = useRef(false);
   const enColaHablaRef     = useRef(false);
+  const hablarActivoRef    = useRef(false); // true mientras cualquier hablar() está en curso
   const procesandoRef      = useRef(false);
   const procesandoDesdeRef = useRef<number>(0);
   const hablarCancelledRef = useRef(false); // true solo cuando cancelarHablaRef cancela efectivamente (barge-in real)
@@ -321,8 +336,12 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // ── Idle DG + wake-word SR ────────────────────────────────────────────────
   // Arranca en true: la app inicia en modo wake-word (native SR).
   // Deepgram solo conecta cuando se detecta la wake word.
-  const dgIdleRef         = useRef(true);
-  const dgIdleTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dgIdleRef            = useRef(true);
+  const dgIdleTimerRef       = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Duración del idle timer para el próximo fin de TTS. null = default 60s.
+  // Lo setea iniciarVentanaProactiva() antes de hablar() para acortar la ventana
+  // en flujos que interrumpen al usuario (presencia, recordatorio, charla proactiva).
+  const proactivoIdleMsRef   = useRef<number | null>(null);
   const wakeSRActiveRef   = useRef(false);
   // Estado reactivo que expone el modo wake-word al UI (para mostrar el hint).
   const [wakeSRActivo, setWakeSRActivo] = useState(true);
@@ -550,6 +569,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         d.estadoRef.current === 'esperando'
         && !enFlujoVozRef.current
         && !enColaHablaRef.current
+        && !hablarActivoRef.current
         && !d.noMolestarRef.current
         && !srSuspendidoRef.current
         && !d.musicaActivaRef.current // no arrancar SR mientras suena música
@@ -699,13 +719,14 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       });
       if (hayWakeWord) {
         const transcript: string = event?.results?.[0]?.transcript ?? '';
-        logCliente('wake_word', { transcript });
+        const pregunta = stripWakePhrase(transcript, nombreNorm);
+        logCliente('wake_word', { transcript, pregunta });
         detenerWakeSR();
         dgIdleRef.current = false;
         setWakeSRActivo(false);
         arranqueFrioRef.current = true; // primer turno de la reconexión → muletilla
         reanudarCapturaDG();
-        procesarTextoReconocido(transcript).catch(() => {});
+        procesarTextoReconocido(pregunta || transcript).catch(() => {});
       }
     });
 
@@ -728,11 +749,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   }
 
   function despertarDG() {
-    // Llamado desde charla proactiva — reconectar sin marcar arranque frío.
     detenerWakeSR();
     dgIdleRef.current = false;
     setWakeSRActivo(false);
     reanudarCapturaDG();
+  }
+
+  // Combina despertarDG() con una ventana de escucha acortada para flujos que
+  // interrumpen al usuario (presencia, recordatorio, charla proactiva). El idle
+  // timer al terminar el TTS usará idleMs en lugar del default de 60s.
+  function iniciarVentanaProactiva(idleMs = 30_000) {
+    proactivoIdleMsRef.current = idleMs;
+    despertarDG();
   }
 
   /** Pausa AudioCapture durante música: el WS queda abierto con keepalive.
@@ -995,6 +1023,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       skip_cache: skipCacheCheck ? 'si' : 'no',
       turn_id: turnId ?? 'none',
     });
+    hablarActivoRef.current = true;
     safeStopSpeechRecognition();
     detenerSilbido();
     d.estadoRef.current = 'hablando';
@@ -1172,14 +1201,18 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     }
 
     hablandoDesdeRef.current = 0;
+    hablarActivoRef.current = false;
     cancelarHablaRef.current = null;
     ultimoFinTTSRef.current = Date.now();
     depsRef.current.onTextoHablado?.('');
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
-    // Idle timer: 60s sin actividad → cerrar DG, activar wake-word SR.
-    // Guardia: si hay música activa no arrancar wake SR — compite por el foco de audio
-    // en Android y provoca el bucle arranca/para de ~1s que se siente como un "latido".
+    // Idle timer: cierra DG y activa wake-word SR tras inactividad.
+    // En flujos proactivos (presencia, recordatorio, charla proactiva) usa 30s;
+    // en conversación normal usa 60s. Guardia: no arrancar wake SR con música activa
+    // (compite por el foco de audio en Android → bucle arranca/para de ~1s).
     if (dgIdleTimerRef.current) clearTimeout(dgIdleTimerRef.current);
+    const ventanaIdleMs = proactivoIdleMsRef.current ?? 60_000;
+    proactivoIdleMsRef.current = null;
     dgIdleTimerRef.current = setTimeout(() => {
       if (depsRef.current.musicaActivaRef.current) return;
       logCliente('dg_idle_close', {});
@@ -1188,7 +1221,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
       setWakeSRActivo(true);
       detenerDG();
       iniciarWakeSR();
-    }, 60_000);
+    }, ventanaIdleMs);
     unduckMusica();
     d.setEstado('esperando');
     d.estadoRef.current = 'esperando';
@@ -1201,7 +1234,8 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
           depsRef.current.estadoRef.current === 'esperando'
           && !enFlujoVozRef.current
           && !enColaHablaRef.current
-          && !depsRef.current.musicaActivaRef.current // no arrancar SR si música ya está activa
+          && !hablarActivoRef.current   // no arrancar SR si hay otro hablar() en curso
+          && !depsRef.current.musicaActivaRef.current
         ) iniciarSpeechRecognition();
       }, 400);
     } else if (enColaHablaRef.current) {
@@ -1274,6 +1308,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     cerrarDGParaMusica,
     reanudarMusica,
     despertarDG,
+    iniciarVentanaProactiva,
     arranqueFrioRef,
     bloquearReanudarMusicaRef,
     // Ref mutable: useRosita conecta con brain.limpiarTimersMusica

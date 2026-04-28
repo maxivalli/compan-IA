@@ -43,8 +43,9 @@ export type NotificacionesRefs = {
   coordRef:              React.RefObject<{ lat: number; lon: number } | null>;
   setClimaObj:           (c: { temperatura: number; descripcion: string; codigoActual: number } | null) => void;
   setEstado:             (s: 'esperando' | 'escuchando' | 'pensando' | 'hablando') => void;
-  hablar:                (texto: string) => Promise<void>;
+  hablar:                   (texto: string) => Promise<void>;
   iniciarSpeechRecognition: () => void;
+  iniciarVentanaProactiva:  () => void;
   modoNoche:             ModoNoche;
   musicaActivaRef:       React.RefObject<boolean>;
   enFlujoVozRef:         React.RefObject<boolean>;
@@ -160,7 +161,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
     perfilRef, estadoRef, noMolestarRef, modoNocheRef,
     ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,
     telegramOffsetRef, climaRef, ciudadRef, coordRef, setClimaObj,
-    setEstado, hablar, iniciarSpeechRecognition,
+    setEstado, hablar, iniciarSpeechRecognition, iniciarVentanaProactiva,
     modoNoche, musicaActivaRef, enFlujoVozRef, proximaAlarmaRef, pararMusica, reanudarMusica, iniciarSilbido, detenerSilbido, pararSRIntencional, flujoFoto, mostrarFoto, cerrarFoto,
     monitoreoActivo,
   } = refs;
@@ -638,6 +639,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         const nombre = med.split(/\s+/)[0];
         const textoRecordatorio = `${p.nombreAbuela}, es hora de tomar el ${nombre}.`;
         await AsyncStorage.setItem('medPendiente', JSON.stringify({ texto: textoRecordatorio, ts: Date.now() }));
+        iniciarVentanaProactiva();
         await hablar(textoRecordatorio);
         ultimaCharlaRef.current = Date.now();
         break;
@@ -665,7 +667,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
             system: `Sos ${p.nombreAsistente ?? 'Rosita'}, ${p.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${p.nombreAbuela}${p.edad ? ` (${p.edad} años)` : ''}. ${tonoSegunEdad(p.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y cálida, sin etiquetas.`,
             messages: [{ role: 'user', content: `Hoy es: ${fecha}. Generá un recordatorio cálido para ${p.nombreAbuela}.` }],
           });
-          if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
+          if (frase && estadoRef.current === 'esperando') { iniciarVentanaProactiva(); await hablar(frase); ultimaCharlaRef.current = Date.now(); }
         } catch (e) { logClaudeError('chequearFechas', e); }
         break;
       }
@@ -704,7 +706,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
           system: `Sos ${pActual.nombreAsistente ?? 'Rosita'}, ${pActual.vozGenero === 'masculina' ? 'un compañero virtual cálido' : 'una compañera virtual cálida'} para ${pActual.nombreAbuela}${pActual.edad ? ` (${pActual.edad} años)` : ''}. ${tonoSegunEdad(pActual.edad)} Usá el nombre de la persona con naturalidad. Respondé con una sola frase corta y emotiva, sin etiquetas.`,
           messages: [{ role: 'user', content: `Deseale un feliz cumpleaños a ${pActual.nombreAbuela} con mucho cariño.` }],
         });
-        if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
+        if (frase && estadoRef.current === 'esperando') { iniciarVentanaProactiva(); await hablar(frase); ultimaCharlaRef.current = Date.now(); }
       } catch (e) { logClaudeError('cumpleañosMatutino', e); }
     }
 
@@ -741,7 +743,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         } else {
           frase = await llamarClaude({ maxTokens: 120, system: systemBase, messages: [{ role: 'user', content: `Hoy es ${dia} ${fecha}. ${climaRef.current} Saludá a ${p.nombreAbuela} con buenos días, mencioná el día y el clima brevemente, con calidez y buen humor. Cerrá con una pregunta corta y cálida que invite a charlar, por ejemplo sobre cómo amaneció o qué tiene pensado hacer hoy.` }] });
         }
-        if (frase && estadoRef.current === 'esperando') { await hablar(frase); ultimaCharlaRef.current = Date.now(); }
+        if (frase && estadoRef.current === 'esperando') { iniciarVentanaProactiva(); await hablar(frase); ultimaCharlaRef.current = Date.now(); }
       } catch (e) { logClaudeError('saludoMatutino', e); }
     }
 
@@ -759,6 +761,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         await marcarRecordado(clave);
         await borrarRecordatorio(alarma.id);
         proximaAlarmaRef.current = 0;
+        iniciarVentanaProactiva();
         await hablar(alarma.texto);
         ultimaCharlaRef.current = Date.now();
         break;
@@ -791,6 +794,7 @@ export function useNotificaciones(refs: NotificacionesRefs, player: ReturnType<t
         await marcarRecordado(clave);
         borrarRecordatorio(r.id).catch(() => {}); // borra inmediatamente para evitar re-disparo si marcarRecordado falla
         const nombre = perfilRef.current?.nombreAbuela ?? '';
+        iniciarVentanaProactiva();
         if (r.esTimer) { await hablar(r.texto); } else { await hablar(`${nombre}, te recuerdo que hoy tenés que ${r.texto}.`); }
         ultimaCharlaRef.current = Date.now();
         break;

@@ -561,7 +561,8 @@ export default function Index() {
   const btnH = isTablet ? Math.round(64 * textScale) : Math.min(64, Math.floor((screenW - 100) / 5.125));
   const btnW = isTablet ? Math.round(Math.min(200 * faceScale, 380)) : Math.round(btnH * 3.125);
   // Display: escala proporcional a btnH; fonts derivados del alto del contenedor
-  const displayH = isTablet ? Math.round(120 * textScale) : Math.min(140, Math.round(btnH * 2.2));
+  const displayH = isTablet ? Math.round(130 * textScale) : Math.min(150, Math.round(btnH * 2.2) + 10);
+  const displayW = Math.round(screenW * 0.61) + 30;
   const displayFontInfo = Math.round(displayH * 0.34);   // hora / temperatura
   const displayFontReloj = Math.round(displayH * 0.62);   // reloj noche (pantalla completa)
   const icoBtn = Math.round(btnH * 0.46);
@@ -863,6 +864,8 @@ export default function Index() {
           <View style={styles.subtituloWrap} pointerEvents="none">
             <Animated.Text
               numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
               style={[styles.subtituloTexto, { opacity: subtituloOpacity }]}
             >
               {subtituloChunk}
@@ -950,7 +953,7 @@ export default function Index() {
                   const wakeScreenIdx = alertScreenIdx + (dotHasAlert ? 1 : 0);
                   return (
                     <View style={{
-                      width: '61%', height: '100%', borderRadius: 18, overflow: 'hidden',
+                      width: displayW, height: '100%', borderRadius: 18, overflow: 'hidden',
                       borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
                       backgroundColor: 'rgba(0,0,0,0.10)',
                     }}>
@@ -1340,7 +1343,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   subtituloTexto: {
-    color: '#ffffff', fontSize: fs(32), lineHeight: fs(42),
+    color: '#ffffff', fontSize: fs(32),
     textAlign: 'center', fontWeight: '600',
     textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
   },

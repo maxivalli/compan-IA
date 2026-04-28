@@ -6,18 +6,20 @@ const COOLDOWN_MS    =      60 * 1000; // 1 minuto entre detecciones
 const POLL_MS        =      15 * 1000; // revisar estado cada 15 s
 
 type Deps = {
-  ultimaActividadRef: React.MutableRefObject<number>;
-  estadoRef:          React.MutableRefObject<string>;
-  hablarRef:          React.MutableRefObject<((texto: string) => Promise<void>) | null>;
-  perfilRef:          React.MutableRefObject<Perfil | null>;
-  noMolestarRef:      React.MutableRefObject<boolean>;
-  musicaActivaRef:    React.MutableRefObject<boolean>;
+  ultimaActividadRef:           React.MutableRefObject<number>;
+  estadoRef:                    React.MutableRefObject<string>;
+  hablarRef:                    React.MutableRefObject<((texto: string) => Promise<void>) | null>;
+  iniciarVentanaProactivaRef:   React.MutableRefObject<(() => void) | null>;
+  perfilRef:                    React.MutableRefObject<Perfil | null>;
+  noMolestarRef:                React.MutableRefObject<boolean>;
+  musicaActivaRef:              React.MutableRefObject<boolean>;
 };
 
 export function useCamaraPresencia({
   ultimaActividadRef,
   estadoRef,
   hablarRef,
+  iniciarVentanaProactivaRef,
   perfilRef,
   noMolestarRef,
   musicaActivaRef,
@@ -84,8 +86,9 @@ export function useCamaraPresencia({
     ];
 
     const texto = frases[Math.floor(Math.random() * frases.length)];
+    iniciarVentanaProactivaRef.current?.();
     hablarRef.current?.(texto).catch(() => {});
-  }, [estadoRef, hablarRef, perfilRef, ultimaActividadRef, noMolestarRef, musicaActivaRef]);
+  }, [estadoRef, hablarRef, iniciarVentanaProactivaRef, perfilRef, ultimaActividadRef, noMolestarRef, musicaActivaRef]);
 
   return { modoWatching, onPresenciaDetectada };
 }

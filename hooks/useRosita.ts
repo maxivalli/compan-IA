@@ -274,13 +274,18 @@ export function useRosita() {
   pipeline.onMusicaStoppedRef.current = brain.limpiarTimersMusica;
 
   // ── Detección de presencia por cámara frontal ─────────────────────────────────
-  const hablarPresenciaRef = useRef<((texto: string) => Promise<void>) | null>(null);
-  useEffect(() => { hablarPresenciaRef.current = pipeline.hablar; });
+  const hablarPresenciaRef              = useRef<((texto: string) => Promise<void>) | null>(null);
+  const iniciarVentanaProactivaPresenciaRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    hablarPresenciaRef.current = pipeline.hablar;
+    iniciarVentanaProactivaPresenciaRef.current = pipeline.iniciarVentanaProactiva;
+  });
 
   const camaraPresencia = useCamaraPresencia({
     ultimaActividadRef,
     estadoRef,
     hablarRef: hablarPresenciaRef,
+    iniciarVentanaProactivaRef: iniciarVentanaProactivaPresenciaRef,
     perfilRef,
     noMolestarRef,
     musicaActivaRef,
@@ -680,7 +685,7 @@ export function useRosita() {
     if (alarmaProxima && alarmaProxima - Date.now() < 2 * 60 * 60 * 1000) return false;
     if (dentroDeHorario && minutosSinCharla >= MINUTOS_SIN_CHARLA) {
       ultimaCharlaRef.current = Date.now();
-      pipeline.despertarDG(); // reconecta WS si cerró por idle
+      pipeline.iniciarVentanaProactiva(); // reconecta DG y acorta idle timer a 30s
       brain.arrancarCharlaProactiva();
       return true;
     }
@@ -1159,6 +1164,7 @@ export function useRosita() {
       musicaActivaRef, bloquearReanudarMusicaRef: pipeline.bloquearReanudarMusicaRef,
       enFlujoVozRef: pipeline.enFlujoVozRef, proximaAlarmaRef,
       setEstado, hablar: pipeline.hablar, iniciarSpeechRecognition: pipeline.iniciarSpeechRecognition,
+      iniciarVentanaProactiva: pipeline.iniciarVentanaProactiva,
       pararSRIntencional: pipeline.pararSpeechRecognitionIntencional,
       suspenderSR: pipeline.suspenderSR,
       reanudarSR:  pipeline.reanudarSR,
