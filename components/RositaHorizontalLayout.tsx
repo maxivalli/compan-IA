@@ -99,6 +99,13 @@ export interface RositaHorizontalProps {
 
   // Recordatorios
   hayRecordatorios?: boolean;
+
+  // SOS
+  hayFamiliaTelegram?: boolean;
+
+  // Subtítulos
+  subtituloChunk?: string;
+  subtituloOpacity?: Animated.Value;
 }
 
 const RelojHorizontalFullscreen = memo(function RelojHorizontalFullscreen({
@@ -533,6 +540,26 @@ export default memo(function RositaHorizontalLayout(props: RositaHorizontalProps
           {/* ZZZ modo durmiendo — oculto en modo reloj para no tapar la hora */}
           {props.modoNoche === 'durmiendo' && !props.modoReloj && <ZZZ modoHorizontal />}
 
+          {/* Subtítulos — barra justo sobre la fila de botones inferiores */}
+          {!!props.subtituloChunk && (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.subtituloBar,
+                { bottom: safeBottom + 68, opacity: props.subtituloOpacity ?? 1 },
+              ]}
+            >
+              <Text
+                numberOfLines={2}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+                style={styles.subtituloTexto}
+              >
+                {props.subtituloChunk}
+              </Text>
+            </Animated.View>
+          )}
+
           {/* ── HUD mínimo ─────────────────────────────────────────────────── */}
 
           {/* Ciudad y temperatura: no se muestran en ningún layout */}
@@ -642,9 +669,9 @@ export default memo(function RositaHorizontalLayout(props: RositaHorizontalProps
 
             {/* Botón SOS */}
             <TouchableOpacity
-              onLongPress={props.acciones.triggerSOS}
+              onLongPress={props.hayFamiliaTelegram ? props.acciones.triggerSOS : undefined}
               delayLongPress={2000}
-              activeOpacity={0.85}
+              activeOpacity={props.hayFamiliaTelegram ? 0.85 : 1}
               style={{
                 width: 40, height: 40, borderRadius: 20,
                 overflow: 'hidden',
@@ -652,6 +679,7 @@ export default memo(function RositaHorizontalLayout(props: RositaHorizontalProps
                 alignItems: 'center', justifyContent: 'center',
                 shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
                 shadowOpacity: 0.18, shadowRadius: 6,
+                opacity: props.hayFamiliaTelegram === false ? 0.38 : 1,
               }}
             >
               <LinearGradient
@@ -860,5 +888,22 @@ const styles = StyleSheet.create({
     color: '#ffffffcc',
     fontSize: 12,
     fontWeight: '500',
+  },
+  subtituloBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    paddingVertical: 10,
+    paddingHorizontal: 32,
+    alignItems: 'center',
+  },
+  subtituloTexto: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '600',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
 });

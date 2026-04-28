@@ -696,6 +696,9 @@ export default function Index() {
           presenciaVista={presenciaVista}
           bleConectado={bleConectado}
           hayRecordatorios={hayRecordatorios}
+          hayFamiliaTelegram={(refs.perfilRef.current?.telegramContactos?.length ?? 0) > 0}
+          subtituloChunk={subtituloChunk}
+          subtituloOpacity={subtituloOpacity}
         />
         <PostItViewer
           visible={mostrarListas}
