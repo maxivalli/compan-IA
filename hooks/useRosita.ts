@@ -963,6 +963,8 @@ export function useRosita() {
     // que podría capturar el audio del TTS del SOS como input del usuario.
     pipeline.pararSpeechRecognitionIntencional();
 
+    setExpresion('preocupada');
+
     // SOS/caída no se registra como "triste" en el ánimo — tiene su propio contador
     // en el informe diario (alertasHoy). El ánimo "triste" queda reservado para cuando
     // el usuario menciona cosas que se categorizan emocionalmente como tristeza.
