@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Animated, BackHandler, DeviceEventEmitter, Dimensions, Platform, PermissionsAndroid } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -71,6 +71,8 @@ export function useRosita() {
   const [ciudadDetectada,   setCiudadDetectada]   = useState('');
   const [listas,            setListas]            = useState<Lista[]>([]);
   const [monitoreoActivo,   setMonitoreoActivo]   = useState(false);
+  const [subtituloTexto,    setSubtituloTexto]    = useState('');
+  const subtitulosActivosRef = useRef(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
   const estadoRef           = useRef(estado);
@@ -173,6 +175,7 @@ export function useRosita() {
     setEstado,
     setMusicaActiva,
     setNoMolestar,
+    onTextoHablado: (texto) => { if (subtitulosActivosRef.current) setSubtituloTexto(texto); },
     onPartialReconocido: (texto) => brainRef.current?.onPartialReconocido(texto),
     onTextoReconocido: (texto, turnId) => brainRef.current?.responderConClaude(texto, turnId) ?? Promise.resolve(),
     onFlujoFoto:              flujoFoto,
@@ -515,6 +518,7 @@ export function useRosita() {
     if (!perfil.nombreAbuela) return;
     perfilRef.current = perfil;
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
+    subtitulosActivosRef.current = perfil.subtitulosActivos ?? false;
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     pipeline.precachearRespuestasRapidas(perfil.nombreAbuela).catch(() => {});
     pipeline.precachearSistema().catch(() => {});
@@ -534,6 +538,7 @@ export function useRosita() {
     if (!perfil.nombreAbuela) return;
     perfilRef.current = perfil;
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
+    subtitulosActivosRef.current = perfil.subtitulosActivos ?? false;
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     // Si la bienvenida no fue dada aún (primer arranque post-onboarding),
     // activar completo: precacheo, SR y mensaje de bienvenida.
@@ -576,6 +581,7 @@ export function useRosita() {
     ultimaRadioRef.current = ultimaRadio;
     perfilRef.current    = perfilGuardado;
     setMonitoreoActivo(perfilGuardado.monitoreoActivo ?? false);
+    subtitulosActivosRef.current = perfilGuardado.subtitulosActivos ?? false;
     brain.historialRef.current = historialGuardado as Mensaje[];
     setListas(listasGuardadas);
     nombreAsistenteRef.current = (perfilGuardado.nombreAsistente ?? 'Rosita').toLowerCase();
@@ -685,22 +691,22 @@ export function useRosita() {
   function unduckMusica() { /* volumen fijo — duck desactivado */ }
 
   // ── Expresiones de ojos ─────────────────────────────────────────────────────
-  function onOjoPicado() {
+  const onOjoPicado = useCallback(function onOjoPicado() {
     if (ojoPicadoTimer.current) clearTimeout(ojoPicadoTimer.current);
     setExpresion('enojada');
     ojoPicadoTimer.current = setTimeout(() => setExpresion('neutral'), 3000);
     // Solo hablar si está en reposo: si Rosita está respondiendo, pisar el audio
     // a mitad de oración (hablar() pausa el player) sería confuso.
     if (estadoRef.current === 'esperando') pipeline.hablar('¡Ey, eso duele!');
-  }
+  }, []);
 
-  function onCaricia() {
+  const onCaricia = useCallback(function onCaricia() {
     if (ojoPicadoTimer.current) clearTimeout(ojoPicadoTimer.current);
     setExpresion('mimada');
     ojoPicadoTimer.current = setTimeout(() => setExpresion('neutral'), 3500);
-  }
+  }, []);
 
-  function onRelampago() {
+  const onRelampago = useCallback(function onRelampago() {
     flashAnim.stopAnimation();
     flashAnim.setValue(0);
     Animated.sequence([
@@ -715,7 +721,7 @@ export function useRosita() {
       setExpresion('sorprendida');
       expresionTimerRef.current = setTimeout(() => setExpresion('neutral'), 2500);
     }, 400);
-  }
+  }, []);
 
   function pedirCapturaFoto(acciones?: { beforeOpen?: () => void; afterClose?: () => void }) {
     // Cancelar captura anterior FUERA de la Promise para que el resolver previo
@@ -907,7 +913,7 @@ export function useRosita() {
     setCamaraFacing('front');
   }
 
-  function onFotoCapturada(base64: string) {
+  const onFotoCapturada = useCallback(function onFotoCapturada(base64: string) {
     if (modoVisionRef.current) {
       visionResolverRef.current?.(base64);
       visionResolverRef.current = null;
@@ -915,16 +921,16 @@ export function useRosita() {
       fotoResolverRef.current?.(base64);
       fotoResolverRef.current = null;
     }
-  }
+  }, []);
 
-  function onFotoCancelada() {
+  const onFotoCancelada = useCallback(function onFotoCancelada() {
     if (modoVisionRef.current) {
       cerrarModoVision();
     } else {
       fotoResolverRef.current?.(null);
       fotoResolverRef.current = null;
     }
-  }
+  }, []);
 
   // responderConClaude → delegado a brain.responderConClaude() vía pipeline.onTextoReconocido
 
@@ -1141,6 +1147,7 @@ export function useRosita() {
     modoWatchingPresencia: camaraPresencia.modoWatching,
     onPresenciaDetectada: camaraPresencia.onPresenciaDetectada,
     monitoreoActivo,
+    subtituloTexto,
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,

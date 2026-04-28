@@ -132,7 +132,7 @@ const EXPR: Record<Expresion, { pxL: number; pxR: number; py: number; upper: num
 const BOCA_W = 86;
 const BOCA_H = 14;
 
-function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion: Expresion; silbando: boolean }) {
+const Boca = memo(function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion: Expresion; silbando: boolean }) {
   const scaleY  = useRef(new Animated.Value(1)).current;    // 1 = BOCA_H
   const scaleX  = useRef(new Animated.Value(1)).current;    // 1 = BOCA_W
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -269,7 +269,7 @@ function Boca({ hablando, expresion, silbando }: { hablando: boolean; expresion:
       )}
     </Animated.View>
   );
-}
+});
 
 const sb = StyleSheet.create({
   boca: {
@@ -288,7 +288,7 @@ const CR_W = 100;
 const CR_H = 16;
 const N_DIENTES = 9;
 
-function Cremallera() {
+const Cremallera = memo(function Cremallera() {
   const scaleX  = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const tiraY   = useRef(new Animated.Value(0)).current;
@@ -344,7 +344,7 @@ function Cremallera() {
       </View>
     </Animated.View>
   );
-}
+});
 
 const sc = StyleSheet.create({
   wrap: {
@@ -683,7 +683,7 @@ const FACE_W = EYE_W * 2 + 32;
 const FACE_H = EYE_H + 120;
 const SLEEP_EYE_LIFT_PX = 5;
 
-export default function RosaOjos({
+export default memo(function RosaOjos({
   estado, expresion, modoNoche = 'despierta', bgColor = BG, silbando = false, noMolestar = false, onOjoPicado, scale = 1, amaneciendo = false, mouthOffsetY = 0, eyeGapExtra = 0, zipperOffsetY = 0, zipperScale = 1, eyeOffsetY = 0,
 }: {
   estado: Estado;
@@ -1102,7 +1102,7 @@ export default function RosaOjos({
       </View>
     </View>
   );
-}
+});
 
 const s = StyleSheet.create({
   wrap:       { alignItems: 'center', height: EYE_H + 120, zIndex: 1 },

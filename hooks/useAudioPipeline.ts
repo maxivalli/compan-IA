@@ -236,6 +236,7 @@ export interface AudioPipelineDeps {
   // Callbacks de useRosita / brain (funciones que quedan fuera del pipeline)
   onPartialReconocido?:     (texto: string) => void;        // opcional — para ejecución especulativa
   onTextoReconocido:        (texto: string, turnId: string) => Promise<void>;
+  onTextoHablado?:          (texto: string) => void;        // opcional — subtítulos en pantalla
   onFlujoFoto:              () => Promise<void>;
   onFlujoLeerImagen:        () => Promise<void>;
   onFlujoModoVision:        () => Promise<void>;
@@ -992,6 +993,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     if (bargeInTimerRef.current) clearTimeout(bargeInTimerRef.current);
 
     texto = limpiarTextoParaTTS(texto);
+    d.onTextoHablado?.(texto);
 
     try {
       // ── TTS — cache disco o stream Fish Audio ────────────────────────────
@@ -1162,6 +1164,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
     hablandoDesdeRef.current = 0;
     cancelarHablaRef.current = null;
     ultimoFinTTSRef.current = Date.now();
+    depsRef.current.onTextoHablado?.('');
     if (bargeInTimerRef.current) { clearTimeout(bargeInTimerRef.current); bargeInTimerRef.current = null; }
     // Idle timer: 60s sin actividad → cerrar DG, activar wake-word SR.
     // Guardia: si hay música activa no arrancar wake SR — compite por el foco de audio

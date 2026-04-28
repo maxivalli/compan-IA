@@ -9,7 +9,7 @@
  *   - Ícono 🔕 esquina → toggleDoNotDisturb
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import {
   Animated, LayoutAnimation, Modal, PanResponder, Platform,
   Pressable, StyleSheet, Text, TouchableOpacity, UIManager,
@@ -101,7 +101,7 @@ export interface RositaHorizontalProps {
   hayRecordatorios?: boolean;
 }
 
-function RelojHorizontalFullscreen({
+const RelojHorizontalFullscreen = memo(function RelojHorizontalFullscreen({
   climaObj,
   musicaActiva = false,
   ultimaRadio = null,
@@ -252,7 +252,7 @@ function RelojHorizontalFullscreen({
       </View>
     </>
   );
-}
+});
 // ── Pastilla de indicadores ───────────────────────────────────────────────────
 
 interface PastillaProps {
@@ -262,7 +262,7 @@ interface PastillaProps {
   bleConectado?: boolean; hayRecordatorios?: boolean;
 }
 
-function PastillaIndicadores(props: PastillaProps) {
+const PastillaIndicadores = memo(function PastillaIndicadores(props: PastillaProps) {
   useEffect(() => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, [props.hasListas, props.deteccionPresenciaActiva, props.hayRecordatorios]);
@@ -308,11 +308,11 @@ function PastillaIndicadores(props: PastillaProps) {
       )}
     </TouchableOpacity>
   );
-}
+});
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
+export default memo(function RositaHorizontalLayout(props: RositaHorizontalProps) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { bottom: safeBottom, top: safeTop, left: safeLeft, right: safeRight } = useSafeAreaInsets();
   const [faceBottomH, setFaceBottomH] = useState(0);
@@ -404,7 +404,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
           locations={props.degradadoCielo.length === 4 ? [0, 0.25, 0.55, 1] : [0, 0.4, 1]}
           style={{ flex: 1 }}
         >
-          {props.esFondoNoche && !props.cieloTapado && <CieloNoche bgColor={props.bgActual} />}
+          {props.esFondoNoche && !props.cieloTapado && <CieloNoche />}
           {props.esCumpleaños && <Globos />}
 
           <CameraAutoCaptura
@@ -674,7 +674,7 @@ export default function RositaHorizontalLayout(props: RositaHorizontalProps) {
       </Pressable>
     </>
   );
-}
+});
 
 // ── Estilos ───────────────────────────────────────────────────────────────────
 

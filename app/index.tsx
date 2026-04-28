@@ -111,6 +111,63 @@ function MarqueeText({ text, style }: { text: string; style?: object }) {
 // Bisel cromado retro — alto contraste, diagonal para simular curvatura del metal
 const CHROME_BEZEL = ['#e8e8e8', '#ffffff', '#cccccc', '#707070', '#b4b4b4', '#383838'] as const;
 
+// Divide un texto en chunks para subtítulos respetando pausas naturales del idioma.
+// Prioridad: 1) puntuación fuerte (≥5 palabras), 2) nexos/conjunciones (≥5 palabras),
+//            3) lookahead de 3 palabras buscando pausa cercana, 4) corte forzado.
+const CONJUNCIONES_SUB = new Set([
+  'y','e','pero','sino','aunque','porque','que','cuando','como',
+  'ni','o','u','con','para','por','si','pues','entonces','además',
+  'tampoco','donde','mientras','después','antes','hasta','desde',
+]);
+function subtituloEnChunks(texto: string, maxPalabras = 7): string[] {
+  const palabras = texto.trim().split(/\s+/);
+  if (palabras.length <= maxPalabras) return [texto.trim()];
+
+  const chunks: string[] = [];
+  let inicio = 0;
+
+  const flush = (hasta: number) => {
+    const chunk = palabras.slice(inicio, hasta).join(' ').trim();
+    if (chunk) chunks.push(chunk);
+    inicio = hasta;
+  };
+
+  // Devuelve true si la posición i es un buen punto de corte natural
+  const esCorteNatural = (i: number) =>
+    i > 0 && i < palabras.length && (
+      /[,;.!?]$/.test(palabras[i - 1]) ||
+      CONJUNCIONES_SUB.has(palabras[i].toLowerCase().replace(/^[¿¡]|[.,;:!?]+$/g, ''))
+    );
+
+  for (let i = 1; i < palabras.length; i++) {
+    const largo = i - inicio;
+    const pausaAnterior = /[,;.!?]$/.test(palabras[i - 1]);
+    const palabraActual = palabras[i].toLowerCase().replace(/^[¿¡]|[.,;:!?]+$/g, '');
+    const esNexo        = CONJUNCIONES_SUB.has(palabraActual);
+
+    if ((pausaAnterior || esNexo) && largo >= 5) {
+      // Corte natural con suficiente contenido previo
+      flush(i);
+    } else if (largo >= maxPalabras) {
+      // Llegamos al límite — buscar pausa en las próximas 3 palabras antes de forzar
+      let splitAt = i;
+      for (let j = 1; j <= 3 && i + j < palabras.length; j++) {
+        if (esCorteNatural(i + j)) { splitAt = i + j; break; }
+      }
+      flush(splitAt);
+      i = splitAt - 1; // el for hará i++ → arrancamos desde splitAt
+    }
+  }
+  flush(palabras.length);
+
+  // Si el último chunk quedó con ≤ 2 palabras, fusionarlo con el anterior
+  if (chunks.length >= 2 && chunks[chunks.length - 1].split(' ').length <= 2) {
+    chunks[chunks.length - 2] += ' ' + chunks.pop();
+  }
+
+  return chunks;
+}
+
 
 export default function Index() {
   const router = useRouter();
@@ -130,6 +187,7 @@ export default function Index() {
     listas, borrarListaVoz,
     detectandoSonido,
     monitoreoActivo,
+    subtituloTexto,
     ultimaRadioRef,
   } = useRosita();
 
@@ -213,15 +271,18 @@ export default function Index() {
   const amaneciendo = !esFondoNoche && modoNoche === 'durmiendo';
 
   // Degradados para el cielo
-  const degradadoCielo: readonly [string, string, string] | readonly [string, string, string, string] = esFondoNoche
-    ? ['#0F172A', '#1E1B4B', bgActual]
-    : esClimaOscuro
-      ? ['#94A3B8', '#64748B', bgActual]
-      : esAmanecer
-        ? ['#818CF8', '#D8B4FE', bgActual]
-        : esAtardecerBg
-          ? ['#1E3A5F', '#7C3AED', '#FB923C', bgActual]
-          : ['#38BDF8', '#93C5FD', bgActual];
+  const degradadoCielo = useMemo<readonly [string, string, string] | readonly [string, string, string, string]>(() =>
+    esFondoNoche
+      ? ['#0F172A', '#1E1B4B', bgActual]
+      : esClimaOscuro
+        ? ['#94A3B8', '#64748B', bgActual]
+        : esAmanecer
+          ? ['#818CF8', '#D8B4FE', bgActual]
+          : esAtardecerBg
+            ? ['#1E3A5F', '#7C3AED', '#FB923C', bgActual]
+            : ['#38BDF8', '#93C5FD', bgActual],
+    [esFondoNoche, esClimaOscuro, esAmanecer, esAtardecerBg, bgActual],
+  );
 
   const desc = climaObj?.descripcion?.toLowerCase() ?? '';
   const cieloTapado = /\bnublado\b/.test(desc) && !/parcial|algunas nubes/.test(desc)
@@ -237,6 +298,43 @@ export default function Index() {
   const [faceBottom, setFaceBottom] = useState(0); // Y bottom del ojoContenedor → posición del panel cuero
   const climaObjRef = useRef(climaObj);
   useEffect(() => { climaObjRef.current = climaObj; }, [climaObj]);
+
+  // ── Subtítulos ───────────────────────────────────────────────────────────────
+  const [subtituloChunk,   setSubtituloChunk]   = useState('');
+  const subtituloOpacity   = useRef(new Animated.Value(0)).current;
+  const subtituloAnim      = useRef<Animated.CompositeAnimation | null>(null);
+  const subtituloTimers    = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    subtituloTimers.current.forEach(clearTimeout);
+    subtituloTimers.current = [];
+    subtituloAnim.current?.stop();
+
+    if (!subtituloTexto) {
+      subtituloAnim.current = Animated.timing(subtituloOpacity, { toValue: 0, duration: 400, useNativeDriver: true });
+      subtituloAnim.current.start(() => setSubtituloChunk(''));
+      return;
+    }
+
+    const chunks = subtituloEnChunks(subtituloTexto);
+
+    setSubtituloChunk(chunks[0]);
+    subtituloAnim.current = Animated.timing(subtituloOpacity, { toValue: 1, duration: 200, useNativeDriver: true });
+    subtituloAnim.current.start();
+
+    // Cada chunk se muestra proporcionalmente a su largo (~75ms por caracter)
+    let acumuladoMs = 0;
+    chunks.slice(1).forEach((chunk, i) => {
+      acumuladoMs += chunks[i].length * 75;
+      const t = setTimeout(() => setSubtituloChunk(chunk), acumuladoMs);
+      subtituloTimers.current.push(t);
+    });
+
+    return () => {
+      subtituloTimers.current.forEach(clearTimeout);
+      subtituloTimers.current = [];
+    };
+  }, [subtituloTexto]);
 
   useEffect(() => {
     const id = setInterval(() => setHoraMinuto(fmtHoraMinuto()), 30_000);
@@ -527,6 +625,11 @@ export default function Index() {
   // ── BLE Beacon ────────────────────────────────────────────────────────────────
   useBLEBeacon({ acciones, conectadoRef: bleConectadoRef, onConexionChange: setBleConectado });
 
+  const onToggleModoReloj   = useCallback(() => setModoRelojHorizontal(prev => !prev), []);
+  const onOpenListas        = useCallback(() => setMostrarListas(true), []);
+  const onCloseListas       = useCallback(() => setMostrarListas(false), []);
+  const onClearFotoTelegram = useCallback(() => setFotoTelegram(null), []);
+  const onBorrarLista       = useCallback((nombre: string) => borrarListaVoz(nombre), [borrarListaVoz]);
 
   if (cargando && Platform.OS !== 'web') return <View style={{ flex: 1, backgroundColor: '#fff' }} />;
 
@@ -547,10 +650,10 @@ export default function Index() {
       <>
         <RositaHorizontalLayout
           modoReloj={modoRelojHorizontal}
-          onToggleModoReloj={() => setModoRelojHorizontal(prev => !prev)}
+          onToggleModoReloj={onToggleModoReloj}
           hasListas={listas.length > 0}
           listasCount={listas.length}
-          onOpenListas={() => setMostrarListas(true)}
+          onOpenListas={onOpenListas}
           estado={estado}
           expresion={expresion}
           modoNoche={modoNoche}
@@ -572,7 +675,7 @@ export default function Index() {
           onFotoCapturada={onFotoCapturada}
           onFotoCancelada={onFotoCancelada}
           fotoTelegram={fotoTelegram}
-          onClearFotoTelegram={() => setFotoTelegram(null)}
+          onClearFotoTelegram={onClearFotoTelegram}
           flashAnim={flashAnim}
           esCumpleaños={esCumpleaños}
           onTriggerCumpleaños={triggerCumpleaños}
@@ -590,8 +693,8 @@ export default function Index() {
         <PostItViewer
           visible={mostrarListas}
           listas={listas}
-          onBorrar={(nombre) => { borrarListaVoz(nombre); }}
-          onClose={() => setMostrarListas(false)}
+          onBorrar={onBorrarLista}
+          onClose={onCloseListas}
         />
         <CamaraPresenciaVisionOverlay activo={modoWatchingPresencia} onPresenciaDetectada={onPresenciaDetectadaConLed} />
       </>
@@ -650,7 +753,7 @@ export default function Index() {
             <Ionicons name="menu" size={Math.round(btnH * 0.42)} color="rgba(255,255,255,0.92)" />
           </TouchableOpacity>
 
-          {esFondoNoche && !cieloTapado && <CieloNoche bgColor={bgActual} />}
+          {esFondoNoche && !cieloTapado && <CieloNoche />}
           {esCumpleaños && <Globos />}
 
           <CameraAutoCaptura visible={mostrarCamara || modoVision} facing={camaraFacing} silencioso={camaraSilenciosa} modoVision={modoVision} capturaVisionRef={capturaVisionFnRef} onCaptura={onFotoCapturada} onCancelar={onFotoCancelada} />
@@ -756,6 +859,14 @@ export default function Index() {
           </View>
           {modoNoche === 'durmiendo' && <ZZZ />}
 
+          <View style={styles.subtituloWrap} pointerEvents="none">
+            <Animated.Text
+              numberOfLines={2}
+              style={[styles.subtituloTexto, { opacity: subtituloOpacity }]}
+            >
+              {subtituloChunk}
+            </Animated.Text>
+          </View>
 
           <View style={[
             styles.ecualizadorWrap,
@@ -1206,6 +1317,17 @@ export default function Index() {
 const styles = StyleSheet.create({
   contenedor: { flex: 1, alignItems: 'center', justifyContent: 'space-evenly' },
   updateId: { position: 'absolute', bottom: 6, right: 10, fontSize: 10, color: '#ffffffcc' },
+  subtituloWrap: {
+    height: fs(42) * 2,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    marginTop: 8,
+  },
+  subtituloTexto: {
+    color: '#ffffff', fontSize: fs(32), lineHeight: fs(42),
+    textAlign: 'center', fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
   ojoContenedor: { flexDirection: 'row', alignItems: 'flex-end', overflow: 'visible', marginTop: 120 },
   ecualizadorWrap: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', overflow: 'visible' },
   displayInlineWrap: {

@@ -13,7 +13,7 @@
  *   Long press 2s → SOS
  */
 
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { EstadoRosita } from './useBrain';
 
 export interface AccionesRositaDeps {
@@ -105,7 +105,10 @@ export function useAccionesRosita(deps: AccionesRositaDeps) {
     d.iniciarFlujoFoto();
   }, []);
 
-  return { toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb, pararMusica, onClickBeacon, onDobleClickBeacon };
+  return useMemo(
+    () => ({ toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb, pararMusica, onClickBeacon, onDobleClickBeacon }),
+    [toggleTalkOrStopMusic, triggerSOS, toggleDoNotDisturb, pararMusica, onClickBeacon, onDobleClickBeacon],
+  );
 }
 
 export type AccionesRosita = ReturnType<typeof useAccionesRosita>;

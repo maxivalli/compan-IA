@@ -1,11 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Animated, InteractionManager, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { esDispositivoGamaBaja } from '../lib/dispositivoUtils';
 import Svg, { Path, Circle } from 'react-native-svg';
 
 // ── Waveform SR — aparece en el botón cuando el micrófono detecta sonido ──────
 
-export function WaveformDetectando({
+export const WaveformDetectando = memo(function WaveformDetectando({
   barWidth = 5,
   barHeight = 26,
   gap = 4,
@@ -51,11 +51,11 @@ export function WaveformDetectando({
       ))}
     </View>
   );
-}
+});
 
 // ── Ecualizador de música ─────────────────────────────────────────────────────
 
-export function AnimacionMusica({
+export const AnimacionMusica = memo(function AnimacionMusica({
   barWidth = 4,
   barHeight = 28,
   gap = 3,
@@ -96,11 +96,11 @@ export function AnimacionMusica({
       ))}
     </View>
   );
-}
+});
 
 // ── ZZZs de modo durmiendo ────────────────────────────────────────────────────
 
-export function ZZZ({ modoHorizontal = false }: { modoHorizontal?: boolean } = {}) {
+export const ZZZ = memo(function ZZZ({ modoHorizontal = false }: { modoHorizontal?: boolean } = {}) {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const esHorizontal = modoHorizontal || screenW > screenH;
   const esTablet = Math.max(screenW, screenH) >= 900;
@@ -167,7 +167,7 @@ export function ZZZ({ modoHorizontal = false }: { modoHorizontal?: boolean } = {
       ))}
     </View>
   );
-}
+});
 
 // ── Cielo nocturno ────────────────────────────────────────────────────────────
 
@@ -186,7 +186,7 @@ const ESTRELLAS_NOCHE = [
   { x: 346, y: 118, r: 6, i: 11 },
 ];
 
-function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }) {
+const Estrella = memo(function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }) {
   const opacity = useRef(new Animated.Value(0.3 + (i % 3) * 0.2)).current;
   useEffect(() => {
     let anim: Animated.CompositeAnimation | null = null;
@@ -208,7 +208,7 @@ function Estrella({ x, y, r, i }: { x: number; y: number; r: number; i: number }
       backgroundColor: '#D4C5A9', opacity,
     }} />
   );
-}
+});
 
 // ── Cálculo de fase lunar ─────────────────────────────────────────────────────
 // Devuelve un valor de 0 a 1 representando la fase del ciclo lunar.
@@ -231,7 +231,7 @@ function lunaPath(R: number, fase: number): string {
 
   // 1. Luna Nueva: no dibujamos nada extra
   if (fase < 0.02 || fase > 0.98) return "";
-  
+
   // 2. Luna Llena: fix de SVG con dos semicírculos
   if (fase > 0.48 && fase < 0.52) {
     return `M ${cx} ${cy - R} A ${R} ${R} 0 0 1 ${cx} ${cy + R} A ${R} ${R} 0 0 1 ${cx} ${cy - R} Z`;
@@ -243,8 +243,8 @@ function lunaPath(R: number, fase: number): string {
 
   // 3. Lógica para el Hemisferio Sur:
   // Creciente ilumina desde la izquierda (C), Menguante desde la derecha (D)
-  const ladoIzquierdo = creciente; 
-  
+  const ladoIzquierdo = creciente;
+
   // sweep_semi: 0 dibuja el borde izquierdo, 1 dibuja el derecho
   const sweep_semi = ladoIzquierdo ? 0 : 1;
 
@@ -265,9 +265,8 @@ function lunaPath(R: number, fase: number): string {
 
 // ── Luna con fase real ────────────────────────────────────────────────────────
 
-function LunaFase({ size, bgColor, floatY, lunaOp }: {
+const LunaFase = memo(function LunaFase({ size, floatY, lunaOp }: {
   size: number;
-  bgColor: string;
   floatY: Animated.Value;
   lunaOp: Animated.Value;
 }) {
@@ -318,9 +317,9 @@ function LunaFase({ size, bgColor, floatY, lunaOp }: {
       </Svg>
     </Animated.View>
   );
-}
+});
 
-export function CieloNoche({ bgColor }: { bgColor: string }) {
+export const CieloNoche = memo(function CieloNoche() {
   const { width: screenW } = useWindowDimensions();
   const scaleX   = screenW / 390;
   const skyScale = Math.min(scaleX, 1.8);
@@ -356,13 +355,12 @@ export function CieloNoche({ bgColor }: { bgColor: string }) {
       ))}
       <LunaFase
         size={lunaSize}
-        bgColor={bgColor}
         floatY={floatY}
         lunaOp={lunaOp}
       />
     </View>
   );
-}
+});
 
 // ── Estilos ───────────────────────────────────────────────────────────────────
 

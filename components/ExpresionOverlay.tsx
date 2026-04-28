@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { Expresion, ModoNoche } from './RosaOjos';
 import {
@@ -35,7 +35,7 @@ const ACCESORIO_GLOBAL: 'bonete' | 'gorro' | null = (() => {
   return null;
 })();
 
-export default function ExpresionOverlay({
+export default memo(function ExpresionOverlay({
   expresion, musicaActiva, temperatura, condicion,
   modoNoche, capa = 'frente', silbando = false, onRelampago, modoHorizontal = false,
   esFondoNoche = false,
@@ -48,15 +48,20 @@ export default function ExpresionOverlay({
   const faceScale = propFaceScale ?? (screenW >= 600 ? Math.min(screenW / 390, 1.7) : 1);
   const esHorizontalPantalla = modoHorizontal || screenW > screenH;
 
-  const esLluvia  = !!condicion?.toLowerCase().match(/lluvia|lloviendo|llovizna|chaparrón|tormenta/);
+  const clima = useMemo(() => {
+    const c = condicion?.toLowerCase() ?? '';
+    const esLluvia  = !!c.match(/lluvia|lloviendo|llovizna|chaparrón|tormenta/);
+    const esTormenta= !!c.match(/tormenta/);
+    const esNieve   = !!c.match(/nieve|nevad|granizo/) || (temperatura !== undefined && temperatura <= 1);
+    const esViento  = !!c.match(/viento|ventoso|ráfaga|rafaga/);
+    const esCalor   = !esLluvia && !esNieve && (temperatura !== undefined && temperatura > 35);
+    const esParcial = !!c.match(/parcialmente/);
+    const esNublado = !!c.match(/nublado|nuboso|cubierto|parcial|algunas nubes/);
+    const esSoleado = !!c.match(/soleado|despejado|sol con|cielo claro/);
+    return { esLluvia, esTormenta, esNieve, esViento, esCalor, esParcial, esNublado, esSoleado };
+  }, [condicion, temperatura]);
 
-  const esTormenta= !!condicion?.toLowerCase().match(/tormenta/);
-  const esNieve   = !!condicion?.toLowerCase().match(/nieve|nevad|granizo/) || (temperatura !== undefined && temperatura <= 1);
-  const esViento  = !!condicion?.toLowerCase().match(/viento|ventoso|ráfaga|rafaga/);
-  const esCalor   = !esLluvia && !esNieve && (temperatura !== undefined && temperatura > 35);
-  const esParcial = !!condicion?.toLowerCase().match(/parcialmente/);
-  const esNublado  = !!condicion?.toLowerCase().match(/nublado|nuboso|cubierto|parcial|algunas nubes/);
-  const esSoleado  = !!condicion?.toLowerCase().match(/soleado|despejado|sol con|cielo claro/);
+  const { esLluvia, esTormenta, esNieve, esViento, esCalor, esParcial, esNublado, esSoleado } = clima;
 
   // Accesorio: cumpleaños tiene prioridad sobre Navidad
   const accesorio: 'bonete' | 'gorro' | null = esCumpleaños ? 'bonete' : ACCESORIO_GLOBAL;
@@ -125,7 +130,7 @@ style={{ width: 320, height: 409, transform: [{ scale: faceScale }], overflow: '
       </View>
     </View>
   );
-}
+});
 
 const s = StyleSheet.create({
   overlay: {

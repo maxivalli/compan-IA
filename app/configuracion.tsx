@@ -256,6 +256,7 @@ export default function Configuracion() {
   const [horaFinNoche,    setHoraFinNoche]    = useState(9);
   const [deteccionPresencia, setDeteccionPresencia] = useState(false);
   const [monitoreoActivo, setMonitoreoActivo] = useState(false);
+  const [subtitulosActivos, setSubtitulosActivos] = useState(false);
   /** Tras Guardar con monitoreo: confirmación o error del servidor (antes solo se mostraba el error). */
   const [monitoreoHeartbeatFeedback, setMonitoreoHeartbeatFeedback] = useState<
     null | { tipo: 'ok' | 'error'; texto: string }
@@ -356,6 +357,7 @@ export default function Configuracion() {
       setHoraFinNoche(p.horaFinNoche ?? 9);
       setDeteccionPresencia(p.deteccionPresenciaActiva ?? false);
       setMonitoreoActivo(p.monitoreoActivo ?? false);
+      setSubtitulosActivos(p.subtitulosActivos ?? false);
 
       // ── Sincronizar contactos con el backend ──────────────────────────────
       // Si alguien hizo /desvincular desde Telegram, ya no está en la DB pero
@@ -523,6 +525,7 @@ export default function Configuracion() {
       deteccionPresenciaActiva: deteccionPresencia,
       condicionFisica: condicionFisica.trim() || undefined,
       monitoreoActivo,
+      subtitulosActivos,
     });
 
     setMonitoreoHeartbeatFeedback(null);
@@ -844,6 +847,21 @@ export default function Configuracion() {
         >
         <SectionLabel icon="eye-outline" label="Funciones avanzadas" />
         <Surface>
+          <View style={s.switchRow}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={s.switchLabel}>Subtítulos</Text>
+              <Text style={s.switchHint}>
+                Muestra en pantalla el texto que dice Rosita mientras habla.
+              </Text>
+            </View>
+            <Switch
+              value={subtitulosActivos}
+              onValueChange={setSubtitulosActivos}
+              trackColor={{ false: M.outlineVariant, true: M.primary }}
+              thumbColor={subtitulosActivos ? '#ffffff' : '#f4f4f4'}
+            />
+          </View>
+          <View style={s.divisorThin} />
           <View style={s.switchRow}>
             <View style={{ flex: 1, gap: 2 }}>
               <Text style={s.switchLabel}>Detección de presencia</Text>
