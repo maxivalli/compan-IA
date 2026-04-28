@@ -260,9 +260,14 @@ export default function Index() {
 
   // ── Cálculo del fondo y Degradados ──────────────────────────────────────────
   const hora = horaActual;
-  const esAtardecerBg = hora >= 17 && hora < 20;
-  const esAmanecer    = hora >= 5 && hora < 8;
-  const esFondoNoche  = hora >= 20 || hora < 5;
+  // Umbrales de cielo según estación (hemisferio sur)
+  const mes = new Date().getMonth() + 1; // 1–12
+  const hAmanecer   = (mes >= 12 || mes <= 2) ? 5 : (mes <= 5 || mes >= 9) ? 6 : 7;
+  const hAtardecer  = (mes >= 12 || mes <= 2) ? 19 : (mes <= 5 || mes >= 9) ? 18 : 17;
+  const hNoche      = (mes >= 12 || mes <= 2) ? 21 : 20;
+  const esAtardecerBg = hora >= hAtardecer && hora < hNoche;
+  const esAmanecer    = hora >= hAmanecer   && hora < hAmanecer + 3;
+  const esFondoNoche  = hora >= hNoche      || hora < hAmanecer;
   const esBotonesNoche = esFondoNoche;
   const esClimaOscuro = !!climaObj?.descripcion?.toLowerCase().match(/lluvia|lloviendo|llovizna|tormenta|granizo|chaparrón|nevada/);
 
