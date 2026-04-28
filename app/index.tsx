@@ -316,7 +316,7 @@ export default function Index() {
       return;
     }
 
-    const chunks = subtituloEnChunks(subtituloTexto);
+    const chunks = subtituloEnChunks(subtituloTexto, 6);
 
     setSubtituloChunk(chunks[0]);
     subtituloAnim.current = Animated.timing(subtituloOpacity, { toValue: 1, duration: 200, useNativeDriver: true });

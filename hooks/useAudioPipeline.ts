@@ -59,6 +59,14 @@ const TECLEO_ASSET = require('../assets/audio/tecleo.mp3');
 
 // ── Muletillas (frases puente mientras Claude genera) ─────────────────────────
 export type TipoMuletilla = 'mm' | 'ver' | 'aver' | 'bueno' | 'espera';
+
+const MULETILLA_TEXTO: Record<TipoMuletilla, string> = {
+  mm:     'Mmmm...',
+  ver:    'Déjame ver...',
+  aver:   'A ver...',
+  bueno:  'Bueno...',
+  espera: 'Esperame un momentito...',
+};
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const MULETILLA_ASSETS_MAP: Record<string, Record<TipoMuletilla, number>> = {
   [VOICE_ID_FEMENINA]: {
@@ -832,6 +840,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
   // Retorna una Promise que resuelve al terminar el clip — hablar() la awaita.
   function reproducirMuletilla(tipo: TipoMuletilla): Promise<void> {
     safeStopSpeechRecognition();
+    depsRef.current.onTextoHablado?.(MULETILLA_TEXTO[tipo]);
     const promise = (async () => {
       if (depsRef.current.musicaActivaRef.current) return;
       try {
@@ -855,6 +864,7 @@ export function useAudioPipeline(deps: AudioPipelineDeps) {
         try {
           if (!depsRef.current.musicaActivaRef.current) playerEfectos.pause();
         } catch {}
+        depsRef.current.onTextoHablado?.('');
       }
     })();
     muletillaPromiseRef.current = promise;
