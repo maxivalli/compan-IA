@@ -72,6 +72,7 @@ export function useRosita() {
   const [listas,            setListas]            = useState<Lista[]>([]);
   const [monitoreoActivo,   setMonitoreoActivo]   = useState(false);
   const [subtituloTexto,    setSubtituloTexto]    = useState('');
+  const [subtitulosActivos, setSubtitulosActivos] = useState(false);
   const subtitulosActivosRef = useRef(false);
 
   // ── Refs ────────────────────────────────────────────────────────────────────
@@ -519,6 +520,7 @@ export function useRosita() {
     perfilRef.current = perfil;
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     subtitulosActivosRef.current = perfil.subtitulosActivos ?? false;
+    setSubtitulosActivos(perfil.subtitulosActivos ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     pipeline.precachearRespuestasRapidas(perfil.nombreAbuela).catch(() => {});
     pipeline.precachearSistema().catch(() => {});
@@ -539,6 +541,7 @@ export function useRosita() {
     perfilRef.current = perfil;
     setMonitoreoActivo(perfil.monitoreoActivo ?? false);
     subtitulosActivosRef.current = perfil.subtitulosActivos ?? false;
+    setSubtitulosActivos(perfil.subtitulosActivos ?? false);
     nombreAsistenteRef.current = (perfil.nombreAsistente ?? 'Rosita').toLowerCase();
     // Si la bienvenida no fue dada aún (primer arranque post-onboarding),
     // activar completo: precacheo, SR y mensaje de bienvenida.
@@ -1148,6 +1151,7 @@ export function useRosita() {
     onPresenciaDetectada: camaraPresencia.onPresenciaDetectada,
     monitoreoActivo,
     subtituloTexto,
+    subtitulosActivos,
     refs: {
       perfilRef, estadoRef, noMolestarRef, modoNocheRef,
       ultimaActividadRef, ultimaCharlaRef, alertaInactividadRef,

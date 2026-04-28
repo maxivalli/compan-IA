@@ -188,6 +188,7 @@ export default function Index() {
     detectandoSonido,
     monitoreoActivo,
     subtituloTexto,
+    subtitulosActivos,
     ultimaRadioRef,
   } = useRosita();
 
@@ -1027,7 +1028,7 @@ export default function Index() {
                         {/* Indicador recordatorios — amarillo cuando hay timers/recordatorios */}
                         {hayRecordatorios && (
                           <View style={{
-                            position: 'absolute', top: 7, right: 60,
+                            position: 'absolute', top: 7, right: 86,
                             width: 20, height: 20, borderRadius: 10,
                             backgroundColor: 'rgba(0,0,0,0.22)',
                             alignItems: 'center', justifyContent: 'center',
@@ -1035,6 +1036,21 @@ export default function Index() {
                             <Ionicons name="alarm" size={11} color="#facc15" />
                           </View>
                         )}
+
+                        {/* Indicador subtítulos */}
+                        <View style={{
+                          position: 'absolute', top: 7, right: 60,
+                          width: 20, height: 20, borderRadius: 10,
+                          backgroundColor: 'rgba(0,0,0,0.22)',
+                          alignItems: 'center', justifyContent: 'center',
+                          opacity: subtitulosActivos ? 1 : 0.3,
+                        }}>
+                          <Ionicons
+                            name="text"
+                            size={11}
+                            color={subtitulosActivos ? '#a78bfa' : 'rgba(255,255,255,0.35)'}
+                          />
+                        </View>
 
                         {/* Indicador BLE — a la izquierda del indicador de presencia */}
                         <View style={{
