@@ -926,7 +926,7 @@ export function useBrain(deps: BrainDeps) {
     if (session !== musicaSessionRef.current) return;
     if (urlStream) {
       try {
-        d.playerMusica.replace({ uri: urlStream });
+        d.playerMusica.replace({ uri: urlStream, titulo: nombreRadioOGenero(generoMusica) });
         d.playerMusica.volume = 0.45;
         d.playerMusica.play();
         d.musicaActivaRef.current = true;
@@ -1017,7 +1017,7 @@ export function useBrain(deps: BrainDeps) {
           if (altUrl) {
             try {
               if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;
-              d.playerMusica.replace({ uri: altUrl });
+              d.playerMusica.replace({ uri: altUrl, titulo: nombreRadioOGenero(generoMusica) });
               d.playerMusica.play();
               setTimeout(async () => {
                 if (session !== musicaSessionRef.current || !d.musicaActivaRef.current) return;

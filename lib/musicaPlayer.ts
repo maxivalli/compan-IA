@@ -90,7 +90,8 @@ export const musicaPlayer = {
 
   /** Carga un stream de radio o archivo de audio. Llamar play() después. */
   replace(source: object | null): void {
-    const streamUri = source ? (source as { uri?: string }).uri ?? null : null;
+    const src       = source as { uri?: string; titulo?: string } | null;
+    const streamUri = src?.uri ?? null;
     if (!streamUri) {
       _playing     = false;
       _currentTime = 0;
@@ -100,6 +101,7 @@ export const musicaPlayer = {
     }
     // Streams en vivo: radios y HLS sin extensión de archivo estática.
     const isLive = !streamUri.match(/\.(mp3|aac|m4a|ogg|flac|wav|opus)(\?|$)/i);
+    const titulo = src?.titulo ?? (isLive ? 'Radio' : 'Audio');
     _currentTime  = 0;
     _pausedByUser = false;
     enqueue(async () => {
@@ -108,7 +110,7 @@ export const musicaPlayer = {
       await TrackPlayer.add({
         url:          streamUri,
         type:         streamUri.endsWith('.m3u8') ? TrackType.HLS : TrackType.Default,
-        title:        isLive ? 'Radio' : 'Audio',
+        title:        titulo,
         artist:       'CompañIA',
         artwork:      APP_ICON,
         isLiveStream: isLive,
