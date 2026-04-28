@@ -279,7 +279,7 @@ function UnaNota({ x, delay, size, nota, horizontal }: typeof NOTAS[0] & { horiz
   const scale   = useRef(new Animated.Value(0.6)).current;
   // En horizontal el Face View está escalado 1.7x desde su centro, por lo que top:-20
   // queda fuera de pantalla. Usamos top:130 + travelY corto para mantenernos visibles.
-  const baseTop   = horizontal ? 130 : -20;
+  const baseTop   = horizontal ? 130 : 40;
   const travelY   = horizontal ? -20 : -70;
 
   useEffect(() => {
