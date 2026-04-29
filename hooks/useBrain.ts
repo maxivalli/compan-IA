@@ -559,7 +559,7 @@ export function useBrain(deps: BrainDeps) {
     if (palabras.length >= 8 && lastUsedSystemRef.current && !especulativoClaudeRef.current) {
       const cancelRef = { current: null as (() => void) | null };
       const specMessages: Mensaje[] = [
-        ...historialRef.current.slice(-20),
+        ...historialRef.current.slice(-10),
         { role: 'user', content: textoParcial },
       ];
       const specPromise = llamarClaudeConStreaming({
@@ -631,6 +631,7 @@ export function useBrain(deps: BrainDeps) {
     incluirJuego: boolean,
     extra = '',
     incluirChiste = false,
+    omitirMemoria = false,
   ) {
     const d = depsRef.current;
     return buildRositaSystemPayload({
@@ -640,7 +641,7 @@ export function useBrain(deps: BrainDeps) {
       extraTemporal: extra,
       ciudad: d.ciudadRef.current,
       coords: d.coordRef.current,
-      memoriaEpisodica: episodicaCacheRef.current?.text ?? '',
+      memoriaEpisodica: omitirMemoria ? '' : (episodicaCacheRef.current?.text ?? ''),
       seguimientos: construirTextoSeguimientos(seguimientosRef.current),
     });
   }
@@ -1555,7 +1556,10 @@ export function useBrain(deps: BrainDeps) {
           : pideAccion
             ? 120
             : 150;
-    const histSlice   = esCharlaSocialBreve(textoNorm) ? -6 : -20;
+    const esConsultaCompleja = pideNoticias || pideBusqueda || pideWikipedia
+      || seguimientosRef.current.length > 0
+      || /\b(eso que|lo (de|que) (dijiste|decías|contaste|hablamos)|como te (dije|contaba|decía)|lo (mismo|de antes)|como (dijiste|hablamos|charlamos))\b/i.test(textoNorm);
+    const histSlice = esCharlaSocialBreve(textoNorm) ? -6 : esConsultaCompleja ? -16 : -10;
     const msgSliceBase = nuevoHistorial.slice(histSlice);
 
     try {
@@ -1648,7 +1652,7 @@ export function useBrain(deps: BrainDeps) {
             })()
           : '';
         const extraBase = `${d.ultimaRadioRef.current ? `\nÚltima radio: "${d.ultimaRadioRef.current}".` : ''}${contextoMemoria.texto}${contextoInterlocutor}${contenidoCurado}`;
-        const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste);
+        const systemPreview: RositaSystemPayload = getSystemPayload(p, d.climaRef.current, pideJuego, extraBase, pideChiste, esConsultaLiviana);
         lastUsedSystemRef.current = systemPreview;
         const tPreClaude = Date.now();
         logCliente('rc_stage_prompt_ready', {
