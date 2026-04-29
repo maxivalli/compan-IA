@@ -549,13 +549,18 @@ export default memo(function RositaHorizontalLayout(props: RositaHorizontalProps
           {/* ZZZ modo durmiendo — oculto en modo reloj para no tapar la hora */}
           {props.modoNoche === 'durmiendo' && !props.modoReloj && <ZZZ modoHorizontal />}
 
-          {/* Subtítulos — barra justo sobre la fila de botones inferiores */}
+          {/* Subtítulos — alineados con la fila de botones, en el espacio central */}
           {!!props.subtituloChunk && (
             <Animated.View
               pointerEvents="none"
               style={[
                 styles.subtituloBar,
-                { bottom: safeBottom + 68, opacity: props.subtituloOpacity ?? 1 },
+                {
+                  bottom: safeBottom + 14,
+                  left: safeLeft + 64,
+                  right: safeRight + 180,
+                  opacity: props.subtituloOpacity ?? 1,
+                },
               ]}
             >
               <Text
@@ -901,11 +906,10 @@ const styles = StyleSheet.create({
   },
   subtituloBar: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    paddingVertical: 10,
-    paddingHorizontal: 32,
+    height: 40,
+    paddingHorizontal: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   subtituloTexto: {
     color: '#ffffff',
